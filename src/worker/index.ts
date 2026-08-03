@@ -1,16 +1,16 @@
 import { zValidator } from "@hono/zod-validator";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
-import { getActor, isLocal, newId, normalizeTitle, now, type AppEnv } from "./env";
+import { createCodeVerifier, createSessionId, createState, getActor, isLocal, newId, normalizeTitle, now, sessionCookie, sha256Base64Url, type AppEnv } from "./env";
 import { getFranchiseMovies, getMovie, getNowShowing, getRemainingFranchiseMovies, movieSelect, type MovieRow } from "./db";
 
 const app = new Hono<AppEnv>();
 app.use("/api/*", cors({ origin: "*" }));
 
-const mutationActor = (env: AppEnv["Bindings"]) => {
-  const actor = getActor(env);
-  if (!actor && !isLocal(env)) {
+const mutationActor = async (c: Context<AppEnv>) => {
+  const actor = await getActor(c.env, c.req.raw);
+  if (!actor && !isLocal(c.env)) {
     return null;
   }
   return actor;
@@ -52,6 +52,80 @@ const orderInput = z.object({ movieIds: z.array(z.string().uuid()).min(1) });
 
 app.get("/api/health", (c) => c.json({ ok: true, environment: c.env.APP_ENV ?? "development" }));
 
+app.get("/api/auth/me", async (c) => {
+  const actor = await getActor(c.env, c.req.raw);
+  return c.json({ authenticated: Boolean(actor), actor: actor ? { email: actor.email, displayName: actor.displayName } : null, local: isLocal(c.env) });
+});
+
+app.get("/api/auth/google", async (c) => {
+  if (isLocal(c.env)) return c.redirect("/");
+  if (!c.env.GOOGLE_CLIENT_ID || !c.env.GOOGLE_REDIRECT_URI) return c.text("Google OAuth is not configured", 503);
+  const state = createState();
+  const verifier = createCodeVerifier();
+  const challenge = await sha256Base64Url(verifier);
+  const createdAt = now();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  await c.env.DB.prepare(
+    "INSERT INTO oauth_states (state, code_verifier, created_at, expires_at) VALUES (?, ?, ?, ?)",
+  ).bind(state, verifier, createdAt, expiresAt).run();
+  const params = new URLSearchParams({
+    client_id: c.env.GOOGLE_CLIENT_ID,
+    redirect_uri: c.env.GOOGLE_REDIRECT_URI,
+    response_type: "code",
+    scope: "openid email profile",
+    state,
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+    access_type: "online",
+    prompt: "select_account",
+  });
+  return c.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+});
+
+app.get("/api/auth/google/callback", async (c) => {
+  if (isLocal(c.env)) return c.redirect("/");
+  const code = c.req.query("code");
+  const state = c.req.query("state");
+  if (!code || !state || !c.env.GOOGLE_CLIENT_ID || !c.env.GOOGLE_CLIENT_SECRET || !c.env.GOOGLE_REDIRECT_URI) return c.text("Invalid OAuth callback", 400);
+  const oauthState = await c.env.DB.prepare("SELECT * FROM oauth_states WHERE state = ?").bind(state).first<{ state: string; code_verifier: string; expires_at: string }>();
+  await c.env.DB.prepare("DELETE FROM oauth_states WHERE state = ?").bind(state).run();
+  if (!oauthState || oauthState.expires_at <= now()) return c.text("OAuth state expired", 400);
+
+  const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ code, client_id: c.env.GOOGLE_CLIENT_ID, client_secret: c.env.GOOGLE_CLIENT_SECRET, redirect_uri: c.env.GOOGLE_REDIRECT_URI, grant_type: "authorization_code", code_verifier: oauthState.code_verifier }),
+  });
+  if (!tokenResponse.ok) return c.text("Google token exchange failed", 502);
+  const tokens = await tokenResponse.json() as { access_token?: string };
+  if (!tokens.access_token) return c.text("Google token exchange returned no access token", 502);
+  const profileResponse = await fetch("https://openidconnect.googleapis.com/v1/userinfo", { headers: { Authorization: `Bearer ${tokens.access_token}` } });
+  if (!profileResponse.ok) return c.text("Google profile lookup failed", 502);
+  const profile = await profileResponse.json() as { email?: string; email_verified?: boolean; name?: string };
+  const email = profile.email?.toLowerCase();
+  const allowedEmails = new Set((c.env.ALLOWED_EMAILS ?? "").split(",").map((value) => value.trim().toLowerCase()).filter(Boolean));
+  if (!email || !profile.email_verified || !allowedEmails.has(email)) return c.text("This account is not on the invite list", 403);
+
+  const timestamp = now();
+  await c.env.DB.prepare(
+    `INSERT INTO users (id, email, display_name, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(email) DO UPDATE SET display_name = excluded.display_name, last_seen_at = excluded.last_seen_at`,
+  ).bind(newId(), email, profile.name ?? email, timestamp, timestamp).run();
+  const user = await c.env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(email).first<{ id: string }>();
+  if (!user) return c.text("Unable to create user session", 500);
+  const sessionId = createSessionId();
+  await c.env.DB.prepare("INSERT INTO auth_sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)").bind(sessionId, user.id, timestamp, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()).run();
+  c.header("Set-Cookie", sessionCookie(sessionId, true));
+  return c.redirect("/");
+});
+
+app.post("/api/auth/logout", async (c) => {
+  const sessionId = c.req.raw.headers.get("Cookie")?.split(";").map((cookie) => cookie.trim()).find((cookie) => cookie.startsWith("movie_list_session="))?.split("=")[1];
+  if (sessionId) await c.env.DB.prepare("DELETE FROM auth_sessions WHERE id = ?").bind(sessionId).run();
+  c.header("Set-Cookie", sessionCookie("", !isLocal(c.env), 0));
+  return c.json({ ok: true });
+});
+
 app.get("/api/movies", async (c) => {
   const status = c.req.query("status") ?? "all";
   const query = status === "unwatched" ? `${movieSelect} WHERE movies.rating_score IS NULL` : status === "watched" ? `${movieSelect} WHERE movies.rating_score IS NOT NULL` : movieSelect;
@@ -86,7 +160,7 @@ app.get("/api/now-showing", async (c) => {
 });
 
 app.post("/api/movies", zValidator("json", movieInput), async (c) => {
-  const actor = mutationActor(c.env);
+  const actor = await mutationActor(c);
   if (!actor) return c.json({ error: "Authentication required" }, 401);
   const input = c.req.valid("json");
   const id = newId();
@@ -121,7 +195,7 @@ app.post("/api/movies", zValidator("json", movieInput), async (c) => {
 });
 
 app.patch("/api/movies/:id", zValidator("json", movieEditInput), async (c) => {
-  const actor = mutationActor(c.env);
+  const actor = await mutationActor(c);
   if (!actor) return c.json({ error: "Authentication required" }, 401);
   const movieId = c.req.param("id");
   const input = c.req.valid("json");
@@ -138,7 +212,7 @@ app.patch("/api/movies/:id", zValidator("json", movieEditInput), async (c) => {
 });
 
 app.post("/api/roll", async (c) => {
-  const actor = mutationActor(c.env);
+  const actor = await mutationActor(c);
   if (!actor) return c.json({ error: "Authentication required" }, 401);
   const current = await getNowShowing(c.env);
   if (current?.movie_id && current.rating_score === null) return c.json({ error: "Rate the current movie before rolling again" }, 409);
@@ -157,13 +231,12 @@ app.post("/api/roll", async (c) => {
   const actual = rolled.franchise_id && franchise?.order_confirmed ? remainingFranchiseMovies[0] ?? rolled : rolled;
   const status = rolled.franchise_id && !franchise?.order_confirmed ? "pending_order" : "ready";
 
-  await c.env.DB.prepare(
-    `INSERT INTO now_showing (id, rolled_movie_id, movie_id, franchise_id, status, rolled_at, updated_at)
-     VALUES (1, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET rolled_movie_id = excluded.rolled_movie_id,
-       movie_id = excluded.movie_id, franchise_id = excluded.franchise_id,
-       status = excluded.status, rolled_at = excluded.rolled_at, updated_at = excluded.updated_at`,
+  const stateUpdate = await c.env.DB.prepare(
+    `UPDATE now_showing SET rolled_movie_id = ?, movie_id = ?, franchise_id = ?,
+       status = ?, rolled_at = ?, updated_at = ?
+     WHERE id = 1 AND (movie_id IS NULL OR status = 'watched')`,
   ).bind(rolled.id, actual.id, rolled.franchise_id, status, timestamp, timestamp).run();
+  if (!stateUpdate.meta.changes) return c.json({ error: "Someone else is already choosing the next movie" }, 409);
   await envRoll(c.env, rolled.id, actual.id, rolled.franchise_id, actor.id);
   return c.json({
     rolledMovie: await getMovie(c.env, rolled.id),
@@ -180,7 +253,7 @@ const envRoll = async (env: AppEnv["Bindings"], rolledMovieId: string, actualMov
 };
 
 app.post("/api/franchises/:id/order", zValidator("json", orderInput), async (c) => {
-  const actor = mutationActor(c.env);
+  const actor = await mutationActor(c);
   if (!actor) return c.json({ error: "Authentication required" }, 401);
   const franchiseId = c.req.param("id");
   const input = c.req.valid("json");
@@ -209,7 +282,7 @@ app.post("/api/franchises/:id/order", zValidator("json", orderInput), async (c) 
 });
 
 app.post("/api/next", async (c) => {
-  const actor = mutationActor(c.env);
+  const actor = await mutationActor(c);
   if (!actor) return c.json({ error: "Authentication required" }, 401);
   const current = await getNowShowing(c.env);
   if (!current?.movie_id || current.rating_score === null || !current.franchise_id) return c.json({ error: "No watched franchise movie is ready to advance" }, 409);
@@ -221,7 +294,7 @@ app.post("/api/next", async (c) => {
 });
 
 app.post("/api/movies/:id/rate", zValidator("json", ratingInput), async (c) => {
-  const actor = mutationActor(c.env);
+  const actor = await mutationActor(c);
   if (!actor) return c.json({ error: "Authentication required" }, 401);
   const movieId = c.req.param("id");
   const input = c.req.valid("json");
