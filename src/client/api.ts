@@ -45,10 +45,12 @@ export const api = {
   logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
   nowShowing: () => request<NowShowingResponse>("/api/now-showing"),
   movies: (status = "all") => request<{ movies: Movie[] }>(`/api/movies?status=${status}`),
+  franchise: (id: string) => request<{ franchise: { id: string; name: string }; movies: Movie[] }>(`/api/franchises/${id}`),
   roll: () => request<{ rolledMovie: Movie; nowShowing: NowShowing; needsOrder: boolean; franchiseMovies: Movie[] }>("/api/roll", { method: "POST" }),
   next: () => request<{ nowShowing: NowShowing }>("/api/next", { method: "POST" }),
   rate: (id: string, score: number, phrase: string) => request<{ nowShowing: NowShowing }>(`/api/movies/${id}/rate`, { method: "POST", body: JSON.stringify({ score, phrase }) }),
   order: (id: string, movieIds: string[]) => request<{ nowShowing: NowShowing }>(`/api/franchises/${id}/order`, { method: "POST", body: JSON.stringify({ movieIds }) }),
   addMovie: (movie: { title: string; franchiseName?: string; releaseDate?: string | null; posterPath?: string | null; tmdbId?: number | null; imdbId?: string | null }) => request<{ movie: Movie }>("/api/movies", { method: "POST", body: JSON.stringify(movie) }),
+  updateMovie: (id: string, movie: { title?: string; releaseDate?: string | null; posterPath?: string | null; tmdbId?: number | null; imdbId?: string | null }) => request<{ movie: Movie }>(`/api/movies/${id}`, { method: "PATCH", body: JSON.stringify(movie) }),
   tmdbSearch: (query: string) => request<{ results: TmdbResult[] }>(`/api/tmdb/search?query=${encodeURIComponent(query)}`),
 };

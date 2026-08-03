@@ -136,7 +136,7 @@ app.get("/api/movies", async (c) => {
 app.get("/api/franchises", async (c) => {
   const result = await c.env.DB.prepare(
     `SELECT franchises.*, COUNT(movies.id) AS movie_count,
-      SUM(CASE WHEN movies.watched_at IS NOT NULL THEN 1 ELSE 0 END) AS watched_count
+      SUM(CASE WHEN movies.rating_score IS NOT NULL THEN 1 ELSE 0 END) AS watched_count
      FROM franchises LEFT JOIN movies ON movies.franchise_id = franchises.id
      GROUP BY franchises.id ORDER BY franchises.name COLLATE NOCASE`,
   ).all();
@@ -259,7 +259,7 @@ app.post("/api/franchises/:id/order", zValidator("json", orderInput), async (c) 
   const input = c.req.valid("json");
   const members = await c.env.DB.prepare("SELECT id FROM movies WHERE franchise_id = ?").bind(franchiseId).all<{ id: string }>();
   const memberIds = new Set(members.results.map((movie) => movie.id));
-  if (input.movieIds.length !== memberIds.size || input.movieIds.some((id) => !memberIds.has(id))) {
+  if (input.movieIds.length !== memberIds.size || new Set(input.movieIds).size !== memberIds.size || input.movieIds.some((id) => !memberIds.has(id))) {
     return c.json({ error: "Order must include every movie in the franchise exactly once" }, 400);
   }
 
