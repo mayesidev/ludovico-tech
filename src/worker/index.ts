@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
 import { getActor, isLocal, newId, normalizeTitle, now, type AppEnv } from "./env";
-import { getMovie, getNowShowing, getRemainingFranchiseMovies, movieSelect, type MovieRow } from "./db";
+import { getFranchiseMovies, getMovie, getNowShowing, getRemainingFranchiseMovies, movieSelect, type MovieRow } from "./db";
 
 const app = new Hono<AppEnv>();
 app.use("/api/*", cors({ origin: "*" }));
@@ -109,9 +109,9 @@ app.post("/api/movies", zValidator("json", movieInput), async (c) => {
 
   await c.env.DB.prepare(
     `INSERT INTO movies (id, title, title_normalized, added_at, added_by, updated_at, updated_by,
-      release_date, poster_path, tmdb_id, imdb_id, franchise_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).bind(id, input.title, normalizeTitle(input.title), timestamp, actor.id, timestamp, actor.id, input.releaseDate ?? null, input.posterPath ?? null, input.tmdbId ?? null, input.imdbId ?? null, franchiseId).run();
+      release_date, poster_path, tmdb_id, tmdb_fetched_at, imdb_id, franchise_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(id, input.title, normalizeTitle(input.title), timestamp, actor.id, timestamp, actor.id, input.releaseDate ?? null, input.posterPath ?? null, input.tmdbId ?? null, input.tmdbId ? timestamp : null, input.imdbId ?? null, franchiseId).run();
 
   if (franchiseId && position !== null) {
     await c.env.DB.prepare("INSERT INTO franchise_movies (franchise_id, movie_id, position) VALUES (?, ?, ?)").bind(franchiseId, id, position).run();
@@ -131,8 +131,8 @@ app.patch("/api/movies/:id", zValidator("json", movieEditInput), async (c) => {
   const title = input.title ?? existing.title;
   await c.env.DB.prepare(
     `UPDATE movies SET title = ?, title_normalized = ?, updated_at = ?, updated_by = ?,
-      release_date = ?, poster_path = ?, tmdb_id = ?, imdb_id = ? WHERE id = ?`,
-  ).bind(title, normalizeTitle(title), timestamp, actor.id, input.releaseDate === undefined ? existing.release_date : input.releaseDate, input.posterPath === undefined ? existing.poster_path : input.posterPath, input.tmdbId === undefined ? existing.tmdb_id : input.tmdbId, input.imdbId === undefined ? existing.imdb_id : input.imdbId, movieId).run();
+      release_date = ?, poster_path = ?, tmdb_id = ?, tmdb_fetched_at = ?, imdb_id = ? WHERE id = ?`,
+  ).bind(title, normalizeTitle(title), timestamp, actor.id, input.releaseDate === undefined ? existing.release_date : input.releaseDate, input.posterPath === undefined ? existing.poster_path : input.posterPath, input.tmdbId === undefined ? existing.tmdb_id : input.tmdbId, input.tmdbId !== undefined || input.releaseDate !== undefined || input.posterPath !== undefined ? timestamp : existing.tmdb_fetched_at, input.imdbId === undefined ? existing.imdb_id : input.imdbId, movieId).run();
   await audit(c.env, "movie", movieId, "updated", actor.id, { fields: Object.keys(input) });
   return c.json({ movie: await getMovie(c.env, movieId) });
 });
@@ -149,11 +149,12 @@ app.post("/api/roll", async (c) => {
   if (!rolled) return c.json({ error: "There are no unwatched movies left" }, 409);
 
   const timestamp = now();
-  const franchiseMovies = rolled.franchise_id ? await getRemainingFranchiseMovies(c.env, rolled.franchise_id) : [];
+  const franchiseMovies = rolled.franchise_id ? await getFranchiseMovies(c.env, rolled.franchise_id) : [];
   const franchise = rolled.franchise_id
     ? await c.env.DB.prepare("SELECT order_confirmed FROM franchises WHERE id = ?").bind(rolled.franchise_id).first<{ order_confirmed: number }>()
     : null;
-  const actual = rolled.franchise_id && franchise?.order_confirmed ? franchiseMovies[0] ?? rolled : rolled;
+  const remainingFranchiseMovies = rolled.franchise_id ? await getRemainingFranchiseMovies(c.env, rolled.franchise_id) : [];
+  const actual = rolled.franchise_id && franchise?.order_confirmed ? remainingFranchiseMovies[0] ?? rolled : rolled;
   const status = rolled.franchise_id && !franchise?.order_confirmed ? "pending_order" : "ready";
 
   await c.env.DB.prepare(

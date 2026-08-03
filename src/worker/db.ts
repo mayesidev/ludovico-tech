@@ -13,6 +13,7 @@ export type MovieRow = {
   release_date: string | null;
   poster_path: string | null;
   tmdb_id: number | null;
+  tmdb_fetched_at: string | null;
   imdb_id: string | null;
   franchise_id: string | null;
   prior_viewed: number;
@@ -80,6 +81,14 @@ export const getRemainingFranchiseMovies = async (env: AppEnv["Bindings"], franc
        WHERE movies.franchise_id = ? AND movies.rating_score IS NULL
        ORDER BY franchise_movies.position ASC, movies.added_at ASC`,
     )
+    .bind(franchiseId)
+    .all<MovieRow>();
+  return result.results;
+};
+
+export const getFranchiseMovies = async (env: AppEnv["Bindings"], franchiseId: string) => {
+  const result = await env.DB
+    .prepare(`${movieSelect} WHERE movies.franchise_id = ? ORDER BY franchise_movies.position ASC, movies.added_at ASC`)
     .bind(franchiseId)
     .all<MovieRow>();
   return result.results;
