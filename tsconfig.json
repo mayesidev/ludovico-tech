@@ -15,7 +15,21 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "types": ["vite/client", "node", "@cloudflare/workers-types", "@cloudflare/vitest-pool-workers/types"]
+    "types": [
+      "vite/client",
+      "node",
+      "@cloudflare/workers-types",
+      "@cloudflare/vitest-pool-workers/types"
+    ]
   },
-  "include": ["src", "scripts", "test", "vite.config.ts", "vitest.config.ts", "eslint.config.js"]
+  "include": [
+    "src",
+    "scripts",
+    "test",
+    "e2e",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "eslint.config.js"
+  ]
 }

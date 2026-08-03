@@ -6,45 +6,45 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
   },
   "observability": {
-    "enabled": true
+    "enabled": true,
   },
   "env": {
     "development": {
       "vars": {
-        "APP_ENV": "development"
+        "APP_ENV": "development",
       },
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "movie-list",
           "database_id": "84c4216e-d8f0-4895-8404-a3a9fc22d1ca",
-          "migrations_dir": "migrations"
-        }
-      ]
+          "migrations_dir": "migrations",
+        },
+      ],
     },
     "production": {
       "vars": {
-        "APP_ENV": "production"
+        "APP_ENV": "production",
       },
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "movie-list",
           "database_id": "84c4216e-d8f0-4895-8404-a3a9fc22d1ca",
-          "migrations_dir": "migrations"
-        }
-      ]
-    }
+          "migrations_dir": "migrations",
+        },
+      ],
+    },
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "movie-list",
       "database_id": "84c4216e-d8f0-4895-8404-a3a9fc22d1ca",
-      "migrations_dir": "migrations"
-    }
-  ]
+      "migrations_dir": "migrations",
+    },
+  ],
 }

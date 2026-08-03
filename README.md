@@ -19,11 +19,11 @@ Local secrets belong in `.env` and source data belongs under `/data`; neither is
 ## Checks
 
 ```sh
-pnpm typecheck
-pnpm lint
-pnpm test
+pnpm check
 pnpm build
 ```
+
+`pnpm check` runs formatting, ESLint, TypeScript, and unit/integration tests. The same checks, production build, and browser E2E suite run in GitHub Actions for pushes and pull requests.
 
 The test suite includes helper tests plus Worker-route integration tests running in Cloudflare's local Workers runtime with an isolated D1 database and the checked-in migrations.
 

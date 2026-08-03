@@ -3,7 +3,9 @@ import { formatDate, posterUrl } from "./utils";
 
 describe("movie display helpers", () => {
   it("builds a TMDB poster URL from a path", () => {
-    expect(posterUrl("/poster.jpg")).toBe("https://image.tmdb.org/t/p/w500/poster.jpg");
+    expect(posterUrl("/poster.jpg")).toBe(
+      "https://image.tmdb.org/t/p/w500/poster.jpg",
+    );
   });
 
   it("handles missing poster paths", () => {

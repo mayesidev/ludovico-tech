@@ -2,16 +2,56 @@
 
 @theme {
   --color-ink: #101013;
-  --font-display: "Arial Narrow", "Avenir Next Condensed", "Trebuchet MS", sans-serif;
+  --font-display:
+    "Arial Narrow", "Avenir Next Condensed", "Trebuchet MS", sans-serif;
   --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
-:root { color-scheme: dark; font-family: var(--font-sans); background: #101013; }
-* { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; background: #101013; }
-button, input { font: inherit; }
-button { cursor: pointer; }
-.grain { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .035; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E"); }
-.poster-fallback { background: radial-gradient(circle at 50% 20%, rgba(190,242,100,.12), transparent 35%), linear-gradient(145deg, #262628, #161619); }
-.reveal { animation: reveal-in .2s ease-out both; }
-@keyframes reveal-in { from { opacity: 0; } to { opacity: 1; } }
+:root {
+  color-scheme: dark;
+  font-family: var(--font-sans);
+  background: #101013;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 320px;
+  background: #101013;
+}
+button,
+input {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+.grain {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+}
+.poster-fallback {
+  background:
+    radial-gradient(
+      circle at 50% 20%,
+      rgba(190, 242, 100, 0.12),
+      transparent 35%
+    ),
+    linear-gradient(145deg, #262628, #161619);
+}
+.reveal {
+  animation: reveal-in 0.2s ease-out both;
+}
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

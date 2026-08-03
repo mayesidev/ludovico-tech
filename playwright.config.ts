@@ -4,7 +4,9 @@ import path from "node:path";
 
 import { defineConfig, devices } from "@playwright/test";
 
-const stateDirectory = process.env.E2E_STATE_DIR ?? fs.mkdtempSync(path.join(os.tmpdir(), "ludovico-tech-e2e-"));
+const stateDirectory =
+  process.env.E2E_STATE_DIR ??
+  fs.mkdtempSync(path.join(os.tmpdir(), "ludovico-tech-e2e-"));
 
 export default defineConfig({
   testDir: "./e2e",
@@ -26,7 +28,8 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: "VITE_API_PORT=8788 corepack pnpm exec vite --host 127.0.0.1 --port 5174",
+      command:
+        "VITE_API_PORT=8788 corepack pnpm exec vite --host 127.0.0.1 --port 5174",
       url: "http://127.0.0.1:5174",
       reuseExistingServer: false,
       timeout: 120_000,
