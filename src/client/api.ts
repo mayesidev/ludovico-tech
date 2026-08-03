@@ -31,6 +31,7 @@ export type NowShowing = {
 
 export type NowShowingResponse = { nowShowing: NowShowing | null; remainingFranchiseMovies: Movie[] };
 export type TmdbResult = { id: number; title: string; releaseDate: string | null; posterPath: string | null; imdbId: string | null };
+export type AuthState = { authenticated: boolean; actor: { email: string; displayName: string } | null; local: boolean };
 
 const request = async <T>(path: string, options?: RequestInit): Promise<T> => {
   const response = await fetch(path, { headers: { "Content-Type": "application/json", ...options?.headers }, ...options });
@@ -40,6 +41,8 @@ const request = async <T>(path: string, options?: RequestInit): Promise<T> => {
 };
 
 export const api = {
+  authMe: () => request<AuthState>("/api/auth/me"),
+  logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
   nowShowing: () => request<NowShowingResponse>("/api/now-showing"),
   movies: (status = "all") => request<{ movies: Movie[] }>(`/api/movies?status=${status}`),
   roll: () => request<{ rolledMovie: Movie; nowShowing: NowShowing; needsOrder: boolean; franchiseMovies: Movie[] }>("/api/roll", { method: "POST" }),

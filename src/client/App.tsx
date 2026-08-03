@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Clapperboard, LoaderCircle, Plus, RotateCw, Search, Sparkles, Star, Table2, Ticket, X } from "lucide-react";
 import { flexRender, getCoreRowModel, getFilteredRowModel, getSortedRowModel, useReactTable, type ColumnDef, type SortingState } from "@tanstack/react-table";
-import { api, type Movie, type NowShowing, type TmdbResult } from "./api";
+import { api, type AuthState, type Movie, type NowShowing, type TmdbResult } from "./api";
 import { Badge, Button, Card, Input, SectionHeading } from "./components/ui";
 import { cn, formatDate, posterUrl } from "./lib/utils";
 
@@ -19,6 +19,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [rolledTitle, setRolledTitle] = useState<string | null>(null);
   const [orderDraft, setOrderDraft] = useState<Movie[] | null>(null);
+  const [auth, setAuth] = useState<AuthState | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -36,6 +37,7 @@ export default function App() {
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { void api.authMe().then(setAuth).catch(() => setAuth({ authenticated: false, actor: null, local: false })); }, []);
 
   const run = async (action: () => Promise<unknown>, after?: () => void) => {
     setBusy(true);
@@ -59,10 +61,7 @@ export default function App() {
             <span className="grid size-10 place-items-center rounded-2xl bg-lime-300 text-zinc-950 shadow-lg shadow-lime-300/10"><Clapperboard size={20} strokeWidth={2.5} /></span>
             <span><span className="block font-display text-lg font-bold tracking-tight">Movie List</span><span className="block text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">The watch club</span></span>
           </button>
-          <nav className="flex items-center gap-1 rounded-full border border-white/8 bg-white/[0.04] p-1">
-            <NavButton active={tab === "home"} onClick={() => setTab("home")} icon={<Sparkles size={15} />}>Now showing</NavButton>
-            <NavButton active={tab === "library"} onClick={() => setTab("library")} icon={<Table2 size={15} />}>Library</NavButton>
-          </nav>
+          <div className="flex items-center gap-3"><nav className="flex items-center gap-1 rounded-full border border-white/8 bg-white/[0.04] p-1"><NavButton active={tab === "home"} onClick={() => setTab("home")} icon={<Sparkles size={15} />}>Now showing</NavButton><NavButton active={tab === "library"} onClick={() => setTab("library")} icon={<Table2 size={15} />}>Library</NavButton></nav><AuthControls auth={auth} onLogout={() => void api.logout().then(() => setAuth({ authenticated: false, actor: null, local: false }))} /></div>
         </div>
       </header>
 
@@ -79,6 +78,12 @@ export default function App() {
 
 function NavButton({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
   return <button onClick={onClick} className={cn("flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold transition", active ? "bg-white/10 text-white" : "text-zinc-500 hover:text-zinc-200")}>{icon}{children}</button>;
+}
+
+function AuthControls({ auth, onLogout }: { auth: AuthState | null; onLogout: () => void }) {
+  if (!auth || auth.local) return null;
+  if (!auth.authenticated) return <Button variant="secondary" onClick={() => { window.location.href = "/api/auth/google"; }}>Sign in</Button>;
+  return <button onClick={onLogout} className="hidden max-w-[180px] truncate rounded-full border border-white/10 px-3 py-2 text-xs text-zinc-400 hover:text-white sm:block">{auth.actor?.email}</button>;
 }
 
 function LoadingState() { return <div className="grid min-h-[50vh] place-items-center"><LoaderCircle className="animate-spin text-lime-300" /></div>; }
