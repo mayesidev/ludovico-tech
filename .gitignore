@@ -1,0 +1,28 @@
+.DS_Store
+.env*
+!.env.example
+/node_modules/
+/.agents/
+/.wrangler/
+.dev.vars*
+
+# Logs and local tooling state
+*.log
+.eslintcache
+.pnpm-debug.log*
+
+# Local data
+/data/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+
+# React Router
+/.react-router/
+/build/
+/dist/
+/coverage/
+/test-results/
+/playwright-report/
+/blob-report/

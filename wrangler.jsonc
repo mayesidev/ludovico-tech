@@ -1,0 +1,34 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "movie-list",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-08-03",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "env": {
+    "development": {
+      "vars": {
+        "APP_ENV": "development"
+      }
+    },
+    "production": {
+      "vars": {
+        "APP_ENV": "production"
+      }
+    }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "movie-list",
+      "database_id": "local-development-placeholder",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

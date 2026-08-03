@@ -1,1 +1,26 @@
-# ludovico-tech
+# Movie List
+
+A small shared movie watchlist for a friend group.
+
+## Local development
+
+```sh
+pnpm install
+pnpm exec wrangler d1 migrations apply movie-list --local
+pnpm import:sheet -- "data/Movie List (Responses) - Form Responses 1.csv"
+for file in data/generated-import-*.sql; do pnpm exec wrangler d1 execute movie-list --local --file="$file"; done
+pnpm dev
+```
+
+The app runs at `http://localhost:5173`. The Worker API runs at `http://localhost:8787`.
+
+Local secrets belong in `.env` and source data belongs under `/data`; neither is committed. The TMDB read token is only used by the Worker and must never be exposed to the browser.
+
+## Checks
+
+```sh
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
+```
