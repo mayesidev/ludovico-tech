@@ -38,7 +38,7 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { void Promise.resolve().then(refresh); }, [refresh]);
   useEffect(() => { void api.authMe().then(setAuth).catch(() => setAuth({ authenticated: false, actor: null, local: false })); }, []);
 
   const run = async (action: () => Promise<unknown>, after?: () => void) => {

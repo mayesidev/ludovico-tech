@@ -24,3 +24,5 @@ pnpm lint
 pnpm test
 pnpm build
 ```
+
+The test suite includes helper tests plus Worker-route integration tests running in Cloudflare's local Workers runtime with an isolated D1 database and the checked-in migrations.
