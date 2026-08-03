@@ -4,6 +4,7 @@
 /node_modules/
 /.agents/
 /.wrangler/
+/.e2e-state/
 .dev.vars*
 
 # Logs and local tooling state

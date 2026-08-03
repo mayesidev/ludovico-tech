@@ -1,0 +1,5 @@
+allowBuilds:
+  esbuild: true
+  workerd: true
+overrides:
+  baseline-browser-mapping: 2.11.10

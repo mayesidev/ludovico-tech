@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 const worker = exports.default;
 
 const request = async <T>(path: string, init?: RequestInit) => {
-  const response = await worker.fetch(new Request(`https://movie-list.test${path}`, {
+  const response = await worker.fetch(new Request(`https://ludovico-tech.test${path}`, {
     headers: { "Content-Type": "application/json", ...init?.headers },
     ...init,
   }));

@@ -26,3 +26,12 @@ pnpm build
 ```
 
 The test suite includes helper tests plus Worker-route integration tests running in Cloudflare's local Workers runtime with an isolated D1 database and the checked-in migrations.
+
+Browser end-to-end tests use Playwright against a separate local Vite instance and a fresh temporary D1 database:
+
+```sh
+pnpm exec playwright install chromium
+pnpm test:e2e
+```
+
+The Playwright harness is intentionally isolated from the normal development ports and local database state. It does not call TMDB; the browser flow covers the shared add, roll, and rating experience.
