@@ -51,6 +51,7 @@ jobs:
           if [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
             pnpm exec commitlint --last --verbose
           else
+            git fetch --no-tags origin "$BEFORE_SHA" "$HEAD_SHA"
             pnpm exec commitlint --from="$BEFORE_SHA" --to="$HEAD_SHA" --verbose
           fi
 
