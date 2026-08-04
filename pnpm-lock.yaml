@@ -13,7 +13,7 @@ importers:
     dependencies:
       '@hono/zod-validator':
         specifier: ^0.9.0
-        version: 0.9.0(hono@4.12.33)(zod@4.4.3)
+        version: 0.9.0(hono@4.12.34)(zod@4.4.3)
       '@tanstack/react-table':
         specifier: ^8.21.3
         version: 8.21.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -27,8 +27,8 @@ importers:
         specifier: ^7.0.1
         version: 7.0.1
       hono:
-        specifier: ^4.12.33
-        version: 4.12.33
+        specifier: ^4.12.34
+        version: 4.12.34
       lucide-react:
         specifier: ^1.28.0
         version: 1.28.0(react@19.2.8)
@@ -1315,8 +1315,8 @@ packages:
   hermes-parser@0.25.1:
     resolution: {integrity: sha512-6pEjquH3rqaI6cYAXYPcz9MS4rY6R4ngRgrgfDshRptUZIc3lw0MCIJIGDj9++mfySOuPTHB4nrSW99BCvOPIA==}
 
-  hono@4.12.33:
-    resolution: {integrity: sha512-+SwvkaiJtxsiPjhy9LivY/1m7UsNqCJetM1BrZl9A5DkQhlbHQDU730mMiDPWjnoCYOM8Chf3WrCJw27kNTPFQ==}
+  hono@4.12.34:
+    resolution: {integrity: sha512-GqXJqY/xJkJmuloTrnV1ZEXG3fqte+VjkUqoRNZXcrUidiUOP4fMSIHHY4tsqZBK++kVyWmt/AAfSUuy57/eSA==}
     engines: {node: '>=16.9.0'}
 
   ignore@5.3.2:
@@ -2235,9 +2235,9 @@ snapshots:
       '@eslint/core': 1.2.1
       levn: 0.4.1
 
-  '@hono/zod-validator@0.9.0(hono@4.12.33)(zod@4.4.3)':
+  '@hono/zod-validator@0.9.0(hono@4.12.34)(zod@4.4.3)':
     dependencies:
-      hono: 4.12.33
+      hono: 4.12.34
       zod: 4.4.3
 
   '@humanfs/core@0.19.2':
@@ -3016,7 +3016,7 @@ snapshots:
     dependencies:
       hermes-estree: 0.25.1
 
-  hono@4.12.33: {}
+  hono@4.12.34: {}
 
   ignore@5.3.2: {}
 
