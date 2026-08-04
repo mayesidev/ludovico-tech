@@ -31,6 +31,29 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check pull request commit messages
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          git fetch --no-tags origin "$BASE_SHA" "$HEAD_SHA"
+          printf '%s\n' "$PR_TITLE" | pnpm exec commitlint --verbose
+          pnpm exec commitlint --from="$BASE_SHA" --to="$HEAD_SHA" --verbose
+
+      - name: Check pushed commit messages
+        if: github.event_name == 'push'
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            pnpm exec commitlint --last --verbose
+          else
+            pnpm exec commitlint --from="$BEFORE_SHA" --to="$HEAD_SHA" --verbose
+          fi
+
       - name: Install Playwright browser
         run: pnpm exec playwright install --with-deps chromium
 
