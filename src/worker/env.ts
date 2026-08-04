@@ -4,6 +4,8 @@ export type AppEnv = {
     ASSETS?: Fetcher;
     TMDB_READ_ACCESS_TOKEN?: string;
     APP_ENV?: string;
+    APP_VERSION?: string;
+    GIT_SHA?: string;
     GOOGLE_CLIENT_ID?: string;
     GOOGLE_CLIENT_SECRET?: string;
     GOOGLE_REDIRECT_URI?: string;

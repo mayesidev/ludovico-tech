@@ -16,11 +16,19 @@ const request = async <T>(path: string, init?: RequestInit) => {
 
 describe("movie list Worker routes", () => {
   it("serves health and an empty public catalog", async () => {
-    const health = await request<{ ok: boolean; environment: string }>(
-      "/api/health",
-    );
+    const health = await request<{
+      ok: boolean;
+      environment: string;
+      version: string;
+      commit: string;
+    }>("/api/health");
     expect(health.response.status).toBe(200);
-    expect(health.body).toEqual({ ok: true, environment: "development" });
+    expect(health.body).toEqual({
+      ok: true,
+      environment: "development",
+      version: "unversioned",
+      commit: "unknown",
+    });
 
     const catalog = await request<{ movies: unknown[] }>("/api/movies");
     expect(catalog.response.status).toBe(200);

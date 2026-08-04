@@ -36,8 +36,16 @@ Always select the Wrangler environment explicitly. Do not run an unqualified pro
 
 ```sh
 pnpm build
-pnpm exec wrangler deploy --env production
+release_version="$(git describe --tags --exact-match --match 'v*' HEAD)"
+git_sha="$(git rev-parse HEAD)"
+pnpm exec wrangler deploy --env production \
+  --var "APP_VERSION:${release_version}" \
+  --var "GIT_SHA:${git_sha}"
 ```
+
+Production deployments must come from an exact semantic-release tag. The `/api/health` response reports the deployed release version and commit SHA.
+
+The `Deploy` GitHub Actions workflow accepts a published `vX.Y.Z` tag, checks out that exact tag, and deploys it to the production Wrangler environment. It requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in the protected GitHub `production` environment. Database migrations remain a separate, explicitly reviewed operation.
 
 Apply remote migrations explicitly and review the target before running them:
 
@@ -57,6 +65,8 @@ pnpm build
 `pnpm check` runs formatting, ESLint, TypeScript, and unit/integration tests. The same checks, production build, and browser E2E suite run in GitHub Actions for pushes and pull requests.
 
 The test suite includes helper tests plus Worker-route integration tests running in Cloudflare's local Workers runtime with an isolated D1 database and the checked-in migrations.
+
+Releases are created from protected `main` after the CI workflow succeeds. Semantic-release analyzes Conventional Commit messages, creates `vX.Y.Z` tags, and publishes GitHub Releases with generated notes. The initial release baseline is `v0.1.0`.
 
 Browser end-to-end tests use Playwright against a separate local Vite instance and a fresh temporary D1 database:
 
