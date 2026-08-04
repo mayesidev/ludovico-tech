@@ -38,6 +38,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
+          git fetch --no-tags origin "$BASE_SHA" "$HEAD_SHA"
           printf '%s\n' "$PR_TITLE" | pnpm exec commitlint --verbose
           pnpm exec commitlint --from="$BASE_SHA" --to="$HEAD_SHA" --verbose
 
