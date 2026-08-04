@@ -30,10 +30,10 @@ Tests must not call TMDB, Google, or other external APIs. Mock external response
 - Keep files organized by responsibility and format changes with Prettier.
 - Add or update tests for behavior changes.
 - Keep commits focused on one discrete concern.
-- Use Conventional Commit prefixes such as `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, and `chore:`. Semantic-release uses these messages to determine the next release version and generate release notes.
+- Use Conventional Commit prefixes such as `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, and `chore:`. Semantic-release uses these messages to determine the next release version and generate release notes. CI validates both the pull request title and the commits in the pull request; the title should also be a valid Conventional Commit because it becomes the commit message when using squash merge.
 - Never commit `.env`, `/data`, `/.agents`, credentials, or private source data.
 
-Conventional Commit messages are currently a repository convention, not a separately enforced CI check. The CI workflow enforces formatting, linting, typechecking, unit/integration tests, the production build, and browser E2E tests. A future commit-message check can be added if strict enforcement becomes useful.
+GitHub-generated merge commits are ignored by Commitlint. All contributor-authored commits and squash-merge titles must pass the Conventional Commit rules. The CI workflow also enforces formatting, linting, typechecking, unit/integration tests, the production build, and browser E2E tests.
 
 Before requesting review, confirm that:
 
