@@ -12,7 +12,12 @@ export const createApp = () => {
 
   app.use("/api/*", cors({ origin: "*" }));
   api.get("/health", (c) =>
-    c.json({ ok: true, environment: c.env.APP_ENV ?? "development" }),
+    c.json({
+      ok: true,
+      environment: c.env.APP_ENV ?? "development",
+      version: c.env.APP_VERSION ?? "unversioned",
+      commit: c.env.GIT_SHA ?? "unknown",
+    }),
   );
 
   registerAuthRoutes(api);
