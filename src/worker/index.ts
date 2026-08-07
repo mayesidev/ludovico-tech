@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import {
   getRuntimeConfig,
-  isProductionReady,
+  isDeploymentReady,
   RuntimeConfigurationError,
   type AppEnv,
 } from "./env";
@@ -18,7 +18,7 @@ export const createApp = () => {
   app.use("/api/*", cors({ origin: "*" }));
   api.get("/health", (c) => {
     const config = getRuntimeConfig(c.env);
-    const ready = isProductionReady(c.env);
+    const ready = isDeploymentReady(c.env);
     return c.json(
       {
         ok: ready,

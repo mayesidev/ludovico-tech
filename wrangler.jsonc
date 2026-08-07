@@ -3,6 +3,7 @@
   "name": "ludovico-tech",
   "main": "src/worker/index.ts",
   "compatibility_date": "2026-08-03",
+  "preview_urls": false,
   "workers_dev": false,
   "assets": {
     "directory": "./dist",
@@ -29,6 +30,31 @@
           "database_name": "ludovico-tech-development",
           "database_id": "00000000-0000-0000-0000-000000000000",
           "preview_database_id": "ludovico-tech-development-local",
+          "migrations_dir": "migrations",
+        },
+      ],
+    },
+    "staging": {
+      "name": "ludovico-tech-staging",
+      "workers_dev": true,
+      "vars": {
+        "APP_ENV": "staging",
+        "AUTH_MODE": "google",
+      },
+      "secrets": {
+        "required": [
+          "TMDB_READ_ACCESS_TOKEN",
+          "GOOGLE_CLIENT_ID",
+          "GOOGLE_CLIENT_SECRET",
+          "GOOGLE_REDIRECT_URI",
+          "ALLOWED_EMAILS",
+        ],
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "ludovico-tech-staging",
+          "database_id": "22222222-2222-2222-2222-222222222222",
           "migrations_dir": "migrations",
         },
       ],

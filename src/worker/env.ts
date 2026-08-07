@@ -14,7 +14,7 @@ export type AppEnv = {
   };
 };
 
-export type AppEnvironment = "development" | "production" | "test";
+export type AppEnvironment = "development" | "production" | "staging" | "test";
 export type AuthMode = "development" | "google";
 
 export type RuntimeConfig = {
@@ -40,12 +40,14 @@ export const SESSION_COOKIE_NAME = "ludovico_tech_session";
 export const getRuntimeConfig = (env: AppEnv["Bindings"]): RuntimeConfig => {
   const environment = env.APP_ENV;
   const authMode = env.AUTH_MODE;
+  const deployed = environment === "staging" || environment === "production";
   if (
     (environment !== "development" &&
       environment !== "test" &&
+      environment !== "staging" &&
       environment !== "production") ||
     (authMode !== "development" && authMode !== "google") ||
-    (environment === "production" && authMode !== "google")
+    (deployed ? authMode !== "google" : authMode !== "development")
   ) {
     throw new RuntimeConfigurationError();
   }
@@ -57,6 +59,9 @@ export const isDevelopmentAuth = (env: AppEnv["Bindings"]) => {
   return config.authMode === "development";
 };
 
+export const isSecureEnvironment = (environment: AppEnvironment) =>
+  environment === "staging" || environment === "production";
+
 export const getAllowedEmails = (env: AppEnv["Bindings"]) =>
   new Set(
     (env.ALLOWED_EMAILS ?? "")
@@ -65,9 +70,9 @@ export const getAllowedEmails = (env: AppEnv["Bindings"]) =>
       .filter(Boolean),
   );
 
-export const isProductionReady = (env: AppEnv["Bindings"]) => {
+export const isDeploymentReady = (env: AppEnv["Bindings"]) => {
   const config = getRuntimeConfig(env);
-  if (config.environment !== "production") return true;
+  if (!isSecureEnvironment(config.environment)) return true;
   return Boolean(
     env.TMDB_READ_ACCESS_TOKEN &&
     env.GOOGLE_CLIENT_ID &&

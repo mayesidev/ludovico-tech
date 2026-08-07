@@ -7,6 +7,7 @@ import {
   getActor,
   getRuntimeConfig,
   isDevelopmentAuth,
+  isSecureEnvironment,
   newId,
   now,
   sessionIdFromRequest,
@@ -191,7 +192,7 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
     const config = getRuntimeConfig(c.env);
     c.header(
       "Set-Cookie",
-      sessionCookie(sessionId, config.environment === "production"),
+      sessionCookie(sessionId, isSecureEnvironment(config.environment)),
     );
     return c.redirect("/");
   });
@@ -206,7 +207,7 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
     const config = getRuntimeConfig(c.env);
     c.header(
       "Set-Cookie",
-      sessionCookie("", config.environment === "production", 0),
+      sessionCookie("", isSecureEnvironment(config.environment), 0),
     );
     return c.json({ ok: true });
   });
