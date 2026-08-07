@@ -5,6 +5,7 @@ test("adds a movie, rolls it, and records its final rating", async ({
 }) => {
   await page.goto("/");
 
+  await expect(page).toHaveTitle("Ludovico Tech");
   await expect(
     page.getByRole("heading", { name: "What’s on the marquee?" }),
   ).toBeVisible();

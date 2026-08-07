@@ -35,6 +35,8 @@ export type Actor = {
   displayName: string;
 };
 
+export const SESSION_COOKIE_NAME = "ludovico_tech_session";
+
 export const getRuntimeConfig = (env: AppEnv["Bindings"]): RuntimeConfig => {
   const environment = env.APP_ENV;
   const authMode = env.AUTH_MODE;
@@ -125,7 +127,7 @@ export const getActor = async (
     };
   }
 
-  const sessionId = getCookie(request, "movie_list_session");
+  const sessionId = getCookie(request, SESSION_COOKIE_NAME);
   if (!sessionId) return null;
   const session = await env.DB.prepare(
     `SELECT users.id, users.email, users.display_name, auth_sessions.expires_at
@@ -152,4 +154,7 @@ export const sessionCookie = (
   production: boolean,
   maxAge = 60 * 60 * 24 * 30,
 ) =>
-  `movie_list_session=${value}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAge}${production ? "; Secure" : ""}`;
+  `${SESSION_COOKIE_NAME}=${value}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAge}${production ? "; Secure" : ""}`;
+
+export const sessionIdFromRequest = (request: Request) =>
+  getCookie(request, SESSION_COOKIE_NAME);

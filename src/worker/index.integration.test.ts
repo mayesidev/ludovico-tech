@@ -14,7 +14,7 @@ const request = async <T>(path: string, init?: RequestInit) => {
   return { response, body };
 };
 
-describe("movie list Worker routes", () => {
+describe("Ludovico Tech Worker routes", () => {
   it("serves health and an empty public catalog", async () => {
     const health = await request<{
       ok: boolean;

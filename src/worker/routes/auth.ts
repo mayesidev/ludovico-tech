@@ -8,6 +8,7 @@ import {
   isDevelopmentAuth,
   newId,
   now,
+  sessionIdFromRequest,
   sessionCookie,
   sha256Base64Url,
   type AppEnv,
@@ -156,12 +157,7 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
   });
 
   app.post("/auth/logout", async (c) => {
-    const sessionId = c.req.raw.headers
-      .get("Cookie")
-      ?.split(";")
-      .map((cookie) => cookie.trim())
-      .find((cookie) => cookie.startsWith("movie_list_session="))
-      ?.split("=")[1];
+    const sessionId = sessionIdFromRequest(c.req.raw);
     if (sessionId) {
       await c.env.DB.prepare("DELETE FROM auth_sessions WHERE id = ?")
         .bind(sessionId)

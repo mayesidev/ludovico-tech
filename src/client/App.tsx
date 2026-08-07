@@ -39,9 +39,7 @@ export default function App() {
       setError(null);
     } catch (cause) {
       setError(
-        cause instanceof Error
-          ? cause.message
-          : "Unable to load the movie list",
+        cause instanceof Error ? cause.message : "Unable to load the catalog",
       );
     } finally {
       setLoading(false);
