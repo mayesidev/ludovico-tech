@@ -66,6 +66,16 @@ describe("complete CI and deployment gates", () => {
     expect(source).toContain("environment: staging");
     expect(source).toContain("ref: main");
     expect(source).toContain("pnpm config:check:staging");
+    expect(source).toContain("Required staging secret %s is not configured");
+    expect(source).toContain('--secrets-file "$secrets_file"');
+    expect(source).toContain(
+      "TMDB_READ_ACCESS_TOKEN: ${{ secrets.TMDB_READ_ACCESS_TOKEN }}",
+    );
+    expect(source).toContain(
+      "GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}",
+    );
+    expect(source).not.toContain('--var "TMDB_READ_ACCESS_TOKEN:');
+    expect(source).not.toContain('--var "GOOGLE_CLIENT_SECRET:');
     expect(source).toContain("releases/tags/$RELEASE_TAG");
     expect(source).toContain('test "$release_sha" = "$TRIGGER_SHA"');
     expect(nodeSetup).toBeGreaterThan(0);

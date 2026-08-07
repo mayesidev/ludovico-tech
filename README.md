@@ -50,12 +50,14 @@ The checked-in staging D1 ID belongs to the dedicated
 or shared bindings so an exact release cannot silently deploy against another
 environment's database.
 
-The GitHub `staging` environment requires `CLOUDFLARE_API_TOKEN` and
-`CLOUDFLARE_ACCOUNT_ID` secrets plus the HTTPS-origin `STAGING_BASE_URL` variable.
-The staging Worker separately requires its own TMDB token, Google web-client
-values, exact callback URI, and invite allowlist in Cloudflare secret storage.
-Automated validation never calls those providers; real integration checks are
-deliberate staging review actions.
+The GitHub `staging` environment requires `CLOUDFLARE_API_TOKEN`,
+`CLOUDFLARE_ACCOUNT_ID`, `TMDB_READ_ACCESS_TOKEN`, `GOOGLE_CLIENT_ID`,
+`GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, and `ALLOWED_EMAILS` secrets plus
+the HTTPS-origin `STAGING_BASE_URL` variable. Wrangler uploads the five runtime
+values as encrypted Worker secrets alongside the exact release deployment; they
+are never command-line variables or repository files. Automated validation never
+calls those providers; real integration checks are deliberate staging review
+actions.
 
 ## Production configuration
 
