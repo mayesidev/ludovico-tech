@@ -44,13 +44,25 @@ export type AuthState = {
   local: boolean;
 };
 
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 const request = async <T>(path: string, options?: RequestInit): Promise<T> => {
   const response = await fetch(path, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
     ...options,
+    headers: { "Content-Type": "application/json", ...options?.headers },
   });
   const body = (await response.json().catch(() => ({}))) as { error?: string };
-  if (!response.ok) throw new Error(body.error ?? "Something went wrong");
+  if (!response.ok) {
+    throw new ApiError(body.error ?? "Something went wrong", response.status);
+  }
   return body as T;
 };
 

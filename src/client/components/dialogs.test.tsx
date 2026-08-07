@@ -1,0 +1,142 @@
+import { useState } from "react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
+import { api, type Movie } from "../api";
+import type { RunAction } from "../types";
+import { EditMovieDialog } from "./edit-movie-dialog";
+import { FranchiseOrderDialog } from "./franchise-order-dialog";
+
+const movie = (id: string, title: string): Movie => ({
+  added_at: "2026-08-07T00:00:00.000Z",
+  franchise_id: "franchise-id",
+  franchise_name: "Test Saga",
+  franchise_position: 1,
+  id,
+  poster_path: null,
+  rating_phrase: null,
+  rating_score: null,
+  release_date: null,
+  title,
+  tmdb_id: null,
+  watched_at: null,
+});
+
+const run: RunAction = async (action, after) => {
+  await action();
+  after?.();
+};
+
+function EditHarness() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button onClick={() => setOpen(true)}>Open edit</button>
+      {open && (
+        <EditMovieDialog
+          busy={false}
+          movie={movie("movie-id", "Original Title")}
+          onClose={() => setOpen(false)}
+          run={run}
+        />
+      )}
+    </>
+  );
+}
+
+function OrderHarness() {
+  const original = [
+    movie("first-id", "First Movie"),
+    movie("second-id", "Second Movie"),
+  ];
+  const [draft, setDraft] = useState<Movie[] | null>(null);
+  return (
+    <>
+      <button onClick={() => setDraft(original)}>Open order</button>
+      {draft && (
+        <FranchiseOrderDialog
+          busy={false}
+          draft={draft}
+          franchiseId="franchise-id"
+          onChange={setDraft}
+          run={run}
+        />
+      )}
+    </>
+  );
+}
+
+describe("accessible dialogs", () => {
+  it("names the edit dialog, validates, focuses, escapes, and restores focus", async () => {
+    vi.spyOn(api, "updateMovie").mockResolvedValue({
+      movie: movie("movie-id", "Updated Title"),
+    });
+    const user = userEvent.setup();
+    render(<EditHarness />);
+
+    const trigger = screen.getByRole("button", { name: "Open edit" });
+    await user.click(trigger);
+    expect(screen.getByRole("dialog", { name: "Edit title" })).toBeVisible();
+    const input = screen.getByRole("textbox", { name: "Title" });
+    expect(input).toHaveFocus();
+    await user.clear(input);
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(screen.getByText("Enter a movie title.")).toHaveRole("alert");
+    expect(api.updateMovie).not.toHaveBeenCalled();
+
+    await user.type(input, "Updated Title");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(api.updateMovie).toHaveBeenCalledWith("movie-id", {
+      title: "Updated Title",
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(trigger).toHaveFocus();
+
+    await user.click(trigger);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("reorders every franchise member and contains keyboard focus", async () => {
+    vi.spyOn(api, "order").mockResolvedValue({ nowShowing: {} as never });
+    const user = userEvent.setup();
+    render(<OrderHarness />);
+
+    const trigger = screen.getByRole("button", { name: "Open order" });
+    await user.click(trigger);
+    const dialog = screen.getByRole("dialog", {
+      name: "How should we watch it?",
+    });
+    const confirm = screen.getByRole("button", { name: "Use this order" });
+    expect(dialog).toBeVisible();
+    expect(confirm).toHaveFocus();
+
+    await user.tab();
+    expect(
+      screen.getByRole("button", { name: "Close franchise order dialog" }),
+    ).toHaveFocus();
+    await user.click(
+      screen.getByRole("button", { name: "Move Second Movie up" }),
+    );
+    await user.click(confirm);
+
+    expect(api.order).toHaveBeenCalledWith("franchise-id", [
+      "second-id",
+      "first-id",
+    ]);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("dismisses franchise ordering with Escape", async () => {
+    const user = userEvent.setup();
+    render(<OrderHarness />);
+
+    const trigger = screen.getByRole("button", { name: "Open order" });
+    await user.click(trigger);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+});

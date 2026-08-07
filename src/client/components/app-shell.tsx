@@ -30,6 +30,7 @@ export function AppHeader({
     <header className="relative z-10 border-b border-white/8 bg-ink/80 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
         <button
+          aria-label="Ludovico Tech home"
           className="flex items-center gap-3 text-left"
           onClick={() => onTabChange("home")}
         >
@@ -47,7 +48,10 @@ export function AppHeader({
         </button>
 
         <div className="flex items-center gap-3">
-          <nav className="flex items-center gap-1 rounded-full border border-white/8 bg-white/[0.04] p-1">
+          <nav
+            aria-label="Primary navigation"
+            className="flex items-center gap-1 rounded-full border border-white/8 bg-white/[0.04] p-1"
+          >
             <NavButton
               active={tab === "home"}
               onClick={() => onTabChange("home")}
@@ -83,6 +87,7 @@ function NavButton({
 }) {
   return (
     <button
+      aria-current={active ? "page" : undefined}
       onClick={onClick}
       className={cn(
         "flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold transition",
@@ -119,10 +124,11 @@ function AuthControls({
 
   return (
     <button
+      aria-label={`Sign out${auth.actor?.displayName ? ` ${auth.actor.displayName}` : ""}`}
       onClick={onLogout}
-      className="hidden max-w-[180px] truncate rounded-full border border-white/10 px-3 py-2 text-xs text-zinc-400 hover:text-white sm:block"
+      className="max-w-[120px] truncate rounded-full border border-white/10 px-3 py-2 text-xs text-zinc-400 hover:text-white sm:max-w-[180px]"
     >
-      {auth.actor?.email}
+      Sign out
     </button>
   );
 }
@@ -143,7 +149,11 @@ export function ErrorNotice({
   onDismiss: () => void;
 }) {
   return (
-    <div className="mb-6 flex items-center justify-between rounded-2xl border border-red-300/20 bg-red-400/10 px-4 py-3 text-sm text-red-100">
+    <div
+      aria-live="assertive"
+      className="mb-6 flex items-center justify-between rounded-2xl border border-red-300/20 bg-red-400/10 px-4 py-3 text-sm text-red-100"
+      role="alert"
+    >
       <span>{message}</span>
       <button onClick={onDismiss} aria-label="Dismiss error">
         <X size={16} />
@@ -154,7 +164,11 @@ export function ErrorNotice({
 
 export function RollReveal({ title }: { title: string }) {
   return (
-    <div className="reveal fixed inset-0 z-50 grid place-items-center bg-ink/90 p-6 backdrop-blur-md">
+    <div
+      aria-live="polite"
+      className="reveal fixed inset-0 z-50 grid place-items-center bg-ink/90 p-6 backdrop-blur-md"
+      role="status"
+    >
       <div className="text-center">
         <div className="mx-auto mb-6 grid size-24 place-items-center rounded-[2rem] border border-lime-300/30 bg-lime-300/10 text-lime-300">
           <Ticket size={40} />
