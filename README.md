@@ -18,7 +18,8 @@ pnpm dev
 The app runs at `http://localhost:5173`. The Worker API runs at `http://localhost:8787`.
 An empty migrated database is a complete development environment; legacy data
 import is an optional local operator workflow when a private source dataset is
-available.
+available. See [Optional private catalog import](docs/private-import.md) for the
+PII-safe positional sanitizer and deterministic local import process.
 
 Copy `.dev.vars.development.example` to `.dev.vars.development` for optional
 local Worker secrets. Keep unrelated development credentials out of this file.
