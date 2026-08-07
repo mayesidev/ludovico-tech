@@ -88,6 +88,39 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("production runtime configuration", () => {
+  it("fails health closed for invalid or incomplete production bindings", async () => {
+    const invalid = await request(
+      "/api/health",
+      productionEnv({ AUTH_MODE: "development" }),
+    );
+    expect(invalid.status).toBe(503);
+    expect(await invalid.json()).toEqual({
+      error: "Application is not configured",
+    });
+
+    const incomplete = await request("/api/health", productionEnv());
+    expect(incomplete.status).toBe(503);
+    expect(await incomplete.json()).toMatchObject({
+      environment: "production",
+      ok: false,
+    });
+
+    const ready = await request(
+      "/api/health",
+      productionEnv({
+        ...googleConfiguration,
+        TMDB_READ_ACCESS_TOKEN: "test-tmdb-token",
+      }),
+    );
+    expect(ready.status).toBe(200);
+    expect(await ready.json()).toMatchObject({
+      environment: "production",
+      ok: true,
+    });
+  });
+});
+
 describe("Google authentication", () => {
   it("creates a short-lived state with an S256 PKCE challenge", async () => {
     const response = await request(
@@ -459,17 +492,30 @@ describe("TMDB routes and metadata attachment", () => {
     const session = await authenticated({
       TMDB_READ_ACCESS_TOKEN: "test-tmdb-token",
     });
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          id: 301,
-          poster_path: "/authoritative.jpg",
-          release_date: "2026-08-05",
-          title: "Authoritative Movie",
-        }),
-        { status: 200 },
-      ),
-    );
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 301,
+            poster_path: "/authoritative.jpg",
+            release_date: "2026-08-05",
+            title: "Authoritative Movie",
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 302,
+            poster_path: "/refreshed.jpg",
+            release_date: "2026-08-06",
+            title: "Refreshed Authoritative Movie",
+          }),
+          { status: 200 },
+        ),
+      );
     const init = {
       method: "POST",
       headers: { Cookie: session.cookie },
@@ -518,7 +564,34 @@ describe("TMDB routes and metadata attachment", () => {
       },
     });
     expect(duplicate.status).toBe(409);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const refreshed = await request(
+      `/api/movies/${String(movie.id)}`,
+      session.bindings,
+      {
+        method: "PATCH",
+        headers: { Cookie: session.cookie },
+        body: JSON.stringify({ tmdbId: 302 }),
+      },
+    );
+    expect(await refreshed.json()).toMatchObject({
+      movie: {
+        poster_path: "/refreshed.jpg",
+        release_date: "2026-08-06",
+        title: "Refreshed Authoritative Movie",
+        tmdb_id: 302,
+      },
+    });
+    const storedMetadata = await env.DB.prepare(
+      "SELECT tmdb_id, tmdb_fetched_at FROM movies WHERE id = ?",
+    )
+      .bind(String(movie.id))
+      .first<{ tmdb_fetched_at: string | null; tmdb_id: number | null }>();
+    expect(storedMetadata).toEqual({
+      tmdb_fetched_at: expect.any(String),
+      tmdb_id: 302,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
 

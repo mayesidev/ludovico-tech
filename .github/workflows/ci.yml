@@ -69,8 +69,8 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Run unit and integration tests
-        run: pnpm test
+      - name: Run unit and integration tests with coverage
+        run: pnpm test:coverage
 
       - name: Build production assets
         run: pnpm build

@@ -229,6 +229,36 @@ describe("private Sheet sanitization", () => {
     ]);
   });
 
+  it("rejects duplicate and unknown source-row exclusions", () => {
+    expect(
+      parseImportCorrectionsJson(
+        JSON.stringify({
+          excludedSourceRows: [3, 3],
+          legacyImdbIds: [],
+          ratings: [],
+          schemaVersion: 1,
+        }),
+      ),
+    ).toBeNull();
+
+    const result = sanitizeSourceCsv(
+      `${header}\n8/1/2026 10:30:00,Synthetic Movie,No,No,,,\n`,
+      {
+        excludedSourceRows: new Set([3]),
+        legacyImdbIds: new Map(),
+        ratings: new Map(),
+      },
+    );
+    expect(result.document.validated).toBe(false);
+    expect(result.diagnostics).toEqual([
+      {
+        code: "SOURCE_ROW_EXCLUSION_UNUSED",
+        row: 3,
+        severity: "error",
+      },
+    ]);
+  });
+
   it("rejects malformed CSV without propagating parser details", () => {
     expect(sanitizeSourceCsv('"unterminated').diagnostics).toEqual([
       { code: "SOURCE_CSV_INVALID", row: null, severity: "error" },

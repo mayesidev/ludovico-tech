@@ -11,7 +11,7 @@
     "format:check": "prettier --check .",
     "config:check": "tsx scripts/validate-cloudflare-config.ts",
     "config:check:production": "tsx scripts/validate-cloudflare-config.ts --production",
-    "check": "pnpm config:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
+    "check": "pnpm config:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",

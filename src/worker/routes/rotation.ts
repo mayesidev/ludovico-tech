@@ -9,6 +9,7 @@ import {
 import { type AppEnv, newId, now } from "../env";
 import { auditStatement, mutationActor } from "../middleware";
 import { orderInput } from "../schemas";
+import { selectQueuedMovie } from "../selection";
 
 export const registerRotationRoutes = (app: Hono<AppEnv>) => {
   app.post("/roll", async (c) => {
@@ -48,10 +49,11 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
     const remainingFranchiseMovies = rolled.franchise_id
       ? await getRemainingFranchiseMovies(c.env, rolled.franchise_id)
       : [];
-    const actual =
-      rolled.franchise_id && franchise?.order_confirmed
-        ? (remainingFranchiseMovies[0] ?? rolled)
-        : rolled;
+    const actual = selectQueuedMovie(
+      rolled,
+      Boolean(franchise?.order_confirmed),
+      remainingFranchiseMovies,
+    );
     const status =
       rolled.franchise_id && !franchise?.order_confirmed
         ? "pending_order"

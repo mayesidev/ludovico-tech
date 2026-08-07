@@ -11,12 +11,8 @@ export default defineConfig(async () => {
   return defineConfig({
     test: {
       coverage: {
-        exclude: [
-          "src/client/main.tsx",
-          "src/worker-configuration.d.ts",
-          "src/**/*.test.{ts,tsx}",
-        ],
-        include: ["src/**/*.{ts,tsx}", "scripts/import-sheet-lib.ts"],
+        exclude: ["src/worker-configuration.d.ts", "**/*.test.{ts,tsx}"],
+        include: ["src/**/*.{ts,tsx}", "scripts/**/*.ts"],
         provider: "istanbul",
         reporter: ["text", "json-summary", "html"],
         thresholds: {
