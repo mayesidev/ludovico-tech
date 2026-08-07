@@ -258,6 +258,10 @@ describe("atomic catalog mutations", () => {
   });
 
   it("allows only one concurrent random roll to commit", async () => {
+    await insertMovie(
+      "40000000-0000-4000-8000-000000000001",
+      "Concurrent Roll",
+    );
     const [first, second] = await Promise.all([
       request("/roll"),
       request("/roll"),
