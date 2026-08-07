@@ -3,6 +3,7 @@ import {
   createCodeVerifier,
   createSessionId,
   createState,
+  getAllowedEmails,
   getActor,
   getRuntimeConfig,
   isDevelopmentAuth,
@@ -14,8 +15,25 @@ import {
   type AppEnv,
 } from "../env";
 
+const googleJson = async (
+  url: string,
+  init: RequestInit,
+): Promise<Record<string, unknown> | null> => {
+  try {
+    const response = await fetch(url, init);
+    if (!response.ok) return null;
+    const value = (await response.json()) as unknown;
+    return value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 export const registerAuthRoutes = (app: Hono<AppEnv>) => {
   app.get("/auth/me", async (c) => {
+    c.header("Cache-Control", "no-store");
     const actor = await getActor(c.env, c.req.raw);
     return c.json({
       authenticated: Boolean(actor),
@@ -38,11 +56,14 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
     const createdAt = now();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
-    await c.env.DB.prepare(
-      "INSERT INTO oauth_states (state, code_verifier, created_at, expires_at) VALUES (?, ?, ?, ?)",
-    )
-      .bind(state, verifier, createdAt, expiresAt)
-      .run();
+    await c.env.DB.batch([
+      c.env.DB.prepare("DELETE FROM oauth_states WHERE expires_at <= ?").bind(
+        createdAt,
+      ),
+      c.env.DB.prepare(
+        "INSERT INTO oauth_states (state, code_verifier, created_at, expires_at) VALUES (?, ?, ?, ?)",
+      ).bind(state, verifier, createdAt, expiresAt),
+    ]);
 
     const params = new URLSearchParams({
       client_id: c.env.GOOGLE_CLIENT_ID,
@@ -63,11 +84,11 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
 
   app.get("/auth/google/callback", async (c) => {
     if (isDevelopmentAuth(c.env)) return c.redirect("/");
+    c.header("Cache-Control", "no-store");
 
     const code = c.req.query("code");
     const state = c.req.query("state");
     if (
-      !code ||
       !state ||
       !c.env.GOOGLE_CLIENT_ID ||
       !c.env.GOOGLE_CLIENT_SECRET ||
@@ -77,55 +98,59 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
     }
 
     const oauthState = await c.env.DB.prepare(
-      "SELECT * FROM oauth_states WHERE state = ?",
+      `DELETE FROM oauth_states
+       WHERE state = ? AND expires_at > ?
+       RETURNING code_verifier`,
     )
-      .bind(state)
-      .first<{ state: string; code_verifier: string; expires_at: string }>();
-    await c.env.DB.prepare("DELETE FROM oauth_states WHERE state = ?")
-      .bind(state)
-      .run();
-    if (!oauthState || oauthState.expires_at <= now()) {
+      .bind(state, now())
+      .first<{ code_verifier: string }>();
+    if (!oauthState) {
       return c.text("OAuth state expired", 400);
     }
+    if (!code) return c.text("Invalid OAuth callback", 400);
 
-    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    const tokens = await googleJson("https://oauth2.googleapis.com/token", {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
       body: new URLSearchParams({
-        code,
         client_id: c.env.GOOGLE_CLIENT_ID,
         client_secret: c.env.GOOGLE_CLIENT_SECRET,
-        redirect_uri: c.env.GOOGLE_REDIRECT_URI,
-        grant_type: "authorization_code",
+        code,
         code_verifier: oauthState.code_verifier,
+        grant_type: "authorization_code",
+        redirect_uri: c.env.GOOGLE_REDIRECT_URI,
       }),
     });
-    if (!tokenResponse.ok) return c.text("Google token exchange failed", 502);
-
-    const tokens = (await tokenResponse.json()) as { access_token?: string };
-    if (!tokens.access_token) {
-      return c.text("Google token exchange returned no access token", 502);
+    const accessToken = tokens?.access_token;
+    if (typeof accessToken !== "string" || !accessToken) {
+      return c.text("Authentication provider unavailable", 502);
     }
 
-    const profileResponse = await fetch(
+    const profile = await googleJson(
       "https://openidconnect.googleapis.com/v1/userinfo",
-      { headers: { Authorization: `Bearer ${tokens.access_token}` } },
+      {
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
     );
-    if (!profileResponse.ok) return c.text("Google profile lookup failed", 502);
+    if (!profile) return c.text("Authentication provider unavailable", 502);
 
-    const profile = (await profileResponse.json()) as {
-      email?: string;
-      email_verified?: boolean;
-      name?: string;
-    };
-    const email = profile.email?.toLowerCase();
-    const allowedEmails = new Set(
-      (c.env.ALLOWED_EMAILS ?? "")
-        .split(",")
-        .map((value) => value.trim().toLowerCase())
-        .filter(Boolean),
-    );
-    if (!email || !profile.email_verified || !allowedEmails.has(email)) {
+    const email =
+      typeof profile.email === "string"
+        ? profile.email.trim().toLowerCase()
+        : null;
+    if (
+      typeof profile.sub !== "string" ||
+      !profile.sub ||
+      !email ||
+      profile.email_verified !== true ||
+      !getAllowedEmails(c.env).has(email)
+    ) {
       return c.text("This account is not on the invite list", 403);
     }
 
@@ -134,7 +159,15 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
       `INSERT INTO users (id, email, display_name, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(email) DO UPDATE SET display_name = excluded.display_name, last_seen_at = excluded.last_seen_at`,
     )
-      .bind(newId(), email, profile.name ?? email, timestamp, timestamp)
+      .bind(
+        newId(),
+        email,
+        typeof profile.name === "string"
+          ? profile.name.trim().slice(0, 200) || email
+          : email,
+        timestamp,
+        timestamp,
+      )
       .run();
     const user = await c.env.DB.prepare("SELECT id FROM users WHERE email = ?")
       .bind(email)
@@ -142,17 +175,24 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
     if (!user) return c.text("Unable to create user session", 500);
 
     const sessionId = createSessionId();
-    await c.env.DB.prepare(
-      "INSERT INTO auth_sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
-    )
-      .bind(
+    await c.env.DB.batch([
+      c.env.DB.prepare("DELETE FROM auth_sessions WHERE expires_at <= ?").bind(
+        timestamp,
+      ),
+      c.env.DB.prepare(
+        "INSERT INTO auth_sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
+      ).bind(
         sessionId,
         user.id,
         timestamp,
         new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      )
-      .run();
-    c.header("Set-Cookie", sessionCookie(sessionId, true));
+      ),
+    ]);
+    const config = getRuntimeConfig(c.env);
+    c.header(
+      "Set-Cookie",
+      sessionCookie(sessionId, config.environment === "production"),
+    );
     return c.redirect("/");
   });
 

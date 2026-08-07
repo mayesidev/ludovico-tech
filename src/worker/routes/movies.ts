@@ -11,6 +11,8 @@ import {
 import { auditStatement, mutationActor } from "../middleware";
 import { movieEditInput, movieInput, ratingInput } from "../schemas";
 import { newId, normalizeTitle, now } from "../env";
+import { getTmdbMovie } from "../tmdb";
+import { tmdbErrorResponse } from "./tmdb";
 
 export const registerMovieRoutes = (app: Hono<AppEnv>) => {
   app.get("/movies", async (c) => {
@@ -72,6 +74,26 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     const input = c.req.valid("json");
     const id = newId();
     const timestamp = now();
+    let metadata = null;
+    if (input.tmdbId) {
+      try {
+        metadata = await getTmdbMovie(c.env, input.tmdbId);
+      } catch (error) {
+        return tmdbErrorResponse(error, c);
+      }
+      const duplicate = await c.env.DB.prepare(
+        "SELECT id FROM movies WHERE tmdb_id = ?",
+      )
+        .bind(input.tmdbId)
+        .first();
+      if (duplicate) {
+        return c.json(
+          { error: "That TMDB movie is already in the catalog" },
+          409,
+        );
+      }
+    }
+    const title = metadata?.title ?? input.title;
     let franchiseId: string | null = null;
     const statements: D1PreparedStatement[] = [];
 
@@ -114,14 +136,14 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         id,
-        input.title,
-        normalizeTitle(input.title),
+        title,
+        normalizeTitle(title),
         timestamp,
         actor.id,
         timestamp,
         actor.id,
-        input.releaseDate ?? null,
-        input.posterPath ?? null,
+        metadata?.releaseDate ?? null,
+        metadata?.posterPath ?? null,
         input.tmdbId ?? null,
         input.tmdbId ? timestamp : null,
       ),
@@ -136,7 +158,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     }
     statements.push(
       auditStatement(c.env, "movie", id, "created", actor.id, {
-        title: input.title,
+        title,
       }),
     );
     await c.env.DB.batch(statements);
@@ -153,28 +175,42 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     if (!existing) return c.json({ error: "Movie not found" }, 404);
 
     const timestamp = now();
-    const title = input.title ?? existing.title;
+    let metadata = null;
+    if (input.tmdbId) {
+      try {
+        metadata = await getTmdbMovie(c.env, input.tmdbId);
+      } catch (error) {
+        return tmdbErrorResponse(error, c);
+      }
+      const duplicate = await c.env.DB.prepare(
+        "SELECT id FROM movies WHERE tmdb_id = ? AND id <> ?",
+      )
+        .bind(input.tmdbId, movieId)
+        .first();
+      if (duplicate) {
+        return c.json(
+          { error: "That TMDB movie is already in the catalog" },
+          409,
+        );
+      }
+    }
+    const title = metadata?.title ?? input.title ?? existing.title;
     await c.env.DB.batch([
       c.env.DB.prepare(
         `UPDATE movies SET title = ?, title_normalized = ?, updated_at = ?, updated_by = ?,
-        release_date = ?, poster_path = ?, tmdb_id = ?, tmdb_fetched_at = ? WHERE id = ?`,
+        release_date = ?, poster_path = ?, tmdb_id = ?,
+        tmdb_fetched_at = CASE WHEN ? THEN ? ELSE tmdb_fetched_at END
+        WHERE id = ?`,
       ).bind(
         title,
         normalizeTitle(title),
         timestamp,
         actor.id,
-        input.releaseDate === undefined
-          ? existing.release_date
-          : input.releaseDate,
-        input.posterPath === undefined
-          ? existing.poster_path
-          : input.posterPath,
+        metadata?.releaseDate ?? existing.release_date,
+        metadata?.posterPath ?? existing.poster_path,
         input.tmdbId === undefined ? existing.tmdb_id : input.tmdbId,
-        input.tmdbId !== undefined ||
-          input.releaseDate !== undefined ||
-          input.posterPath !== undefined
-          ? timestamp
-          : existing.tmdb_fetched_at,
+        input.tmdbId !== undefined ? 1 : 0,
+        input.tmdbId ? timestamp : null,
         movieId,
       ),
       auditStatement(c.env, "movie", movieId, "updated", actor.id, {

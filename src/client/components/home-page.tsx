@@ -419,8 +419,6 @@ function AddMovieSection({
                       api.addMovie({
                         title,
                         franchiseName,
-                        releaseDate: selected?.releaseDate,
-                        posterPath: selected?.posterPath,
                         tmdbId: selected?.id,
                       }),
                     () => {

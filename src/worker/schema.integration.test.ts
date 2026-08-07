@@ -174,6 +174,7 @@ describe("catalog schema", () => {
     expect(movie).not.toHaveProperty("updated_by");
     expect(movie).not.toHaveProperty("title_normalized");
     expect(movie).not.toHaveProperty("legacy_imdb_id");
+    expect(movie).not.toHaveProperty("tmdb_fetched_at");
     expect(movie).not.toHaveProperty("source_key");
     expect(movie).not.toHaveProperty("source_row");
     expect(movie).not.toHaveProperty("prior_viewed");

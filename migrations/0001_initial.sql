@@ -104,11 +104,19 @@ CREATE TABLE oauth_states (
   expires_at TEXT NOT NULL
 );
 
+CREATE TABLE tmdb_cache (
+  cache_key TEXT PRIMARY KEY,
+  payload_json TEXT NOT NULL,
+  fetched_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
+
 CREATE INDEX idx_movies_title_normalized ON movies(title_normalized);
 CREATE INDEX idx_movie_import_sources_movie ON movie_import_sources(movie_id);
 CREATE INDEX idx_franchise_movies_order ON franchise_movies(franchise_id, position);
 CREATE INDEX idx_ratings_recorded_at ON ratings(recorded_at);
 CREATE INDEX idx_auth_sessions_expires_at ON auth_sessions(expires_at);
 CREATE INDEX idx_oauth_states_expires_at ON oauth_states(expires_at);
+CREATE INDEX idx_tmdb_cache_expires_at ON tmdb_cache(expires_at);
 
 INSERT INTO now_showing (id, status, updated_at) VALUES (1, 'empty', datetime('now'));

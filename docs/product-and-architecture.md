@@ -55,6 +55,9 @@ application does not call or depend on an IMDb API. A controlled reconciliation
 step confirms each imported movie against TMDB before attaching a TMDB identity.
 
 TMDB attribution must follow its current branding and notice requirements.
+The durable OAuth, session, server-side metadata, caching, error-mapping, and
+attribution rules are recorded in
+[Authentication and metadata service contract](external-services.md).
 
 ## Private source data
 
