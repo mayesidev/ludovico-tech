@@ -7,6 +7,8 @@ evidence. This matrix records the behaviors that must be established directly.
 
 - Istanbul coverage includes every maintained TypeScript/TSX source file, not
   only files imported by tests.
+- Only test files and the generated Worker declaration file are excluded; CLI
+  entry points and the browser bootstrap remain visible even when uncovered.
 - Global thresholds are 80% for statements, functions, and lines and 70% for
   branches. Thresholds may increase as the suite improves; they must not be
   reduced merely to make CI pass.
@@ -34,7 +36,48 @@ evidence. This matrix records the behaviors that must be established directly.
 | Client workflows       | Add/confirm movie, order franchise, roll, required rating, continue franchise, choose fresh roll, edit metadata                                                                                                                                                                                                                                                                                                                 | Component and Playwright           |
 | Accessibility          | Dialog names, focus entry/return, keyboard dismissal, form labels/errors, navigation state, reduced-motion behavior                                                                                                                                                                                                                                                                                                             | Component and human review         |
 | Migration              | Fresh database applies every migration; representative import succeeds; schema constraints reject invalid state                                                                                                                                                                                                                                                                                                                 | Local D1 integration               |
-| Deployment             | Only exact published release tags accepted; pending migrations block deploy; deployed health matches tag/SHA; failed smoke check fails workflow                                                                                                                                                                                                                                                                                 | Script unit and workflow review    |
+
+## Direct evidence map
+
+- Runtime configuration: `src/worker/env.test.ts` and the production-health
+  cases in `src/worker/routes.integration.test.ts`.
+- Public catalog: catalog filter and missing-resource cases in
+  `src/worker/index.integration.test.ts`; DTO privacy in
+  `src/worker/schema.integration.test.ts`.
+- Authentication and authorization: `src/worker/routes.integration.test.ts`,
+  with client-state coverage in `src/client/App.test.tsx`.
+- Movie metadata: TMDB confirmation, cache, refresh, duplicate, and failure
+  cases in `src/worker/routes.integration.test.ts`; manual and confirmed-add
+  browser behavior in `e2e/ludovico-tech.spec.ts`.
+- Ratings: API boundaries and shared watched-state cases in
+  `src/worker/index.integration.test.ts`, database constraints in
+  `src/worker/schema.integration.test.ts`, and required form behavior in
+  `src/client/components/home-page.test.tsx`.
+- Random roll: eligibility and blocking cases in
+  `src/worker/index.integration.test.ts`; concurrency and rollback in
+  `src/worker/atomicity.integration.test.ts`.
+- Franchise selection, order, and continuation:
+  `src/worker/selection.test.ts`, `src/worker/index.integration.test.ts`,
+  `src/worker/atomicity.integration.test.ts`, client component tests, and the
+  ordered-series Playwright workflow.
+- Mutation atomicity: every catalog state transition has a forced audit-failure
+  case in `src/worker/atomicity.integration.test.ts`.
+- Import and migration: `scripts/import-sheet-lib.test.ts`,
+  `scripts/import-files.test.ts`, `src/worker/import.integration.test.ts`, and
+  `src/worker/schema.integration.test.ts`.
+- Client authorization, workflows, and accessibility: `src/client/App.test.tsx`,
+  the component tests under `src/client/components`, and all three Playwright
+  workflows.
+- External network denial: `test/network-policy.test.ts` and
+  `test/deny-network.ts`; Google and TMDB integration tests install explicit
+  per-test fakes.
+
+## Release-gate behavior
+
+Deployment behavior is owned by LVT-15 and must have direct script and workflow
+evidence before the release gate is enabled: only an exact published release tag
+may deploy, pending production migrations must stop deployment, deployed health
+must match the tag and commit, and any smoke mismatch must fail the workflow.
 
 ## CI release gate
 
