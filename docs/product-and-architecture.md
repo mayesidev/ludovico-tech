@@ -58,10 +58,20 @@ TMDB attribution must follow its current branding and notice requirements.
 
 ## Private source data
 
-The source spreadsheet, generated SQL, validation reports, and local environment
-files remain ignored and must never be committed or uploaded as CI artifacts.
-Public code refers to source columns by position and purpose only; it does not
-contain private column headings.
+The application, migrations, local development environment, automated tests, and
+production deployment must all work with an empty catalog. A legacy source
+artifact is never a bootstrap dependency. Import is an optional local operator
+workflow used only when a source dataset is available and selected for loading.
+
+The original spreadsheet, sanitized intermediate data, generated SQL, validation
+reports, and local environment files remain ignored and must never be committed
+or uploaded as CI artifacts. Sanitizing headings does not by itself establish
+that all row values are suitable for publication.
+
+The first import stage ignores the original header text, maps fields by position
+and purpose, and emits a generalized intermediate schema with fixed public-safe
+field names. The deterministic database importer consumes only that generalized
+format. Public code does not contain or propagate private column headings.
 
 Import behavior is deterministic and strict:
 
@@ -79,6 +89,10 @@ Import behavior is deterministic and strict:
   questionable references produce a private diagnostic that identifies only the
   source row and error code.
 - Re-running the same validated import does not duplicate catalog data.
+- Automated tests use synthetic generalized fixtures and never require or read
+  the private source artifact.
+- TMDB reconciliation is an optional cached and resumable follow-up stage. It
+  does not run during sanitization, normal bootstrap, or automated tests.
 
 Because the application has not reached its first production release, the
 database may be reset and rebuilt from the source. After the first release,
@@ -92,6 +106,10 @@ Local development runs Vite and Wrangler separately. Vite serves the browser
 application and proxies `/api` to a local Worker. Wrangler uses a persistent local
 D1 directory and never connects to production unless an operator supplies both
 `--remote` and `--env production` explicitly.
+
+Applying the checked-in migrations produces a complete empty application. An
+operator may run the private sanitization and import workflow afterward, but
+ordinary development does not depend on the source dataset.
 
 Development authentication is an explicit configuration mode. Missing or
 unknown environment configuration fails closed and must never create a developer
