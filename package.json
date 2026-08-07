@@ -2,6 +2,9 @@
   "name": "ludovico-tech",
   "private": true,
   "packageManager": "pnpm@11.18.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "type": "module",
   "scripts": {
     "dev": "concurrently --kill-others-on-fail \"wrangler dev src/worker/index.ts --local --env development\" \"vite --host 0.0.0.0\"",
@@ -11,6 +14,8 @@
     "format:check": "prettier --check .",
     "config:check": "tsx scripts/validate-cloudflare-config.ts",
     "config:check:production": "tsx scripts/validate-cloudflare-config.ts --production",
+    "audit:production": "pnpm audit --prod --audit-level high",
+    "licenses:check": "pnpm licenses list --prod --json | node scripts/production-licenses.ts",
     "check": "pnpm config:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
@@ -19,7 +24,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "import:sanitize": "tsx scripts/sanitize-sheet.ts",
-    "import:generate": "tsx scripts/generate-import.ts"
+    "import:generate": "tsx scripts/generate-import.ts",
+    "release:gate": "node scripts/release-gates.ts"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.9.0",
