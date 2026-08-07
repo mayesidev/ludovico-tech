@@ -11,7 +11,7 @@ The release evidence expected from automated validation is recorded in
 
 ```sh
 pnpm install
-pnpm exec wrangler d1 migrations apply movie-list --local
+pnpm exec wrangler d1 migrations apply movie-list --local --env development
 pnpm dev
 ```
 

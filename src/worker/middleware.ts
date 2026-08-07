@@ -1,9 +1,8 @@
 import type { Context } from "hono";
-import { getActor, isLocal, newId, now, type AppEnv } from "./env";
+import { getActor, newId, now, type AppEnv } from "./env";
 
 export const mutationActor = async (c: Context<AppEnv>) => {
   const actor = await getActor(c.env, c.req.raw);
-  if (!actor && !isLocal(c.env)) return null;
   return actor;
 };
 

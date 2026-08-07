@@ -3,6 +3,7 @@
   "name": "ludovico-tech",
   "main": "src/worker/index.ts",
   "compatibility_date": "2026-08-03",
+  "workers_dev": false,
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
@@ -13,21 +14,25 @@
   },
   "env": {
     "development": {
+      "workers_dev": false,
       "vars": {
         "APP_ENV": "development",
+        "AUTH_MODE": "development",
       },
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "movie-list",
-          "database_id": "84c4216e-d8f0-4895-8404-a3a9fc22d1ca",
+          "database_id": "00000000-0000-0000-0000-000000000000",
           "migrations_dir": "migrations",
         },
       ],
     },
     "production": {
+      "workers_dev": true,
       "vars": {
         "APP_ENV": "production",
+        "AUTH_MODE": "google",
       },
       "d1_databases": [
         {
@@ -39,12 +44,4 @@
       ],
     },
   },
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "movie-list",
-      "database_id": "84c4216e-d8f0-4895-8404-a3a9fc22d1ca",
-      "migrations_dir": "migrations",
-    },
-  ],
 }

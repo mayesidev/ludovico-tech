@@ -4,6 +4,7 @@ export type AppEnv = {
     ASSETS?: Fetcher;
     TMDB_READ_ACCESS_TOKEN?: string;
     APP_ENV?: string;
+    AUTH_MODE?: string;
     APP_VERSION?: string;
     GIT_SHA?: string;
     GOOGLE_CLIENT_ID?: string;
@@ -13,14 +14,58 @@ export type AppEnv = {
   };
 };
 
+export type AppEnvironment = "development" | "production" | "test";
+export type AuthMode = "development" | "google";
+
+export type RuntimeConfig = {
+  authMode: AuthMode;
+  environment: AppEnvironment;
+};
+
+export class RuntimeConfigurationError extends Error {
+  constructor() {
+    super("Application runtime configuration is invalid");
+    this.name = "RuntimeConfigurationError";
+  }
+}
+
 export type Actor = {
   id: string;
   email: string;
   displayName: string;
 };
 
-export const isLocal = (env: AppEnv["Bindings"]) =>
-  env.APP_ENV !== "production";
+export const getRuntimeConfig = (env: AppEnv["Bindings"]): RuntimeConfig => {
+  const environment = env.APP_ENV;
+  const authMode = env.AUTH_MODE;
+  if (
+    (environment !== "development" &&
+      environment !== "test" &&
+      environment !== "production") ||
+    (authMode !== "development" && authMode !== "google") ||
+    (environment === "production" && authMode !== "google")
+  ) {
+    throw new RuntimeConfigurationError();
+  }
+  return { authMode, environment };
+};
+
+export const isDevelopmentAuth = (env: AppEnv["Bindings"]) => {
+  const config = getRuntimeConfig(env);
+  return config.authMode === "development";
+};
+
+export const isProductionReady = (env: AppEnv["Bindings"]) => {
+  const config = getRuntimeConfig(env);
+  if (config.environment !== "production") return true;
+  return Boolean(
+    env.TMDB_READ_ACCESS_TOKEN &&
+    env.GOOGLE_CLIENT_ID &&
+    env.GOOGLE_CLIENT_SECRET &&
+    env.GOOGLE_REDIRECT_URI &&
+    env.ALLOWED_EMAILS?.split(",").some((value) => value.trim()),
+  );
+};
 
 export const now = () => new Date().toISOString();
 
@@ -72,7 +117,7 @@ export const getActor = async (
   env: AppEnv["Bindings"],
   request: Request,
 ): Promise<Actor | null> => {
-  if (isLocal(env)) {
+  if (isDevelopmentAuth(env)) {
     return {
       id: "local-developer",
       email: "local@example.test",
