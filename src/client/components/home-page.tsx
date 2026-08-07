@@ -422,7 +422,6 @@ function AddMovieSection({
                         releaseDate: selected?.releaseDate,
                         posterPath: selected?.posterPath,
                         tmdbId: selected?.id,
-                        imdbId: selected?.imdbId,
                       }),
                     () => {
                       reset();

@@ -17,7 +17,6 @@ export function EditMovieDialog({
   const [title, setTitle] = useState(movie.title);
   const [releaseDate, setReleaseDate] = useState(movie.release_date ?? "");
   const [posterPath, setPosterPath] = useState(movie.poster_path ?? "");
-  const [imdbId, setImdbId] = useState(movie.imdb_id ?? "");
 
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-black/65 p-5 backdrop-blur-sm">
@@ -70,15 +69,6 @@ export function EditMovieDialog({
               placeholder="/example-poster.jpg"
             />
           </label>
-          <label className="block text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">
-            IMDb ID
-            <Input
-              className="mt-2"
-              value={imdbId}
-              onChange={(event) => setImdbId(event.target.value)}
-              placeholder="tt1234567"
-            />
-          </label>
         </div>
 
         <div className="mt-6 flex justify-end gap-2">
@@ -94,7 +84,6 @@ export function EditMovieDialog({
                     title,
                     releaseDate: releaseDate || null,
                     posterPath: posterPath || null,
-                    imdbId: imdbId || null,
                   }),
                 onClose,
               )

@@ -1,4 +1,6 @@
-CREATE TABLE IF NOT EXISTS users (
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE users (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
   display_name TEXT,
@@ -7,43 +9,59 @@ CREATE TABLE IF NOT EXISTS users (
   last_seen_at TEXT
 );
 
-CREATE TABLE IF NOT EXISTS franchises (
+CREATE TABLE franchises (
   id TEXT PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE,
-  order_confirmed INTEGER NOT NULL DEFAULT 0,
+  name TEXT NOT NULL,
+  name_normalized TEXT NOT NULL UNIQUE,
+  order_confirmed INTEGER NOT NULL DEFAULT 0 CHECK (order_confirmed IN (0, 1)),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS movies (
+CREATE TABLE movies (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   title_normalized TEXT NOT NULL,
   added_at TEXT NOT NULL,
   added_by TEXT,
-  source_added_at TEXT,
-  source_row INTEGER,
   updated_at TEXT NOT NULL,
   updated_by TEXT,
   release_date TEXT,
   poster_path TEXT,
   tmdb_id INTEGER UNIQUE,
-  imdb_id TEXT,
-  franchise_id TEXT REFERENCES franchises(id),
-  prior_viewed INTEGER NOT NULL DEFAULT 0,
-  rating_score REAL CHECK (rating_score IS NULL OR (rating_score >= 0 AND rating_score <= 5 AND rating_score * 2 = CAST(rating_score * 2 AS INTEGER))),
-  rating_phrase TEXT,
-  watched_at TEXT
+  tmdb_fetched_at TEXT,
+  legacy_imdb_id TEXT UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS franchise_movies (
+CREATE TABLE movie_import_sources (
+  source_key TEXT PRIMARY KEY,
+  movie_id TEXT NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
+  source_row INTEGER NOT NULL,
+  submitted_at TEXT NOT NULL,
+  prior_viewed INTEGER NOT NULL CHECK (prior_viewed IN (0, 1)),
+  imported_at TEXT NOT NULL
+);
+
+CREATE TABLE franchise_movies (
   franchise_id TEXT NOT NULL REFERENCES franchises(id) ON DELETE CASCADE,
   movie_id TEXT NOT NULL UNIQUE REFERENCES movies(id) ON DELETE CASCADE,
-  position INTEGER NOT NULL,
-  PRIMARY KEY (franchise_id, movie_id)
+  position INTEGER NOT NULL CHECK (position > 0),
+  PRIMARY KEY (franchise_id, movie_id),
+  UNIQUE (franchise_id, position)
 );
 
-CREATE TABLE IF NOT EXISTS now_showing (
+CREATE TABLE ratings (
+  id TEXT PRIMARY KEY,
+  movie_id TEXT NOT NULL UNIQUE REFERENCES movies(id) ON DELETE CASCADE,
+  recorded_at TEXT NOT NULL,
+  watched_at TEXT,
+  score REAL NOT NULL CHECK (score >= 0 AND score <= 5 AND score * 2 = CAST(score * 2 AS INTEGER)),
+  phrase TEXT NOT NULL CHECK (length(trim(phrase)) BETWEEN 1 AND 120),
+  source TEXT NOT NULL CHECK (source IN ('application', 'legacy_import')),
+  recorded_by TEXT
+);
+
+CREATE TABLE now_showing (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   rolled_movie_id TEXT REFERENCES movies(id),
   movie_id TEXT REFERENCES movies(id),
@@ -53,7 +71,7 @@ CREATE TABLE IF NOT EXISTS now_showing (
   updated_at TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS rolls (
+CREATE TABLE rolls (
   id TEXT PRIMARY KEY,
   rolled_movie_id TEXT NOT NULL REFERENCES movies(id),
   actual_movie_id TEXT NOT NULL REFERENCES movies(id),
@@ -62,7 +80,7 @@ CREATE TABLE IF NOT EXISTS rolls (
   actor_id TEXT
 );
 
-CREATE TABLE IF NOT EXISTS audit_log (
+CREATE TABLE audit_log (
   id TEXT PRIMARY KEY,
   entity_type TEXT NOT NULL,
   entity_id TEXT NOT NULL,
@@ -72,15 +90,25 @@ CREATE TABLE IF NOT EXISTS audit_log (
   details_json TEXT
 );
 
-CREATE TABLE IF NOT EXISTS app_settings (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+CREATE TABLE auth_sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_movies_watched_at ON movies(watched_at);
-CREATE INDEX IF NOT EXISTS idx_movies_franchise_id ON movies(franchise_id);
-CREATE INDEX IF NOT EXISTS idx_movies_title_normalized ON movies(title_normalized);
-CREATE INDEX IF NOT EXISTS idx_franchise_movies_order ON franchise_movies(franchise_id, position);
+CREATE TABLE oauth_states (
+  state TEXT PRIMARY KEY,
+  code_verifier TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
 
-INSERT OR IGNORE INTO now_showing (id, status, updated_at) VALUES (1, 'empty', datetime('now'));
+CREATE INDEX idx_movies_title_normalized ON movies(title_normalized);
+CREATE INDEX idx_movie_import_sources_movie ON movie_import_sources(movie_id);
+CREATE INDEX idx_franchise_movies_order ON franchise_movies(franchise_id, position);
+CREATE INDEX idx_ratings_recorded_at ON ratings(recorded_at);
+CREATE INDEX idx_auth_sessions_expires_at ON auth_sessions(expires_at);
+CREATE INDEX idx_oauth_states_expires_at ON oauth_states(expires_at);
+
+INSERT INTO now_showing (id, status, updated_at) VALUES (1, 'empty', datetime('now'));
