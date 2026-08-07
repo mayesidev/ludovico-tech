@@ -11,6 +11,7 @@ import type { AuthState } from "../api";
 import type { Tab } from "../types";
 import { Button } from "./ui";
 import { cn } from "../lib/utils";
+import tmdbLogo from "../assets/tmdb-logo.svg";
 
 type AppHeaderProps = {
   tab: Tab;
@@ -172,17 +173,23 @@ export function RollReveal({ title }: { title: string }) {
 export function Footer() {
   return (
     <footer className="relative z-10 mx-auto max-w-7xl border-t border-white/8 px-5 py-8 text-xs leading-5 text-zinc-600 lg:px-8">
-      <p>
-        This product uses the TMDB API but is not endorsed or certified by TMDB.
-      </p>
       <a
-        className="mt-1 inline-block text-zinc-500 underline decoration-zinc-700 underline-offset-2 hover:text-zinc-300"
+        className="mb-3 inline-block"
         href="https://www.themoviedb.org/"
         target="_blank"
         rel="noreferrer"
+        aria-label="The Movie Database"
       >
-        TMDB
+        <img
+          alt="TMDB"
+          className="h-3.5 w-auto"
+          loading="lazy"
+          src={tmdbLogo}
+        />
       </a>
+      <p>
+        This product uses the TMDB API but is not endorsed or certified by TMDB.
+      </p>
     </footer>
   );
 }

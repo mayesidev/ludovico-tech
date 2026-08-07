@@ -15,8 +15,6 @@ export function EditMovieDialog({
   run: RunAction;
 }) {
   const [title, setTitle] = useState(movie.title);
-  const [releaseDate, setReleaseDate] = useState(movie.release_date ?? "");
-  const [posterPath, setPosterPath] = useState(movie.poster_path ?? "");
 
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-black/65 p-5 backdrop-blur-sm">
@@ -27,10 +25,10 @@ export function EditMovieDialog({
               Movie details
             </p>
             <h2 className="mt-2 font-display text-3xl font-bold text-white">
-              Edit metadata
+              Edit title
             </h2>
             <p className="mt-2 text-sm leading-6 text-zinc-400">
-              Changes are attributed to the signed-in contributor.
+              Release dates and posters are managed through TMDB.
             </p>
           </div>
           <button
@@ -51,24 +49,6 @@ export function EditMovieDialog({
               onChange={(event) => setTitle(event.target.value)}
             />
           </label>
-          <label className="block text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">
-            Release date
-            <Input
-              className="mt-2"
-              type="date"
-              value={releaseDate}
-              onChange={(event) => setReleaseDate(event.target.value)}
-            />
-          </label>
-          <label className="block text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">
-            Poster path
-            <Input
-              className="mt-2"
-              value={posterPath}
-              onChange={(event) => setPosterPath(event.target.value)}
-              placeholder="/example-poster.jpg"
-            />
-          </label>
         </div>
 
         <div className="mt-6 flex justify-end gap-2">
@@ -82,8 +62,6 @@ export function EditMovieDialog({
                 () =>
                   api.updateMovie(movie.id, {
                     title,
-                    releaseDate: releaseDate || null,
-                    posterPath: posterPath || null,
                   }),
                 onClose,
               )

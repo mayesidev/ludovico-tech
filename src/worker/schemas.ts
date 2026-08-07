@@ -3,13 +3,14 @@ import { z } from "zod";
 export const movieInput = z.object({
   title: z.string().trim().min(1).max(200),
   franchiseName: z.string().trim().max(200).optional().default(""),
-  releaseDate: z.string().trim().max(20).optional().nullable(),
-  posterPath: z.string().trim().max(300).optional().nullable(),
   tmdbId: z.number().int().positive().optional().nullable(),
 });
 
-export const movieEditInput = movieInput
-  .partial()
+export const movieEditInput = z
+  .object({
+    title: z.string().trim().min(1).max(200).optional(),
+    tmdbId: z.number().int().positive().optional().nullable(),
+  })
   .refine(
     (input) => Object.keys(input).length > 0,
     "Provide at least one field",

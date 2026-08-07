@@ -57,6 +57,14 @@ export const isDevelopmentAuth = (env: AppEnv["Bindings"]) => {
   return config.authMode === "development";
 };
 
+export const getAllowedEmails = (env: AppEnv["Bindings"]) =>
+  new Set(
+    (env.ALLOWED_EMAILS ?? "")
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean),
+  );
+
 export const isProductionReady = (env: AppEnv["Bindings"]) => {
   const config = getRuntimeConfig(env);
   if (config.environment !== "production") return true;
@@ -65,7 +73,7 @@ export const isProductionReady = (env: AppEnv["Bindings"]) => {
     env.GOOGLE_CLIENT_ID &&
     env.GOOGLE_CLIENT_SECRET &&
     env.GOOGLE_REDIRECT_URI &&
-    env.ALLOWED_EMAILS?.split(",").some((value) => value.trim()),
+    getAllowedEmails(env).size,
   );
 };
 
@@ -119,7 +127,8 @@ export const getActor = async (
   env: AppEnv["Bindings"],
   request: Request,
 ): Promise<Actor | null> => {
-  if (isDevelopmentAuth(env)) {
+  const config = getRuntimeConfig(env);
+  if (config.authMode === "development") {
     return {
       id: "local-developer",
       email: "local@example.test",
@@ -141,7 +150,14 @@ export const getActor = async (
       display_name: string | null;
       expires_at: string;
     }>();
-  if (!session || session.expires_at <= now()) return null;
+  if (!session) return null;
+  if (session.expires_at <= now()) {
+    await env.DB.prepare("DELETE FROM auth_sessions WHERE id = ?")
+      .bind(sessionId)
+      .run();
+    return null;
+  }
+  if (!getAllowedEmails(env).has(session.email.toLowerCase())) return null;
   return {
     id: session.id,
     email: session.email,

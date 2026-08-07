@@ -37,7 +37,6 @@ export type TmdbResult = {
   title: string;
   releaseDate: string | null;
   posterPath: string | null;
-  imdbId: string | null;
 };
 export type AuthState = {
   authenticated: boolean;
@@ -88,8 +87,6 @@ export const api = {
   addMovie: (movie: {
     title: string;
     franchiseName?: string;
-    releaseDate?: string | null;
-    posterPath?: string | null;
     tmdbId?: number | null;
   }) =>
     request<{ movie: Movie }>("/api/movies", {
@@ -100,8 +97,6 @@ export const api = {
     id: string,
     movie: {
       title?: string;
-      releaseDate?: string | null;
-      posterPath?: string | null;
       tmdbId?: number | null;
     },
   ) =>

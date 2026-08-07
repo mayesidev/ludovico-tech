@@ -1,49 +1,52 @@
-import { type Hono } from "hono";
-import type { AppEnv } from "../env";
+import { type Context, type Hono } from "hono";
+import { getActor, type AppEnv } from "../env";
+import { getTmdbMovie, searchTmdbMovies, TmdbServiceError } from "../tmdb";
+
+export const tmdbErrorResponse = (error: unknown, c: Context<AppEnv>) => {
+  if (!(error instanceof TmdbServiceError)) throw error;
+  if (error.retryAfter) c.header("Retry-After", error.retryAfter);
+  return c.json(
+    {
+      error:
+        error.status === 503
+          ? "TMDB is not configured"
+          : error.status === 429
+            ? "TMDB is temporarily rate limited"
+            : "TMDB lookup failed",
+    },
+    error.status,
+  );
+};
 
 export const registerTmdbRoutes = (app: Hono<AppEnv>) => {
   app.get("/tmdb/search", async (c) => {
+    const actor = await getActor(c.env, c.req.raw);
+    if (!actor) return c.json({ error: "Authentication required" }, 401);
+
     const query = c.req.query("query")?.trim();
     if (!query) return c.json({ results: [] });
-    if (!c.env.TMDB_READ_ACCESS_TOKEN) {
-      return c.json({ error: "TMDB is not configured" }, 503);
+    if (query.length > 100) return c.json({ error: "Query is too long" }, 400);
+
+    try {
+      return c.json({ results: await searchTmdbMovies(c.env, query) });
+    } catch (error) {
+      return tmdbErrorResponse(error, c);
+    }
+  });
+
+  app.get("/tmdb/movies/:id", async (c) => {
+    const actor = await getActor(c.env, c.req.raw);
+    if (!actor) return c.json({ error: "Authentication required" }, 401);
+
+    const movieId = Number(c.req.param("id"));
+    if (!Number.isInteger(movieId) || movieId <= 0) {
+      return c.json({ error: "Invalid TMDB movie ID" }, 400);
     }
 
-    const response = await fetch(
-      `https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(query)}&include_adult=false&language=en-US`,
-      {
-        headers: {
-          Authorization: `Bearer ${c.env.TMDB_READ_ACCESS_TOKEN}`,
-          accept: "application/json",
-        },
-      },
-    );
-    if (!response.ok) {
-      return c.json(
-        { error: "TMDB lookup failed" },
-        response.status as 400 | 401 | 403 | 404 | 429 | 500,
-      );
+    try {
+      return c.json({ movie: await getTmdbMovie(c.env, movieId) });
+    } catch (error) {
+      return tmdbErrorResponse(error, c);
     }
-
-    const data = (await response.json()) as {
-      results?: Array<{
-        id: number;
-        title: string;
-        release_date?: string;
-        poster_path?: string | null;
-        imdb_id?: string;
-      }>;
-    };
-    return c.json({
-      results: (data.results ?? [])
-        .slice(0, 8)
-        .map(({ id, title, release_date, poster_path, imdb_id }) => ({
-          id,
-          title,
-          releaseDate: release_date ?? null,
-          posterPath: poster_path ?? null,
-          imdbId: imdb_id ?? null,
-        })),
-    });
   });
 };
