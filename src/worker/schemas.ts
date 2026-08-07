@@ -6,7 +6,6 @@ export const movieInput = z.object({
   releaseDate: z.string().trim().max(20).optional().nullable(),
   posterPath: z.string().trim().max(300).optional().nullable(),
   tmdbId: z.number().int().positive().optional().nullable(),
-  imdbId: z.string().trim().max(30).optional().nullable(),
 });
 
 export const movieEditInput = movieInput
@@ -22,7 +21,7 @@ export const ratingInput = z.object({
     .min(0)
     .max(5)
     .refine((value) => Number.isInteger(value * 2), "Use whole or half points"),
-  phrase: z.string().trim().max(120).optional().default(""),
+  phrase: z.string().trim().min(1).max(120),
 });
 
 export const orderInput = z.object({

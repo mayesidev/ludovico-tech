@@ -24,7 +24,11 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
     }
 
     const rolled = await c.env.DB.prepare(
-      "SELECT id, title, franchise_id FROM movies WHERE rating_score IS NULL ORDER BY RANDOM() LIMIT 1",
+      `SELECT movies.id, movies.title, franchise_movies.franchise_id
+       FROM movies
+       LEFT JOIN franchise_movies ON franchise_movies.movie_id = movies.id
+       LEFT JOIN ratings ON ratings.movie_id = movies.id
+       WHERE ratings.id IS NULL ORDER BY RANDOM() LIMIT 1`,
     ).first<{ id: string; title: string; franchise_id: string | null }>();
     if (!rolled) {
       return c.json({ error: "There are no unwatched movies left" }, 409);
@@ -113,7 +117,7 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
       const franchiseId = c.req.param("id");
       const input = c.req.valid("json");
       const members = await c.env.DB.prepare(
-        "SELECT id FROM movies WHERE franchise_id = ?",
+        "SELECT movie_id AS id FROM franchise_movies WHERE franchise_id = ?",
       )
         .bind(franchiseId)
         .all<{ id: string }>();
@@ -132,11 +136,16 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
         );
       }
 
-      const statements = input.movieIds.map((movieId, index) =>
+      const statements = [
         c.env.DB.prepare(
-          "UPDATE franchise_movies SET position = ? WHERE franchise_id = ? AND movie_id = ?",
-        ).bind(index + 1, franchiseId, movieId),
-      );
+          "UPDATE franchise_movies SET position = position + 1000000 WHERE franchise_id = ?",
+        ).bind(franchiseId),
+        ...input.movieIds.map((movieId, index) =>
+          c.env.DB.prepare(
+            "UPDATE franchise_movies SET position = ? WHERE franchise_id = ? AND movie_id = ?",
+          ).bind(index + 1, franchiseId, movieId),
+        ),
+      ];
       statements.push(
         c.env.DB.prepare(
           "UPDATE franchises SET order_confirmed = 1, updated_at = ? WHERE id = ?",

@@ -17,9 +17,9 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     const status = c.req.query("status") ?? "all";
     const query =
       status === "unwatched"
-        ? `${movieSelect} WHERE movies.rating_score IS NULL`
+        ? `${movieSelect} WHERE ratings.id IS NULL`
         : status === "watched"
-          ? `${movieSelect} WHERE movies.rating_score IS NOT NULL`
+          ? `${movieSelect} WHERE ratings.id IS NOT NULL`
           : movieSelect;
     const result = await c.env.DB.prepare(
       `${query} ORDER BY movies.title COLLATE NOCASE`,
@@ -30,8 +30,11 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
   app.get("/franchises", async (c) => {
     const result = await c.env.DB.prepare(
       `SELECT franchises.*, COUNT(movies.id) AS movie_count,
-      SUM(CASE WHEN movies.rating_score IS NOT NULL THEN 1 ELSE 0 END) AS watched_count
-     FROM franchises LEFT JOIN movies ON movies.franchise_id = franchises.id
+      SUM(CASE WHEN ratings.id IS NOT NULL THEN 1 ELSE 0 END) AS watched_count
+     FROM franchises
+     LEFT JOIN franchise_movies ON franchise_movies.franchise_id = franchises.id
+     LEFT JOIN movies ON movies.id = franchise_movies.movie_id
+     LEFT JOIN ratings ON ratings.movie_id = movies.id
      GROUP BY franchises.id ORDER BY franchises.name COLLATE NOCASE`,
     ).all();
     return c.json({ franchises: result.results });
@@ -39,14 +42,14 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
 
   app.get("/franchises/:id", async (c) => {
     const franchise = await c.env.DB.prepare(
-      "SELECT * FROM franchises WHERE id = ?",
+      "SELECT id, name, order_confirmed, created_at, updated_at FROM franchises WHERE id = ?",
     )
       .bind(c.req.param("id"))
       .first();
     if (!franchise) return c.json({ error: "Franchise not found" }, 404);
 
     const movies = await c.env.DB.prepare(
-      `${movieSelect} WHERE movies.franchise_id = ? ORDER BY franchise_movies.position ASC`,
+      `${movieSelect} WHERE franchise_movies.franchise_id = ? ORDER BY franchise_movies.position ASC`,
     )
       .bind(c.req.param("id"))
       .all<MovieRow>();
@@ -73,16 +76,22 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
 
     if (input.franchiseName) {
       const existing = await c.env.DB.prepare(
-        "SELECT id FROM franchises WHERE name = ?",
+        "SELECT id FROM franchises WHERE name_normalized = ?",
       )
-        .bind(input.franchiseName)
+        .bind(normalizeTitle(input.franchiseName))
         .first<{ id: string }>();
       franchiseId = existing?.id ?? newId();
       if (!existing) {
         await c.env.DB.prepare(
-          "INSERT INTO franchises (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)",
+          "INSERT INTO franchises (id, name, name_normalized, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
         )
-          .bind(franchiseId, input.franchiseName, timestamp, timestamp)
+          .bind(
+            franchiseId,
+            input.franchiseName,
+            normalizeTitle(input.franchiseName),
+            timestamp,
+            timestamp,
+          )
           .run();
       }
     }
@@ -99,8 +108,8 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
 
     await c.env.DB.prepare(
       `INSERT INTO movies (id, title, title_normalized, added_at, added_by, updated_at, updated_by,
-      release_date, poster_path, tmdb_id, tmdb_fetched_at, imdb_id, franchise_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      release_date, poster_path, tmdb_id, tmdb_fetched_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(
         id,
@@ -114,8 +123,6 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         input.posterPath ?? null,
         input.tmdbId ?? null,
         input.tmdbId ? timestamp : null,
-        input.imdbId ?? null,
-        franchiseId,
       )
       .run();
 
@@ -145,7 +152,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     const title = input.title ?? existing.title;
     await c.env.DB.prepare(
       `UPDATE movies SET title = ?, title_normalized = ?, updated_at = ?, updated_by = ?,
-      release_date = ?, poster_path = ?, tmdb_id = ?, tmdb_fetched_at = ?, imdb_id = ? WHERE id = ?`,
+      release_date = ?, poster_path = ?, tmdb_id = ?, tmdb_fetched_at = ? WHERE id = ?`,
     )
       .bind(
         title,
@@ -164,7 +171,6 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
           input.posterPath !== undefined
           ? timestamp
           : existing.tmdb_fetched_at,
-        input.imdbId === undefined ? existing.imdb_id : input.imdbId,
         movieId,
       )
       .run();
@@ -185,9 +191,21 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
 
     const timestamp = now();
     await c.env.DB.prepare(
-      "UPDATE movies SET rating_score = ?, rating_phrase = ?, watched_at = COALESCE(watched_at, ?), updated_at = ?, updated_by = ? WHERE id = ?",
+      `INSERT INTO ratings (id, movie_id, recorded_at, watched_at, score, phrase, source, recorded_by)
+       VALUES (?, ?, ?, ?, ?, ?, 'application', ?)
+       ON CONFLICT(movie_id) DO UPDATE SET recorded_at = excluded.recorded_at,
+       watched_at = COALESCE(ratings.watched_at, excluded.watched_at), score = excluded.score,
+       phrase = excluded.phrase, source = excluded.source, recorded_by = excluded.recorded_by`,
     )
-      .bind(input.score, input.phrase, timestamp, timestamp, actor.id, movieId)
+      .bind(
+        newId(),
+        movieId,
+        timestamp,
+        timestamp,
+        input.score,
+        input.phrase,
+        actor.id,
+      )
       .run();
     await c.env.DB.prepare(
       "UPDATE now_showing SET status = 'watched', updated_at = ? WHERE id = 1 AND movie_id = ?",

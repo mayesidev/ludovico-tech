@@ -17,15 +17,13 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
-    "import:sheet": "tsx scripts/import-sheet.ts"
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.9.0",
     "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "csv-parse": "^7.0.1",
     "hono": "^4.12.34",
     "lucide-react": "^1.28.0",
     "react": "^19.2.8",

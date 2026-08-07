@@ -5,7 +5,6 @@ export type Movie = {
   release_date: string | null;
   poster_path: string | null;
   tmdb_id: number | null;
-  imdb_id: string | null;
   franchise_id: string | null;
   franchise_name?: string | null;
   franchise_position?: number | null;
@@ -92,7 +91,6 @@ export const api = {
     releaseDate?: string | null;
     posterPath?: string | null;
     tmdbId?: number | null;
-    imdbId?: string | null;
   }) =>
     request<{ movie: Movie }>("/api/movies", {
       method: "POST",
@@ -105,7 +103,6 @@ export const api = {
       releaseDate?: string | null;
       posterPath?: string | null;
       tmdbId?: number | null;
-      imdbId?: string | null;
     },
   ) =>
     request<{ movie: Movie }>(`/api/movies/${id}`, {
