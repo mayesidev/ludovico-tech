@@ -105,11 +105,11 @@ pnpm licenses:check
 
 The test suite includes helper tests plus Worker-route integration tests running in Cloudflare's local Workers runtime with an isolated D1 database and the checked-in migrations.
 
-When the Release workflow is deliberately enabled, successful CI on protected
-`main` triggers semantic-release. It analyzes Conventional Commit messages,
-creates `vX.Y.Z` tags, and publishes GitHub Releases with generated notes. Keep
-Release disabled until the dedicated production D1 database, protected GitHub
-environment, Worker secrets, and production URL are configured and verified.
+Successful CI on protected `main` triggers semantic-release. It analyzes
+Conventional Commit messages, creates `vX.Y.Z` tags, and publishes GitHub
+Releases with generated notes. Version publication is independent of deployment:
+a release can exist before staging or production is provisioned, and neither
+Cloudflare environment deploys merely because a release was published.
 
 Browser end-to-end tests use Playwright against a separate local Vite instance and a fresh temporary D1 database:
 
