@@ -2,17 +2,23 @@
 
 A small shared movie watchlist for a friend group.
 
+Product behavior, data boundaries, runtime environments, and delivery decisions
+are recorded in [Product and architecture](docs/product-and-architecture.md).
+The release evidence expected from automated validation is recorded in
+[Test strategy](docs/test-strategy.md).
+
 ## Local development
 
 ```sh
 pnpm install
 pnpm exec wrangler d1 migrations apply movie-list --local
-pnpm import:sheet -- "data/Movie List (Responses) - Form Responses 1.csv"
-for file in data/generated-import-*.sql; do pnpm exec wrangler d1 execute movie-list --local --file="$file"; done
 pnpm dev
 ```
 
 The app runs at `http://localhost:5173`. The Worker API runs at `http://localhost:8787`.
+An empty migrated database is a complete development environment; legacy data
+import is an optional local operator workflow when a private source dataset is
+available.
 
 Copy `.env.example` to `.env` for local configuration. Local secrets belong in `.env` and source data belongs under `/data`; neither is committed. The TMDB read token is only used by the Worker and must never be exposed to the browser.
 
@@ -53,7 +59,9 @@ Apply remote migrations explicitly and review the target before running them:
 pnpm exec wrangler d1 migrations apply movie-list --remote --env production
 ```
 
-The source spreadsheet and generated import SQL remain local under `/data`. They are not part of the public repository and must not be uploaded or committed.
+The optional source spreadsheet, sanitized intermediate data, and generated
+import SQL remain local under `/data`. They are not required to bootstrap the
+application and must not be uploaded or committed.
 
 ## Checks
 
