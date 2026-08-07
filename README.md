@@ -2,6 +2,11 @@
 
 A small shared movie watchlist for a friend group.
 
+Product behavior, data boundaries, runtime environments, and delivery decisions
+are recorded in [Product and architecture](docs/product-and-architecture.md).
+The release evidence expected from automated validation is recorded in
+[Test strategy](docs/test-strategy.md).
+
 ## Local development
 
 ```sh
