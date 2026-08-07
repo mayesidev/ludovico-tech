@@ -30,8 +30,9 @@ export default defineConfig(async () => {
         {
           test: {
             environment: "node",
-            include: ["scripts/**/*.test.ts"],
+            include: ["scripts/**/*.test.ts", "test/**/*.test.ts"],
             name: "node",
+            setupFiles: ["./test/deny-network.ts"],
           },
         },
         {
