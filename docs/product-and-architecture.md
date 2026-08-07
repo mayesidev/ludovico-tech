@@ -149,7 +149,8 @@ bypass or fallback actor.
    thresholds.
 2. Protected `main` accepts only changes that pass the complete CI gate.
 3. Semantic release creates a version tag and published GitHub Release from a
-   verified `main` commit.
+   verified `main` commit. Publication is independent of environment readiness
+   and does not mutate Cloudflare resources.
 4. A separately reviewed production migration workflow applies pending D1
    migrations through the protected GitHub `production` environment.
 5. Production deployment accepts only an exact published version tag, repeats

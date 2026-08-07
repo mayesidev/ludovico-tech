@@ -79,8 +79,7 @@ catalog smoke behavior is covered in `scripts/release-gates.test.ts`. Structural
 workflow tests in `scripts/workflows.test.ts` enforce full-SHA action pins, the
 stable aggregate CI gate, protected migration workflow, exact published-tag
 checkout, pre-deploy migration check, and post-deploy smoke ordering. Release
-remains disabled until the external production environment is provisioned and
-reviewed.
+publication is structurally isolated from Cloudflare migration and deployment.
 
 ## CI release gate
 

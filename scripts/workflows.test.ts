@@ -34,6 +34,19 @@ describe("complete CI and production gates", () => {
     expect(source).toContain("actions/dependency-review-action@");
   });
 
+  it("publishes versions after verified main without deploying them", () => {
+    const source = workflow("release.yml");
+    expect(source).toContain("workflow_run:");
+    expect(source).toContain("workflows: [CI]");
+    expect(source).toContain("branches: [main]");
+    expect(source).toContain("workflow_run.conclusion == 'success'");
+    expect(source).toContain("workflow_run.event == 'push'");
+    expect(source).toContain("pnpm exec semantic-release");
+    expect(source).not.toMatch(
+      /wrangler|cloudflare|environment:\s+production/i,
+    );
+  });
+
   it("validates an exact published tag and migrations before deploying", () => {
     const source = workflow("deploy.yml");
     const nodeSetup = source.indexOf("Set up Node.js");
