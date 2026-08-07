@@ -47,6 +47,9 @@ describe("atomic catalog mutations", () => {
         franchiseName: "Atomic Series",
       });
       expect(response.status).toBe(500);
+      await expect(response.json()).resolves.toEqual({
+        error: "Internal server error",
+      });
     });
 
     const movie = await env.DB.prepare("SELECT id FROM movies WHERE title = ?")

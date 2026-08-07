@@ -45,7 +45,7 @@ export const createApp = () => {
     if (error instanceof RuntimeConfigurationError) {
       return c.json({ error: "Application is not configured" }, 503);
     }
-    throw error;
+    return c.json({ error: "Internal server error" }, 500);
   });
 
   return app;
