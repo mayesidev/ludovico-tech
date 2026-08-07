@@ -28,8 +28,29 @@ committed. The TMDB read token is only used by the Worker and must never be
 exposed to the browser.
 
 The committed example contains variable names only. Never replace its empty
-value with a credential in a tracked file. Production Google, TMDB, and invite
+value with a credential in a tracked file. Deployed Google, TMDB, and invite
 configuration belongs in Cloudflare secret storage, not a project `.env` file.
+
+## Staging
+
+Staging is a production-like, Google-authenticated Worker with a dedicated D1
+database and runtime secrets. Its stable initial origin is
+`https://ludovico-tech-staging.mayesidev.workers.dev`; it never shares a Worker,
+database, or OAuth secret with production.
+
+The `Deploy Staging` workflow resolves an exact stable GitHub Release, applies
+that release's migrations to staging, deploys the exact tag commit, and verifies
+the reported staging version/SHA plus public catalog. Successful Release workflow
+runs trigger it automatically only when the repository variable
+`STAGING_DEPLOY_ENABLED` is `true`; a manual exact-tag dispatch remains available
+for initial provisioning and recovery.
+
+The GitHub `staging` environment requires `CLOUDFLARE_API_TOKEN` and
+`CLOUDFLARE_ACCOUNT_ID` secrets plus the HTTPS-origin `STAGING_BASE_URL` variable.
+The staging Worker separately requires its own TMDB token, Google web-client
+values, exact callback URI, and invite allowlist in Cloudflare secret storage.
+Automated validation never calls those providers; real integration checks are
+deliberate staging review actions.
 
 ## Production configuration
 
@@ -108,8 +129,9 @@ The test suite includes helper tests plus Worker-route integration tests running
 Successful CI on protected `main` triggers semantic-release. It analyzes
 Conventional Commit messages, creates `vX.Y.Z` tags, and publishes GitHub
 Releases with generated notes. Version publication is independent of deployment:
-a release can exist before staging or production is provisioned, and neither
-Cloudflare environment deploys merely because a release was published.
+a release can exist before staging or production is provisioned. Provisioned
+staging may consume it in a separate automatic workflow; production never deploys
+merely because a release was published.
 
 Browser end-to-end tests use Playwright against a separate local Vite instance and a fresh temporary D1 database:
 

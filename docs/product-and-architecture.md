@@ -134,6 +134,20 @@ Coverage thresholds are a regression guard, not the definition of correctness.
 The required behavior matrix and critical state transitions must have explicit
 tests even when aggregate coverage is already above threshold.
 
+### Staging
+
+Staging is a remotely deployed, production-like Cloudflare Worker with Google
+authentication, a dedicated D1 database, dedicated runtime secrets, and a stable
+`workers.dev` origin. It runs the same application behavior as production while
+reporting `APP_ENV=staging`; development authentication is forbidden and session
+cookies are Secure.
+
+Published releases are automatically eligible for staging migration and
+deployment only after staging has been explicitly provisioned and enabled. The
+workflow deploys an exact tag and verifies health metadata and the public catalog.
+TMDB and Google are exercised only through deliberate human review so CI does not
+consume provider quotas or depend on external availability.
+
 ### Production
 
 Production is one Cloudflare Worker serving the built static application and the
@@ -151,14 +165,18 @@ bypass or fallback actor.
 3. Semantic release creates a version tag and published GitHub Release from a
    verified `main` commit. Publication is independent of environment readiness
    and does not mutate Cloudflare resources.
-4. A separately reviewed production migration workflow applies pending D1
+4. A separate staging workflow consumes the exact published release when staging
+   is enabled, applies staging migrations, deploys, and verifies health/catalog.
+5. Human review validates layout, Google login, limited TMDB behavior, and any
+   explicitly selected private import in staging.
+6. A separately reviewed production migration workflow applies pending D1
    migrations through the protected GitHub `production` environment.
-5. Production deployment accepts only an exact published version tag, repeats
-   the deterministic release gate from the frozen lockfile, verifies that every
-   D1 migration required by that release is applied, deploys the Worker, and
-   confirms the reported version and commit through `/api/health` plus the public
-   catalog smoke endpoint.
-6. Private source imports are performed by an authorized operator from a local
+7. Production deployment accepts only a staging-accepted exact published
+   version tag, repeats the deterministic release gate from the frozen lockfile,
+   verifies that every D1 migration required by that release is applied, deploys
+   the Worker, and confirms the reported version and commit through `/api/health`
+   plus the public catalog smoke endpoint.
+8. Private source imports are performed by an authorized operator from a local
    workspace. They never run in GitHub Actions.
-7. Rollback redeploys the previous published release. Database changes must use
+9. Rollback redeploys the previous published release. Database changes must use
    an expand/contract strategy once production data must be preserved.
