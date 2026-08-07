@@ -7,7 +7,7 @@ import {
   getRemainingFranchiseMovies,
 } from "../db";
 import { type AppEnv, newId, now } from "../env";
-import { audit, mutationActor } from "../middleware";
+import { auditStatement, mutationActor } from "../middleware";
 import { orderInput } from "../schemas";
 
 export const registerRotationRoutes = (app: Hono<AppEnv>) => {
@@ -57,34 +57,60 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
         ? "pending_order"
         : "ready";
 
-    const stateUpdate = await c.env.DB.prepare(
-      `UPDATE now_showing SET rolled_movie_id = ?, movie_id = ?, franchise_id = ?,
-       status = ?, rolled_at = ?, updated_at = ?
-     WHERE id = 1 AND (movie_id IS NULL OR status = 'watched')`,
-    )
-      .bind(
+    const rollId = newId();
+    const [rollInsert] = await c.env.DB.batch([
+      c.env.DB.prepare(
+        `INSERT INTO rolls
+         (id, rolled_movie_id, actual_movie_id, franchise_id, created_at, actor_id)
+         SELECT ?, ?, ?, ?, ?, ?
+         WHERE EXISTS (
+           SELECT 1 FROM now_showing
+           WHERE id = 1 AND (movie_id IS NULL OR status = 'watched')
+         )`,
+      ).bind(
+        rollId,
+        rolled.id,
+        actual.id,
+        rolled.franchise_id,
+        timestamp,
+        actor.id,
+      ),
+      c.env.DB.prepare(
+        `UPDATE now_showing SET rolled_movie_id = ?, movie_id = ?, franchise_id = ?,
+         status = ?, rolled_at = ?, updated_at = ?
+         WHERE id = 1 AND EXISTS (SELECT 1 FROM rolls WHERE id = ?)`,
+      ).bind(
         rolled.id,
         actual.id,
         rolled.franchise_id,
         status,
         timestamp,
         timestamp,
-      )
-      .run();
-    if (!stateUpdate.meta.changes) {
+        rollId,
+      ),
+      c.env.DB.prepare(
+        `INSERT INTO audit_log
+         (id, entity_type, entity_id, action, actor_id, created_at, details_json)
+         SELECT ?, 'now_showing', '1', 'rolled', ?, ?, ?
+         WHERE EXISTS (SELECT 1 FROM rolls WHERE id = ?)`,
+      ).bind(
+        newId(),
+        actor.id,
+        timestamp,
+        JSON.stringify({
+          rollId,
+          rolledMovieId: rolled.id,
+          actualMovieId: actual.id,
+        }),
+        rollId,
+      ),
+    ]);
+    if (!rollInsert.meta.changes) {
       return c.json(
         { error: "Someone else is already choosing the next movie" },
         409,
       );
     }
-
-    await recordRoll(
-      c.env,
-      rolled.id,
-      actual.id,
-      rolled.franchise_id,
-      actor.id,
-    );
     return c.json({
       rolledMovie: await getMovie(c.env, rolled.id),
       nowShowing: await getNowShowing(c.env),
@@ -92,20 +118,6 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
       franchiseMovies,
     });
   });
-
-  const recordRoll = async (
-    env: AppEnv["Bindings"],
-    rolledMovieId: string,
-    actualMovieId: string,
-    franchiseId: string | null,
-    actorId: string,
-  ) => {
-    await env.DB.prepare(
-      "INSERT INTO rolls (id, rolled_movie_id, actual_movie_id, franchise_id, created_at, actor_id) VALUES (?, ?, ?, ?, ?, ?)",
-    )
-      .bind(newId(), rolledMovieId, actualMovieId, franchiseId, now(), actorId)
-      .run();
-  };
 
   app.post(
     "/franchises/:id/order",
@@ -117,10 +129,14 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
       const franchiseId = c.req.param("id");
       const input = c.req.valid("json");
       const members = await c.env.DB.prepare(
-        "SELECT movie_id AS id FROM franchise_movies WHERE franchise_id = ?",
+        `SELECT franchise_movies.movie_id AS id,
+         CASE WHEN ratings.id IS NULL THEN 0 ELSE 1 END AS watched
+         FROM franchise_movies
+         LEFT JOIN ratings ON ratings.movie_id = franchise_movies.movie_id
+         WHERE franchise_movies.franchise_id = ?`,
       )
         .bind(franchiseId)
-        .all<{ id: string }>();
+        .all<{ id: string; watched: number }>();
       const memberIds = new Set(members.results.map((movie) => movie.id));
       if (
         input.movieIds.length !== memberIds.size ||
@@ -136,6 +152,16 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
         );
       }
 
+      const watchedIds = new Set(
+        members.results
+          .filter((movie) => movie.watched)
+          .map((movie) => movie.id),
+      );
+      const firstUnwatchedId = input.movieIds.find(
+        (movieId) => !watchedIds.has(movieId),
+      );
+      const timestamp = now();
+
       const statements = [
         c.env.DB.prepare(
           "UPDATE franchise_movies SET position = position + 1000000 WHERE franchise_id = ?",
@@ -149,29 +175,27 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
       statements.push(
         c.env.DB.prepare(
           "UPDATE franchises SET order_confirmed = 1, updated_at = ? WHERE id = ?",
-        ).bind(now(), franchiseId),
+        ).bind(timestamp, franchiseId),
+      );
+      if (firstUnwatchedId) {
+        statements.push(
+          c.env.DB.prepare(
+            `UPDATE now_showing SET movie_id = ?, status = 'ready', updated_at = ?
+             WHERE id = 1 AND franchise_id = ? AND status = 'pending_order'`,
+          ).bind(firstUnwatchedId, timestamp, franchiseId),
+        );
+      }
+      statements.push(
+        auditStatement(
+          c.env,
+          "franchise",
+          franchiseId,
+          "order_updated",
+          actor.id,
+          { movieIds: input.movieIds },
+        ),
       );
       await c.env.DB.batch(statements);
-
-      const current = await getNowShowing(c.env);
-      if (
-        current?.franchise_id === franchiseId &&
-        current.status === "pending_order"
-      ) {
-        const first = (
-          await getRemainingFranchiseMovies(c.env, franchiseId)
-        )[0];
-        if (first) {
-          await c.env.DB.prepare(
-            "UPDATE now_showing SET movie_id = ?, status = 'ready', updated_at = ? WHERE id = 1",
-          )
-            .bind(first.id, now())
-            .run();
-        }
-      }
-      await audit(c.env, "franchise", franchiseId, "order_updated", actor.id, {
-        movieIds: input.movieIds,
-      });
       return c.json({ nowShowing: await getNowShowing(c.env) });
     },
   );
@@ -201,14 +225,35 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
       );
     }
 
-    await c.env.DB.prepare(
-      "UPDATE now_showing SET rolled_movie_id = ?, movie_id = ?, status = 'ready', updated_at = ? WHERE id = 1",
-    )
-      .bind(next.id, next.id, now())
-      .run();
-    await audit(c.env, "now_showing", "1", "advanced", actor.id, {
-      movieId: next.id,
-    });
+    const timestamp = now();
+    const [stateUpdate] = await c.env.DB.batch([
+      c.env.DB.prepare(
+        `UPDATE now_showing SET rolled_movie_id = ?, movie_id = ?, status = 'ready', updated_at = ?
+         WHERE id = 1 AND movie_id = ? AND status = 'watched'`,
+      ).bind(next.id, next.id, timestamp, current.movie_id),
+      c.env.DB.prepare(
+        `INSERT INTO audit_log
+         (id, entity_type, entity_id, action, actor_id, created_at, details_json)
+         SELECT ?, 'now_showing', '1', 'advanced', ?, ?, ?
+         WHERE EXISTS (
+           SELECT 1 FROM now_showing
+           WHERE id = 1 AND movie_id = ? AND status = 'ready' AND updated_at = ?
+         )`,
+      ).bind(
+        newId(),
+        actor.id,
+        timestamp,
+        JSON.stringify({ movieId: next.id }),
+        next.id,
+        timestamp,
+      ),
+    ]);
+    if (!stateUpdate.meta.changes) {
+      return c.json(
+        { error: "Now Showing changed before it could advance" },
+        409,
+      );
+    }
     return c.json({ nowShowing: await getNowShowing(c.env) });
   });
 };

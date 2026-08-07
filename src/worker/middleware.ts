@@ -6,26 +6,23 @@ export const mutationActor = async (c: Context<AppEnv>) => {
   return actor;
 };
 
-export const audit = async (
+export const auditStatement = (
   env: AppEnv["Bindings"],
   entityType: string,
   entityId: string,
   action: string,
   actorId: string | null,
   details?: Record<string, unknown>,
-) => {
-  await env.DB.prepare(
+) =>
+  env.DB.prepare(
     `INSERT INTO audit_log (id, entity_type, entity_id, action, actor_id, created_at, details_json)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(
-      newId(),
-      entityType,
-      entityId,
-      action,
-      actorId,
-      now(),
-      details ? JSON.stringify(details) : null,
-    )
-    .run();
-};
+  ).bind(
+    newId(),
+    entityType,
+    entityId,
+    action,
+    actorId,
+    now(),
+    details ? JSON.stringify(details) : null,
+  );
