@@ -16,10 +16,10 @@ const positions = {
 export type DiagnosticSeverity = "error" | "warning";
 
 export type ImportDiagnosticCode =
-  | "CONFLICTING_FRANCHISE"
-  | "CONFLICTING_MOVIE_TITLE"
   | "CONFLICTING_RATING"
+  | "DUPLICATE_EXTERNAL_ID"
   | "DUPLICATE_SOURCE_ROW"
+  | "EXTERNAL_ID_CORRECTION_UNUSED"
   | "FRANCHISE_INDICATOR_MISMATCH"
   | "FRANCHISE_INDICATOR_UNCERTAIN"
   | "INTERMEDIATE_SCHEMA_INVALID"
@@ -30,6 +30,8 @@ export type ImportDiagnosticCode =
   | "INVALID_SUBMISSION_TIMESTAMP"
   | "MISSING_TITLE"
   | "RATING_CORRECTION_UNUSED"
+  | "SOURCE_ROW_EXCLUDED"
+  | "SOURCE_ROW_EXCLUSION_UNUSED"
   | "SOURCE_COLUMN_COUNT"
   | "SOURCE_CSV_INVALID"
   | "SOURCE_EMPTY";
@@ -50,7 +52,17 @@ export interface RatingCorrection {
   score: number;
 }
 
-export type RatingCorrections = ReadonlyMap<number, RatingCorrection>;
+export interface ImportCorrections {
+  excludedSourceRows: ReadonlySet<number>;
+  legacyImdbIds: ReadonlyMap<number, string>;
+  ratings: ReadonlyMap<number, RatingCorrection>;
+}
+
+const emptyImportCorrections = (): ImportCorrections => ({
+  excludedSourceRows: new Set(),
+  legacyImdbIds: new Map(),
+  ratings: new Map(),
+});
 
 export interface GeneralizedSubmission {
   franchiseIndicated: boolean | null;
@@ -212,7 +224,7 @@ const validRatingPhrase = (value: string) =>
 const parseImdbId = (value: string) => {
   const trimmed = value.trim();
   if (!trimmed) return { id: null, valid: true };
-  const match = trimmed.match(/(?:^|\/title\/)(tt\d{7,9})(?:$|[/?#])/i);
+  const match = trimmed.match(/(?:^|\/title\/)(tt\d{6,9})(?:$|[/?#])/i);
   return match
     ? { id: match[1].toLowerCase(), valid: true }
     : { id: null, valid: false };
@@ -220,7 +232,7 @@ const parseImdbId = (value: string) => {
 
 export const sanitizeSourceCsv = (
   source: string,
-  ratingCorrections: RatingCorrections = new Map(),
+  corrections: ImportCorrections = emptyImportCorrections(),
 ): SanitizationResult => {
   let records: string[][];
   try {
@@ -253,10 +265,17 @@ export const sanitizeSourceCsv = (
 
   const diagnostics: ImportDiagnostic[] = [];
   const rows: GeneralizedSubmission[] = [];
+  const appliedSourceRowExclusions = new Set<number>();
+  const appliedExternalIdCorrections = new Set<number>();
   const appliedRatingCorrections = new Set<number>();
 
   for (const [index, record] of records.slice(1).entries()) {
     const sourceRow = index + 2;
+    if (corrections.excludedSourceRows.has(sourceRow)) {
+      appliedSourceRowExclusions.add(sourceRow);
+      diagnostics.push(diagnostic("SOURCE_ROW_EXCLUDED", sourceRow, "warning"));
+      continue;
+    }
     if (record.length !== SOURCE_COLUMN_COUNT) {
       diagnostics.push(diagnostic("SOURCE_COLUMN_COUNT", sourceRow));
       continue;
@@ -272,10 +291,15 @@ export const sanitizeSourceCsv = (
     );
     const franchiseName =
       (record[positions.franchiseName] ?? "").trim() || null;
-    const imdb = parseImdbId(record[positions.legacyImdbReference] ?? "");
+    let imdb = parseImdbId(record[positions.legacyImdbReference] ?? "");
+    const externalIdCorrection = corrections.legacyImdbIds.get(sourceRow);
+    if (externalIdCorrection) {
+      imdb = { id: externalIdCorrection, valid: true };
+      appliedExternalIdCorrections.add(sourceRow);
+    }
     const sourceRating = record[positions.rating] ?? "";
     let rating = parseRating(sourceRating);
-    const correction = ratingCorrections.get(sourceRow);
+    const correction = corrections.ratings.get(sourceRow);
     if (correction) {
       if (rating !== undefined || !sourceRating.trim()) {
         diagnostics.push(diagnostic("RATING_CORRECTION_UNUSED", sourceRow));
@@ -342,7 +366,19 @@ export const sanitizeSourceCsv = (
     }
   }
 
-  for (const sourceRow of ratingCorrections.keys()) {
+  for (const sourceRow of corrections.excludedSourceRows) {
+    if (!appliedSourceRowExclusions.has(sourceRow)) {
+      diagnostics.push(diagnostic("SOURCE_ROW_EXCLUSION_UNUSED", sourceRow));
+    }
+  }
+
+  for (const sourceRow of corrections.legacyImdbIds.keys()) {
+    if (!appliedExternalIdCorrections.has(sourceRow)) {
+      diagnostics.push(diagnostic("EXTERNAL_ID_CORRECTION_UNUSED", sourceRow));
+    }
+  }
+
+  for (const sourceRow of corrections.ratings.keys()) {
     if (!appliedRatingCorrections.has(sourceRow)) {
       if (
         !diagnostics.some(
@@ -382,19 +418,55 @@ const hasExactKeys = (value: Record<string, unknown>, expected: string[]) => {
   );
 };
 
-export const parseRatingCorrectionsJson = (
+export const parseImportCorrectionsJson = (
   source: string,
-): Map<number, RatingCorrection> | null => {
+): ImportCorrections | null => {
   try {
     const value = JSON.parse(source) as Record<string, unknown>;
     if (
       !value ||
       typeof value !== "object" ||
-      !hasExactKeys(value, ["ratings", "schemaVersion"]) ||
+      !hasExactKeys(value, [
+        "excludedSourceRows",
+        "legacyImdbIds",
+        "ratings",
+        "schemaVersion",
+      ]) ||
       value.schemaVersion !== 1 ||
+      !Array.isArray(value.excludedSourceRows) ||
+      !Array.isArray(value.legacyImdbIds) ||
       !Array.isArray(value.ratings)
     ) {
       return null;
+    }
+
+    const excludedSourceRows = new Set<number>();
+    for (const sourceRow of value.excludedSourceRows) {
+      if (
+        !Number.isInteger(sourceRow) ||
+        Number(sourceRow) < 2 ||
+        excludedSourceRows.has(Number(sourceRow))
+      ) {
+        return null;
+      }
+      excludedSourceRows.add(Number(sourceRow));
+    }
+
+    const legacyImdbIds = new Map<number, string>();
+    for (const item of value.legacyImdbIds) {
+      if (!item || typeof item !== "object") return null;
+      const correction = item as Record<string, unknown>;
+      if (
+        !hasExactKeys(correction, ["id", "sourceRow"]) ||
+        !Number.isInteger(correction.sourceRow) ||
+        Number(correction.sourceRow) < 2 ||
+        typeof correction.id !== "string" ||
+        !/^tt\d{6,9}$/.test(correction.id) ||
+        legacyImdbIds.has(Number(correction.sourceRow))
+      ) {
+        return null;
+      }
+      legacyImdbIds.set(Number(correction.sourceRow), correction.id);
     }
 
     const corrections = new Map<number, RatingCorrection>();
@@ -425,7 +497,7 @@ export const parseRatingCorrectionsJson = (
         score: correction.score,
       });
     }
-    return corrections;
+    return { excludedSourceRows, legacyImdbIds, ratings: corrections };
   } catch {
     return null;
   }
@@ -472,7 +544,7 @@ const isSubmission = (value: unknown): value is GeneralizedSubmission => {
       (row.franchiseName === row.franchiseName.trim() &&
         row.franchiseName.length > 0)) &&
     isNullableString(row.legacyImdbId) &&
-    (row.legacyImdbId === null || /^tt\d{7,9}$/.test(row.legacyImdbId)) &&
+    (row.legacyImdbId === null || /^tt\d{6,9}$/.test(row.legacyImdbId)) &&
     isRating(row.rating)
   );
 };
@@ -526,6 +598,7 @@ interface AccumulatedMovie {
   id: string;
   legacyImdbId: string | null;
   rating: GeneralizedRating | null;
+  ratingRecordedAt: string | null;
   sources: Array<GeneralizedSubmission & { sourceKey: string }>;
   title: string;
   titleNormalized: string;
@@ -575,11 +648,12 @@ export const buildImportPlan = async (
     const occurrence = (duplicateOccurrences.get(fingerprint) ?? 0) + 1;
     duplicateOccurrences.set(fingerprint, occurrence);
     const sourceKey = await hash("source", `${fingerprint}\u0000${occurrence}`);
-    const movieKey = row.legacyImdbId
-      ? `imdb:${row.legacyImdbId}`
-      : `submission:${fingerprint}`;
     const titleNormalized = normalize(row.title);
     const franchiseName = row.franchiseName?.trim() || null;
+    const franchiseNormalized = normalize(franchiseName ?? "");
+    const movieKey = row.legacyImdbId
+      ? `imdb:${row.legacyImdbId}\u0000title:${titleNormalized}\u0000franchise:${franchiseNormalized}`
+      : `submission:${fingerprint}`;
     const existing = movies.get(movieKey);
 
     if (!existing) {
@@ -590,6 +664,7 @@ export const buildImportPlan = async (
         id: await stableId("movie", movieKey),
         legacyImdbId: row.legacyImdbId,
         rating: row.rating,
+        ratingRecordedAt: row.rating ? row.submittedAt : null,
         sources: [{ ...row, sourceKey }],
         title: row.title.trim(),
         titleNormalized,
@@ -597,14 +672,6 @@ export const buildImportPlan = async (
       continue;
     }
 
-    if (existing.titleNormalized !== titleNormalized) {
-      diagnostics.push(diagnostic("CONFLICTING_MOVIE_TITLE", row.sourceRow));
-    }
-    if (
-      normalize(existing.franchiseName ?? "") !== normalize(franchiseName ?? "")
-    ) {
-      diagnostics.push(diagnostic("CONFLICTING_FRANCHISE", row.sourceRow));
-    }
     if (
       existing.rating &&
       row.rating &&
@@ -616,8 +683,28 @@ export const buildImportPlan = async (
     existing.addedAt =
       row.submittedAt < existing.addedAt ? row.submittedAt : existing.addedAt;
     existing.firstSourceRow = Math.min(existing.firstSourceRow, row.sourceRow);
-    existing.rating ??= row.rating;
+    if (!existing.rating && row.rating) {
+      existing.rating = row.rating;
+      existing.ratingRecordedAt = row.submittedAt;
+    }
     existing.sources.push({ ...row, sourceKey });
+  }
+
+  const moviesByExternalId = new Map<string, AccumulatedMovie[]>();
+  for (const movie of movies.values()) {
+    if (!movie.legacyImdbId) continue;
+    const matches = moviesByExternalId.get(movie.legacyImdbId) ?? [];
+    matches.push(movie);
+    moviesByExternalId.set(movie.legacyImdbId, matches);
+  }
+  for (const matches of moviesByExternalId.values()) {
+    if (matches.length < 2) continue;
+    for (const movie of matches) {
+      diagnostics.push(
+        diagnostic("DUPLICATE_EXTERNAL_ID", movie.firstSourceRow, "warning"),
+      );
+      movie.legacyImdbId = null;
+    }
   }
 
   if (diagnostics.some((item) => item.severity === "error")) {
@@ -680,9 +767,9 @@ export const buildImportPlan = async (
   }
 
   for (const movie of orderedMovies) {
-    if (!movie.rating) continue;
+    if (!movie.rating || !movie.ratingRecordedAt) continue;
     statements.push(
-      `INSERT OR IGNORE INTO ratings (id, movie_id, recorded_at, watched_at, score, phrase, source) VALUES (${sql(await stableId("rating", movie.id))}, ${sql(movie.id)}, ${sql(importedAt)}, NULL, ${movie.rating.score}, ${sql(movie.rating.phrase.trim())}, 'legacy_import');`,
+      `INSERT OR IGNORE INTO ratings (id, movie_id, recorded_at, watched_at, score, phrase, source) VALUES (${sql(await stableId("rating", movie.id))}, ${sql(movie.id)}, ${sql(movie.ratingRecordedAt)}, ${sql(movie.ratingRecordedAt)}, ${movie.rating.score}, ${sql(movie.rating.phrase.trim())}, 'legacy_import');`,
     );
   }
 

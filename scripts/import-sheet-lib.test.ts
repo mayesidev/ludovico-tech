@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildImportPlan,
+  parseImportCorrectionsJson,
   parseIntermediateJson,
-  parseRatingCorrectionsJson,
   renderSqlChunks,
   sanitizeSourceCsv,
   type GeneralizedImportDocument,
@@ -121,8 +121,10 @@ describe("private Sheet sanitization", () => {
   });
 
   it("applies reviewed row-only corrections only to invalid ratings", () => {
-    const corrections = parseRatingCorrectionsJson(
+    const corrections = parseImportCorrectionsJson(
       JSON.stringify({
+        excludedSourceRows: [],
+        legacyImdbIds: [],
         ratings: [
           { score: 4, sourceRow: 2 },
           {
@@ -148,8 +150,10 @@ describe("private Sheet sanitization", () => {
 
   it("rejects malformed, duplicate, and unused correction records", () => {
     expect(
-      parseRatingCorrectionsJson(
+      parseImportCorrectionsJson(
         JSON.stringify({
+          excludedSourceRows: [],
+          legacyImdbIds: [],
           ratings: [
             { score: 4, sourceRow: 2 },
             { score: 5, sourceRow: 2 },
@@ -159,8 +163,10 @@ describe("private Sheet sanitization", () => {
       ),
     ).toBeNull();
     expect(
-      parseRatingCorrectionsJson(
+      parseImportCorrectionsJson(
         JSON.stringify({
+          excludedSourceRows: [],
+          legacyImdbIds: [],
           ratings: [{ score: 4.25, sourceRow: 2 }],
           schemaVersion: 1,
         }),
@@ -169,7 +175,11 @@ describe("private Sheet sanitization", () => {
 
     const result = sanitizeSourceCsv(
       `${header}\n8/1/2026 10:30:00,Synthetic Movie,No,No,,,4 Valid phrase\n`,
-      new Map([[2, { score: 4 }]]),
+      {
+        excludedSourceRows: new Set(),
+        legacyImdbIds: new Map(),
+        ratings: new Map([[2, { score: 4 }]]),
+      },
     );
     expect(result.document.validated).toBe(false);
     expect(result.diagnostics).toContainEqual({
@@ -177,6 +187,46 @@ describe("private Sheet sanitization", () => {
       row: 2,
       severity: "error",
     });
+  });
+
+  it("applies reviewed external-ID corrections without exposing source values", () => {
+    const corrections = parseImportCorrectionsJson(
+      JSON.stringify({
+        excludedSourceRows: [],
+        legacyImdbIds: [{ id: "tt123456", sourceRow: 2 }],
+        ratings: [],
+        schemaVersion: 1,
+      }),
+    );
+    const result = sanitizeSourceCsv(
+      `${header}\n8/1/2026 10:30:00,Synthetic Movie,No,No,,https://www.imdb.com/title/tt9999999/,\n`,
+      corrections!,
+    );
+
+    expect(result.document.validated).toBe(true);
+    expect(result.document.rows[0].legacyImdbId).toBe("tt123456");
+    expect(JSON.stringify(result.diagnostics)).not.toContain("tt");
+  });
+
+  it("applies an explicit reviewed source-row exclusion", () => {
+    const corrections = parseImportCorrectionsJson(
+      JSON.stringify({
+        excludedSourceRows: [3],
+        legacyImdbIds: [],
+        ratings: [],
+        schemaVersion: 1,
+      }),
+    );
+    const result = sanitizeSourceCsv(
+      `${header}\n8/1/2026 10:30:00,Retained Synthetic Movie,No,No,,,\n8/2/2026 10:30:00,Dropped Synthetic Movie,No,No,,,\n`,
+      corrections!,
+    );
+
+    expect(result.document.validated).toBe(true);
+    expect(result.document.rows.map((row) => row.sourceRow)).toEqual([2]);
+    expect(result.diagnostics).toEqual([
+      { code: "SOURCE_ROW_EXCLUDED", row: 3, severity: "warning" },
+    ]);
   });
 
   it("rejects malformed CSV without propagating parser details", () => {
@@ -245,11 +295,13 @@ describe("deterministic import planning", () => {
     });
   });
 
-  it("stops conflicting canonical IMDb data", async () => {
+  it("keeps submitted canonical data distinct when an external ID conflicts", async () => {
     const plan = await buildImportPlan(
       document([
         submission({ legacyImdbId: "tt1234567" }),
         submission({
+          franchiseIndicated: true,
+          franchiseName: "Distinct Synthetic Saga",
           legacyImdbId: "tt1234567",
           sourceRow: 3,
           title: "Conflicting Synthetic Movie",
@@ -258,10 +310,12 @@ describe("deterministic import planning", () => {
       "2026-08-06T20:00:00.000Z",
     );
 
-    expect(plan.statements).toEqual([]);
+    expect(plan.counts.movies).toBe(2);
     expect(plan.diagnostics).toEqual([
-      { code: "CONFLICTING_MOVIE_TITLE", row: 3, severity: "error" },
+      { code: "DUPLICATE_EXTERNAL_ID", row: 2, severity: "warning" },
+      { code: "DUPLICATE_EXTERNAL_ID", row: 3, severity: "warning" },
     ]);
+    expect(plan.statements.join("\n")).not.toContain("tt1234567");
   });
 
   it("stops duplicate generalized source-row identities", async () => {
@@ -307,7 +361,7 @@ describe("deterministic import planning", () => {
   });
 
   it("accepts only validated generalized intermediate JSON", () => {
-    const valid = document([submission()]);
+    const valid = document([submission({ legacyImdbId: "tt123456" })]);
     expect(parseIntermediateJson(JSON.stringify(valid))).toEqual(valid);
     expect(
       parseIntermediateJson(JSON.stringify({ ...valid, validated: false })),

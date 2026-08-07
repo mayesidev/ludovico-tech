@@ -46,6 +46,18 @@ describe("generalized catalog import", () => {
     const sources = await env.DB.prepare(
       "SELECT COUNT(*) AS count FROM movie_import_sources",
     ).first<{ count: number }>();
+    const franchises = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM franchises",
+    ).first<{ count: number }>();
+    const ratingCount = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM ratings",
+    ).first<{ count: number }>();
+    const watchedRatingCount = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM ratings WHERE watched_at IS NOT NULL",
+    ).first<{ count: number }>();
+    const tmdbLinkCount = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM movies WHERE tmdb_id IS NOT NULL",
+    ).first<{ count: number }>();
     const ratings = await env.DB.prepare(
       "SELECT score, phrase, watched_at FROM ratings",
     ).first<{ phrase: string; score: number; watched_at: string | null }>();
@@ -53,12 +65,18 @@ describe("generalized catalog import", () => {
       "SELECT order_confirmed FROM franchises",
     ).first<{ order_confirmed: number }>();
 
-    expect(movies?.count).toBe(2);
-    expect(sources?.count).toBe(2);
+    expect({
+      franchises: franchises?.count,
+      movies: movies?.count,
+      ratings: ratingCount?.count,
+      sources: sources?.count,
+    }).toEqual(plan.counts);
+    expect(watchedRatingCount?.count).toBe(plan.counts.ratings);
+    expect(tmdbLinkCount?.count).toBe(0);
     expect(ratings).toEqual({
       phrase: "A synthetic delight",
       score: 4.5,
-      watched_at: null,
+      watched_at: "2026-08-01T10:30:00.000Z",
     });
     expect(franchise?.order_confirmed).toBe(0);
   });

@@ -48,13 +48,16 @@ diagnostic exists, and the SQL generator refuses it. Correct the private source
 or a private working copy and sanitize again; do not weaken validation to bypass
 a source error.
 
-If a reviewed legacy rating contains its required phrase but encodes the score
-only as wordplay, an optional ignored correction file can supply the generalized
-score and, when needed, a clearer phrase:
+An optional ignored correction file records reviewed fixes without modifying the
+original export. It can replace a fallible legacy IMDb reference, or supply the
+generalized score and a clearer phrase when a legacy rating encodes its score as
+wordplay:
 
 ```json
 {
   "schemaVersion": 1,
+  "excludedSourceRows": [56],
+  "legacyImdbIds": [{ "sourceRow": 10, "id": "tt123456" }],
   "ratings": [
     { "sourceRow": 12, "score": 4 },
     { "sourceRow": 34, "score": 5, "phrase": "Five synthetic marks" }
@@ -62,11 +65,14 @@ score and, when needed, a clearer phrase:
 }
 ```
 
-Pass it as the fourth sanitizer argument. Scores must remain whole or half points
-from 0 through 5. Corrections apply only to an otherwise invalid, non-empty
-rating cell; a duplicate row, unknown row, or override of an already-valid
-rating is a blocking error. Correction files remain under ignored `data/` and
-must never contain source headings.
+Pass it as the fourth sanitizer argument. A reviewed source-row exclusion drops
+that submission before validation or planning and emits a row-number-only
+warning. External IDs must use `tt` followed by 6–9 digits. Scores must remain
+whole or half points from 0 through 5. Rating corrections apply only to an
+otherwise invalid, non-empty rating cell. A duplicate or unknown correction
+row, or an attempted override of an already-valid rating, is a blocking error.
+Correction files remain under ignored `data/` and must never contain source
+headings.
 
 Invalid IMDb references are warnings because IMDb is not an application
 dependency. They import without an IMDb identity and can be reconciled against
@@ -90,10 +96,21 @@ Generation removes only `chunk-NNNN.sql`, `manifest.json`, and
 directories are left untouched. The manifest lists every chunk in execution
 order; do not use an unscoped wildcard from another directory.
 
-The importer uses deterministic identities, preserves every source submission,
-deduplicates exact submissions and matching valid IMDb identities, and rejects
-conflicting canonical titles, franchises, or shared ratings. Re-executing the
-same complete chunk list does not duplicate data.
+The importer uses deterministic identities and preserves every non-excluded
+source submission. Submitted title and franchise data are canonical; a legacy IMDb ID
+is only a fallible provenance hint. Matching IDs deduplicate rows only when their
+normalized title and franchise also agree. If one uncorrected ID points at
+different submitted movies, the movies remain distinct and the ambiguous ID is
+omitted from both with generalized warnings. Conflicting shared ratings remain a
+blocking error. Re-executing the same complete chunk list does not duplicate
+data.
+
+A legacy rating establishes watched state. Its sanitized submission timestamp is
+used for both `recorded_at` and `watched_at`; unrated titles remain unwatched.
+
+The bulk import never assigns a TMDB identity. A later, separate reconciliation
+may suggest a TMDB match, but attaches it only after the title/franchise evidence
+is confirmed; a strong conflict leaves the movie unlinked.
 
 ## Apply to isolated local D1
 

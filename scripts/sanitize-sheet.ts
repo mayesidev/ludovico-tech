@@ -1,8 +1,9 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-  parseRatingCorrectionsJson,
+  parseImportCorrectionsJson,
   sanitizeSourceCsv,
+  type ImportCorrections,
 } from "./import-sheet-lib";
 
 const [inputArgument, outputArgument, reportArgument, correctionsArgument] =
@@ -10,17 +11,21 @@ const [inputArgument, outputArgument, reportArgument, correctionsArgument] =
 
 if (!inputArgument || !outputArgument || !reportArgument) {
   console.error(
-    "Usage: pnpm import:sanitize -- <private-source.csv> <intermediate.json> <validation-report.json> [rating-corrections.json]",
+    "Usage: pnpm import:sanitize -- <private-source.csv> <intermediate.json> <validation-report.json> [import-corrections.json]",
   );
   process.exitCode = 2;
 } else {
-  const corrections = correctionsArgument
-    ? parseRatingCorrectionsJson(
+  const corrections: ImportCorrections | null = correctionsArgument
+    ? parseImportCorrectionsJson(
         readFileSync(resolve(correctionsArgument), "utf8"),
       )
-    : new Map();
+    : {
+        excludedSourceRows: new Set(),
+        legacyImdbIds: new Map(),
+        ratings: new Map(),
+      };
   if (!corrections) {
-    console.error("Rating corrections file is invalid");
+    console.error("Import corrections file is invalid");
     process.exitCode = 2;
     process.exit();
   }
