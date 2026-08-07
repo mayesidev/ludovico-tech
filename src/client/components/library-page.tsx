@@ -14,16 +14,22 @@ import { formatDate } from "../lib/utils";
 import { Badge, Card, Input, SectionHeading } from "./ui";
 
 type LibraryPageProps = {
+  canMutate: boolean;
   movies: Movie[];
   onEdit: (movie: Movie) => void;
-  onOrder: (franchiseId: string) => Promise<void>;
+  onOrder: (franchiseId: string) => void;
 };
 
-export function LibraryPage({ movies, onEdit, onOrder }: LibraryPageProps) {
+export function LibraryPage({
+  canMutate,
+  movies,
+  onEdit,
+  onOrder,
+}: LibraryPageProps) {
   const [filter, setFilter] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
-  const columns = useMemo<ColumnDef<Movie>[]>(
-    () => [
+  const columns = useMemo<ColumnDef<Movie>[]>(() => {
+    const definitions: ColumnDef<Movie>[] = [
       {
         accessorKey: "title",
         header: "Title",
@@ -63,7 +69,9 @@ export function LibraryPage({ movies, onEdit, onOrder }: LibraryPageProps) {
             <Badge>In rotation</Badge>
           ),
       },
-      {
+    ];
+    if (canMutate) {
+      definitions.push({
         id: "actions",
         header: "Actions",
         enableSorting: false,
@@ -86,10 +94,10 @@ export function LibraryPage({ movies, onEdit, onOrder }: LibraryPageProps) {
             )}
           </div>
         ),
-      },
-    ],
-    [onEdit, onOrder],
-  );
+      });
+    }
+    return definitions;
+  }, [canMutate, onEdit, onOrder]);
   const table = useReactTable({
     data: movies,
     columns,
@@ -111,8 +119,12 @@ export function LibraryPage({ movies, onEdit, onOrder }: LibraryPageProps) {
         />
         <div className="relative w-full sm:w-72">
           <Search className="absolute left-3 top-3.5 text-zinc-600" size={16} />
+          <label className="sr-only" htmlFor="library-search">
+            Search movie library
+          </label>
           <Input
             className="pl-9"
+            id="library-search"
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
             placeholder="Search titles…"
@@ -127,7 +139,19 @@ export function LibraryPage({ movies, onEdit, onOrder }: LibraryPageProps) {
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                    <th key={header.id} className="px-5 py-4 font-bold">
+                    <th
+                      aria-sort={
+                        header.column.getIsSorted() === "asc"
+                          ? "ascending"
+                          : header.column.getIsSorted() === "desc"
+                            ? "descending"
+                            : header.column.getCanSort()
+                              ? "none"
+                              : undefined
+                      }
+                      key={header.id}
+                      className="px-5 py-4 font-bold"
+                    >
                       {header.column.getCanSort() ? (
                         <button
                           onClick={header.column.getToggleSortingHandler()}

@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type AuthState, type Movie, type NowShowing } from "./api";
+import {
+  api,
+  ApiError,
+  type AuthState,
+  type Movie,
+  type NowShowing,
+} from "./api";
 import {
   AppHeader,
   ErrorNotice,
@@ -26,6 +32,14 @@ export default function App() {
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
   const [auth, setAuth] = useState<AuthState | null>(null);
 
+  const refreshAuth = useCallback(async () => {
+    try {
+      setAuth(await api.authMe());
+    } catch {
+      setAuth({ authenticated: false, actor: null, local: false });
+    }
+  }, []);
+
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
@@ -51,13 +65,8 @@ export default function App() {
   }, [refresh]);
 
   useEffect(() => {
-    void api
-      .authMe()
-      .then(setAuth)
-      .catch(() =>
-        setAuth({ authenticated: false, actor: null, local: false }),
-      );
-  }, []);
+    void Promise.resolve().then(refreshAuth);
+  }, [refreshAuth]);
 
   const run = useCallback<RunAction>(
     async (action, after) => {
@@ -68,12 +77,19 @@ export default function App() {
         after?.();
         await refresh();
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : "Action failed");
+        if (cause instanceof ApiError && cause.status === 401) {
+          setOrder(null);
+          setEditingMovie(null);
+          await refreshAuth();
+          setError("Your session ended. Sign in again to make changes.");
+        } else {
+          setError(cause instanceof Error ? cause.message : "Action failed");
+        }
       } finally {
         setBusy(false);
       }
     },
-    [refresh],
+    [refresh, refreshAuth],
   );
 
   const roll = useCallback(() => {
@@ -92,10 +108,17 @@ export default function App() {
     });
   }, [run]);
 
-  const openFranchiseOrder = useCallback(async (franchiseId: string) => {
-    const result = await api.franchise(franchiseId);
-    setOrder({ draft: result.movies, franchiseId });
-  }, []);
+  const openFranchiseOrder = useCallback(
+    (franchiseId: string) => {
+      void run(async () => {
+        const result = await api.franchise(franchiseId);
+        setOrder({ draft: result.movies, franchiseId });
+      });
+    },
+    [run],
+  );
+
+  const canMutate = auth?.authenticated === true;
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-ink text-zinc-100">
@@ -105,11 +128,10 @@ export default function App() {
         auth={auth}
         onTabChange={setTab}
         onLogout={() =>
-          void api
-            .logout()
-            .then(() =>
-              setAuth({ authenticated: false, actor: null, local: false }),
-            )
+          void run(
+            () => api.logout(),
+            () => setAuth({ authenticated: false, actor: null, local: false }),
+          )
         }
       />
 
@@ -125,13 +147,16 @@ export default function App() {
             remaining={remaining}
             movies={movies}
             busy={busy}
+            canMutate={canMutate}
+            onAuthExpired={refreshAuth}
+            onOrder={openFranchiseOrder}
             roll={roll}
             run={run}
-            refresh={refresh}
           />
         ) : (
           <LibraryPage
             movies={movies}
+            canMutate={canMutate}
             onEdit={setEditingMovie}
             onOrder={openFranchiseOrder}
           />
@@ -142,6 +167,7 @@ export default function App() {
       {rolledTitle && <RollReveal title={rolledTitle} />}
       {order && (
         <FranchiseOrderDialog
+          busy={busy}
           draft={order.draft}
           franchiseId={order.franchiseId}
           onChange={(draft) => setOrder(draft ? { ...order, draft } : null)}
@@ -150,6 +176,7 @@ export default function App() {
       )}
       {editingMovie && (
         <EditMovieDialog
+          busy={busy}
           movie={editingMovie}
           onClose={() => setEditingMovie(null)}
           run={run}

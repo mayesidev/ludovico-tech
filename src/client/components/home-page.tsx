@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
   ArrowDown,
   LoaderCircle,
@@ -8,7 +8,13 @@ import {
   Star,
   X,
 } from "lucide-react";
-import { api, type Movie, type NowShowing, type TmdbResult } from "../api";
+import {
+  api,
+  ApiError,
+  type Movie,
+  type NowShowing,
+  type TmdbResult,
+} from "../api";
 import type { RunAction } from "../types";
 import { cn, formatDate } from "../lib/utils";
 import { Badge, Button, Card, Input, SectionHeading } from "./ui";
@@ -21,9 +27,11 @@ type HomePageProps = {
   remaining: Movie[];
   movies: Movie[];
   busy: boolean;
+  canMutate: boolean;
+  onAuthExpired: () => Promise<void>;
+  onOrder: (franchiseId: string) => void;
   roll: () => void;
   run: RunAction;
-  refresh: () => Promise<void>;
 };
 
 export function HomePage({
@@ -31,9 +39,11 @@ export function HomePage({
   remaining,
   movies,
   busy,
+  canMutate,
+  onAuthExpired,
+  onOrder,
   roll,
   run,
-  refresh,
 }: HomePageProps) {
   const isWatched =
     nowShowing?.rating_score !== null && nowShowing?.rating_score !== undefined;
@@ -126,89 +136,155 @@ export function HomePage({
                 )}
               </div>
 
-              {nowShowing?.movie_id && !isWatched ? (
-                <RatingForm movieId={nowShowing.movie_id} run={run} />
-              ) : (
+              {canMutate &&
+              nowShowing?.movie_id &&
+              !isWatched &&
+              nowShowing.status !== "pending_order" ? (
+                <RatingForm
+                  busy={busy}
+                  movieId={nowShowing.movie_id}
+                  run={run}
+                />
+              ) : canMutate ? (
                 <div className="mt-8 flex flex-wrap gap-3">
+                  {nowShowing?.status === "pending_order" && franchiseId && (
+                    <Button
+                      disabled={busy}
+                      onClick={() => onOrder(franchiseId)}
+                    >
+                      Confirm franchise order
+                    </Button>
+                  )}
                   {isWatched && franchiseId && hasNext && (
                     <Button
                       onClick={() => void run(() => api.next())}
                       disabled={busy}
                     >
                       <ArrowDown size={16} />
-                      Next movie
+                      Continue series
                     </Button>
                   )}
-                  <Button onClick={roll} disabled={busy}>
-                    {busy ? (
-                      <LoaderCircle className="animate-spin" size={16} />
-                    ) : (
-                      <RotateCw size={16} />
-                    )}
-                    {isWatched && franchiseId && hasNext
-                      ? "Roll something new"
-                      : "Roll next"}
-                  </Button>
+                  {nowShowing?.status !== "pending_order" && (
+                    <Button onClick={roll} disabled={busy}>
+                      {busy ? (
+                        <LoaderCircle className="animate-spin" size={16} />
+                      ) : (
+                        <RotateCw size={16} />
+                      )}
+                      {isWatched && franchiseId && hasNext
+                        ? "Roll something new"
+                        : "Roll next"}
+                    </Button>
+                  )}
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
         </Card>
       </section>
 
       <HistorySection movies={movies} />
-      <AddMovieSection run={run} refresh={refresh} />
+      {canMutate && (
+        <AddMovieSection busy={busy} onAuthExpired={onAuthExpired} run={run} />
+      )}
     </div>
   );
 }
 
-function RatingForm({ movieId, run }: { movieId: string; run: RunAction }) {
+function RatingForm({
+  busy,
+  movieId,
+  run,
+}: {
+  busy: boolean;
+  movieId: string;
+  run: RunAction;
+}) {
   const [score, setScore] = useState<number | null>(null);
   const [phrase, setPhrase] = useState("");
+  const [attempted, setAttempted] = useState(false);
+  const phraseId = useId();
+  const phraseErrorId = useId();
+  const scoreErrorId = useId();
+  const scoreMissing = attempted && score === null;
+  const phraseMissing = attempted && !phrase.trim();
 
   return (
     <form
       className="mt-8 max-w-lg"
+      noValidate
       onSubmit={(event) => {
         event.preventDefault();
-        if (score === null) return;
+        setAttempted(true);
+        if (score === null || !phrase.trim()) return;
         void run(
-          () => api.rate(movieId, score, phrase),
+          () => api.rate(movieId, score, phrase.trim()),
           () => {
+            setAttempted(false);
             setScore(null);
             setPhrase("");
           },
         );
       }}
     >
-      <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-        Final rating
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {scoreOptions.map((option) => (
-          <button
-            type="button"
-            key={option}
-            onClick={() => setScore(option)}
-            className={cn(
-              "grid size-10 place-items-center rounded-xl border text-sm font-bold transition",
-              score === option
-                ? "border-lime-300 bg-lime-300 text-zinc-950"
-                : "border-white/10 bg-white/5 text-zinc-300 hover:border-lime-300/50",
-            )}
+      <fieldset aria-describedby={scoreMissing ? scoreErrorId : undefined}>
+        <legend className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+          Final rating (required)
+        </legend>
+        <div className="flex flex-wrap gap-2">
+          {scoreOptions.map((option) => (
+            <button
+              type="button"
+              aria-pressed={score === option}
+              key={option}
+              onClick={() => setScore(option)}
+              className={cn(
+                "grid size-10 place-items-center rounded-xl border text-sm font-bold transition",
+                score === option
+                  ? "border-lime-300 bg-lime-300 text-zinc-950"
+                  : "border-white/10 bg-white/5 text-zinc-300 hover:border-lime-300/50",
+              )}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+        {scoreMissing && (
+          <p
+            className="mt-2 text-sm text-red-200"
+            id={scoreErrorId}
+            role="alert"
           >
-            {option}
-          </button>
-        ))}
-      </div>
+            Choose a rating from 0 to 5.
+          </p>
+        )}
+      </fieldset>
       <div className="mt-3 flex gap-2">
-        <Input
-          value={phrase}
-          onChange={(event) => setPhrase(event.target.value)}
-          placeholder="Give it a goofy phrase…"
-          maxLength={120}
-        />
-        <Button type="submit" disabled={score === null}>
+        <div className="flex-1">
+          <label className="sr-only" htmlFor={phraseId}>
+            Custom rating phrase (required)
+          </label>
+          <Input
+            aria-describedby={phraseMissing ? phraseErrorId : undefined}
+            aria-invalid={phraseMissing}
+            id={phraseId}
+            value={phrase}
+            onChange={(event) => setPhrase(event.target.value)}
+            placeholder="Give it a goofy phrase…"
+            maxLength={120}
+            required
+          />
+          {phraseMissing && (
+            <p
+              className="mt-2 text-sm text-red-200"
+              id={phraseErrorId}
+              role="alert"
+            >
+              Add the custom rating phrase.
+            </p>
+          )}
+        </div>
+        <Button type="submit" disabled={busy}>
           Rate it
         </Button>
       </div>
@@ -276,11 +352,13 @@ function HistoryCard({ movie, index }: { movie: Movie | null; index: number }) {
 }
 
 function AddMovieSection({
+  busy,
+  onAuthExpired,
   run,
-  refresh,
 }: {
+  busy: boolean;
+  onAuthExpired: () => Promise<void>;
   run: RunAction;
-  refresh: () => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -289,6 +367,10 @@ function AddMovieSection({
   const [selected, setSelected] = useState<TmdbResult | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const titleId = useId();
+  const franchiseId = useId();
 
   const reset = () => {
     setOpen(false);
@@ -297,6 +379,7 @@ function AddMovieSection({
     setResults([]);
     setSelected(null);
     setSearchError(null);
+    window.setTimeout(() => triggerRef.current?.focus());
   };
 
   const search = async () => {
@@ -307,8 +390,15 @@ function AddMovieSection({
     try {
       setResults((await api.tmdbSearch(title)).results);
     } catch (cause) {
+      if (cause instanceof ApiError && cause.status === 401) {
+        await onAuthExpired();
+      }
       setSearchError(
-        cause instanceof Error ? cause.message : "TMDB search failed",
+        cause instanceof ApiError && cause.status === 401
+          ? "Your session ended. Sign in again to search TMDB."
+          : cause instanceof Error
+            ? cause.message
+            : "TMDB search failed",
       );
     } finally {
       setSearching(false);
@@ -324,7 +414,13 @@ function AddMovieSection({
           description="Find the movie, confirm the match, and send it into rotation."
         />
         <Button
-          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          disabled={busy}
+          ref={triggerRef}
+          onClick={() => {
+            setOpen((value) => !value);
+            window.setTimeout(() => titleInputRef.current?.focus());
+          }}
           variant={open ? "secondary" : "primary"}
         >
           {open ? <X size={16} /> : <Plus size={16} />}
@@ -336,7 +432,12 @@ function AddMovieSection({
         <Card className="mt-5 p-5 sm:p-6">
           <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
             <div className="flex gap-2">
+              <label className="sr-only" htmlFor={titleId}>
+                Movie title
+              </label>
               <Input
+                id={titleId}
+                ref={titleInputRef}
                 value={title}
                 onChange={(event) => {
                   setTitle(event.target.value);
@@ -362,7 +463,11 @@ function AddMovieSection({
                 Search TMDB
               </Button>
             </div>
+            <label className="sr-only" htmlFor={franchiseId}>
+              Series or franchise (optional)
+            </label>
             <Input
+              id={franchiseId}
               value={franchiseName}
               onChange={(event) => setFranchiseName(event.target.value)}
               placeholder="Series / franchise (optional)"
@@ -370,7 +475,9 @@ function AddMovieSection({
           </div>
 
           {searchError && (
-            <p className="mt-4 text-sm text-red-200">{searchError}</p>
+            <p className="mt-4 text-sm text-red-200" role="alert">
+              {searchError}
+            </p>
           )}
 
           {results.length > 0 && (
@@ -378,6 +485,7 @@ function AddMovieSection({
               {results.map((result) => (
                 <button
                   key={result.id}
+                  aria-pressed={selected?.id === result.id}
                   onClick={() => {
                     setSelected(result);
                     setTitle(result.title);
@@ -413,6 +521,7 @@ function AddMovieSection({
                   : "You can add this title without a TMDB match."}
               </p>
               <Button
+                disabled={busy}
                 onClick={() =>
                   void run(
                     () =>
@@ -423,7 +532,6 @@ function AddMovieSection({
                       }),
                     () => {
                       reset();
-                      void refresh();
                     },
                   )
                 }

@@ -3,15 +3,15 @@ import type {
   InputHTMLAttributes,
   ReactNode,
 } from "react";
+import { forwardRef } from "react";
 import { cn } from "../lib/utils";
 
-export const Button = ({
-  className,
-  variant = "primary",
-  ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "ghost" | "danger";
-}) => (
+export const Button = forwardRef<
+  HTMLButtonElement,
+  ButtonHTMLAttributes<HTMLButtonElement> & {
+    variant?: "primary" | "secondary" | "ghost" | "danger";
+  }
+>(({ className, variant = "primary", ...props }, ref) => (
   <button
     className={cn(
       "inline-flex min-h-10 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-300 disabled:cursor-not-allowed disabled:opacity-45",
@@ -22,9 +22,11 @@ export const Button = ({
       variant === "danger" && "bg-red-400/15 text-red-200 hover:bg-red-400/25",
       className,
     )}
+    ref={ref}
     {...props}
   />
-);
+));
+Button.displayName = "Button";
 
 export const Card = ({
   className,
@@ -60,18 +62,20 @@ export const Badge = ({
   </span>
 );
 
-export const Input = ({
-  className,
-  ...props
-}: InputHTMLAttributes<HTMLInputElement>) => (
+export const Input = forwardRef<
+  HTMLInputElement,
+  InputHTMLAttributes<HTMLInputElement>
+>(({ className, ...props }, ref) => (
   <input
     className={cn(
       "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-3.5 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-lime-300/70 focus:ring-2 focus:ring-lime-300/10",
       className,
     )}
+    ref={ref}
     {...props}
   />
-);
+));
+Input.displayName = "Input";
 
 export const SectionHeading = ({
   eyebrow,
