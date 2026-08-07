@@ -4,12 +4,32 @@ import {
   isProductionReady,
   normalizeTitle,
   RuntimeConfigurationError,
+  sessionCookie,
+  sessionIdFromRequest,
   type AppEnv,
 } from "./env";
 
 describe("movie identity helpers", () => {
   it("normalizes titles for matching", () => {
     expect(normalizeTitle("The Wizard of Oz!")).toBe("the wizard of oz");
+  });
+});
+
+describe("session cookie namespace", () => {
+  it("reads and writes only the Ludovico Tech session cookie", () => {
+    const request = new Request("https://example.test", {
+      headers: {
+        Cookie: "unrelated=value; ludovico_tech_session=current-session",
+      },
+    });
+
+    expect(sessionIdFromRequest(request)).toBe("current-session");
+    expect(sessionCookie("current-session", false)).toBe(
+      "ludovico_tech_session=current-session; HttpOnly; Path=/; SameSite=Lax; Max-Age=2592000",
+    );
+    expect(sessionCookie("", true, 0)).toBe(
+      "ludovico_tech_session=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0; Secure",
+    );
   });
 });
 

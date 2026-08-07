@@ -38,7 +38,7 @@ export const createApp = () => {
 
   app.get("*", async (c) => {
     if (c.env.ASSETS) return c.env.ASSETS.fetch(c.req.raw);
-    return c.text("Movie List API is running. Start Vite for the UI.", 404);
+    return c.text("Ludovico Tech API is running. Start Vite for the UI.", 404);
   });
 
   app.onError((error, c) => {

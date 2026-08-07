@@ -37,7 +37,7 @@ export function AppHeader({
           </span>
           <span>
             <span className="block font-display text-lg font-bold tracking-tight">
-              Movie List
+              Ludovico Tech
             </span>
             <span className="block text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
               The watch club
