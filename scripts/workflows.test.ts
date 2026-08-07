@@ -22,7 +22,7 @@ describe("GitHub Actions supply-chain boundary", () => {
   });
 });
 
-describe("complete CI and production gates", () => {
+describe("complete CI and deployment gates", () => {
   it("keeps coverage, browser, audit, and license checks in the stable verify job", () => {
     const source = workflow("ci.yml");
     expect(source).toContain("verify:");
@@ -47,6 +47,35 @@ describe("complete CI and production gates", () => {
     );
   });
 
+  it("deploys exact releases to isolated staging only when provisioned", () => {
+    const source = workflow("deploy-staging.yml");
+    const nodeSetup = source.indexOf("Set up Node.js");
+    const tagValidation = source.indexOf("validate-tag");
+    const configGate = source.indexOf("pnpm config:check:staging");
+    const migration = source.indexOf(
+      "wrangler d1 migrations apply DB --remote --env staging",
+    );
+    const deploy = source.indexOf("wrangler deploy --env staging");
+    const smoke = source.indexOf(
+      '"$STAGING_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" staging',
+    );
+
+    expect(source).toContain("workflows: [Release]");
+    expect(source).toContain("workflow_dispatch:");
+    expect(source).toContain("vars.STAGING_DEPLOY_ENABLED == 'true'");
+    expect(source).toContain("environment: staging");
+    expect(source).toContain("ref: main");
+    expect(source).toContain("pnpm config:check:staging");
+    expect(source).toContain("releases/tags/$RELEASE_TAG");
+    expect(source).toContain('test "$release_sha" = "$TRIGGER_SHA"');
+    expect(nodeSetup).toBeGreaterThan(0);
+    expect(tagValidation).toBeGreaterThan(nodeSetup);
+    expect(configGate).toBeGreaterThan(tagValidation);
+    expect(migration).toBeGreaterThan(configGate);
+    expect(deploy).toBeGreaterThan(migration);
+    expect(smoke).toBeGreaterThan(deploy);
+  });
+
   it("validates an exact published tag and migrations before deploying", () => {
     const source = workflow("deploy.yml");
     const nodeSetup = source.indexOf("Set up Node.js");
@@ -68,6 +97,9 @@ describe("complete CI and production gates", () => {
     expect(migrationGate).toBeGreaterThan(tagValidation);
     expect(deploy).toBeGreaterThan(migrationGate);
     expect(smoke).toBeGreaterThan(deploy);
+    expect(source).toContain(
+      '"$PRODUCTION_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" production',
+    );
   });
 
   it("applies migrations only through a confirmed protected production job", () => {

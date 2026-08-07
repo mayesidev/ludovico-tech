@@ -101,4 +101,4 @@ jobs:
       - name: Verify deployed release health
         run: |
           node "$RUNNER_TEMP/release-gates.ts" verify-deployment \
-            "$PRODUCTION_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA"
+            "$PRODUCTION_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" production

@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 const releaseTagPattern = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const gitShaPattern = /^[0-9a-f]{40}$/;
+const deploymentEnvironments = new Set(["production", "staging"]);
 
 export const isReleaseTag = (value: string) => releaseTagPattern.test(value);
 
@@ -12,7 +13,7 @@ const deploymentBaseUrl = (value: string) => {
   try {
     url = new URL(value);
   } catch {
-    throw new Error("Production base URL is invalid");
+    throw new Error("Deployment base URL is invalid");
   }
   if (
     url.protocol !== "https:" ||
@@ -22,7 +23,7 @@ const deploymentBaseUrl = (value: string) => {
     url.hash ||
     url.pathname !== "/"
   ) {
-    throw new Error("Production base URL must be an HTTPS origin");
+    throw new Error("Deployment base URL must be an HTTPS origin");
   }
   return url;
 };
@@ -83,7 +84,7 @@ export const assertReleaseMigrationsApplied = (
   const pending = expected.filter((name) => !applied.includes(name));
   if (pending.length) {
     throw new Error(
-      `Production has ${pending.length} pending release migration${pending.length === 1 ? "" : "s"}`,
+      `Target database has ${pending.length} pending release migration${pending.length === 1 ? "" : "s"}`,
     );
   }
 };
@@ -117,9 +118,13 @@ export const verifyDeployment = async (
   baseUrl: string,
   releaseTag: string,
   gitSha: string,
+  expectedEnvironment: string,
   attempts = 6,
 ) => {
   const origin = validateDeploymentTarget(baseUrl, releaseTag, gitSha);
+  if (!deploymentEnvironments.has(expectedEnvironment)) {
+    throw new Error("Deployment environment is invalid");
+  }
   if (!Number.isInteger(attempts) || attempts < 1 || attempts > 10) {
     throw new Error("Deployment verification attempt count is invalid");
   }
@@ -137,7 +142,7 @@ export const verifyDeployment = async (
       );
       if (
         health.ok !== true ||
-        health.environment !== "production" ||
+        health.environment !== expectedEnvironment ||
         health.version !== releaseTag ||
         health.commit !== gitSha
       ) {
@@ -192,7 +197,7 @@ export const runReleaseGate = async (args: string[]) => {
     );
     return;
   }
-  if (command === "verify-deployment" && values.length === 3) {
+  if (command === "verify-deployment" && values.length === 4) {
     await verifyDeployment(
       fetch,
       (milliseconds) =>
@@ -202,6 +207,7 @@ export const runReleaseGate = async (args: string[]) => {
       values[0],
       values[1],
       values[2],
+      values[3],
     );
     return;
   }
