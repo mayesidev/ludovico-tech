@@ -144,9 +144,11 @@ cookies are Secure.
 
 Published releases are automatically eligible for staging migration and
 deployment only after staging has been explicitly provisioned and enabled. The
-workflow deploys an exact tag and verifies health metadata and the public catalog.
-TMDB and Google are exercised only through deliberate human review so CI does not
-consume provider quotas or depend on external availability.
+workflow uploads the staging environment's runtime values as encrypted Worker
+secrets with an exact tag, then verifies health metadata and the public catalog.
+Secret values never become command-line variables or tracked files. TMDB and
+Google are exercised only through deliberate human review so CI does not consume
+provider quotas or depend on external availability.
 
 ### Production
 
