@@ -8,7 +8,7 @@ import {
   movieSelect,
   type MovieRow,
 } from "../db";
-import { audit, mutationActor } from "../middleware";
+import { auditStatement, mutationActor } from "../middleware";
 import { movieEditInput, movieInput, ratingInput } from "../schemas";
 import { newId, normalizeTitle, now } from "../env";
 
@@ -73,6 +73,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     const id = newId();
     const timestamp = now();
     let franchiseId: string | null = null;
+    const statements: D1PreparedStatement[] = [];
 
     if (input.franchiseName) {
       const existing = await c.env.DB.prepare(
@@ -82,17 +83,17 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         .first<{ id: string }>();
       franchiseId = existing?.id ?? newId();
       if (!existing) {
-        await c.env.DB.prepare(
-          "INSERT INTO franchises (id, name, name_normalized, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-        )
-          .bind(
+        statements.push(
+          c.env.DB.prepare(
+            "INSERT INTO franchises (id, name, name_normalized, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+          ).bind(
             franchiseId,
             input.franchiseName,
             normalizeTitle(input.franchiseName),
             timestamp,
             timestamp,
-          )
-          .run();
+          ),
+        );
       }
     }
 
@@ -106,12 +107,12 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         )?.max_position ?? 0) + 1
       : null;
 
-    await c.env.DB.prepare(
-      `INSERT INTO movies (id, title, title_normalized, added_at, added_by, updated_at, updated_by,
-      release_date, poster_path, tmdb_id, tmdb_fetched_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-      .bind(
+    statements.push(
+      c.env.DB.prepare(
+        `INSERT INTO movies (id, title, title_normalized, added_at, added_by, updated_at, updated_by,
+        release_date, poster_path, tmdb_id, tmdb_fetched_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
         id,
         input.title,
         normalizeTitle(input.title),
@@ -123,19 +124,22 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         input.posterPath ?? null,
         input.tmdbId ?? null,
         input.tmdbId ? timestamp : null,
-      )
-      .run();
+      ),
+    );
 
     if (franchiseId && position !== null) {
-      await c.env.DB.prepare(
-        "INSERT INTO franchise_movies (franchise_id, movie_id, position) VALUES (?, ?, ?)",
-      )
-        .bind(franchiseId, id, position)
-        .run();
+      statements.push(
+        c.env.DB.prepare(
+          "INSERT INTO franchise_movies (franchise_id, movie_id, position) VALUES (?, ?, ?)",
+        ).bind(franchiseId, id, position),
+      );
     }
-    await audit(c.env, "movie", id, "created", actor.id, {
-      title: input.title,
-    });
+    statements.push(
+      auditStatement(c.env, "movie", id, "created", actor.id, {
+        title: input.title,
+      }),
+    );
+    await c.env.DB.batch(statements);
     return c.json({ movie: await getMovie(c.env, id) }, 201);
   });
 
@@ -150,11 +154,11 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
 
     const timestamp = now();
     const title = input.title ?? existing.title;
-    await c.env.DB.prepare(
-      `UPDATE movies SET title = ?, title_normalized = ?, updated_at = ?, updated_by = ?,
-      release_date = ?, poster_path = ?, tmdb_id = ?, tmdb_fetched_at = ? WHERE id = ?`,
-    )
-      .bind(
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        `UPDATE movies SET title = ?, title_normalized = ?, updated_at = ?, updated_by = ?,
+        release_date = ?, poster_path = ?, tmdb_id = ?, tmdb_fetched_at = ? WHERE id = ?`,
+      ).bind(
         title,
         normalizeTitle(title),
         timestamp,
@@ -172,11 +176,11 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
           ? timestamp
           : existing.tmdb_fetched_at,
         movieId,
-      )
-      .run();
-    await audit(c.env, "movie", movieId, "updated", actor.id, {
-      fields: Object.keys(input),
-    });
+      ),
+      auditStatement(c.env, "movie", movieId, "updated", actor.id, {
+        fields: Object.keys(input),
+      }),
+    ]);
     return c.json({ movie: await getMovie(c.env, movieId) });
   });
 
@@ -190,14 +194,14 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     if (!movie) return c.json({ error: "Movie not found" }, 404);
 
     const timestamp = now();
-    await c.env.DB.prepare(
-      `INSERT INTO ratings (id, movie_id, recorded_at, watched_at, score, phrase, source, recorded_by)
-       VALUES (?, ?, ?, ?, ?, ?, 'application', ?)
-       ON CONFLICT(movie_id) DO UPDATE SET recorded_at = excluded.recorded_at,
-       watched_at = COALESCE(ratings.watched_at, excluded.watched_at), score = excluded.score,
-       phrase = excluded.phrase, source = excluded.source, recorded_by = excluded.recorded_by`,
-    )
-      .bind(
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        `INSERT INTO ratings (id, movie_id, recorded_at, watched_at, score, phrase, source, recorded_by)
+         VALUES (?, ?, ?, ?, ?, ?, 'application', ?)
+         ON CONFLICT(movie_id) DO UPDATE SET recorded_at = excluded.recorded_at,
+         watched_at = COALESCE(ratings.watched_at, excluded.watched_at), score = excluded.score,
+         phrase = excluded.phrase, source = excluded.source, recorded_by = excluded.recorded_by`,
+      ).bind(
         newId(),
         movieId,
         timestamp,
@@ -205,16 +209,14 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         input.score,
         input.phrase,
         actor.id,
-      )
-      .run();
-    await c.env.DB.prepare(
-      "UPDATE now_showing SET status = 'watched', updated_at = ? WHERE id = 1 AND movie_id = ?",
-    )
-      .bind(timestamp, movieId)
-      .run();
-    await audit(c.env, "movie", movieId, "rated", actor.id, {
-      score: input.score,
-    });
+      ),
+      c.env.DB.prepare(
+        "UPDATE now_showing SET status = 'watched', updated_at = ? WHERE id = 1 AND movie_id = ?",
+      ).bind(timestamp, movieId),
+      auditStatement(c.env, "movie", movieId, "rated", actor.id, {
+        score: input.score,
+      }),
+    ]);
     return c.json({
       movie: await getMovie(c.env, movieId),
       nowShowing: await getNowShowing(c.env),
