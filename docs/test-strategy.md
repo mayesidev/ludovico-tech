@@ -74,22 +74,26 @@ evidence. This matrix records the behaviors that must be established directly.
 
 ## Release-gate behavior
 
-Deployment behavior is owned by LVT-15 and must have direct script and workflow
-evidence before the release gate is enabled: only an exact published release tag
-may deploy, pending production migrations must stop deployment, deployed health
-must match the tag and commit, and any smoke mismatch must fail the workflow.
+Pure release-tag, migration-set, target-origin, health metadata, retry, and public
+catalog smoke behavior is covered in `scripts/release-gates.test.ts`. Structural
+workflow tests in `scripts/workflows.test.ts` enforce full-SHA action pins, the
+stable aggregate CI gate, protected migration workflow, exact published-tag
+checkout, pre-deploy migration check, and post-deploy smoke ordering. Release
+remains disabled until the external production environment is provisioned and
+reviewed.
 
 ## CI release gate
 
 The required CI job installs from the frozen lockfile and runs, in order:
 
 1. Commit and pull-request metadata validation.
-2. Formatting and linting.
-3. Typechecking.
-4. Unit, component, Worker integration, migration/import tests with coverage.
-5. Production asset build.
-6. Browser end-to-end tests.
-7. Production dependency vulnerability and license checks.
+2. Cloudflare environment and D1 binding isolation validation.
+3. Formatting and linting.
+4. Typechecking.
+5. Unit, component, Worker integration, migration/import tests with coverage.
+6. Production asset build.
+7. Browser end-to-end tests.
+8. Production dependency vulnerability and license checks.
 
 Browser installation may run in parallel with non-browser checks when this does
 not obscure failures. The protected branch requires the terminal aggregate gate,
