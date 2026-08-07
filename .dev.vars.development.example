@@ -1,0 +1,2 @@
+# Optional read-only token used only by the local Worker for deliberate TMDB searches.
+TMDB_READ_ACCESS_TOKEN=

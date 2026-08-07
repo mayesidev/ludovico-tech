@@ -11,7 +11,7 @@ The release evidence expected from automated validation is recorded in
 
 ```sh
 pnpm install
-pnpm exec wrangler d1 migrations apply movie-list --local --env development
+pnpm exec wrangler d1 migrations apply ludovico-tech-development --local --env development
 pnpm dev
 ```
 
@@ -20,9 +20,15 @@ An empty migrated database is a complete development environment; legacy data
 import is an optional local operator workflow when a private source dataset is
 available.
 
-Copy `.env.example` to `.env` for local configuration. Local secrets belong in `.env` and source data belongs under `/data`; neither is committed. The TMDB read token is only used by the Worker and must never be exposed to the browser.
+Copy `.dev.vars.development.example` to `.dev.vars.development` for optional
+local Worker secrets. Keep unrelated development credentials out of this file.
+Source data belongs under `/data`; neither source data nor local secret files are
+committed. The TMDB read token is only used by the Worker and must never be
+exposed to the browser.
 
-The committed `.env.example` contains variable names and local-safe defaults only. Never replace its empty values with credentials or invite addresses.
+The committed example contains variable names only. Never replace its empty
+value with a credential in a tracked file. Production Google, TMDB, and invite
+configuration belongs in Cloudflare secret storage, not a project `.env` file.
 
 ## Production configuration
 
@@ -56,8 +62,14 @@ The `Deploy` GitHub Actions workflow accepts a published `vX.Y.Z` tag, checks ou
 Apply remote migrations explicitly and review the target before running them:
 
 ```sh
-pnpm exec wrangler d1 migrations apply movie-list --remote --env production
+pnpm config:check:production
+pnpm exec wrangler d1 migrations apply ludovico-tech-production --remote --env production
 ```
+
+The checked-in production D1 ID is a non-deployable sentinel until the dedicated
+`ludovico-tech-production` database is provisioned. Replace it with that new
+database's ID during the protected production configuration task; never reuse a
+development or unrelated application's database ID.
 
 The optional source spreadsheet, sanitized intermediate data, and generated
 import SQL remain local under `/data`. They are not required to bootstrap the

@@ -1,11 +1,11 @@
 .DS_Store
 .env*
-!.env.example
 /node_modules/
 /.agents/
 /.wrangler/
 /.e2e-state/
 .dev.vars*
+!.dev.vars.development.example
 
 # Logs and local tooling state
 *.log
