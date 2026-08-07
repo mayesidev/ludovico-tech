@@ -4,7 +4,8 @@ import {
   createSessionId,
   createState,
   getActor,
-  isLocal,
+  getRuntimeConfig,
+  isDevelopmentAuth,
   newId,
   now,
   sessionCookie,
@@ -20,12 +21,12 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
       actor: actor
         ? { email: actor.email, displayName: actor.displayName }
         : null,
-      local: isLocal(c.env),
+      local: isDevelopmentAuth(c.env),
     });
   });
 
   app.get("/auth/google", async (c) => {
-    if (isLocal(c.env)) return c.redirect("/");
+    if (isDevelopmentAuth(c.env)) return c.redirect("/");
     if (!c.env.GOOGLE_CLIENT_ID || !c.env.GOOGLE_REDIRECT_URI) {
       return c.text("Google OAuth is not configured", 503);
     }
@@ -60,7 +61,7 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
   });
 
   app.get("/auth/google/callback", async (c) => {
-    if (isLocal(c.env)) return c.redirect("/");
+    if (isDevelopmentAuth(c.env)) return c.redirect("/");
 
     const code = c.req.query("code");
     const state = c.req.query("state");
@@ -166,7 +167,11 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
         .bind(sessionId)
         .run();
     }
-    c.header("Set-Cookie", sessionCookie("", !isLocal(c.env), 0));
+    const config = getRuntimeConfig(c.env);
+    c.header(
+      "Set-Cookie",
+      sessionCookie("", config.environment === "production", 0),
+    );
     return c.json({ ok: true });
   });
 };

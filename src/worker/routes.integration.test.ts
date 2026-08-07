@@ -8,6 +8,7 @@ const productionEnv = (overrides: Partial<AppEnv["Bindings"]> = {}) =>
   ({
     ...env,
     APP_ENV: "production",
+    AUTH_MODE: "google",
     TMDB_READ_ACCESS_TOKEN: undefined,
     GOOGLE_CLIENT_ID: undefined,
     GOOGLE_CLIENT_SECRET: undefined,

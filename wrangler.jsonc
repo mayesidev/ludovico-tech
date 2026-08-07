@@ -3,6 +3,7 @@
   "name": "ludovico-tech",
   "main": "src/worker/index.ts",
   "compatibility_date": "2026-08-03",
+  "workers_dev": false,
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
@@ -13,38 +14,49 @@
   },
   "env": {
     "development": {
+      "name": "ludovico-tech-development",
+      "workers_dev": false,
       "vars": {
         "APP_ENV": "development",
+        "AUTH_MODE": "development",
+      },
+      "secrets": {
+        "required": ["TMDB_READ_ACCESS_TOKEN"],
       },
       "d1_databases": [
         {
           "binding": "DB",
-          "database_name": "movie-list",
-          "database_id": "84c4216e-d8f0-4895-8404-a3a9fc22d1ca",
+          "database_name": "ludovico-tech-development",
+          "database_id": "00000000-0000-0000-0000-000000000000",
+          "preview_database_id": "ludovico-tech-development-local",
           "migrations_dir": "migrations",
         },
       ],
     },
     "production": {
+      "name": "ludovico-tech-production",
+      "workers_dev": true,
       "vars": {
         "APP_ENV": "production",
+        "AUTH_MODE": "google",
+      },
+      "secrets": {
+        "required": [
+          "TMDB_READ_ACCESS_TOKEN",
+          "GOOGLE_CLIENT_ID",
+          "GOOGLE_CLIENT_SECRET",
+          "GOOGLE_REDIRECT_URI",
+          "ALLOWED_EMAILS",
+        ],
       },
       "d1_databases": [
         {
           "binding": "DB",
-          "database_name": "movie-list",
-          "database_id": "84c4216e-d8f0-4895-8404-a3a9fc22d1ca",
+          "database_name": "ludovico-tech-production",
+          "database_id": "11111111-1111-1111-1111-111111111111",
           "migrations_dir": "migrations",
         },
       ],
     },
   },
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "movie-list",
-      "database_id": "84c4216e-d8f0-4895-8404-a3a9fc22d1ca",
-      "migrations_dir": "migrations",
-    },
-  ],
 }
