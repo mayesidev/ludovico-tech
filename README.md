@@ -45,6 +45,11 @@ runs trigger it automatically only when the repository variable
 `STAGING_DEPLOY_ENABLED` is `true`; a manual exact-tag dispatch remains available
 for initial provisioning and recovery.
 
+The checked-in staging D1 ID belongs to the dedicated
+`ludovico-tech-staging` database. `pnpm config:check:staging` rejects placeholder
+or shared bindings so an exact release cannot silently deploy against another
+environment's database.
+
 The GitHub `staging` environment requires `CLOUDFLARE_API_TOKEN` and
 `CLOUDFLARE_ACCOUNT_ID` secrets plus the HTTPS-origin `STAGING_BASE_URL` variable.
 The staging Worker separately requires its own TMDB token, Google web-client
