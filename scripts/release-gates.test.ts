@@ -126,7 +126,7 @@ describe("deployed release verification", () => {
       .mockResolvedValueOnce(
         Response.json({
           commit: gitSha,
-          environment: "production",
+          environment: "staging",
           ok: true,
           version: releaseTag,
         }),
@@ -134,7 +134,15 @@ describe("deployed release verification", () => {
       .mockResolvedValueOnce(Response.json({ movies: [] }));
     const sleep = vi.fn().mockResolvedValue(undefined);
 
-    await verifyDeployment(fetcher, sleep, baseUrl, releaseTag, gitSha, 2);
+    await verifyDeployment(
+      fetcher,
+      sleep,
+      baseUrl,
+      releaseTag,
+      gitSha,
+      "staging",
+      2,
+    );
 
     expect(sleep).toHaveBeenCalledWith(5_000);
     expect(fetcher).toHaveBeenNthCalledWith(
@@ -153,7 +161,7 @@ describe("deployed release verification", () => {
     const fetcher = vi.fn().mockImplementation(async () =>
       Response.json({
         commit: "c".repeat(40),
-        environment: "production",
+        environment: "staging",
         ok: true,
         version: releaseTag,
       }),
@@ -161,7 +169,15 @@ describe("deployed release verification", () => {
     const sleep = vi.fn().mockResolvedValue(undefined);
 
     await expect(
-      verifyDeployment(fetcher, sleep, baseUrl, releaseTag, gitSha, 2),
+      verifyDeployment(
+        fetcher,
+        sleep,
+        baseUrl,
+        releaseTag,
+        gitSha,
+        "staging",
+        2,
+      ),
     ).rejects.toThrow("health metadata");
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(sleep).toHaveBeenCalledTimes(1);
@@ -176,8 +192,23 @@ describe("deployed release verification", () => {
         baseUrl,
         releaseTag,
         gitSha,
+        "staging",
         1,
       ),
     ).rejects.toThrow("health response is invalid");
+  });
+
+  it("rejects an unknown deployment environment", async () => {
+    await expect(
+      verifyDeployment(
+        vi.fn(),
+        vi.fn(),
+        baseUrl,
+        releaseTag,
+        gitSha,
+        "preview",
+        1,
+      ),
+    ).rejects.toThrow("Deployment environment is invalid");
   });
 });

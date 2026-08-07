@@ -51,6 +51,11 @@ Before requesting review, confirm that:
 
 Successful CI on `main` triggers semantic-release. It creates the next version tag and GitHub Release from Conventional Commit messages. Contributors should not create release tags or GitHub Releases manually.
 
+When staging is provisioned and enabled, a successful Release workflow triggers
+a separate exact-tag staging migration, deployment, and smoke run. A failed or
+disabled staging deployment does not invalidate the published version. Real
+Google/TMDB checks are deliberate human staging review, never ordinary CI.
+
 Production deployment is a separate manual GitHub Actions workflow. It deploys
 an exact published stable semantic-release tag only after every migration
 required by that release is applied, then checks the deployed health version/SHA

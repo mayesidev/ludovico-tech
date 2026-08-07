@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   getRuntimeConfig,
-  isProductionReady,
+  isDeploymentReady,
+  isSecureEnvironment,
   normalizeTitle,
   RuntimeConfigurationError,
   sessionCookie,
@@ -42,15 +43,20 @@ describe("runtime configuration", () => {
       RuntimeConfigurationError,
     );
     expect(() =>
-      getRuntimeConfig(bindings({ APP_ENV: "staging", AUTH_MODE: "google" })),
-    ).toThrow(RuntimeConfigurationError);
-    expect(() =>
       getRuntimeConfig(bindings({ APP_ENV: "test", AUTH_MODE: "local" })),
     ).toThrow(RuntimeConfigurationError);
     expect(() =>
       getRuntimeConfig(
         bindings({ APP_ENV: "production", AUTH_MODE: "development" }),
       ),
+    ).toThrow(RuntimeConfigurationError);
+    expect(() =>
+      getRuntimeConfig(
+        bindings({ APP_ENV: "staging", AUTH_MODE: "development" }),
+      ),
+    ).toThrow(RuntimeConfigurationError);
+    expect(() =>
+      getRuntimeConfig(bindings({ APP_ENV: "test", AUTH_MODE: "google" })),
     ).toThrow(RuntimeConfigurationError);
   });
 
@@ -62,26 +68,43 @@ describe("runtime configuration", () => {
     ).toEqual({ environment: "development", authMode: "development" });
   });
 
-  it("reports production readiness only when every integration is configured", () => {
-    const base = bindings({ APP_ENV: "production", AUTH_MODE: "google" });
-    const complete = {
-      ...base,
+  it("requires Google authentication in staging and production", () => {
+    for (const environment of ["staging", "production"] as const) {
+      expect(
+        getRuntimeConfig(
+          bindings({ APP_ENV: environment, AUTH_MODE: "google" }),
+        ),
+      ).toEqual({ environment, authMode: "google" });
+      expect(isSecureEnvironment(environment)).toBe(true);
+    }
+    expect(isSecureEnvironment("development")).toBe(false);
+    expect(isSecureEnvironment("test")).toBe(false);
+  });
+
+  it("reports deployed readiness only when every integration is configured", () => {
+    const completeValues = {
       ALLOWED_EMAILS: "member@example.test",
       GOOGLE_CLIENT_ID: "client-id",
       GOOGLE_CLIENT_SECRET: "client-secret",
       GOOGLE_REDIRECT_URI: "https://example.test/api/auth/google/callback",
       TMDB_READ_ACCESS_TOKEN: "tmdb-token",
     };
-    expect(isProductionReady(base)).toBe(false);
-    expect(isProductionReady(complete)).toBe(true);
-    for (const key of [
-      "ALLOWED_EMAILS",
-      "GOOGLE_CLIENT_ID",
-      "GOOGLE_CLIENT_SECRET",
-      "GOOGLE_REDIRECT_URI",
-      "TMDB_READ_ACCESS_TOKEN",
-    ] as const) {
-      expect(isProductionReady({ ...complete, [key]: undefined })).toBe(false);
+    for (const environment of ["staging", "production"] as const) {
+      const base = bindings({ APP_ENV: environment, AUTH_MODE: "google" });
+      const complete = { ...base, ...completeValues };
+      expect(isDeploymentReady(base)).toBe(false);
+      expect(isDeploymentReady(complete)).toBe(true);
+      for (const key of [
+        "ALLOWED_EMAILS",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "GOOGLE_REDIRECT_URI",
+        "TMDB_READ_ACCESS_TOKEN",
+      ] as const) {
+        expect(isDeploymentReady({ ...complete, [key]: undefined })).toBe(
+          false,
+        );
+      }
     }
   });
 });

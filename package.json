@@ -13,6 +13,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "config:check": "tsx scripts/validate-cloudflare-config.ts",
+    "config:check:staging": "tsx scripts/validate-cloudflare-config.ts --staging",
     "config:check:production": "tsx scripts/validate-cloudflare-config.ts --production",
     "audit:production": "pnpm audit --prod --audit-level high",
     "licenses:check": "pnpm licenses list --prod --json | node scripts/production-licenses.ts",

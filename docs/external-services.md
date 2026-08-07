@@ -6,7 +6,7 @@ and Cloudflare/GitHub secret stores.
 
 ## Google authentication
 
-Production uses the OAuth 2.0 authorization-code flow for the minimal
+Staging and production use the OAuth 2.0 authorization-code flow for the minimal
 `openid email profile` scopes. The Worker generates an unguessable state and a
 PKCE verifier, stores them only in D1, and sends an S256 challenge. State expires
 after ten minutes and is atomically consumed before token exchange, including on
@@ -19,8 +19,9 @@ session lookup as well as at login, so removing an address revokes mutation acce
 without waiting for its session to expire.
 
 Sessions contain only an opaque random ID in an HttpOnly, SameSite=Lax cookie.
-Production cookies are Secure, sessions expire after 30 days, expired sessions
-are removed when encountered, and logout deletes the current server-side session.
+Staging and production cookies are Secure, sessions expire after 30 days,
+expired sessions are removed when encountered, and logout deletes the current
+server-side session.
 Provider failures return a generic response and never include provider bodies,
 tokens, or client credentials.
 
