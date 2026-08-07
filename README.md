@@ -45,26 +45,34 @@ pnpm exec wrangler secret put ALLOWED_EMAILS --env production
 
 The Google OAuth redirect URI must match the production domain and the Google Cloud configuration. The invite list should contain only the addresses authorized to make changes.
 
-Always select the Wrangler environment explicitly. Do not run an unqualified production deployment:
+Production deployments must run through the protected GitHub workflow from an
+exact semantic-release tag; do not bypass its approval and verification gates
+with a workstation deployment. The `/api/health` response reports the deployed
+release version and commit SHA.
 
-```sh
-pnpm build
-release_version="$(git describe --tags --exact-match --match 'v*' HEAD)"
-git_sha="$(git rev-parse HEAD)"
-pnpm exec wrangler deploy --env production \
-  --var "APP_VERSION:${release_version}" \
-  --var "GIT_SHA:${git_sha}"
-```
+The `Deploy` GitHub Actions workflow accepts an exact published stable `vX.Y.Z`
+tag, checks out its tag commit, and deploys it through the protected GitHub
+`production` environment. It refuses a draft/prerelease, invalid tag, missing
+required release migration, non-ready runtime, or health tag/SHA mismatch. It
+also smoke-checks the public catalog after deployment.
 
-Production deployments must come from an exact semantic-release tag. The `/api/health` response reports the deployed release version and commit SHA.
+The protected GitHub environment requires `CLOUDFLARE_API_TOKEN` and
+`CLOUDFLARE_ACCOUNT_ID` secrets plus an HTTPS-origin
+`PRODUCTION_BASE_URL` environment variable. Keep required-reviewer protection on
+both the `Migrate Production` and `Deploy` workflows.
 
-The `Deploy` GitHub Actions workflow accepts a published `vX.Y.Z` tag, checks out that exact tag, and deploys it to the production Wrangler environment. It requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in the protected GitHub `production` environment. Database migrations remain a separate, explicitly reviewed operation.
+Apply remote migrations separately with the manual `Migrate Production`
+workflow. It requires a published release tag and the exact typed confirmation
+`ludovico-tech-production`, then runs against the protected production
+environment. Deployment remains blocked until remote `d1_migrations` contains
+every migration required by the selected release. Later forward migrations are
+allowed so an expand/contract-compatible prior release can be redeployed.
 
-Apply remote migrations explicitly and review the target before running them:
+For local read-only diagnosis, review the target and list migration state:
 
 ```sh
 pnpm config:check:production
-pnpm exec wrangler d1 migrations apply ludovico-tech-production --remote --env production
+pnpm exec wrangler d1 migrations list DB --remote --env production
 ```
 
 The checked-in production D1 ID is a non-deployable sentinel until the dedicated
@@ -83,11 +91,25 @@ pnpm check
 pnpm build
 ```
 
-`pnpm check` runs formatting, ESLint, TypeScript, and unit/integration tests. The same checks, production build, and browser E2E suite run in GitHub Actions for pushes and pull requests.
+`pnpm check` runs configuration validation, formatting, ESLint, TypeScript, and
+unit/integration tests with repository-wide coverage thresholds. The same checks,
+production build, browser E2E suite, production dependency audit, and production
+license allowlist run in GitHub Actions for pushes and pull requests.
+
+The production dependency gates can also be run locally:
+
+```sh
+pnpm audit:production
+pnpm licenses:check
+```
 
 The test suite includes helper tests plus Worker-route integration tests running in Cloudflare's local Workers runtime with an isolated D1 database and the checked-in migrations.
 
-Releases are created from protected `main` after the CI workflow succeeds. Semantic-release analyzes Conventional Commit messages, creates `vX.Y.Z` tags, and publishes GitHub Releases with generated notes. The initial release baseline is `v0.1.0`.
+When the Release workflow is deliberately enabled, successful CI on protected
+`main` triggers semantic-release. It analyzes Conventional Commit messages,
+creates `vX.Y.Z` tags, and publishes GitHub Releases with generated notes. Keep
+Release disabled until the dedicated production D1 database, protected GitHub
+environment, Worker secrets, and production URL are configured and verified.
 
 Browser end-to-end tests use Playwright against a separate local Vite instance and a fresh temporary D1 database:
 

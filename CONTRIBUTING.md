@@ -8,7 +8,8 @@ Keep pull requests small enough to review and describe the user-visible behavior
 
 ## Before opening a change
 
-Install dependencies with the pinned package manager and run the local quality gate:
+Use Node 24 (recorded in `.node-version`), install dependencies with the pinned
+pnpm version from `package.json`, and run the local quality gate:
 
 ```sh
 pnpm install
@@ -33,7 +34,11 @@ Tests must not call TMDB, Google, or other external APIs. Mock external response
 - Use Conventional Commit prefixes such as `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, and `chore:`. Semantic-release uses these messages to determine the next release version and generate release notes. CI validates both the pull request title and the commits in the pull request; the title should also be a valid Conventional Commit because it becomes the commit message when using squash merge.
 - Never commit `.env`, `/data`, `/.agents`, credentials, or private source data.
 
-GitHub-generated merge commits are ignored by Commitlint. All contributor-authored commits and squash-merge titles must pass the Conventional Commit rules. The CI workflow also enforces formatting, linting, typechecking, unit/integration tests, the production build, and browser E2E tests.
+GitHub-generated merge commits are ignored by Commitlint. All
+contributor-authored commits and squash-merge titles must pass the Conventional
+Commit rules. The CI workflow also enforces formatting, linting, typechecking,
+unit/integration tests with coverage, the production build, browser E2E tests,
+production dependency audit, and the reviewed production license set.
 
 Before requesting review, confirm that:
 
@@ -46,6 +51,13 @@ Before requesting review, confirm that:
 
 Successful CI on `main` triggers semantic-release. It creates the next version tag and GitHub Release from Conventional Commit messages. Contributors should not create release tags or GitHub Releases manually.
 
-Production deployment is a separate manual GitHub Actions workflow. It deploys an exact published semantic-release tag and records that version and commit in the application health response. Production secrets must remain in GitHub or Cloudflare configuration; never add them to the repository.
+Production deployment is a separate manual GitHub Actions workflow. It deploys
+an exact published stable semantic-release tag only after every migration
+required by that release is applied, then checks the deployed health version/SHA
+and public catalog. Production secrets must remain in GitHub or Cloudflare
+configuration; never add them to the repository.
 
-Database migrations and production data imports are separate, explicitly reviewed operations and must not be hidden inside an application deployment.
+Database migrations use their own manual, protected workflow with an exact
+release tag and typed production-database confirmation. Production data imports
+remain a separate explicitly reviewed operator action; neither operation is
+hidden inside application deployment.

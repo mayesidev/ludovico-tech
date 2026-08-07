@@ -145,16 +145,18 @@ bypass or fallback actor.
 
 1. Pull requests run formatting, linting, typechecking, unit/component tests,
    Worker integration tests, migration/import tests, a production build, browser
-   end-to-end tests, dependency vulnerability checks, and coverage thresholds.
+   end-to-end tests, dependency vulnerability and license checks, and coverage
+   thresholds.
 2. Protected `main` accepts only changes that pass the complete CI gate.
 3. Semantic release creates a version tag and published GitHub Release from a
    verified `main` commit.
 4. A separately reviewed production migration workflow applies pending D1
    migrations through the protected GitHub `production` environment.
 5. Production deployment accepts only an exact published version tag, repeats
-   the deterministic release gate from the frozen lockfile, verifies that no D1
-   migrations are pending, deploys the Worker, and confirms the reported version
-   and commit through `/api/health`.
+   the deterministic release gate from the frozen lockfile, verifies that every
+   D1 migration required by that release is applied, deploys the Worker, and
+   confirms the reported version and commit through `/api/health` plus the public
+   catalog smoke endpoint.
 6. Private source imports are performed by an authorized operator from a local
    workspace. They never run in GitHub Actions.
 7. Rollback redeploys the previous published release. Database changes must use
