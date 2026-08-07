@@ -29,6 +29,7 @@ export type ImportDiagnosticCode =
   | "INVALID_RATING"
   | "INVALID_SUBMISSION_TIMESTAMP"
   | "MISSING_TITLE"
+  | "RATING_CORRECTION_UNUSED"
   | "SOURCE_COLUMN_COUNT"
   | "SOURCE_CSV_INVALID"
   | "SOURCE_EMPTY";
@@ -43,6 +44,13 @@ export interface GeneralizedRating {
   phrase: string;
   score: number;
 }
+
+export interface RatingCorrection {
+  phrase?: string;
+  score: number;
+}
+
+export type RatingCorrections = ReadonlyMap<number, RatingCorrection>;
 
 export interface GeneralizedSubmission {
   franchiseIndicated: boolean | null;
@@ -192,6 +200,15 @@ const parseRating = (value: string): GeneralizedRating | null | undefined => {
   return { phrase, score };
 };
 
+const validRatingScore = (value: number) =>
+  Number.isFinite(value) &&
+  value >= 0 &&
+  value <= 5 &&
+  value * 2 === Math.trunc(value * 2);
+
+const validRatingPhrase = (value: string) =>
+  value === value.trim() && value.length > 0 && value.length <= 120;
+
 const parseImdbId = (value: string) => {
   const trimmed = value.trim();
   if (!trimmed) return { id: null, valid: true };
@@ -201,7 +218,10 @@ const parseImdbId = (value: string) => {
     : { id: null, valid: false };
 };
 
-export const sanitizeSourceCsv = (source: string): SanitizationResult => {
+export const sanitizeSourceCsv = (
+  source: string,
+  ratingCorrections: RatingCorrections = new Map(),
+): SanitizationResult => {
   let records: string[][];
   try {
     records = parse(source, {
@@ -233,6 +253,7 @@ export const sanitizeSourceCsv = (source: string): SanitizationResult => {
 
   const diagnostics: ImportDiagnostic[] = [];
   const rows: GeneralizedSubmission[] = [];
+  const appliedRatingCorrections = new Set<number>();
 
   for (const [index, record] of records.slice(1).entries()) {
     const sourceRow = index + 2;
@@ -252,7 +273,21 @@ export const sanitizeSourceCsv = (source: string): SanitizationResult => {
     const franchiseName =
       (record[positions.franchiseName] ?? "").trim() || null;
     const imdb = parseImdbId(record[positions.legacyImdbReference] ?? "");
-    const rating = parseRating(record[positions.rating] ?? "");
+    const sourceRating = record[positions.rating] ?? "";
+    let rating = parseRating(sourceRating);
+    const correction = ratingCorrections.get(sourceRow);
+    if (correction) {
+      if (rating !== undefined || !sourceRating.trim()) {
+        diagnostics.push(diagnostic("RATING_CORRECTION_UNUSED", sourceRow));
+      } else {
+        const phrase = correction.phrase ?? sourceRating.trim();
+        rating =
+          validRatingScore(correction.score) && validRatingPhrase(phrase)
+            ? { phrase, score: correction.score }
+            : undefined;
+        appliedRatingCorrections.add(sourceRow);
+      }
+    }
 
     if (!submittedAt) {
       diagnostics.push(diagnostic("INVALID_SUBMISSION_TIMESTAMP", sourceRow));
@@ -307,6 +342,19 @@ export const sanitizeSourceCsv = (source: string): SanitizationResult => {
     }
   }
 
+  for (const sourceRow of ratingCorrections.keys()) {
+    if (!appliedRatingCorrections.has(sourceRow)) {
+      if (
+        !diagnostics.some(
+          (item) =>
+            item.code === "RATING_CORRECTION_UNUSED" && item.row === sourceRow,
+        )
+      ) {
+        diagnostics.push(diagnostic("RATING_CORRECTION_UNUSED", sourceRow));
+      }
+    }
+  }
+
   return {
     diagnostics,
     document: {
@@ -334,6 +382,55 @@ const hasExactKeys = (value: Record<string, unknown>, expected: string[]) => {
   );
 };
 
+export const parseRatingCorrectionsJson = (
+  source: string,
+): Map<number, RatingCorrection> | null => {
+  try {
+    const value = JSON.parse(source) as Record<string, unknown>;
+    if (
+      !value ||
+      typeof value !== "object" ||
+      !hasExactKeys(value, ["ratings", "schemaVersion"]) ||
+      value.schemaVersion !== 1 ||
+      !Array.isArray(value.ratings)
+    ) {
+      return null;
+    }
+
+    const corrections = new Map<number, RatingCorrection>();
+    for (const item of value.ratings) {
+      if (!item || typeof item !== "object") return null;
+      const correction = item as Record<string, unknown>;
+      const expectedKeys =
+        correction.phrase === undefined
+          ? ["score", "sourceRow"]
+          : ["phrase", "score", "sourceRow"];
+      if (
+        !hasExactKeys(correction, expectedKeys) ||
+        !Number.isInteger(correction.sourceRow) ||
+        Number(correction.sourceRow) < 2 ||
+        typeof correction.score !== "number" ||
+        !validRatingScore(correction.score) ||
+        (correction.phrase !== undefined &&
+          (typeof correction.phrase !== "string" ||
+            !validRatingPhrase(correction.phrase))) ||
+        corrections.has(Number(correction.sourceRow))
+      ) {
+        return null;
+      }
+      corrections.set(Number(correction.sourceRow), {
+        ...(typeof correction.phrase === "string"
+          ? { phrase: correction.phrase }
+          : {}),
+        score: correction.score,
+      });
+    }
+    return corrections;
+  } catch {
+    return null;
+  }
+};
+
 const isRating = (value: unknown): value is GeneralizedRating | null => {
   if (value === null) return true;
   if (!value || typeof value !== "object") return false;
@@ -341,12 +438,9 @@ const isRating = (value: unknown): value is GeneralizedRating | null => {
   return (
     hasExactKeys(rating, ["phrase", "score"]) &&
     typeof rating.score === "number" &&
-    rating.score >= 0 &&
-    rating.score <= 5 &&
-    rating.score * 2 === Math.trunc(rating.score * 2) &&
+    validRatingScore(rating.score) &&
     typeof rating.phrase === "string" &&
-    rating.phrase.trim().length > 0 &&
-    rating.phrase.trim().length <= 120
+    validRatingPhrase(rating.phrase)
   );
 };
 

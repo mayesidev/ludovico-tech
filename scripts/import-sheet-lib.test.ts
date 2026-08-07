@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildImportPlan,
   parseIntermediateJson,
+  parseRatingCorrectionsJson,
   renderSqlChunks,
   sanitizeSourceCsv,
   type GeneralizedImportDocument,
@@ -116,6 +117,65 @@ describe("private Sheet sanitization", () => {
     expect(result.document.rows[0].rating).toEqual({
       phrase: "A synthetic delight",
       score: 4.5,
+    });
+  });
+
+  it("applies reviewed row-only corrections only to invalid ratings", () => {
+    const corrections = parseRatingCorrectionsJson(
+      JSON.stringify({
+        ratings: [
+          { score: 4, sourceRow: 2 },
+          {
+            phrase: "Five synthetic marks",
+            score: 5,
+            sourceRow: 3,
+          },
+        ],
+        schemaVersion: 1,
+      }),
+    );
+    const result = sanitizeSourceCsv(
+      `${header}\n8/1/2026 10:30:00,First Synthetic Movie,No,No,,,Wordplay phrase\n8/2/2026 10:30:00,Second Synthetic Movie,No,No,,,Other wordplay\n`,
+      corrections!,
+    );
+
+    expect(result.document.validated).toBe(true);
+    expect(result.document.rows.map((row) => row.rating)).toEqual([
+      { phrase: "Wordplay phrase", score: 4 },
+      { phrase: "Five synthetic marks", score: 5 },
+    ]);
+  });
+
+  it("rejects malformed, duplicate, and unused correction records", () => {
+    expect(
+      parseRatingCorrectionsJson(
+        JSON.stringify({
+          ratings: [
+            { score: 4, sourceRow: 2 },
+            { score: 5, sourceRow: 2 },
+          ],
+          schemaVersion: 1,
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseRatingCorrectionsJson(
+        JSON.stringify({
+          ratings: [{ score: 4.25, sourceRow: 2 }],
+          schemaVersion: 1,
+        }),
+      ),
+    ).toBeNull();
+
+    const result = sanitizeSourceCsv(
+      `${header}\n8/1/2026 10:30:00,Synthetic Movie,No,No,,,4 Valid phrase\n`,
+      new Map([[2, { score: 4 }]]),
+    );
+    expect(result.document.validated).toBe(false);
+    expect(result.diagnostics).toContainEqual({
+      code: "RATING_CORRECTION_UNUSED",
+      row: 2,
+      severity: "error",
     });
   });
 

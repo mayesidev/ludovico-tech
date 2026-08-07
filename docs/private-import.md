@@ -48,6 +48,26 @@ diagnostic exists, and the SQL generator refuses it. Correct the private source
 or a private working copy and sanitize again; do not weaken validation to bypass
 a source error.
 
+If a reviewed legacy rating contains its required phrase but encodes the score
+only as wordplay, an optional ignored correction file can supply the generalized
+score and, when needed, a clearer phrase:
+
+```json
+{
+  "schemaVersion": 1,
+  "ratings": [
+    { "sourceRow": 12, "score": 4 },
+    { "sourceRow": 34, "score": 5, "phrase": "Five synthetic marks" }
+  ]
+}
+```
+
+Pass it as the fourth sanitizer argument. Scores must remain whole or half points
+from 0 through 5. Corrections apply only to an otherwise invalid, non-empty
+rating cell; a duplicate row, unknown row, or override of an already-valid
+rating is a blocking error. Correction files remain under ignored `data/` and
+must never contain source headings.
+
 Invalid IMDb references are warnings because IMDb is not an application
 dependency. They import without an IMDb identity and can be reconciled against
 TMDB in a separate future operator step.
