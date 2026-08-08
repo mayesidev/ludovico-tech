@@ -22,6 +22,7 @@ if (!inputArgument || !outputArgument || !reportArgument) {
     : {
         excludedSourceRows: new Set(),
         legacyImdbIds: new Map(),
+        nowShowingSourceRow: null,
         ratings: new Map(),
       };
   if (!corrections) {
