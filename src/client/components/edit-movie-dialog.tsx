@@ -43,11 +43,11 @@ export function EditMovieDialog({
       >
         <div className="mb-6 flex items-start justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-lime-300">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-marquee-gold">
               Movie details
             </p>
             <h2
-              className="mt-2 font-display text-3xl font-bold text-white"
+              className="mt-2 font-display text-3xl font-bold text-cream"
               id={titleId}
             >
               Edit title
@@ -60,7 +60,7 @@ export function EditMovieDialog({
             </p>
           </div>
           <button
-            className="text-zinc-500 hover:text-white"
+            className="text-zinc-500 hover:text-marquee-light"
             onClick={onClose}
             aria-label="Close edit dialog"
             type="button"

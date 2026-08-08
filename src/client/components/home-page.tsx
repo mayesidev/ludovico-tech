@@ -57,12 +57,12 @@ export function HomePage({
     <div className="space-y-16">
       <section className="grid items-end gap-10 lg:grid-cols-[1.1fr_0.9fr]">
         <div>
-          <p className="mb-5 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-lime-300">
-            <span className="size-2 rounded-full bg-lime-300 shadow-[0_0_18px] shadow-lime-300" />
+          <p className="mb-5 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-marquee-gold">
+            <span className="size-2 rounded-full bg-marquee-light shadow-[0_0_18px] shadow-marquee-gold" />
             Weekly screening
           </p>
-          <h1 className="max-w-3xl font-display text-5xl font-bold leading-[0.95] tracking-[-0.055em] text-white sm:text-7xl">
-            What’s on the <span className="text-lime-300">marquee?</span>
+          <h1 className="max-w-3xl font-display text-5xl font-bold leading-[0.95] tracking-[-0.055em] text-cream sm:text-7xl">
+            What’s on the <span className="text-marquee-light">marquee?</span>
           </h1>
           <p className="mt-6 max-w-xl text-base leading-7 text-zinc-400">
             One shared list. One movie at a time. A little ceremony before the
@@ -73,7 +73,7 @@ export function HomePage({
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-600">
             The collection
           </p>
-          <p className="mt-1 font-display text-5xl font-bold text-white">
+          <p className="mt-1 font-display text-5xl font-bold text-cream">
             {unwatchedCount || "—"}
           </p>
           <p className="text-sm text-zinc-500">movies in rotation</p>
@@ -91,7 +91,7 @@ export function HomePage({
           }
         />
         <Card className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_10%,rgba(190,242,100,0.12),transparent_32%),linear-gradient(120deg,rgba(255,255,255,0.02),transparent)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_10%,rgba(216,172,76,0.14),transparent_32%),linear-gradient(120deg,rgba(120,23,41,0.12),transparent_55%)]" />
           <div className="relative grid gap-8 p-6 sm:p-8 lg:grid-cols-[220px_1fr] lg:p-10">
             <Poster
               path={nowShowing?.poster_path}
@@ -101,13 +101,11 @@ export function HomePage({
             <div className="flex min-h-[300px] flex-col justify-between">
               <div>
                 {nowShowing?.franchise_name && (
-                  <Badge className="mb-5 border-lime-300/20 bg-lime-300/10 text-lime-200">
-                    {nowShowing.franchise_name}
-                  </Badge>
+                  <Badge className="mb-5">{nowShowing.franchise_name}</Badge>
                 )}
                 {nowShowing?.title ? (
                   <>
-                    <h3 className="font-display text-4xl font-bold tracking-tight text-white sm:text-5xl">
+                    <h3 className="font-display text-4xl font-bold tracking-tight text-cream sm:text-5xl">
                       {nowShowing.title}
                     </h3>
                     <p className="mt-3 text-sm text-zinc-500">
@@ -116,13 +114,13 @@ export function HomePage({
                     </p>
                   </>
                 ) : (
-                  <h3 className="max-w-md font-display text-4xl font-bold tracking-tight text-white">
+                  <h3 className="max-w-md font-display text-4xl font-bold tracking-tight text-cream">
                     Cue the drumroll.
                   </h3>
                 )}
                 {isWatched && nowShowing?.rating_score !== null && (
                   <div className="mt-7 flex items-center gap-3">
-                    <span className="flex items-center gap-1 text-lime-300">
+                    <span className="flex items-center gap-1 text-marquee-light">
                       <Star size={17} fill="currentColor" />
                       {nowShowing.rating_score}/5
                     </span>
@@ -241,8 +239,8 @@ function RatingForm({
               className={cn(
                 "grid size-10 place-items-center rounded-xl border text-sm font-bold transition",
                 score === option
-                  ? "border-lime-300 bg-lime-300 text-zinc-950"
-                  : "border-white/10 bg-white/5 text-zinc-300 hover:border-lime-300/50",
+                  ? "border-marquee-light bg-marquee-gold text-ink"
+                  : "border-marquee-gold/15 bg-black/20 text-zinc-300 hover:border-marquee-gold/50",
               )}
             >
               {option}
@@ -336,12 +334,12 @@ function HistoryCard({ movie, index }: { movie: Movie | null; index: number }) {
           <p className="text-xs uppercase tracking-[0.14em] text-zinc-600">
             {movie ? "Recently viewed" : "Coming soon"}
           </p>
-          <p className="mt-2 font-display text-lg font-bold text-white">
+          <p className="mt-2 font-display text-lg font-bold text-cream">
             {movie?.title ?? "More history"}
           </p>
           {movie?.rating_score !== null &&
             movie?.rating_score !== undefined && (
-              <p className="mt-2 text-xs text-lime-300">
+              <p className="mt-2 text-xs text-marquee-light">
                 {movie.rating_score}/5 · {movie.rating_phrase}
               </p>
             )}
@@ -406,7 +404,7 @@ function AddMovieSection({
   };
 
   return (
-    <section className="border-t border-white/8 pt-16">
+    <section className="border-t border-curtain/35 pt-16">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <SectionHeading
           eyebrow="Contribute"
@@ -493,13 +491,13 @@ function AddMovieSection({
                   className={cn(
                     "flex items-center gap-3 rounded-2xl border p-3 text-left transition",
                     selected?.id === result.id
-                      ? "border-lime-300 bg-lime-300/10"
-                      : "border-white/8 bg-white/[0.03] hover:border-white/20",
+                      ? "border-marquee-gold bg-curtain/30"
+                      : "border-marquee-gold/10 bg-black/15 hover:border-marquee-gold/30",
                   )}
                 >
                   <Poster path={result.posterPath} title={result.title} />
                   <span>
-                    <span className="block font-semibold text-white">
+                    <span className="block font-semibold text-cream">
                       {result.title}
                     </span>
                     <span className="mt-1 block text-xs text-zinc-500">
@@ -514,7 +512,7 @@ function AddMovieSection({
           )}
 
           {title && (
-            <div className="mt-5 flex items-center justify-between gap-4 border-t border-white/8 pt-5">
+            <div className="mt-5 flex items-center justify-between gap-4 border-t border-curtain/35 pt-5">
               <p className="text-sm text-zinc-400">
                 {selected
                   ? `Confirmed: ${selected.title}`

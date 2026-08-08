@@ -27,21 +27,21 @@ export function AppHeader({
   onLogout,
 }: AppHeaderProps) {
   return (
-    <header className="relative z-10 border-b border-white/8 bg-ink/80 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
+    <header className="relative z-10 border-b border-curtain/50 bg-ink/85 shadow-[0_1px_24px_rgba(120,23,41,0.12)] backdrop-blur-xl">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-5 py-4 lg:px-8">
         <button
           aria-label="Ludovico Tech home"
-          className="flex items-center gap-3 text-left"
+          className="flex min-w-0 items-center gap-2.5 text-left sm:gap-3"
           onClick={() => onTabChange("home")}
         >
-          <span className="grid size-10 place-items-center rounded-2xl bg-lime-300 text-zinc-950 shadow-lg shadow-lime-300/10">
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-marquee-light/40 bg-marquee-gold text-ink shadow-lg shadow-marquee-gold/15 sm:size-10 sm:rounded-2xl">
             <Clapperboard size={20} strokeWidth={2.5} />
           </span>
-          <span>
-            <span className="block font-display text-lg font-bold tracking-tight">
+          <span className="min-w-0">
+            <span className="block whitespace-nowrap font-display text-base font-bold tracking-tight text-cream sm:text-lg">
               Ludovico Tech
             </span>
-            <span className="block text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+            <span className="hidden text-[10px] font-bold uppercase tracking-[0.2em] text-marquee-gold/55 sm:block">
               The watch club
             </span>
           </span>
@@ -50,7 +50,7 @@ export function AppHeader({
         <div className="flex items-center gap-3">
           <nav
             aria-label="Primary navigation"
-            className="flex items-center gap-1 rounded-full border border-white/8 bg-white/[0.04] p-1"
+            className="flex items-center gap-1 rounded-full border border-marquee-gold/15 bg-black/25 p-1"
           >
             <NavButton
               active={tab === "home"}
@@ -90,11 +90,13 @@ function NavButton({
       aria-current={active ? "page" : undefined}
       onClick={onClick}
       className={cn(
-        "flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold transition",
-        active ? "bg-white/10 text-white" : "text-zinc-500 hover:text-zinc-200",
+        "flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-2 text-xs font-semibold transition sm:gap-2 sm:px-3",
+        active
+          ? "bg-curtain text-cream shadow-inner shadow-marquee-gold/10 ring-1 ring-marquee-gold/20"
+          : "text-zinc-500 hover:bg-curtain/15 hover:text-marquee-light",
       )}
     >
-      {icon}
+      <span className="hidden sm:inline-flex">{icon}</span>
       {children}
     </button>
   );
@@ -126,7 +128,7 @@ function AuthControls({
     <button
       aria-label={`Sign out${auth.actor?.displayName ? ` ${auth.actor.displayName}` : ""}`}
       onClick={onLogout}
-      className="max-w-[120px] truncate rounded-full border border-white/10 px-3 py-2 text-xs text-zinc-400 hover:text-white sm:max-w-[180px]"
+      className="max-w-[120px] truncate rounded-full border border-marquee-gold/15 px-3 py-2 text-xs text-zinc-400 hover:border-marquee-gold/35 hover:text-marquee-light sm:max-w-[180px]"
     >
       Sign out
     </button>
@@ -136,7 +138,7 @@ function AuthControls({
 export function LoadingState() {
   return (
     <div className="grid min-h-[50vh] place-items-center">
-      <LoaderCircle className="animate-spin text-lime-300" />
+      <LoaderCircle className="animate-spin text-marquee-gold" />
     </div>
   );
 }
@@ -166,17 +168,17 @@ export function RollReveal({ title }: { title: string }) {
   return (
     <div
       aria-live="polite"
-      className="reveal fixed inset-0 z-50 grid place-items-center bg-ink/90 p-6 backdrop-blur-md"
+      className="reveal fixed inset-0 z-50 grid place-items-center bg-ink/95 p-6 backdrop-blur-md"
       role="status"
     >
       <div className="text-center">
-        <div className="mx-auto mb-6 grid size-24 place-items-center rounded-[2rem] border border-lime-300/30 bg-lime-300/10 text-lime-300">
+        <div className="mx-auto mb-6 grid size-24 place-items-center rounded-[2rem] border border-marquee-light/40 bg-curtain/35 text-marquee-light shadow-[0_0_48px_rgba(216,172,76,0.16)]">
           <Ticket size={40} />
         </div>
-        <p className="mb-3 text-xs font-bold uppercase tracking-[0.3em] text-lime-300">
+        <p className="mb-3 text-xs font-bold uppercase tracking-[0.3em] text-marquee-gold">
           The roll is in
         </p>
-        <h2 className="font-display text-4xl font-bold text-white sm:text-6xl">
+        <h2 className="font-display text-4xl font-bold text-cream sm:text-6xl">
           {title}
         </h2>
       </div>
@@ -186,7 +188,7 @@ export function RollReveal({ title }: { title: string }) {
 
 export function Footer() {
   return (
-    <footer className="relative z-10 mx-auto max-w-7xl border-t border-white/8 px-5 py-8 text-xs leading-5 text-zinc-600 lg:px-8">
+    <footer className="relative z-10 mx-auto max-w-7xl border-t border-curtain/35 px-5 py-8 text-xs leading-5 text-zinc-600 lg:px-8">
       <a
         className="mb-3 inline-block"
         href="https://www.themoviedb.org/"

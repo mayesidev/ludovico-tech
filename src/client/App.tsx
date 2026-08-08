@@ -121,7 +121,7 @@ export default function App() {
   const canMutate = auth?.authenticated === true;
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-ink text-zinc-100">
+    <div className="theater-background min-h-screen overflow-x-hidden text-zinc-100">
       <div className="grain" />
       <AppHeader
         tab={tab}

@@ -29,11 +29,11 @@ export function Poster({
   return (
     <div
       className={cn(
-        "poster-fallback grid aspect-[2/3] w-full place-items-center rounded-2xl border border-white/10 p-5 text-center",
+        "poster-fallback grid aspect-[2/3] w-full place-items-center rounded-2xl border border-marquee-gold/15 p-5 text-center",
         sizeClass,
       )}
     >
-      <Clapperboard className="text-lime-300/60" size={large ? 34 : 20} />
+      <Clapperboard className="text-marquee-gold/70" size={large ? 34 : 20} />
       <span className="mt-3 text-xs font-semibold text-zinc-500">{title}</span>
     </div>
   );
