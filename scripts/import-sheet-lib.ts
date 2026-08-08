@@ -598,7 +598,6 @@ interface AccumulatedMovie {
   id: string;
   legacyImdbId: string | null;
   rating: GeneralizedRating | null;
-  ratingRecordedAt: string | null;
   sources: Array<GeneralizedSubmission & { sourceKey: string }>;
   title: string;
   titleNormalized: string;
@@ -664,7 +663,6 @@ export const buildImportPlan = async (
         id: await stableId("movie", movieKey),
         legacyImdbId: row.legacyImdbId,
         rating: row.rating,
-        ratingRecordedAt: row.rating ? row.submittedAt : null,
         sources: [{ ...row, sourceKey }],
         title: row.title.trim(),
         titleNormalized,
@@ -685,7 +683,6 @@ export const buildImportPlan = async (
     existing.firstSourceRow = Math.min(existing.firstSourceRow, row.sourceRow);
     if (!existing.rating && row.rating) {
       existing.rating = row.rating;
-      existing.ratingRecordedAt = row.submittedAt;
     }
     existing.sources.push({ ...row, sourceKey });
   }
@@ -767,9 +764,9 @@ export const buildImportPlan = async (
   }
 
   for (const movie of orderedMovies) {
-    if (!movie.rating || !movie.ratingRecordedAt) continue;
+    if (!movie.rating) continue;
     statements.push(
-      `INSERT OR IGNORE INTO ratings (id, movie_id, recorded_at, watched_at, score, phrase, source) VALUES (${sql(await stableId("rating", movie.id))}, ${sql(movie.id)}, ${sql(movie.ratingRecordedAt)}, ${sql(movie.ratingRecordedAt)}, ${movie.rating.score}, ${sql(movie.rating.phrase.trim())}, 'legacy_import');`,
+      `INSERT OR IGNORE INTO ratings (id, movie_id, recorded_at, watched_at, score, phrase, source) VALUES (${sql(await stableId("rating", movie.id))}, ${sql(movie.id)}, ${sql(importedAt)}, NULL, ${movie.rating.score}, ${sql(movie.rating.phrase.trim())}, 'legacy_import');`,
     );
   }
 

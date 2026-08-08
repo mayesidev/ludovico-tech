@@ -105,8 +105,8 @@ omitted from both with generalized warnings. Conflicting shared ratings remain a
 blocking error. Re-executing the same complete chunk list does not duplicate
 data.
 
-A legacy rating establishes watched state. Its sanitized submission timestamp is
-used for both `recorded_at` and `watched_at`; unrated titles remain unwatched.
+A legacy rating establishes watched state. Its watch time is unknown, so import
+records the import event without inventing a `watched_at` value.
 
 The bulk import never assigns a TMDB identity. A later, separate reconciliation
 may suggest a TMDB match, but attaches it only after the title/franchise evidence
