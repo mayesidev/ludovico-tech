@@ -7,6 +7,7 @@ import {
 } from "../../scripts/import-sheet-lib";
 
 const syntheticCatalog: GeneralizedImportDocument = {
+  nowShowingSourceRow: 3,
   rows: [
     {
       franchiseIndicated: true,
@@ -29,7 +30,7 @@ const syntheticCatalog: GeneralizedImportDocument = {
       title: "Synthetic Movie Two",
     },
   ],
-  schemaVersion: 1,
+  schemaVersion: 2,
   validated: true,
 };
 
@@ -104,5 +105,33 @@ describe("generalized catalog import", () => {
 
     expect(tmdbLinkCount?.count).toBe(0);
     expect(franchise?.order_confirmed).toBe(0);
+  });
+
+  it("restores the active franchise selection without fabricated roll history", async () => {
+    await importSyntheticCatalog(2);
+    const current = await env.DB.prepare(
+      `SELECT now_showing.rolled_movie_id, now_showing.rolled_at,
+              now_showing.status, movies.title, franchises.name AS franchise_name
+       FROM now_showing
+       LEFT JOIN movies ON movies.id = now_showing.movie_id
+       LEFT JOIN franchises ON franchises.id = now_showing.franchise_id
+       WHERE now_showing.id = 1`,
+    ).first();
+    const rollCount = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM rolls",
+    ).first<{ count: number }>();
+    const auditCount = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM audit_log",
+    ).first<{ count: number }>();
+
+    expect(current).toEqual({
+      franchise_name: "Synthetic Saga",
+      rolled_at: null,
+      rolled_movie_id: null,
+      status: "pending_order",
+      title: "Synthetic Movie Two",
+    });
+    expect(rollCount?.count).toBe(0);
+    expect(auditCount?.count).toBe(0);
   });
 });

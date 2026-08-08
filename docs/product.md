@@ -21,6 +21,8 @@ one group viewing state.
   identifier during import.
 - The application must run from empty migrations. Loading a legacy catalog is an
   optional operator action, never a bootstrap or test dependency.
+- An optional legacy import may restore the current unwatched selection. It does
+  not invent an unknown roll, actor, audit event, or selection time.
 - Legacy title-submission time may establish when a movie was added. A manually
   entered legacy rating establishes watched state but not an unknown watch time.
 

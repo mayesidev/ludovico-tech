@@ -27,9 +27,11 @@ const submission = (
 
 const document = (
   rows: GeneralizedSubmission[],
+  nowShowingSourceRow: number | null = null,
 ): GeneralizedImportDocument => ({
+  nowShowingSourceRow,
   rows,
-  schemaVersion: 1,
+  schemaVersion: 2,
   validated: true,
 });
 
@@ -40,6 +42,7 @@ describe("private Sheet sanitization", () => {
 
     expect(result.diagnostics).toEqual([]);
     expect(result.document).toEqual({
+      nowShowingSourceRow: null,
       rows: [
         {
           franchiseIndicated: true,
@@ -52,7 +55,7 @@ describe("private Sheet sanitization", () => {
           title: "Synthetic Movie",
         },
       ],
-      schemaVersion: 1,
+      schemaVersion: 2,
       validated: true,
     });
     expect(JSON.stringify(result)).not.toContain("opaque-a");
@@ -125,6 +128,7 @@ describe("private Sheet sanitization", () => {
       JSON.stringify({
         excludedSourceRows: [],
         legacyImdbIds: [],
+        nowShowingSourceRow: null,
         ratings: [
           { score: 4, sourceRow: 2 },
           {
@@ -133,7 +137,7 @@ describe("private Sheet sanitization", () => {
             sourceRow: 3,
           },
         ],
-        schemaVersion: 1,
+        schemaVersion: 2,
       }),
     );
     const result = sanitizeSourceCsv(
@@ -154,11 +158,12 @@ describe("private Sheet sanitization", () => {
         JSON.stringify({
           excludedSourceRows: [],
           legacyImdbIds: [],
+          nowShowingSourceRow: null,
           ratings: [
             { score: 4, sourceRow: 2 },
             { score: 5, sourceRow: 2 },
           ],
-          schemaVersion: 1,
+          schemaVersion: 2,
         }),
       ),
     ).toBeNull();
@@ -167,8 +172,9 @@ describe("private Sheet sanitization", () => {
         JSON.stringify({
           excludedSourceRows: [],
           legacyImdbIds: [],
+          nowShowingSourceRow: null,
           ratings: [{ score: 4.25, sourceRow: 2 }],
-          schemaVersion: 1,
+          schemaVersion: 2,
         }),
       ),
     ).toBeNull();
@@ -178,6 +184,7 @@ describe("private Sheet sanitization", () => {
       {
         excludedSourceRows: new Set(),
         legacyImdbIds: new Map(),
+        nowShowingSourceRow: null,
         ratings: new Map([[2, { score: 4 }]]),
       },
     );
@@ -194,8 +201,9 @@ describe("private Sheet sanitization", () => {
       JSON.stringify({
         excludedSourceRows: [],
         legacyImdbIds: [{ id: "tt123456", sourceRow: 2 }],
+        nowShowingSourceRow: null,
         ratings: [],
-        schemaVersion: 1,
+        schemaVersion: 2,
       }),
     );
     const result = sanitizeSourceCsv(
@@ -213,8 +221,9 @@ describe("private Sheet sanitization", () => {
       JSON.stringify({
         excludedSourceRows: [3],
         legacyImdbIds: [],
+        nowShowingSourceRow: null,
         ratings: [],
-        schemaVersion: 1,
+        schemaVersion: 2,
       }),
     );
     const result = sanitizeSourceCsv(
@@ -235,8 +244,9 @@ describe("private Sheet sanitization", () => {
         JSON.stringify({
           excludedSourceRows: [3, 3],
           legacyImdbIds: [],
+          nowShowingSourceRow: null,
           ratings: [],
-          schemaVersion: 1,
+          schemaVersion: 2,
         }),
       ),
     ).toBeNull();
@@ -246,6 +256,7 @@ describe("private Sheet sanitization", () => {
       {
         excludedSourceRows: new Set([3]),
         legacyImdbIds: new Map(),
+        nowShowingSourceRow: null,
         ratings: new Map(),
       },
     );
@@ -263,6 +274,44 @@ describe("private Sheet sanitization", () => {
     expect(sanitizeSourceCsv('"unterminated').diagnostics).toEqual([
       { code: "SOURCE_CSV_INVALID", row: null, severity: "error" },
     ]);
+  });
+
+  it("carries one reviewed current selection without retaining source content", () => {
+    const corrections = parseImportCorrectionsJson(
+      JSON.stringify({
+        excludedSourceRows: [],
+        legacyImdbIds: [],
+        nowShowingSourceRow: 2,
+        ratings: [],
+        schemaVersion: 2,
+      }),
+    );
+    const result = sanitizeSourceCsv(
+      `${header}\n8/1/2026 10:30:00,Synthetic Movie,No,No,,,\n`,
+      corrections!,
+    );
+
+    expect(result.document.nowShowingSourceRow).toBe(2);
+    expect(result.document.validated).toBe(true);
+  });
+
+  it("rejects a current selection that is absent from sanitized rows", () => {
+    const result = sanitizeSourceCsv(
+      `${header}\n8/1/2026 10:30:00,Synthetic Movie,No,No,,,\n`,
+      {
+        excludedSourceRows: new Set(),
+        legacyImdbIds: new Map(),
+        nowShowingSourceRow: 3,
+        ratings: new Map(),
+      },
+    );
+
+    expect(result.document.validated).toBe(false);
+    expect(result.diagnostics).toContainEqual({
+      code: "NOW_SHOWING_SOURCE_ROW_UNUSED",
+      row: 3,
+      severity: "error",
+    });
   });
 });
 
@@ -377,6 +426,61 @@ describe("deterministic import planning", () => {
     const second = await buildImportPlan(input, importedAt);
     expect(second).toEqual(first);
     expect(first.statements.join("\n")).toContain("Director''s choice");
+  });
+
+  it("restores an unwatched franchise selection pending user order", async () => {
+    const plan = await buildImportPlan(
+      document(
+        [
+          submission({
+            franchiseIndicated: true,
+            franchiseName: "Synthetic Saga",
+          }),
+        ],
+        2,
+      ),
+      "2026-08-06T20:00:00.000Z",
+    );
+    const sql = plan.statements.join("\n");
+
+    expect(plan.diagnostics).toEqual([]);
+    expect(sql).toContain("status = 'pending_order'");
+    expect(sql).toContain("rolled_movie_id = NULL");
+    expect(sql).not.toContain("INSERT INTO rolls");
+    expect(sql).not.toContain("INSERT INTO audit_log");
+  });
+
+  it("restores an unwatched standalone selection ready to rate", async () => {
+    const plan = await buildImportPlan(
+      document([submission()], 2),
+      "2026-08-06T20:00:00.000Z",
+    );
+
+    expect(plan.diagnostics).toEqual([]);
+    expect(plan.statements.join("\n")).toContain(
+      "franchise_id = NULL, status = 'ready'",
+    );
+  });
+
+  it("rejects a watched movie as the current selection", async () => {
+    const plan = await buildImportPlan(
+      document(
+        [
+          submission({
+            rating: { phrase: "Already watched", score: 4 },
+          }),
+        ],
+        2,
+      ),
+      "2026-08-06T20:00:00.000Z",
+    );
+
+    expect(plan.statements).toEqual([]);
+    expect(plan.diagnostics).toContainEqual({
+      code: "NOW_SHOWING_ALREADY_WATCHED",
+      row: 2,
+      severity: "error",
+    });
   });
 
   it("includes the final statement in generated chunks", () => {

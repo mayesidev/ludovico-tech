@@ -1,6 +1,6 @@
 import { parse } from "csv-parse/sync";
 
-export const INTERMEDIATE_SCHEMA_VERSION = 1 as const;
+export const INTERMEDIATE_SCHEMA_VERSION = 2 as const;
 
 const SOURCE_COLUMN_INDEX = {
   submittedAt: 0,
@@ -29,6 +29,8 @@ export type ImportDiagnosticCode =
   | "INVALID_RATING"
   | "INVALID_SUBMISSION_TIMESTAMP"
   | "MISSING_TITLE"
+  | "NOW_SHOWING_ALREADY_WATCHED"
+  | "NOW_SHOWING_SOURCE_ROW_UNUSED"
   | "RATING_CORRECTION_UNUSED"
   | "SOURCE_ROW_EXCLUDED"
   | "SOURCE_ROW_EXCLUSION_UNUSED"
@@ -55,12 +57,14 @@ export interface RatingCorrection {
 export interface ImportCorrections {
   excludedSourceRows: ReadonlySet<number>;
   legacyImdbIds: ReadonlyMap<number, string>;
+  nowShowingSourceRow: number | null;
   ratings: ReadonlyMap<number, RatingCorrection>;
 }
 
 const emptyImportCorrections = (): ImportCorrections => ({
   excludedSourceRows: new Set(),
   legacyImdbIds: new Map(),
+  nowShowingSourceRow: null,
   ratings: new Map(),
 });
 
@@ -76,6 +80,7 @@ export interface GeneralizedSubmission {
 }
 
 export interface GeneralizedImportDocument {
+  nowShowingSourceRow: number | null;
   rows: GeneralizedSubmission[];
   schemaVersion: typeof INTERMEDIATE_SCHEMA_VERSION;
   validated: boolean;
@@ -245,6 +250,7 @@ export const sanitizeSourceCsv = (
     return {
       diagnostics: [diagnostic("SOURCE_CSV_INVALID", null)],
       document: {
+        nowShowingSourceRow: corrections.nowShowingSourceRow,
         rows: [],
         schemaVersion: INTERMEDIATE_SCHEMA_VERSION,
         validated: false,
@@ -256,6 +262,7 @@ export const sanitizeSourceCsv = (
     return {
       diagnostics: [diagnostic("SOURCE_EMPTY", null)],
       document: {
+        nowShowingSourceRow: corrections.nowShowingSourceRow,
         rows: [],
         schemaVersion: INTERMEDIATE_SCHEMA_VERSION,
         validated: false,
@@ -395,9 +402,22 @@ export const sanitizeSourceCsv = (
     }
   }
 
+  if (
+    corrections.nowShowingSourceRow !== null &&
+    !rows.some((row) => row.sourceRow === corrections.nowShowingSourceRow)
+  ) {
+    diagnostics.push(
+      diagnostic(
+        "NOW_SHOWING_SOURCE_ROW_UNUSED",
+        corrections.nowShowingSourceRow,
+      ),
+    );
+  }
+
   return {
     diagnostics,
     document: {
+      nowShowingSourceRow: corrections.nowShowingSourceRow,
       rows,
       schemaVersion: INTERMEDIATE_SCHEMA_VERSION,
       validated: !diagnostics.some((item) => item.severity === "error"),
@@ -433,13 +453,19 @@ export const parseImportCorrectionsJson = (
       !hasExactKeys(value, [
         "excludedSourceRows",
         "legacyImdbIds",
+        "nowShowingSourceRow",
         "ratings",
         "schemaVersion",
       ]) ||
-      value.schemaVersion !== 1 ||
+      value.schemaVersion !== INTERMEDIATE_SCHEMA_VERSION ||
       !Array.isArray(value.excludedSourceRows) ||
       !Array.isArray(value.legacyImdbIds) ||
-      !Array.isArray(value.ratings)
+      !Array.isArray(value.ratings) ||
+      !(
+        value.nowShowingSourceRow === null ||
+        (Number.isInteger(value.nowShowingSourceRow) &&
+          Number(value.nowShowingSourceRow) >= 2)
+      )
     ) {
       return null;
     }
@@ -501,7 +527,15 @@ export const parseImportCorrectionsJson = (
         score: correction.score,
       });
     }
-    return { excludedSourceRows, legacyImdbIds, ratings: corrections };
+    return {
+      excludedSourceRows,
+      legacyImdbIds,
+      nowShowingSourceRow:
+        value.nowShowingSourceRow === null
+          ? null
+          : Number(value.nowShowingSourceRow),
+      ratings: corrections,
+    };
   } catch {
     return null;
   }
@@ -561,11 +595,25 @@ export const parseIntermediateJson = (
     if (
       !value ||
       typeof value !== "object" ||
-      !hasExactKeys(value, ["rows", "schemaVersion", "validated"]) ||
+      !hasExactKeys(value, [
+        "nowShowingSourceRow",
+        "rows",
+        "schemaVersion",
+        "validated",
+      ]) ||
       value.schemaVersion !== INTERMEDIATE_SCHEMA_VERSION ||
       value.validated !== true ||
       !Array.isArray(value.rows) ||
-      !value.rows.every(isSubmission)
+      !value.rows.every(isSubmission) ||
+      !(
+        value.nowShowingSourceRow === null ||
+        (Number.isInteger(value.nowShowingSourceRow) &&
+          Number(value.nowShowingSourceRow) >= 2 &&
+          value.rows.some(
+            (row) =>
+              isSubmission(row) && row.sourceRow === value.nowShowingSourceRow,
+          ))
+      )
     ) {
       return null;
     }
@@ -708,6 +756,20 @@ export const buildImportPlan = async (
     }
   }
 
+  const nowShowing =
+    document.nowShowingSourceRow === null
+      ? null
+      : [...movies.values()].find((movie) =>
+          movie.sources.some(
+            (source) => source.sourceRow === document.nowShowingSourceRow,
+          ),
+        );
+  if (nowShowing?.rating) {
+    diagnostics.push(
+      diagnostic("NOW_SHOWING_ALREADY_WATCHED", document.nowShowingSourceRow),
+    );
+  }
+
   if (diagnostics.some((item) => item.severity === "error")) {
     return {
       counts: { franchises: 0, movies: 0, ratings: 0, sources: 0 },
@@ -765,6 +827,15 @@ export const buildImportPlan = async (
         `INSERT OR IGNORE INTO franchise_movies (franchise_id, movie_id, position) VALUES (${sql(franchise.id)}, ${sql(movie.id)}, ${index + 1});`,
       );
     }
+  }
+
+  if (nowShowing) {
+    const franchise = nowShowing.franchiseName
+      ? franchiseMap.get(normalize(nowShowing.franchiseName))
+      : null;
+    statements.push(
+      `UPDATE now_showing SET rolled_movie_id = NULL, movie_id = ${sql(nowShowing.id)}, franchise_id = ${sql(franchise?.id ?? null)}, status = ${sql(franchise ? "pending_order" : "ready")}, rolled_at = NULL, updated_at = ${sql(importedAt)} WHERE id = 1 AND status = 'empty';`,
+    );
   }
 
   for (const movie of orderedMovies) {
