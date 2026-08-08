@@ -2,8 +2,7 @@ import { parse } from "csv-parse/sync";
 
 export const INTERMEDIATE_SCHEMA_VERSION = 1 as const;
 
-const SOURCE_COLUMN_COUNT = 7;
-const positions = {
+const SOURCE_COLUMN_INDEX = {
   submittedAt: 0,
   title: 1,
   priorViewed: 2,
@@ -12,6 +11,7 @@ const positions = {
   legacyImdbReference: 5,
   rating: 6,
 } as const;
+const SOURCE_COLUMN_COUNT = Object.keys(SOURCE_COLUMN_INDEX).length;
 
 export type DiagnosticSeverity = "error" | "warning";
 
@@ -282,22 +282,26 @@ export const sanitizeSourceCsv = (
     }
 
     const submittedAt = parseSubmissionTimestamp(
-      record[positions.submittedAt] ?? "",
+      record[SOURCE_COLUMN_INDEX.submittedAt] ?? "",
     );
-    const title = (record[positions.title] ?? "").trim();
-    const priorViewed = parseBoolean(record[positions.priorViewed] ?? "");
+    const title = (record[SOURCE_COLUMN_INDEX.title] ?? "").trim();
+    const priorViewed = parseBoolean(
+      record[SOURCE_COLUMN_INDEX.priorViewed] ?? "",
+    );
     const franchiseIndicated = parseFranchiseIndicator(
-      record[positions.franchiseIndicated] ?? "",
+      record[SOURCE_COLUMN_INDEX.franchiseIndicated] ?? "",
     );
     const franchiseName =
-      (record[positions.franchiseName] ?? "").trim() || null;
-    let imdb = parseImdbId(record[positions.legacyImdbReference] ?? "");
+      (record[SOURCE_COLUMN_INDEX.franchiseName] ?? "").trim() || null;
+    let imdb = parseImdbId(
+      record[SOURCE_COLUMN_INDEX.legacyImdbReference] ?? "",
+    );
     const externalIdCorrection = corrections.legacyImdbIds.get(sourceRow);
     if (externalIdCorrection) {
       imdb = { id: externalIdCorrection, valid: true };
       appliedExternalIdCorrections.add(sourceRow);
     }
-    const sourceRating = record[positions.rating] ?? "";
+    const sourceRating = record[SOURCE_COLUMN_INDEX.rating] ?? "";
     let rating = parseRating(sourceRating);
     const correction = corrections.ratings.get(sourceRow);
     if (correction) {
