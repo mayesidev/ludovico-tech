@@ -95,7 +95,7 @@ export function Dialog({
         aria-labelledby={labelledBy}
         aria-modal="true"
         className={cn(
-          "w-full max-w-lg rounded-3xl border border-white/10 bg-zinc-950 p-6 shadow-2xl shadow-black/40 sm:p-8",
+          "theater-dialog w-full max-w-lg rounded-3xl border p-6 shadow-2xl shadow-black/50 sm:p-8",
           className,
         )}
         ref={dialogRef}

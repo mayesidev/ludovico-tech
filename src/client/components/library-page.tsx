@@ -35,7 +35,7 @@ export function LibraryPage({
         header: "Title",
         cell: ({ row }) => (
           <div>
-            <p className="font-semibold text-white">{row.original.title}</p>
+            <p className="font-semibold text-cream">{row.original.title}</p>
             <p className="text-xs text-zinc-500">
               {row.original.franchise_name ?? "Standalone"}
             </p>
@@ -54,7 +54,9 @@ export function LibraryPage({
           row.original.rating_score === null ? (
             <Badge>Not watched</Badge>
           ) : (
-            <span className="text-lime-300">{row.original.rating_score}/5</span>
+            <span className="text-marquee-light">
+              {row.original.rating_score}/5
+            </span>
           ),
       },
       {
@@ -62,9 +64,7 @@ export function LibraryPage({
         header: "Status",
         cell: ({ row }) =>
           row.original.rating_score !== null ? (
-            <Badge className="border-lime-300/20 bg-lime-300/10 text-lime-200">
-              Watched
-            </Badge>
+            <Badge>Watched</Badge>
           ) : (
             <Badge>In rotation</Badge>
           ),
@@ -78,7 +78,7 @@ export function LibraryPage({
         cell: ({ row }) => (
           <div className="flex gap-2">
             <button
-              className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-zinc-400 hover:border-white/25 hover:text-white"
+              className="inline-flex items-center gap-1 rounded-lg border border-marquee-gold/15 px-2.5 py-1.5 text-xs text-zinc-400 hover:border-marquee-gold/35 hover:text-marquee-light"
               onClick={() => onEdit(row.original)}
             >
               <Pencil size={13} />
@@ -86,7 +86,7 @@ export function LibraryPage({
             </button>
             {row.original.franchise_id && (
               <button
-                className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-zinc-400 hover:border-white/25 hover:text-white"
+                className="rounded-lg border border-marquee-gold/15 px-2.5 py-1.5 text-xs text-zinc-400 hover:border-marquee-gold/35 hover:text-marquee-light"
                 onClick={() => void onOrder(row.original.franchise_id!)}
               >
                 Order
@@ -135,7 +135,7 @@ export function LibraryPage({
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[860px] text-left text-sm">
-            <thead className="border-b border-white/8 bg-white/[0.03] text-xs uppercase tracking-[0.14em] text-zinc-500">
+            <thead className="border-b border-curtain/35 bg-curtain/10 text-xs uppercase tracking-[0.14em] text-zinc-500">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
@@ -155,7 +155,7 @@ export function LibraryPage({
                       {header.column.getCanSort() ? (
                         <button
                           onClick={header.column.getToggleSortingHandler()}
-                          className="hover:text-white"
+                          className="hover:text-marquee-light"
                         >
                           {flexRender(
                             header.column.columnDef.header,
@@ -178,9 +178,9 @@ export function LibraryPage({
                 </tr>
               ))}
             </thead>
-            <tbody className="divide-y divide-white/6">
+            <tbody className="divide-y divide-marquee-gold/8">
               {table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="transition hover:bg-white/[0.035]">
+                <tr key={row.id} className="transition hover:bg-curtain/15">
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className="px-5 py-4 text-zinc-400">
                       {flexRender(
@@ -194,7 +194,7 @@ export function LibraryPage({
             </tbody>
           </table>
         </div>
-        <div className="border-t border-white/8 px-5 py-4 text-xs text-zinc-600">
+        <div className="border-t border-curtain/35 px-5 py-4 text-xs text-zinc-600">
           {table.getFilteredRowModel().rows.length} of {movies.length} movies
         </div>
       </Card>
