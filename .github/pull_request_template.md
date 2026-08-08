@@ -1,33 +1,20 @@
-## Problem and intended outcome
+## Outcome
 
-<!-- Describe the verified current behavior and the acceptance criteria. -->
+<!-- What verified behavior or problem does this change address? -->
 
 ## Scope
 
 - Included:
-- Explicitly excluded:
-
-## Change
-
-<!-- Summarize the implementation and why this is one coherent concern. -->
+- Excluded:
 
 ## Verification
 
-- [ ] Relevant focused checks pass locally.
-- [ ] Changed behavior has direct tests, or the reason tests do not apply is stated.
-- [ ] Automated tests make no live external API calls.
+<!-- Describe the scenarios and commands. If tests do not apply, explain why. -->
 
-Evidence:
+## Delivery notes
 
-<!-- List scenarios and commands; do not rely only on a green status. -->
+<!-- Note migration, configuration, release, rollout, or rollback impact; otherwise say none. -->
 
-## Delivery impact
+## Issue
 
-- Migration or data impact:
-- Configuration or secret impact:
-- Release or deployment impact:
-- Rollout and rollback:
-
-## Tracking
-
-<!-- Link the relevant public issue when one exists. -->
+<!-- Link a public issue when one exists. -->
