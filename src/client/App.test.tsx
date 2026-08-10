@@ -14,6 +14,7 @@ const movie: Movie = {
   rating_phrase: null,
   rating_score: null,
   release_date: null,
+  runtime_minutes: null,
   title: "Test Movie",
   tmdb_id: null,
   watched_at: null,

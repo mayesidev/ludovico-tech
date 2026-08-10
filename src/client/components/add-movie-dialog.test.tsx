@@ -13,6 +13,7 @@ const movie: Movie = {
   rating_phrase: null,
   rating_score: null,
   release_date: "2021-03-04",
+  runtime_minutes: null,
   title: "Matched Movie",
   tmdb_id: 42,
   watched_at: null,

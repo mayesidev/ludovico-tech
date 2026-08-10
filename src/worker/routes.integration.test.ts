@@ -418,15 +418,18 @@ describe("TMDB routes and metadata attachment", () => {
     const session = await authenticated({
       TMDB_READ_ACCESS_TOKEN: "test-tmdb-token",
     });
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          id: 201,
-          poster_path: "/authoritative.jpg",
-          release_date: "2026-08-05",
-          title: "Authoritative Movie",
-        }),
-        { status: 200 },
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            id: 201,
+            poster_path: "/authoritative.jpg",
+            release_date: "2026-08-05",
+            runtime: 126,
+            title: "Authoritative Movie",
+          }),
+          { status: 200 },
+        ),
       ),
     );
 
@@ -442,11 +445,38 @@ describe("TMDB routes and metadata attachment", () => {
         id: 201,
         posterPath: "/authoritative.jpg",
         releaseDate: "2026-08-05",
+        runtimeMinutes: 126,
         title: "Authoritative Movie",
       },
     });
     expect(second.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const detailCache = await env.DB.prepare(
+      "SELECT cache_key FROM tmdb_cache WHERE payload_json LIKE ?",
+    )
+      .bind('%"id":201%')
+      .first<{ cache_key: string }>();
+    await env.DB.prepare(
+      "UPDATE tmdb_cache SET payload_json = ? WHERE cache_key = ?",
+    )
+      .bind(
+        JSON.stringify({
+          id: 201,
+          posterPath: "/authoritative.jpg",
+          releaseDate: "2026-08-05",
+          title: "Authoritative Movie",
+        }),
+        detailCache!.cache_key,
+      )
+      .run();
+    const refreshed = await request("/api/tmdb/movies/201", session.bindings, {
+      headers: { Cookie: session.cookie },
+    });
+    expect(await refreshed.json()).toMatchObject({
+      movie: { runtimeMinutes: 126 },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("maps configuration, rate-limit, network, and provider-body failures", async () => {
@@ -500,6 +530,7 @@ describe("TMDB routes and metadata attachment", () => {
             id: 301,
             poster_path: "/authoritative.jpg",
             release_date: "2026-08-05",
+            runtime: 126,
             title: "Authoritative Movie",
           }),
           { status: 200 },
@@ -511,6 +542,7 @@ describe("TMDB routes and metadata attachment", () => {
             id: 302,
             poster_path: "/refreshed.jpg",
             release_date: "2026-08-06",
+            runtime: 144,
             title: "Refreshed Authoritative Movie",
           }),
           { status: 200 },
@@ -536,6 +568,7 @@ describe("TMDB routes and metadata attachment", () => {
     expect(movie).toMatchObject({
       poster_path: "/authoritative.jpg",
       release_date: "2026-08-05",
+      runtime_minutes: 126,
       title: "Authoritative Movie",
       tmdb_id: 301,
     });
@@ -578,16 +611,22 @@ describe("TMDB routes and metadata attachment", () => {
       movie: {
         poster_path: "/refreshed.jpg",
         release_date: "2026-08-06",
+        runtime_minutes: 144,
         title: "Refreshed Authoritative Movie",
         tmdb_id: 302,
       },
     });
     const storedMetadata = await env.DB.prepare(
-      "SELECT tmdb_id, tmdb_fetched_at FROM movies WHERE id = ?",
+      "SELECT runtime_minutes, tmdb_id, tmdb_fetched_at FROM movies WHERE id = ?",
     )
       .bind(String(movie.id))
-      .first<{ tmdb_fetched_at: string | null; tmdb_id: number | null }>();
+      .first<{
+        runtime_minutes: number | null;
+        tmdb_fetched_at: string | null;
+        tmdb_id: number | null;
+      }>();
     expect(storedMetadata).toEqual({
+      runtime_minutes: 144,
       tmdb_fetched_at: expect.any(String),
       tmdb_id: 302,
     });

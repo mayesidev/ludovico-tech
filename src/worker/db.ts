@@ -6,6 +6,7 @@ export type MovieRow = {
   added_at: string;
   release_date: string | null;
   poster_path: string | null;
+  runtime_minutes: number | null;
   tmdb_id: number | null;
   franchise_id: string | null;
   rating_score: number | null;
@@ -43,7 +44,7 @@ export type NowShowingRow = {
 
 export const movieSelect = `
   SELECT movies.id, movies.title, movies.added_at, movies.release_date,
-    movies.poster_path, movies.tmdb_id,
+    movies.poster_path, movies.runtime_minutes, movies.tmdb_id,
     franchises.name AS franchise_name,
     franchise_movies.franchise_id, franchise_movies.position AS franchise_position,
     ratings.score AS rating_score, ratings.phrase AS rating_phrase,

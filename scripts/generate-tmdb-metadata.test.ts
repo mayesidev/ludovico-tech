@@ -48,11 +48,12 @@ describe("TMDB metadata artifact command", () => {
           posterPath: "/synthetic.jpg",
           providerTitleNormalized: "synthetic movie",
           releaseDate: "2024-01-02",
+          runtimeMinutes: 123,
           sourceTitleNormalized: "synthetic movie",
           tmdbId: 42,
         },
       ],
-      schemaVersion: 1,
+      schemaVersion: 2,
     };
     writeFileSync(input, JSON.stringify(document));
     writeFileSync(reconciliationPath, JSON.stringify(reconciliation));
@@ -79,6 +80,7 @@ describe("TMDB metadata artifact command", () => {
         counts: { franchises: 0, movies: 1, ratings: 0, sources: 0 },
       });
       expect(sql).toContain("UPDATE movies SET release_date");
+      expect(sql).toContain("runtime_minutes = 123");
       expect(sql).not.toMatch(/INSERT|DELETE/);
     } finally {
       rmSync(directory, { force: true, recursive: true });

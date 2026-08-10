@@ -1,7 +1,7 @@
 import { parse } from "csv-parse/sync";
 
 export const INTERMEDIATE_SCHEMA_VERSION = 2 as const;
-export const TMDB_RECONCILIATION_SCHEMA_VERSION = 1 as const;
+export const TMDB_RECONCILIATION_SCHEMA_VERSION = 2 as const;
 
 const SOURCE_COLUMN_INDEX = {
   submittedAt: 0,
@@ -94,6 +94,7 @@ export interface ConfirmedTmdbMatch {
   posterPath: string | null;
   providerTitleNormalized: string;
   releaseDate: string | null;
+  runtimeMinutes: number | null;
   sourceTitleNormalized: string;
   tmdbId: number;
 }
@@ -172,7 +173,7 @@ export const buildTmdbMetadataPlan = (
     }
 
     statements.push(
-      `UPDATE movies SET release_date = ${sql(match.releaseDate)}, poster_path = ${sql(match.posterPath)}, tmdb_id = ${match.tmdbId}, tmdb_fetched_at = ${sql(reconciliation.generatedAt)}, updated_at = ${sql(appliedAt)} WHERE legacy_imdb_id = ${sql(match.legacyImdbId)} AND title_normalized = ${sql(match.sourceTitleNormalized)} AND (tmdb_id IS NULL OR tmdb_id = ${match.tmdbId}) AND NOT EXISTS (SELECT 1 FROM movies AS linked WHERE linked.tmdb_id = ${match.tmdbId} AND linked.legacy_imdb_id <> ${sql(match.legacyImdbId)});`,
+      `UPDATE movies SET release_date = ${sql(match.releaseDate)}, poster_path = ${sql(match.posterPath)}, runtime_minutes = ${sql(match.runtimeMinutes)}, tmdb_id = ${match.tmdbId}, tmdb_fetched_at = ${sql(reconciliation.generatedAt)}, updated_at = ${sql(appliedAt)} WHERE legacy_imdb_id = ${sql(match.legacyImdbId)} AND title_normalized = ${sql(match.sourceTitleNormalized)} AND (tmdb_id IS NULL OR tmdb_id = ${match.tmdbId}) AND NOT EXISTS (SELECT 1 FROM movies AS linked WHERE linked.tmdb_id = ${match.tmdbId} AND linked.legacy_imdb_id <> ${sql(match.legacyImdbId)});`,
     );
   }
 
@@ -750,6 +751,7 @@ export const parseTmdbReconciliationJson = (
           "posterPath",
           "providerTitleNormalized",
           "releaseDate",
+          "runtimeMinutes",
           "sourceTitleNormalized",
           "tmdbId",
         ]) ||
@@ -765,6 +767,9 @@ export const parseTmdbReconciliationJson = (
         (match.releaseDate !== null &&
           (typeof match.releaseDate !== "string" ||
             !/^\d{4}-\d{2}-\d{2}$/.test(match.releaseDate))) ||
+        (match.runtimeMinutes !== null &&
+          (!Number.isSafeInteger(match.runtimeMinutes) ||
+            Number(match.runtimeMinutes) <= 0)) ||
         (match.posterPath !== null &&
           (typeof match.posterPath !== "string" ||
             !/^\/[A-Za-z0-9._-]{1,200}$/.test(match.posterPath))) ||
@@ -993,11 +998,11 @@ export const buildImportPlan = async (
 
   for (const movie of orderedMovies) {
     statements.push(
-      `INSERT OR IGNORE INTO movies (id, title, title_normalized, added_at, updated_at, release_date, poster_path, tmdb_id, tmdb_fetched_at, legacy_imdb_id) VALUES (${sql(movie.id)}, ${sql(movie.title)}, ${sql(movie.titleNormalized)}, ${sql(movie.addedAt)}, ${sql(importedAt)}, ${sql(movie.tmdbMatch?.releaseDate ?? null)}, ${sql(movie.tmdbMatch?.posterPath ?? null)}, ${sql(movie.tmdbMatch?.tmdbId ?? null)}, ${sql(movie.tmdbMatch ? (reconciliation?.generatedAt ?? null) : null)}, ${sql(movie.legacyImdbId)});`,
+      `INSERT OR IGNORE INTO movies (id, title, title_normalized, added_at, updated_at, release_date, poster_path, runtime_minutes, tmdb_id, tmdb_fetched_at, legacy_imdb_id) VALUES (${sql(movie.id)}, ${sql(movie.title)}, ${sql(movie.titleNormalized)}, ${sql(movie.addedAt)}, ${sql(importedAt)}, ${sql(movie.tmdbMatch?.releaseDate ?? null)}, ${sql(movie.tmdbMatch?.posterPath ?? null)}, ${sql(movie.tmdbMatch?.runtimeMinutes ?? null)}, ${sql(movie.tmdbMatch?.tmdbId ?? null)}, ${sql(movie.tmdbMatch ? (reconciliation?.generatedAt ?? null) : null)}, ${sql(movie.legacyImdbId)});`,
     );
     if (movie.tmdbMatch && reconciliation) {
       statements.push(
-        `UPDATE movies SET release_date = ${sql(movie.tmdbMatch.releaseDate)}, poster_path = ${sql(movie.tmdbMatch.posterPath)}, tmdb_id = ${movie.tmdbMatch.tmdbId}, tmdb_fetched_at = ${sql(reconciliation.generatedAt)}, updated_at = ${sql(importedAt)} WHERE id = ${sql(movie.id)} AND (tmdb_id IS NULL OR tmdb_id = ${movie.tmdbMatch.tmdbId}) AND NOT EXISTS (SELECT 1 FROM movies AS linked WHERE linked.tmdb_id = ${movie.tmdbMatch.tmdbId} AND linked.id <> ${sql(movie.id)});`,
+        `UPDATE movies SET release_date = ${sql(movie.tmdbMatch.releaseDate)}, poster_path = ${sql(movie.tmdbMatch.posterPath)}, runtime_minutes = ${sql(movie.tmdbMatch.runtimeMinutes)}, tmdb_id = ${movie.tmdbMatch.tmdbId}, tmdb_fetched_at = ${sql(reconciliation.generatedAt)}, updated_at = ${sql(importedAt)} WHERE id = ${sql(movie.id)} AND (tmdb_id IS NULL OR tmdb_id = ${movie.tmdbMatch.tmdbId}) AND NOT EXISTS (SELECT 1 FROM movies AS linked WHERE linked.tmdb_id = ${movie.tmdbMatch.tmdbId} AND linked.id <> ${sql(movie.id)});`,
       );
     }
     for (const source of movie.sources.sort(

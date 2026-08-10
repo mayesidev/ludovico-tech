@@ -4,13 +4,16 @@ import { loadEnvFile } from "node:process";
 import { parseIntermediateJson } from "./import-sheet-lib";
 import {
   parseTmdbFindResponse,
+  parseTmdbMovieResponse,
   reconcileTmdb,
   type TmdbFindMovie,
+  type TmdbMovieDetail,
 } from "./reconcile-tmdb-lib";
 
 type ReconciliationCache = {
-  entries: Record<string, TmdbFindMovie[]>;
-  schemaVersion: 1;
+  findEntries: Record<string, TmdbFindMovie[]>;
+  movieEntries: Record<string, TmdbMovieDetail>;
+  schemaVersion: 2;
 };
 
 const [inputArgument, outputArgument, reportArgument, cacheArgument] =
@@ -38,24 +41,34 @@ const validCachedMovie = (value: unknown): value is TmdbFindMovie => {
   );
 };
 
+const validCachedMovieDetail = (value: unknown): value is TmdbMovieDetail => {
+  if (!value || typeof value !== "object") return false;
+  const movie = value as Record<string, unknown>;
+  return (
+    Number.isInteger(movie.id) &&
+    Number(movie.id) > 0 &&
+    (movie.runtimeMinutes === null ||
+      (Number.isSafeInteger(movie.runtimeMinutes) &&
+        Number(movie.runtimeMinutes) > 0))
+  );
+};
+
 const readCache = (path: string): ReconciliationCache => {
-  if (!existsSync(path)) return { entries: {}, schemaVersion: 1 };
+  if (!existsSync(path)) {
+    return { findEntries: {}, movieEntries: {}, schemaVersion: 2 };
+  }
   try {
     const value = JSON.parse(readFileSync(path, "utf8")) as Record<
       string,
       unknown
     >;
+    const findEntries =
+      value.schemaVersion === 1 ? value.entries : value.findEntries;
     if (
-      value.schemaVersion !== 1 ||
-      !value.entries ||
-      typeof value.entries !== "object" ||
-      Array.isArray(value.entries)
-    ) {
-      throw new Error("invalid cache");
-    }
-    const entries = value.entries as Record<string, unknown>;
-    if (
-      Object.entries(entries).some(
+      !findEntries ||
+      typeof findEntries !== "object" ||
+      Array.isArray(findEntries) ||
+      Object.entries(findEntries).some(
         ([key, movies]) =>
           !/^tt\d{6,9}$/.test(key) ||
           !Array.isArray(movies) ||
@@ -63,6 +76,27 @@ const readCache = (path: string): ReconciliationCache => {
       )
     ) {
       throw new Error("invalid cache entry");
+    }
+    if (value.schemaVersion === 1) {
+      return {
+        findEntries: findEntries as Record<string, TmdbFindMovie[]>,
+        movieEntries: {},
+        schemaVersion: 2,
+      };
+    }
+    if (
+      value.schemaVersion !== 2 ||
+      !value.movieEntries ||
+      typeof value.movieEntries !== "object" ||
+      Array.isArray(value.movieEntries) ||
+      Object.entries(value.movieEntries).some(
+        ([key, movie]) =>
+          !/^\d+$/.test(key) ||
+          !validCachedMovieDetail(movie) ||
+          Number(key) !== movie.id,
+      )
+    ) {
+      throw new Error("invalid cache");
     }
     return value as unknown as ReconciliationCache;
   } catch {
@@ -98,24 +132,16 @@ if (!inputArgument || !outputArgument || !reportArgument || !cacheArgument) {
     const document = parseIntermediateJson(readFileSync(inputPath, "utf8"));
     if (!document) throw new Error("The generalized intermediate is invalid");
     const cache = readCache(cachePath);
-    let uncachedLookups = 0;
+    let uncachedFindLookups = 0;
+    let uncachedMovieLookups = 0;
     let lastRequestAt = 0;
 
-    const findMovies = async (legacyImdbId: string) => {
-      const cached = cache.entries[legacyImdbId];
-      if (cached) return cached;
-
+    const fetchProvider = async (path: string, parameters: URLSearchParams) => {
       const remainingDelay = 250 - (Date.now() - lastRequestAt);
       if (remainingDelay > 0) await wait(remainingDelay);
       lastRequestAt = Date.now();
-      const url = new URL(
-        `/3/find/${encodeURIComponent(legacyImdbId)}`,
-        "https://api.themoviedb.org",
-      );
-      url.search = new URLSearchParams({
-        external_source: "imdb_id",
-        language: "en-US",
-      }).toString();
+      const url = new URL(path, "https://api.themoviedb.org");
+      url.search = parameters.toString();
       const response = await fetch(url, {
         headers: {
           Accept: "application/json",
@@ -123,21 +149,59 @@ if (!inputArgument || !outputArgument || !reportArgument || !cacheArgument) {
         },
       });
       if (!response.ok) throw new Error("TMDB lookup failed");
-      const movies = parseTmdbFindResponse(await response.json());
+      return response.json() as Promise<unknown>;
+    };
+
+    const findMovies = async (legacyImdbId: string) => {
+      const cached = cache.findEntries[legacyImdbId];
+      if (cached) return cached;
+
+      const value = await fetchProvider(
+        `/3/find/${encodeURIComponent(legacyImdbId)}`,
+        new URLSearchParams({
+          external_source: "imdb_id",
+          language: "en-US",
+        }),
+      );
+      const movies = parseTmdbFindResponse(value);
       if (!movies) throw new Error("TMDB returned an invalid response");
 
-      cache.entries[legacyImdbId] = movies;
+      cache.findEntries[legacyImdbId] = movies;
       writePrivateJson(cachePath, cache);
-      uncachedLookups += 1;
-      if (uncachedLookups % 50 === 0) {
-        console.log(`Cached ${uncachedLookups} new TMDB lookups`);
+      uncachedFindLookups += 1;
+      if (uncachedFindLookups % 50 === 0) {
+        console.log(`Cached ${uncachedFindLookups} new TMDB find lookups`);
       }
       return movies;
+    };
+
+    const getMovie = async (tmdbId: number) => {
+      const cacheKey = String(tmdbId);
+      const cached = cache.movieEntries[cacheKey];
+      if (cached) return cached;
+
+      const value = await fetchProvider(
+        `/3/movie/${tmdbId}`,
+        new URLSearchParams({ language: "en-US" }),
+      );
+      const movie = parseTmdbMovieResponse(value);
+      if (!movie || movie.id !== tmdbId) {
+        throw new Error("TMDB returned an invalid response");
+      }
+
+      cache.movieEntries[cacheKey] = movie;
+      writePrivateJson(cachePath, cache);
+      uncachedMovieLookups += 1;
+      if (uncachedMovieLookups % 50 === 0) {
+        console.log(`Cached ${uncachedMovieLookups} new TMDB movie lookups`);
+      }
+      return movie;
     };
 
     const result = await reconcileTmdb(
       document,
       findMovies,
+      getMovie,
       new Date().toISOString(),
     );
     writePrivateJson(outputPath, result.document);
@@ -146,13 +210,14 @@ if (!inputArgument || !outputArgument || !reportArgument || !cacheArgument) {
       counts: {
         confirmed: result.document.matches.length,
         diagnostics: result.diagnostics.length,
-        uncachedLookups,
+        uncachedFindLookups,
+        uncachedMovieLookups,
       },
       diagnostics: result.diagnostics,
-      schemaVersion: 1,
+      schemaVersion: 2,
     });
     console.log(
-      `Reconciliation ${result.document.complete ? "completed" : "stopped"}: ${result.document.matches.length} confirmed, ${result.diagnostics.length} review diagnostics, ${uncachedLookups} new lookups`,
+      `Reconciliation ${result.document.complete ? "completed" : "stopped"}: ${result.document.matches.length} confirmed, ${result.diagnostics.length} review diagnostics, ${uncachedFindLookups} new find lookups, ${uncachedMovieLookups} new movie lookups`,
     );
     if (!result.document.complete) process.exitCode = 1;
   } catch (error) {

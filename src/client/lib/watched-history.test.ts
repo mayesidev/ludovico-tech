@@ -14,6 +14,7 @@ const movie = (
   rating_phrase: ratingScore === null ? null : `${id} rating`,
   rating_score: ratingScore,
   release_date: null,
+  runtime_minutes: null,
   title: id,
   tmdb_id: null,
   watched_at: watchedAt,
