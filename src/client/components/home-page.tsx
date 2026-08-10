@@ -1,22 +1,8 @@
-import { useId, useMemo, useRef, useState } from "react";
-import {
-  ArrowDown,
-  LoaderCircle,
-  Plus,
-  RotateCw,
-  Search,
-  Star,
-  X,
-} from "lucide-react";
-import {
-  api,
-  ApiError,
-  type Movie,
-  type NowShowing,
-  type TmdbResult,
-} from "../api";
+import { useId, useMemo, useState } from "react";
+import { ArrowDown, LoaderCircle, RotateCw, Star } from "lucide-react";
+import { api, type Movie, type NowShowing } from "../api";
 import type { Navigate, RunAction } from "../types";
-import { cn, formatDate } from "../lib/utils";
+import { cn } from "../lib/utils";
 import { selectWatchedHistory } from "../lib/watched-history";
 import { AppLink } from "./app-link";
 import { Badge, Button, Card, Input } from "./ui";
@@ -31,7 +17,6 @@ type HomePageProps = {
   busy: boolean;
   canMutate: boolean;
   onLogin: () => void;
-  onAuthExpired: () => Promise<void>;
   onNavigate: Navigate;
   roll: () => void;
   run: RunAction;
@@ -44,7 +29,6 @@ export function HomePage({
   busy,
   canMutate,
   onLogin,
-  onAuthExpired,
   onNavigate,
   roll,
   run,
@@ -61,16 +45,15 @@ export function HomePage({
     ? `/franchises/${encodeURIComponent(franchiseId)}?from=now-showing`
     : null;
 
+  const releaseYear = nowShowing?.release_date?.slice(0, 4) ?? null;
+
   return (
     <div className="space-y-14">
-      {canMutate && (
-        <AddMovieSection busy={busy} onAuthExpired={onAuthExpired} run={run} />
-      )}
       <section aria-labelledby="now-showing-title">
         <Card className="relative overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_10%,rgba(216,172,76,0.14),transparent_32%),linear-gradient(120deg,rgba(120,23,41,0.12),transparent_55%)]" />
-          <div className="relative p-6 sm:p-8 lg:p-10">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="relative p-6 text-center sm:p-8 lg:p-10">
+            <div className="flex flex-col items-center gap-2">
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-marquee-gold">
                 Now showing
               </p>
@@ -78,21 +61,37 @@ export function HomePage({
                 {unwatchedCount} unwatched out of {movies.length} movies
               </p>
             </div>
+            <h1
+              className="mx-auto mt-5 max-w-3xl font-display text-4xl font-bold leading-none tracking-normal text-cream sm:text-6xl"
+              id="now-showing-title"
+            >
+              {nowShowing?.movie_id ? (
+                <AppLink
+                  aria-label={`${nowShowing.title}${releaseYear ? ` (${releaseYear})` : ""}`}
+                  className="transition hover:text-marquee-light"
+                  href={`/movies/${encodeURIComponent(nowShowing.movie_id)}`}
+                  onNavigate={onNavigate}
+                >
+                  {nowShowing.title}
+                  {releaseYear && (
+                    <span className="ml-2 whitespace-nowrap font-sans text-2xl font-medium text-zinc-400 sm:text-3xl">
+                      ({releaseYear})
+                    </span>
+                  )}
+                </AppLink>
+              ) : (
+                "No movie selected"
+              )}
+            </h1>
             {nowShowing?.franchise_name && franchiseHref && (
               <AppLink
-                className="mt-5 inline-flex"
+                className="mt-4 inline-flex"
                 href={franchiseHref}
                 onNavigate={onNavigate}
               >
                 <Badge>{nowShowing.franchise_name}</Badge>
               </AppLink>
             )}
-            <h1
-              className="mt-4 max-w-3xl font-display text-4xl font-bold leading-none tracking-normal text-cream sm:text-6xl"
-              id="now-showing-title"
-            >
-              {nowShowing?.title ?? "No movie selected"}
-            </h1>
 
             <div className="mx-auto mt-7 w-full max-w-[220px]">
               <Poster
@@ -102,14 +101,11 @@ export function HomePage({
               />
             </div>
 
-            {nowShowing?.title && (
-              <p className="mt-4 text-sm text-zinc-500">
-                {formatDate(nowShowing.release_date)}
-                {isWatched && " · Watched"}
-              </p>
+            {nowShowing?.title && isWatched && (
+              <p className="mt-4 text-sm text-zinc-500">Watched</p>
             )}
             {isWatched && nowShowing?.rating_score !== null && (
-              <div className="mt-7 flex items-center gap-3">
+              <div className="mt-7 flex items-center justify-center gap-3">
                 <span className="flex items-center gap-1 text-marquee-light">
                   <Star size={17} fill="currentColor" />
                   {nowShowing.rating_score}
@@ -126,7 +122,7 @@ export function HomePage({
             nowShowing.status !== "pending_order" ? (
               <RatingForm busy={busy} movieId={nowShowing.movie_id} run={run} />
             ) : canMutate ? (
-              <div className="mt-8 flex flex-wrap gap-3">
+              <div className="mt-8 flex flex-wrap justify-center gap-3">
                 {nowShowing?.status === "pending_order" && franchiseHref && (
                   <Button
                     disabled={busy}
@@ -160,7 +156,7 @@ export function HomePage({
                 )}
               </div>
             ) : (
-              <div className="mt-8">
+              <div className="mt-8 text-center">
                 {nowShowing?.status === "pending_order" && franchiseHref ? (
                   <Button
                     onClick={() => onNavigate(franchiseHref)}
@@ -181,7 +177,7 @@ export function HomePage({
         </Card>
       </section>
 
-      <HistorySection movies={movies} />
+      <HistorySection movies={movies} onNavigate={onNavigate} />
     </div>
   );
 }
@@ -206,7 +202,7 @@ function RatingForm({
 
   return (
     <form
-      className="mt-8 max-w-lg"
+      className="mx-auto mt-8 max-w-lg"
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
@@ -226,7 +222,7 @@ function RatingForm({
         <legend className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
           Final rating (required)
         </legend>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap justify-center gap-2">
           {scoreOptions.map((option) => (
             <button
               type="button"
@@ -287,7 +283,13 @@ function RatingForm({
   );
 }
 
-function HistorySection({ movies }: { movies: Movie[] }) {
+function HistorySection({
+  movies,
+  onNavigate,
+}: {
+  movies: Movie[];
+  onNavigate: Navigate;
+}) {
   const watchedMovies = useMemo(() => selectWatchedHistory(movies), [movies]);
 
   return (
@@ -301,7 +303,7 @@ function HistorySection({ movies }: { movies: Movie[] }) {
       {watchedMovies.length > 0 ? (
         <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {watchedMovies.map((movie) => (
-            <HistoryCard key={movie.id} movie={movie} />
+            <HistoryCard key={movie.id} movie={movie} onNavigate={onNavigate} />
           ))}
         </div>
       ) : (
@@ -313,215 +315,37 @@ function HistorySection({ movies }: { movies: Movie[] }) {
   );
 }
 
-function HistoryCard({ movie }: { movie: Movie }) {
-  return (
-    <Card className="h-full overflow-hidden p-4">
-      <div className="flex items-start gap-4">
-        <div className="w-[72px] shrink-0">
-          <Poster path={movie.poster_path} title={movie.title} />
-        </div>
-        <div className="min-w-0 pt-1">
-          <h3 className="font-display text-lg font-bold leading-tight text-cream">
-            {movie.title}
-          </h3>
-          {movie.rating_score !== null && (
-            <p className="mt-3 text-sm leading-5 text-marquee-light">
-              {movie.rating_score} · {movie.rating_phrase}
-            </p>
-          )}
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-function AddMovieSection({
-  busy,
-  onAuthExpired,
-  run,
+function HistoryCard({
+  movie,
+  onNavigate,
 }: {
-  busy: boolean;
-  onAuthExpired: () => Promise<void>;
-  run: RunAction;
+  movie: Movie;
+  onNavigate: Navigate;
 }) {
-  const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [franchiseName, setFranchiseName] = useState("");
-  const [results, setResults] = useState<TmdbResult[]>([]);
-  const [selected, setSelected] = useState<TmdbResult | null>(null);
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const titleInputRef = useRef<HTMLInputElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const titleId = useId();
-  const franchiseId = useId();
-
-  const reset = () => {
-    setOpen(false);
-    setTitle("");
-    setFranchiseName("");
-    setResults([]);
-    setSelected(null);
-    setSearchError(null);
-    window.setTimeout(() => triggerRef.current?.focus());
-  };
-
-  const search = async () => {
-    if (!title.trim()) return;
-    setSearching(true);
-    setSearchError(null);
-
-    try {
-      setResults((await api.tmdbSearch(title)).results);
-    } catch (cause) {
-      if (cause instanceof ApiError && cause.status === 401) {
-        await onAuthExpired();
-      }
-      setSearchError(
-        cause instanceof ApiError && cause.status === 401
-          ? "Your session ended. Sign in again to search TMDB."
-          : cause instanceof Error
-            ? cause.message
-            : "TMDB search failed",
-      );
-    } finally {
-      setSearching(false);
-    }
-  };
-
   return (
-    <div>
-      <div className="flex justify-end">
-        <Button
-          aria-expanded={open}
-          disabled={busy}
-          ref={triggerRef}
-          onClick={() => {
-            setOpen((value) => !value);
-            window.setTimeout(() => titleInputRef.current?.focus());
-          }}
-          variant={open ? "secondary" : "primary"}
-        >
-          {open ? <X size={16} /> : <Plus size={16} />}
-          {open ? "Close" : "Add a movie"}
-        </Button>
-      </div>
-
-      {open && (
-        <Card className="mt-5 p-5 sm:p-6">
-          <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
-            <div className="flex gap-2">
-              <label className="sr-only" htmlFor={titleId}>
-                Movie title
-              </label>
-              <Input
-                id={titleId}
-                ref={titleInputRef}
-                value={title}
-                onChange={(event) => {
-                  setTitle(event.target.value);
-                  setSelected(null);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    void search();
-                  }
-                }}
-                placeholder="Movie title"
-              />
-              <Button
-                onClick={() => void search()}
-                disabled={searching || !title.trim()}
-              >
-                {searching ? (
-                  <LoaderCircle className="animate-spin" size={16} />
-                ) : (
-                  <Search size={16} />
-                )}
-                Search TMDB
-              </Button>
-            </div>
-            <label className="sr-only" htmlFor={franchiseId}>
-              Series or franchise (optional)
-            </label>
-            <Input
-              id={franchiseId}
-              value={franchiseName}
-              onChange={(event) => setFranchiseName(event.target.value)}
-              placeholder="Series / franchise (optional)"
-            />
+    <AppLink
+      aria-label={`View details for ${movie.title}`}
+      className="block h-full rounded-3xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-marquee-light"
+      href={`/movies/${encodeURIComponent(movie.id)}`}
+      onNavigate={onNavigate}
+    >
+      <Card className="h-full overflow-hidden p-4 transition hover:border-marquee-gold/35 hover:bg-curtain/10">
+        <div className="flex items-start gap-4">
+          <div className="w-[72px] shrink-0">
+            <Poster path={movie.poster_path} title={movie.title} />
           </div>
-
-          {searchError && (
-            <p className="mt-4 text-sm text-red-200" role="alert">
-              {searchError}
-            </p>
-          )}
-
-          {results.length > 0 && (
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {results.map((result) => (
-                <button
-                  key={result.id}
-                  aria-pressed={selected?.id === result.id}
-                  onClick={() => {
-                    setSelected(result);
-                    setTitle(result.title);
-                  }}
-                  className={cn(
-                    "flex items-center gap-3 rounded-2xl border p-3 text-left transition",
-                    selected?.id === result.id
-                      ? "border-marquee-gold bg-curtain/30"
-                      : "border-marquee-gold/10 bg-black/15 hover:border-marquee-gold/30",
-                  )}
-                >
-                  <Poster path={result.posterPath} title={result.title} />
-                  <span>
-                    <span className="block font-semibold text-cream">
-                      {result.title}
-                    </span>
-                    <span className="mt-1 block text-xs text-zinc-500">
-                      {result.releaseDate
-                        ? formatDate(result.releaseDate)
-                        : "Release date unknown"}
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {title && (
-            <div className="mt-5 flex items-center justify-between gap-4 border-t border-curtain/35 pt-5">
-              <p className="text-sm text-zinc-400">
-                {selected
-                  ? `Confirmed: ${selected.title}`
-                  : "You can add this title without a TMDB match."}
+          <div className="min-w-0 pt-1">
+            <h3 className="font-display text-lg font-bold leading-tight text-cream">
+              {movie.title}
+            </h3>
+            {movie.rating_score !== null && (
+              <p className="mt-3 text-sm leading-5 text-marquee-light">
+                {movie.rating_score} · {movie.rating_phrase}
               </p>
-              <Button
-                disabled={busy}
-                onClick={() =>
-                  void run(
-                    () =>
-                      api.addMovie({
-                        title,
-                        franchiseName,
-                        tmdbId: selected?.id,
-                      }),
-                    () => {
-                      reset();
-                    },
-                  )
-                }
-              >
-                <Plus size={16} />
-                Add movie
-              </Button>
-            </div>
-          )}
-        </Card>
-      )}
-    </div>
+            )}
+          </div>
+        </div>
+      </Card>
+    </AppLink>
   );
 }

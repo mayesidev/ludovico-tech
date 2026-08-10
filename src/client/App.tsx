@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Plus } from "lucide-react";
 import {
   api,
   ApiError,
@@ -13,11 +14,13 @@ import {
   LoadingState,
   RollReveal,
 } from "./components/app-shell";
+import { AddMovieDialog } from "./components/add-movie-dialog";
 import { EditMovieDialog } from "./components/edit-movie-dialog";
 import { FranchiseDetailPage } from "./components/franchise-detail-page";
 import { HomePage } from "./components/home-page";
 import { LibraryPage } from "./components/library-page";
 import { MovieDetailPage } from "./components/movie-detail-page";
+import { Button } from "./components/ui";
 import { parseRoute } from "./route";
 import type { RunAction, Tab } from "./types";
 
@@ -34,6 +37,8 @@ export default function App() {
   const [rolledTitle, setRolledTitle] = useState<string | null>(null);
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
   const [auth, setAuth] = useState<AuthState | null>(null);
+  const [addingMovie, setAddingMovie] = useState(false);
+  const addMovieTriggerRef = useRef<HTMLButtonElement>(null);
 
   const refreshAuth = useCallback(async () => {
     try {
@@ -140,6 +145,20 @@ export default function App() {
     <div className="theater-background min-h-screen overflow-x-hidden text-zinc-100">
       <div className="grain" />
       <AppHeader
+        action={
+          canMutate ? (
+            <Button
+              aria-label="Add a movie"
+              className="shrink-0 px-3 sm:px-4"
+              disabled={busy}
+              onClick={() => setAddingMovie(true)}
+              ref={addMovieTriggerRef}
+            >
+              <Plus size={16} />
+              <span className="hidden sm:inline">Add a movie</span>
+            </Button>
+          ) : undefined
+        }
         tab={tab}
         auth={auth}
         onLogin={login}
@@ -166,7 +185,6 @@ export default function App() {
             busy={busy}
             canMutate={canMutate}
             onLogin={login}
-            onAuthExpired={refreshAuth}
             onNavigate={navigate}
             roll={roll}
             run={run}
@@ -197,6 +215,14 @@ export default function App() {
 
       <Footer />
       {rolledTitle && <RollReveal title={rolledTitle} />}
+      {addingMovie && (
+        <AddMovieDialog
+          busy={busy}
+          onAuthExpired={refreshAuth}
+          onClose={() => setAddingMovie(false)}
+          run={run}
+        />
+      )}
       {editingMovie && (
         <EditMovieDialog
           busy={busy}

@@ -1,7 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { api, ApiError, type Movie, type NowShowing } from "../api";
+import { api, type Movie, type NowShowing } from "../api";
 import type { RunAction } from "../types";
 import { HomePage } from "./home-page";
 
@@ -48,7 +48,6 @@ const renderHome = (
     canMutate: true,
     movies: [movie()],
     nowShowing: nowShowing(),
-    onAuthExpired: vi.fn().mockResolvedValue(undefined),
     onLogin: vi.fn(),
     onNavigate: vi.fn(),
     remaining: [],
@@ -84,11 +83,13 @@ describe("home workflows", () => {
     expect(api.rate).toHaveBeenCalledWith("movie-id", 4.5, "A custom classic");
   });
 
-  it("orders the add action, title, poster, and rating controls", () => {
+  it("orders the linked title, poster, and rating controls", () => {
     renderHome();
 
-    const addMovie = screen.getByRole("button", { name: "Add a movie" });
-    const title = screen.getByRole("heading", { level: 1, name: "Test Movie" });
+    const title = screen.getByRole("heading", {
+      level: 1,
+      name: "Test Movie (2020)",
+    });
     const poster = screen.getByRole("img", {
       name: "No poster available for Test Movie",
     });
@@ -97,9 +98,8 @@ describe("home workflows", () => {
     });
 
     expect(
-      addMovie.compareDocumentPosition(title) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+      screen.getByRole("link", { name: "Test Movie (2020)" }),
+    ).toHaveAttribute("href", "/movies/movie-id");
     expect(
       title.compareDocumentPosition(poster) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
@@ -171,70 +171,6 @@ describe("home workflows", () => {
     );
   });
 
-  it("searches TMDB, confirms a candidate, and adds its identity", async () => {
-    vi.spyOn(api, "tmdbSearch").mockResolvedValue({
-      results: [
-        {
-          id: 42,
-          posterPath: null,
-          releaseDate: "2021-03-04",
-          title: "Matched Movie",
-        },
-      ],
-    });
-    vi.spyOn(api, "addMovie").mockResolvedValue({
-      movie: movie({ id: "added-id", title: "Matched Movie", tmdb_id: 42 }),
-    });
-    const user = userEvent.setup();
-    renderHome({ nowShowing: null });
-
-    const open = screen.getByRole("button", { name: "Add a movie" });
-    await user.click(open);
-    const title = screen.getByRole("textbox", { name: "Movie title" });
-    await waitFor(() => expect(title).toHaveFocus());
-    await user.type(title, "Candidate");
-    await user.type(
-      screen.getByRole("textbox", { name: "Series or franchise (optional)" }),
-      "A Saga",
-    );
-    await user.click(screen.getByRole("button", { name: "Search TMDB" }));
-    await user.click(
-      await screen.findByRole("button", { name: /Matched Movie/ }),
-    );
-    expect(screen.getByText("Confirmed: Matched Movie")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Add movie" }));
-
-    expect(api.addMovie).toHaveBeenCalledWith({
-      franchiseName: "A Saga",
-      title: "Matched Movie",
-      tmdbId: 42,
-    });
-    expect(screen.getByRole("button", { name: "Add a movie" })).toHaveFocus();
-  });
-
-  it("refreshes auth presentation when a TMDB search receives 401", async () => {
-    vi.spyOn(api, "tmdbSearch").mockRejectedValue(
-      new ApiError("Authentication required", 401),
-    );
-    const onAuthExpired = vi.fn().mockResolvedValue(undefined);
-    const user = userEvent.setup();
-    renderHome({ nowShowing: null, onAuthExpired });
-
-    await user.click(screen.getByRole("button", { name: "Add a movie" }));
-    await user.type(
-      screen.getByRole("textbox", { name: "Movie title" }),
-      "Movie",
-    );
-    await user.click(screen.getByRole("button", { name: "Search TMDB" }));
-
-    expect(
-      await screen.findByText(
-        "Your session ended. Sign in again to search TMDB.",
-      ),
-    ).toHaveRole("alert");
-    expect(onAuthExpired).toHaveBeenCalledOnce();
-  });
-
   it("renders no mutation controls for browse-only visitors", () => {
     renderHome({ canMutate: false });
 
@@ -244,7 +180,7 @@ describe("home workflows", () => {
       screen.queryByRole("button", { name: "Choose the next movie" }),
     ).toBeNull();
     expect(
-      screen.getByRole("heading", { level: 1, name: "Test Movie" }),
+      screen.getByRole("heading", { level: 1, name: "Test Movie (2020)" }),
     ).toBeVisible();
   });
 
@@ -252,7 +188,7 @@ describe("home workflows", () => {
     renderHome();
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "Test Movie" }),
+      screen.getByRole("heading", { level: 1, name: "Test Movie (2020)" }),
     ).toBeVisible();
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.queryByText("Weekly screening")).toBeNull();
@@ -283,7 +219,9 @@ describe("home workflows", () => {
     expect(screen.queryByText("More history")).toBeNull();
   });
 
-  it("shows only real watched entries and does not repeat fallback titles", () => {
+  it("shows only real watched entries and links their cards to details", async () => {
+    const onNavigate = vi.fn();
+    const user = userEvent.setup();
     renderHome({
       movies: [
         movie({
@@ -294,6 +232,7 @@ describe("home workflows", () => {
         }),
         movie({ id: "unwatched-id", title: "Unwatched Movie" }),
       ],
+      onNavigate,
     });
 
     expect(
@@ -308,6 +247,12 @@ describe("home workflows", () => {
     expect(screen.getByText("4 · A real rating")).toBeVisible();
     expect(screen.queryByText("4/5")).toBeNull();
     expect(screen.queryByText("Unwatched Movie")).toBeNull();
+    const detailsLink = screen.getByRole("link", {
+      name: "View details for Rated Movie",
+    });
+    expect(detailsLink).toHaveAttribute("href", "/movies/rated-id");
+    await user.click(detailsLink);
+    expect(onNavigate).toHaveBeenCalledWith("/movies/rated-id");
   });
 
   it("distinguishes the whole catalog from its unwatched subset", () => {
@@ -324,7 +269,10 @@ describe("home workflows", () => {
   it("centers the current poster below its title", () => {
     renderHome();
 
-    const title = screen.getByRole("heading", { level: 1, name: "Test Movie" });
+    const title = screen.getByRole("heading", {
+      level: 1,
+      name: "Test Movie (2020)",
+    });
     const poster = screen.getByRole("img", {
       name: "No poster available for Test Movie",
     });
@@ -333,5 +281,24 @@ describe("home workflows", () => {
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
     expect(poster.parentElement).toHaveClass("mx-auto");
+    expect(title.parentElement).toHaveClass("text-center");
+  });
+
+  it("places the franchise below the linked title", () => {
+    renderHome({
+      nowShowing: nowShowing({
+        franchise_id: "franchise-id",
+        franchise_name: "Test Saga",
+      }),
+    });
+
+    const title = screen.getByRole("heading", {
+      level: 1,
+      name: "Test Movie (2020)",
+    });
+    const franchise = screen.getByRole("link", { name: "Test Saga" });
+    expect(title.compareDocumentPosition(franchise)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
   });
 });

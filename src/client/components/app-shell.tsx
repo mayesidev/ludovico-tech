@@ -15,6 +15,7 @@ import tmdbLogo from "../assets/tmdb-logo.svg";
 import { AppLink } from "./app-link";
 
 type AppHeaderProps = {
+  action?: ReactNode;
   tab: Tab;
   auth: AuthState | null;
   onLogin: () => void;
@@ -23,6 +24,7 @@ type AppHeaderProps = {
 };
 
 export function AppHeader({
+  action,
   tab,
   auth,
   onLogin,
@@ -73,7 +75,8 @@ export function AppHeader({
               Library
             </NavButton>
           </nav>
-          <div className="col-start-2 row-start-1 justify-self-end sm:col-auto sm:row-auto sm:justify-self-auto">
+          <div className="col-start-2 row-start-1 flex items-center gap-2 justify-self-end sm:col-auto sm:row-auto sm:justify-self-auto">
+            {action}
             <AuthControls auth={auth} onLogin={onLogin} onLogout={onLogout} />
           </div>
         </div>
