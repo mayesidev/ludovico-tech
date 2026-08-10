@@ -95,7 +95,7 @@ export function FranchiseDetailPage({
         <p className="text-xs font-bold uppercase tracking-[0.22em] text-marquee-gold">
           Franchise
         </p>
-        <h1 className="mt-2 font-display text-4xl font-bold tracking-tight text-cream sm:text-5xl">
+        <h1 className="mt-2 font-display text-4xl font-bold tracking-normal text-cream sm:text-5xl">
           {franchiseName}
         </h1>
         <p className="mt-3 text-sm text-zinc-500">

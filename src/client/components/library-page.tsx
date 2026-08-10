@@ -125,7 +125,7 @@ export function LibraryPage({
     <div>
       <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <h1 className="font-display text-3xl font-bold tracking-tight text-cream sm:text-4xl">
+          <h1 className="font-display text-3xl font-bold tracking-normal text-cream sm:text-4xl">
             Library
           </h1>
           <p className="mt-2 text-sm text-zinc-500">{movies.length} movies</p>

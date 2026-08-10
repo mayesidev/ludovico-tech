@@ -318,6 +318,20 @@ describe("home workflows", () => {
       ],
     });
 
-    expect(screen.getByText("2 movies · 1 unwatched")).toBeVisible();
+    expect(screen.getByText("1 unwatched out of 2 movies")).toBeVisible();
+  });
+
+  it("centers the current poster below its title", () => {
+    renderHome();
+
+    const title = screen.getByRole("heading", { level: 1, name: "Test Movie" });
+    const poster = screen.getByRole("img", {
+      name: "No poster available for Test Movie",
+    });
+
+    expect(title.compareDocumentPosition(poster)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(poster.parentElement).toHaveClass("mx-auto");
   });
 });
