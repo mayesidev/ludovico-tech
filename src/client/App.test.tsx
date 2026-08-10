@@ -91,6 +91,15 @@ describe("application authorization presentation", () => {
     expect(
       await screen.findByRole("button", { name: "Choose a movie" }),
     ).toBeVisible();
+    const addMovie = screen.getByRole("button", { name: "Add a movie" });
+    expect(addMovie).toBeVisible();
+    await user.click(addMovie);
+    expect(screen.getByRole("dialog", { name: "Add a movie" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Close add movie" }));
+    expect(addMovie).toHaveFocus();
+
+    await user.click(screen.getByRole("link", { name: "Library" }));
+    expect(window.location.pathname).toBe("/library");
     expect(screen.getByRole("button", { name: "Add a movie" })).toBeVisible();
     await user.click(
       screen.getByRole("button", { name: "Sign out Invited User" }),

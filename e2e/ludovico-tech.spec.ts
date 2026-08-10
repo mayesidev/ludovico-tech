@@ -29,7 +29,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       .fill("A browser-tested classic");
     await page.getByRole("button", { name: "Rate it", exact: true }).click();
 
-    await expect(page.getByText(/Unknown date · Watched/)).toBeVisible();
+    await expect(page.getByText("Watched", { exact: true })).toBeVisible();
     await expect(
       page.getByText(/A browser-tested classic/).first(),
     ).toBeVisible();
