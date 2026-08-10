@@ -3,10 +3,12 @@ import {
   buildImportPlan,
   parseImportCorrectionsJson,
   parseIntermediateJson,
+  parseTmdbReconciliationJson,
   renderSqlChunks,
   sanitizeSourceCsv,
   type GeneralizedImportDocument,
   type GeneralizedSubmission,
+  type TmdbReconciliationDocument,
 } from "./import-sheet-lib";
 
 const header = "opaque-a,opaque-b,opaque-c,opaque-d,opaque-e,opaque-f,opaque-g";
@@ -33,6 +35,25 @@ const document = (
   rows,
   schemaVersion: 2,
   validated: true,
+});
+
+const reconciliation = (
+  overrides: Partial<TmdbReconciliationDocument> = {},
+): TmdbReconciliationDocument => ({
+  complete: true,
+  generatedAt: "2026-08-10T10:00:00.000Z",
+  matches: [
+    {
+      legacyImdbId: "tt1234567",
+      posterPath: "/synthetic.jpg",
+      providerTitleNormalized: "synthetic movie",
+      releaseDate: "2024-01-02",
+      sourceTitleNormalized: "synthetic movie",
+      tmdbId: 42,
+    },
+  ],
+  schemaVersion: 1,
+  ...overrides,
 });
 
 describe("private Sheet sanitization", () => {
@@ -397,6 +418,34 @@ describe("deterministic import planning", () => {
     expect(plan.statements.join("\n")).not.toContain("tt1234567");
   });
 
+  it("adds only confirmed metadata without replacing the submitted title", async () => {
+    const plan = await buildImportPlan(
+      document([submission({ legacyImdbId: "tt1234567" })]),
+      "2026-08-10T11:00:00.000Z",
+      reconciliation(),
+    );
+    const sql = plan.statements.join("\n");
+
+    expect(plan.diagnostics).toEqual([]);
+    expect(sql).toContain("'Synthetic Movie'");
+    expect(sql).toContain("'/synthetic.jpg'");
+    expect(sql).toContain("tmdb_id = 42");
+    expect(sql).toContain("NOT EXISTS (SELECT 1 FROM movies AS linked");
+  });
+
+  it("rejects a reconciliation match that the import does not use", async () => {
+    const plan = await buildImportPlan(
+      document([submission({ legacyImdbId: "tt7654321" })]),
+      "2026-08-10T11:00:00.000Z",
+      reconciliation(),
+    );
+
+    expect(plan.statements).toEqual([]);
+    expect(plan.diagnostics).toEqual([
+      { code: "TMDB_MATCH_UNUSED", row: null, severity: "error" },
+    ]);
+  });
+
   it("stops duplicate generalized source-row identities", async () => {
     const plan = await buildImportPlan(
       document([
@@ -503,6 +552,29 @@ describe("deterministic import planning", () => {
     expect(
       parseIntermediateJson(
         JSON.stringify({ ...valid, privateHeading: "must not propagate" }),
+      ),
+    ).toBeNull();
+  });
+
+  it("accepts only complete exact-title reconciliation documents", () => {
+    const valid = reconciliation();
+    expect(parseTmdbReconciliationJson(JSON.stringify(valid))).toEqual(valid);
+    expect(
+      parseTmdbReconciliationJson(
+        JSON.stringify({ ...valid, complete: false }),
+      ),
+    ).toBeNull();
+    expect(
+      parseTmdbReconciliationJson(
+        JSON.stringify({
+          ...valid,
+          matches: [
+            {
+              ...valid.matches[0],
+              providerTitleNormalized: "different movie",
+            },
+          ],
+        }),
       ),
     ).toBeNull();
   });

@@ -1,6 +1,7 @@
 import { parse } from "csv-parse/sync";
 
 export const INTERMEDIATE_SCHEMA_VERSION = 2 as const;
+export const TMDB_RECONCILIATION_SCHEMA_VERSION = 1 as const;
 
 const SOURCE_COLUMN_INDEX = {
   submittedAt: 0,
@@ -36,7 +37,9 @@ export type ImportDiagnosticCode =
   | "SOURCE_ROW_EXCLUSION_UNUSED"
   | "SOURCE_COLUMN_COUNT"
   | "SOURCE_CSV_INVALID"
-  | "SOURCE_EMPTY";
+  | "SOURCE_EMPTY"
+  | "TMDB_MATCH_UNUSED"
+  | "TMDB_RECONCILIATION_INVALID";
 
 export interface ImportDiagnostic {
   code: ImportDiagnosticCode;
@@ -86,6 +89,22 @@ export interface GeneralizedImportDocument {
   validated: boolean;
 }
 
+export interface ConfirmedTmdbMatch {
+  legacyImdbId: string;
+  posterPath: string | null;
+  providerTitleNormalized: string;
+  releaseDate: string | null;
+  sourceTitleNormalized: string;
+  tmdbId: number;
+}
+
+export interface TmdbReconciliationDocument {
+  complete: true;
+  generatedAt: string;
+  matches: ConfirmedTmdbMatch[];
+  schemaVersion: typeof TMDB_RECONCILIATION_SCHEMA_VERSION;
+}
+
 export interface SanitizationResult {
   diagnostics: ImportDiagnostic[];
   document: GeneralizedImportDocument;
@@ -115,13 +134,15 @@ const diagnostic = (
   severity: DiagnosticSeverity = "error",
 ): ImportDiagnostic => ({ code, row, severity });
 
-const normalize = (value: string) =>
+export const normalizeCatalogText = (value: string) =>
   value
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+
+const normalize = normalizeCatalogText;
 
 const parseBoolean = (value: string) => {
   switch (normalize(value)) {
@@ -623,6 +644,72 @@ export const parseIntermediateJson = (
   }
 };
 
+export const parseTmdbReconciliationJson = (
+  source: string,
+): TmdbReconciliationDocument | null => {
+  try {
+    const value = JSON.parse(source) as Record<string, unknown>;
+    if (
+      !value ||
+      typeof value !== "object" ||
+      !hasExactKeys(value, [
+        "complete",
+        "generatedAt",
+        "matches",
+        "schemaVersion",
+      ]) ||
+      value.complete !== true ||
+      value.schemaVersion !== TMDB_RECONCILIATION_SCHEMA_VERSION ||
+      typeof value.generatedAt !== "string" ||
+      parseSubmissionTimestamp(value.generatedAt) !== value.generatedAt ||
+      !Array.isArray(value.matches)
+    ) {
+      return null;
+    }
+
+    const legacyIds = new Set<string>();
+    const tmdbIds = new Set<number>();
+    for (const item of value.matches) {
+      if (!item || typeof item !== "object") return null;
+      const match = item as Record<string, unknown>;
+      if (
+        !hasExactKeys(match, [
+          "legacyImdbId",
+          "posterPath",
+          "providerTitleNormalized",
+          "releaseDate",
+          "sourceTitleNormalized",
+          "tmdbId",
+        ]) ||
+        typeof match.legacyImdbId !== "string" ||
+        !/^tt\d{6,9}$/.test(match.legacyImdbId) ||
+        !Number.isInteger(match.tmdbId) ||
+        Number(match.tmdbId) <= 0 ||
+        typeof match.sourceTitleNormalized !== "string" ||
+        !match.sourceTitleNormalized ||
+        normalize(match.sourceTitleNormalized) !==
+          match.sourceTitleNormalized ||
+        match.providerTitleNormalized !== match.sourceTitleNormalized ||
+        (match.releaseDate !== null &&
+          (typeof match.releaseDate !== "string" ||
+            !/^\d{4}-\d{2}-\d{2}$/.test(match.releaseDate))) ||
+        (match.posterPath !== null &&
+          (typeof match.posterPath !== "string" ||
+            !/^\/[A-Za-z0-9._-]{1,200}$/.test(match.posterPath))) ||
+        legacyIds.has(match.legacyImdbId) ||
+        tmdbIds.has(Number(match.tmdbId))
+      ) {
+        return null;
+      }
+      legacyIds.add(match.legacyImdbId);
+      tmdbIds.add(Number(match.tmdbId));
+    }
+    return value as unknown as TmdbReconciliationDocument;
+  } catch {
+    return null;
+  }
+};
+
 const hash = async (scope: string, value: string) => {
   const bytes = new TextEncoder().encode(`${scope}\u0000${value}`);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -653,6 +740,7 @@ interface AccumulatedMovie {
   sources: Array<GeneralizedSubmission & { sourceKey: string }>;
   title: string;
   titleNormalized: string;
+  tmdbMatch: ConfirmedTmdbMatch | null;
 }
 
 const ratingKey = (rating: GeneralizedRating | null) =>
@@ -661,6 +749,7 @@ const ratingKey = (rating: GeneralizedRating | null) =>
 export const buildImportPlan = async (
   document: GeneralizedImportDocument,
   importedAt: string,
+  reconciliation: TmdbReconciliationDocument | null = null,
 ): Promise<ImportPlan> => {
   if (
     document.schemaVersion !== INTERMEDIATE_SCHEMA_VERSION ||
@@ -679,6 +768,9 @@ export const buildImportPlan = async (
   const movies = new Map<string, AccumulatedMovie>();
   const duplicateOccurrences = new Map<string, number>();
   const sourceRows = new Set<number>();
+  const tmdbMatches = new Map(
+    (reconciliation?.matches ?? []).map((match) => [match.legacyImdbId, match]),
+  );
 
   for (const row of document.rows) {
     if (sourceRows.has(row.sourceRow)) {
@@ -706,6 +798,9 @@ export const buildImportPlan = async (
       ? `imdb:${row.legacyImdbId}\u0000title:${titleNormalized}\u0000franchise:${franchiseNormalized}`
       : `submission:${fingerprint}`;
     const existing = movies.get(movieKey);
+    const tmdbMatch = row.legacyImdbId
+      ? (tmdbMatches.get(row.legacyImdbId) ?? null)
+      : null;
 
     if (!existing) {
       movies.set(movieKey, {
@@ -718,6 +813,10 @@ export const buildImportPlan = async (
         sources: [{ ...row, sourceKey }],
         title: row.title.trim(),
         titleNormalized,
+        tmdbMatch:
+          tmdbMatch?.sourceTitleNormalized === titleNormalized
+            ? tmdbMatch
+            : null,
       });
       continue;
     }
@@ -753,6 +852,18 @@ export const buildImportPlan = async (
         diagnostic("DUPLICATE_EXTERNAL_ID", movie.firstSourceRow, "warning"),
       );
       movie.legacyImdbId = null;
+      movie.tmdbMatch = null;
+    }
+  }
+
+  const usedTmdbMatches = new Set(
+    [...movies.values()]
+      .map((movie) => movie.tmdbMatch?.legacyImdbId)
+      .filter((legacyImdbId): legacyImdbId is string => Boolean(legacyImdbId)),
+  );
+  for (const legacyImdbId of tmdbMatches.keys()) {
+    if (!usedTmdbMatches.has(legacyImdbId)) {
+      diagnostics.push(diagnostic("TMDB_MATCH_UNUSED", null));
     }
   }
 
@@ -810,8 +921,13 @@ export const buildImportPlan = async (
 
   for (const movie of orderedMovies) {
     statements.push(
-      `INSERT OR IGNORE INTO movies (id, title, title_normalized, added_at, updated_at, legacy_imdb_id) VALUES (${sql(movie.id)}, ${sql(movie.title)}, ${sql(movie.titleNormalized)}, ${sql(movie.addedAt)}, ${sql(importedAt)}, ${sql(movie.legacyImdbId)});`,
+      `INSERT OR IGNORE INTO movies (id, title, title_normalized, added_at, updated_at, release_date, poster_path, tmdb_id, tmdb_fetched_at, legacy_imdb_id) VALUES (${sql(movie.id)}, ${sql(movie.title)}, ${sql(movie.titleNormalized)}, ${sql(movie.addedAt)}, ${sql(importedAt)}, ${sql(movie.tmdbMatch?.releaseDate ?? null)}, ${sql(movie.tmdbMatch?.posterPath ?? null)}, ${sql(movie.tmdbMatch?.tmdbId ?? null)}, ${sql(movie.tmdbMatch ? (reconciliation?.generatedAt ?? null) : null)}, ${sql(movie.legacyImdbId)});`,
     );
+    if (movie.tmdbMatch && reconciliation) {
+      statements.push(
+        `UPDATE movies SET release_date = ${sql(movie.tmdbMatch.releaseDate)}, poster_path = ${sql(movie.tmdbMatch.posterPath)}, tmdb_id = ${movie.tmdbMatch.tmdbId}, tmdb_fetched_at = ${sql(reconciliation.generatedAt)}, updated_at = ${sql(importedAt)} WHERE id = ${sql(movie.id)} AND (tmdb_id IS NULL OR tmdb_id = ${movie.tmdbMatch.tmdbId}) AND NOT EXISTS (SELECT 1 FROM movies AS linked WHERE linked.tmdb_id = ${movie.tmdbMatch.tmdbId} AND linked.id <> ${sql(movie.id)});`,
+      );
+    }
     for (const source of movie.sources.sort(
       (left, right) => left.sourceRow - right.sourceRow,
     )) {

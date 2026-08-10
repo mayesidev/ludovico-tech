@@ -4,6 +4,7 @@ import {
   buildImportPlan,
   renderSqlChunks,
   type GeneralizedImportDocument,
+  type TmdbReconciliationDocument,
 } from "../../scripts/import-sheet-lib";
 
 const syntheticCatalog: GeneralizedImportDocument = {
@@ -35,6 +36,22 @@ const syntheticCatalog: GeneralizedImportDocument = {
 };
 
 const worker = exports.default;
+
+const syntheticReconciliation: TmdbReconciliationDocument = {
+  complete: true,
+  generatedAt: "2026-08-10T10:00:00.000Z",
+  matches: [
+    {
+      legacyImdbId: "tt1234568",
+      posterPath: "/synthetic-two.jpg",
+      providerTitleNormalized: "synthetic movie two",
+      releaseDate: "2024-01-02",
+      sourceTitleNormalized: "synthetic movie two",
+      tmdbId: 42,
+    },
+  ],
+  schemaVersion: 1,
+};
 
 const request = async <T>(path: string, init?: RequestInit) => {
   const response = await worker.fetch(
@@ -117,6 +134,35 @@ describe("generalized catalog import", () => {
 
     expect(tmdbLinkCount?.count).toBe(0);
     expect(franchise?.order_confirmed).toBe(0);
+  });
+
+  it("applies a confirmed external match idempotently to an existing import", async () => {
+    await importSyntheticCatalog();
+    const plan = await buildImportPlan(
+      syntheticCatalog,
+      "2026-08-10T11:00:00.000Z",
+      syntheticReconciliation,
+    );
+    for (const chunk of renderSqlChunks(plan.statements, 3)) {
+      await env.DB.exec(chunk.sql);
+      await env.DB.exec(chunk.sql);
+    }
+
+    const movie = await env.DB.prepare(
+      `SELECT title, release_date, poster_path, tmdb_id, tmdb_fetched_at
+       FROM movies WHERE legacy_imdb_id = ?`,
+    )
+      .bind("tt1234568")
+      .first();
+
+    expect(plan.diagnostics).toEqual([]);
+    expect(movie).toEqual({
+      poster_path: "/synthetic-two.jpg",
+      release_date: "2024-01-02",
+      title: "Synthetic Movie Two",
+      tmdb_fetched_at: "2026-08-10T10:00:00.000Z",
+      tmdb_id: 42,
+    });
   });
 
   it("restores the active franchise selection without fabricated roll history", async () => {
