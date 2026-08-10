@@ -8,7 +8,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
-import { Pencil, Search } from "lucide-react";
+import { ExternalLink, Pencil, Search } from "lucide-react";
 import type { Movie } from "../api";
 import type { Navigate } from "../types";
 import { formatDate } from "../lib/utils";
@@ -92,6 +92,23 @@ export function LibraryPage({
             <Badge>Unwatched</Badge>
           ),
       },
+      {
+        accessorKey: "tmdb_id",
+        header: "TMDB",
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.tmdb_id !== null ? (
+            <a
+              className="inline-flex items-center gap-1.5 whitespace-nowrap font-semibold text-marquee-light hover:text-cream"
+              href={`https://www.themoviedb.org/movie/${row.original.tmdb_id}`}
+              rel="noreferrer"
+              target="_blank"
+            >
+              View on TMDB
+              <ExternalLink size={13} />
+            </a>
+          ) : null,
+      },
     ];
     if (canMutate) {
       definitions.push({
@@ -152,7 +169,7 @@ export function LibraryPage({
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1080px] text-left text-sm">
+          <table className="w-full min-w-[1200px] text-left text-sm">
             <thead className="border-b border-curtain/35 bg-curtain/10 text-xs uppercase tracking-[0.14em] text-zinc-500">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>

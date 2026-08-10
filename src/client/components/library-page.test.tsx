@@ -30,7 +30,7 @@ const movies: Movie[] = [
     release_date: "2020-01-01",
     runtime_minutes: null,
     title: "Alpha Movie",
-    tmdb_id: null,
+    tmdb_id: 603,
     watched_at: "2026-08-07T00:00:00.000Z",
   },
 ];
@@ -63,6 +63,7 @@ describe("movie library", () => {
     expect(
       screen.getByRole("columnheader", { name: "Date added" }),
     ).toBeVisible();
+    expect(screen.getByRole("columnheader", { name: "TMDB" })).toBeVisible();
 
     await user.clear(
       screen.getByRole("textbox", { name: "Search movie library" }),
@@ -86,6 +87,15 @@ describe("movie library", () => {
     expect(onNavigate).toHaveBeenCalledWith("/movies/first-id?from=library");
     const franchiseLink = screen.getByRole("link", { name: "Test Saga" });
     expect(franchiseLink).toHaveAttribute("href", "/franchises/franchise-id");
+    const tmdbLink = screen.getByRole("link", { name: "View on TMDB" });
+    expect(tmdbLink).toHaveAttribute(
+      "href",
+      "https://www.themoviedb.org/movie/603",
+    );
+    expect(tmdbLink).toHaveAttribute("target", "_blank");
+    expect(screen.getAllByRole("link", { name: "View on TMDB" })).toHaveLength(
+      1,
+    );
     await user.click(screen.getByRole("button", { name: "Date added" }));
     expect(
       screen.getByRole("columnheader", { name: /Date added/ }),

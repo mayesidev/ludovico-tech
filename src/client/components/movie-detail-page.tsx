@@ -106,6 +106,20 @@ export function MovieDetailPage({
                 {formatDate(movie.added_at)}
               </dd>
             </div>
+            {movie.franchise_name && movie.franchise_id && (
+              <div>
+                <dt className="text-zinc-500">Series / franchise</dt>
+                <dd className="mt-1">
+                  <AppLink
+                    className="font-semibold text-marquee-light hover:text-cream"
+                    href={`/franchises/${encodeURIComponent(movie.franchise_id)}${returnTo === "now-showing" ? "?from=now-showing" : ""}`}
+                    onNavigate={onNavigate}
+                  >
+                    {movie.franchise_name}
+                  </AppLink>
+                </dd>
+              </div>
+            )}
           </dl>
 
           {watched && (
@@ -119,29 +133,16 @@ export function MovieDetailPage({
             </div>
           )}
 
-          {(movie.franchise_name || movie.tmdb_id !== null) && (
-            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
-              {movie.franchise_name && movie.franchise_id && (
-                <AppLink
-                  className="inline-flex text-sm font-semibold text-marquee-light hover:text-cream"
-                  href={`/franchises/${encodeURIComponent(movie.franchise_id)}${returnTo === "now-showing" ? "?from=now-showing" : ""}`}
-                  onNavigate={onNavigate}
-                >
-                  {movie.franchise_name}
-                </AppLink>
-              )}
-              {movie.tmdb_id !== null && (
-                <a
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-marquee-light hover:text-cream"
-                  href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  View on TMDB
-                  <ExternalLink size={15} />
-                </a>
-              )}
-            </div>
+          {movie.tmdb_id !== null && (
+            <a
+              className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-marquee-light hover:text-cream"
+              href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
+              rel="noreferrer"
+              target="_blank"
+            >
+              View on TMDB
+              <ExternalLink size={15} />
+            </a>
           )}
         </div>
       </Card>

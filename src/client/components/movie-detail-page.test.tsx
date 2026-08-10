@@ -33,6 +33,7 @@ describe("movie details", () => {
     expect(screen.getByText("Release date")).toBeVisible();
     expect(screen.getByText("Date added")).toBeVisible();
     expect(screen.getByText("Runtime")).toBeVisible();
+    expect(screen.getByText("Series / franchise")).toBeVisible();
     expect(screen.getByText("2h 16m")).toBeVisible();
     expect(screen.getByText("Aug 7, 2026")).toBeVisible();
     expect(screen.getByText("5")).toBeVisible();
@@ -88,9 +89,10 @@ describe("movie details", () => {
     screen.getByRole("button", { name: "Delete movie" }).click();
     expect(onDelete).toHaveBeenCalledWith(unwatched);
     const franchiseLink = screen.getByRole("link", { name: "Test Saga" });
-    const tmdbLink = screen.getByRole("link", { name: "View on TMDB" });
-    expect(franchiseLink.parentElement).toBe(tmdbLink.parentElement);
-    expect(franchiseLink.parentElement).toHaveClass("gap-x-6");
+    expect(franchiseLink.closest("dl")).not.toBeNull();
+    expect(
+      screen.getByRole("link", { name: "View on TMDB" }).closest("dl"),
+    ).toBeNull();
 
     rerender(
       <MovieDetailPage

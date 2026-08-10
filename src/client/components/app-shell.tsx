@@ -48,7 +48,7 @@ export function AppHeader({
               Ludovico Tech
             </span>
             <span className="hidden text-[10px] font-bold uppercase tracking-[0.2em] text-marquee-gold/55 sm:block">
-              The watch club
+              A Pop Culture Re-education Program
             </span>
           </span>
         </AppLink>
