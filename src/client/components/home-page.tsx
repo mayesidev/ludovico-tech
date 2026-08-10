@@ -2,13 +2,11 @@ import { useId, useMemo, useState } from "react";
 import { ArrowDown, LoaderCircle, RotateCw, Star } from "lucide-react";
 import { api, type Movie, type NowShowing } from "../api";
 import type { Navigate, RunAction } from "../types";
-import { cn } from "../lib/utils";
 import { selectWatchedHistory } from "../lib/watched-history";
 import { AppLink } from "./app-link";
 import { Badge, Button, Card, Input } from "./ui";
 import { Poster } from "./poster";
-
-const scoreOptions = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
+import { RatingSlider } from "./rating-slider";
 
 type HomePageProps = {
   nowShowing: NowShowing | null;
@@ -185,13 +183,12 @@ function RatingForm({
   movieId: string;
   run: RunAction;
 }) {
-  const [score, setScore] = useState<number | null>(null);
+  const [score, setScore] = useState(2.5);
   const [phrase, setPhrase] = useState("");
   const [attempted, setAttempted] = useState(false);
   const phraseId = useId();
   const phraseErrorId = useId();
-  const scoreErrorId = useId();
-  const scoreMissing = attempted && score === null;
+  const scoreId = useId();
   const phraseMissing = attempted && !phrase.trim();
 
   return (
@@ -201,49 +198,23 @@ function RatingForm({
       onSubmit={(event) => {
         event.preventDefault();
         setAttempted(true);
-        if (score === null || !phrase.trim()) return;
+        if (!phrase.trim()) return;
         void run(
           () => api.rate(movieId, score, phrase.trim()),
           () => {
             setAttempted(false);
-            setScore(null);
+            setScore(2.5);
             setPhrase("");
           },
         );
       }}
     >
-      <fieldset aria-describedby={scoreMissing ? scoreErrorId : undefined}>
-        <legend className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-          Final rating (required)
-        </legend>
-        <div className="flex flex-wrap justify-center gap-2">
-          {scoreOptions.map((option) => (
-            <button
-              type="button"
-              aria-pressed={score === option}
-              key={option}
-              onClick={() => setScore(option)}
-              className={cn(
-                "grid size-10 place-items-center rounded-xl border text-sm font-bold transition",
-                score === option
-                  ? "border-marquee-light bg-marquee-gold text-ink"
-                  : "border-marquee-gold/15 bg-black/20 text-zinc-300 hover:border-marquee-gold/50",
-              )}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
-        {scoreMissing && (
-          <p
-            className="mt-2 text-sm text-red-200"
-            id={scoreErrorId}
-            role="alert"
-          >
-            Choose a rating from 0 to 5.
-          </p>
-        )}
-      </fieldset>
+      <RatingSlider
+        disabled={busy}
+        id={scoreId}
+        onChange={setScore}
+        value={score}
+      />
       <div className="mt-3 flex gap-2">
         <div className="flex-1">
           <label className="sr-only" htmlFor={phraseId}>
