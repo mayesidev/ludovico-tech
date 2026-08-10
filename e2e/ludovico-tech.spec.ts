@@ -8,6 +8,9 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
 
     await expect(page).toHaveTitle("Ludovico Tech");
     await expect(
+      page.getByText("A Pop Culture Re-education Program", { exact: true }),
+    ).toBeVisible();
+    await expect(
       page.getByRole("heading", { level: 1, name: "No movie selected" }),
     ).toBeVisible();
     await page.getByRole("button", { name: "Add a movie" }).click();
@@ -151,6 +154,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await expect(
       page.getByRole("link", { name: "Browser Edit Saga" }),
     ).toBeVisible();
+    await expect(page.getByText("Series / franchise")).toBeVisible();
   });
 
   test("confirms deletion of an unwatched movie from its details", async ({
