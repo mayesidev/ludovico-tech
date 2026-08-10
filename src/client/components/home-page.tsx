@@ -15,8 +15,9 @@ import {
   type NowShowing,
   type TmdbResult,
 } from "../api";
-import type { RunAction } from "../types";
+import type { Navigate, RunAction } from "../types";
 import { cn, formatDate } from "../lib/utils";
+import { AppLink } from "./app-link";
 import { Badge, Button, Card, Input } from "./ui";
 import { Poster } from "./poster";
 
@@ -30,7 +31,7 @@ type HomePageProps = {
   canMutate: boolean;
   onLogin: () => void;
   onAuthExpired: () => Promise<void>;
-  onOrder: (franchiseId: string) => void;
+  onNavigate: Navigate;
   roll: () => void;
   run: RunAction;
 };
@@ -43,7 +44,7 @@ export function HomePage({
   canMutate,
   onLogin,
   onAuthExpired,
-  onOrder,
+  onNavigate,
   roll,
   run,
 }: HomePageProps) {
@@ -79,8 +80,14 @@ export function HomePage({
                     {movies.length} movies · {unwatchedCount} unwatched
                   </p>
                 </div>
-                {nowShowing?.franchise_name && (
-                  <Badge className="mt-5">{nowShowing.franchise_name}</Badge>
+                {nowShowing?.franchise_name && franchiseId && (
+                  <AppLink
+                    className="mt-5 inline-flex"
+                    href={`/franchises/${encodeURIComponent(franchiseId)}`}
+                    onNavigate={onNavigate}
+                  >
+                    <Badge>{nowShowing.franchise_name}</Badge>
+                  </AppLink>
                 )}
                 <h1
                   className="mt-4 max-w-3xl font-display text-4xl font-bold leading-none tracking-[-0.035em] text-cream sm:text-6xl"
@@ -124,7 +131,11 @@ export function HomePage({
                   {nowShowing?.status === "pending_order" && franchiseId && (
                     <Button
                       disabled={busy}
-                      onClick={() => onOrder(franchiseId)}
+                      onClick={() =>
+                        onNavigate(
+                          `/franchises/${encodeURIComponent(franchiseId)}`,
+                        )
+                      }
                     >
                       Confirm franchise order
                     </Button>
@@ -155,13 +166,24 @@ export function HomePage({
                 </div>
               ) : (
                 <div className="mt-8">
-                  <Button onClick={onLogin} variant="secondary">
-                    {nowShowing?.status === "pending_order"
-                      ? "Sign in to confirm series order"
-                      : isWatched || !hasSelection
+                  {nowShowing?.status === "pending_order" && franchiseId ? (
+                    <Button
+                      onClick={() =>
+                        onNavigate(
+                          `/franchises/${encodeURIComponent(franchiseId)}`,
+                        )
+                      }
+                      variant="secondary"
+                    >
+                      Review franchise order
+                    </Button>
+                  ) : (
+                    <Button onClick={onLogin} variant="secondary">
+                      {isWatched || !hasSelection
                         ? "Sign in to choose what’s next"
                         : "Sign in to rate this movie"}
-                  </Button>
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

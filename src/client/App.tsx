@@ -14,12 +14,12 @@ import {
   RollReveal,
 } from "./components/app-shell";
 import { EditMovieDialog } from "./components/edit-movie-dialog";
-import { FranchiseOrderDialog } from "./components/franchise-order-dialog";
+import { FranchiseDetailPage } from "./components/franchise-detail-page";
 import { HomePage } from "./components/home-page";
 import { LibraryPage } from "./components/library-page";
 import { MovieDetailPage } from "./components/movie-detail-page";
 import { parseRoute } from "./route";
-import type { MovieOrderState, RunAction, Tab } from "./types";
+import type { RunAction, Tab } from "./types";
 
 export default function App() {
   const [route, setRoute] = useState(() =>
@@ -32,7 +32,6 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rolledTitle, setRolledTitle] = useState<string | null>(null);
-  const [order, setOrder] = useState<MovieOrderState | null>(null);
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
   const [auth, setAuth] = useState<AuthState | null>(null);
 
@@ -44,8 +43,8 @@ export default function App() {
     }
   }, []);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const refresh = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const [current, list] = await Promise.all([
         api.nowShowing(),
@@ -60,12 +59,12 @@ export default function App() {
         cause instanceof Error ? cause.message : "Unable to load the catalog",
       );
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void Promise.resolve().then(refresh);
+    void Promise.resolve().then(() => refresh());
   }, [refresh]);
 
   useEffect(() => {
@@ -90,10 +89,9 @@ export default function App() {
       try {
         await action();
         after?.();
-        await refresh();
+        await refresh(false);
       } catch (cause) {
         if (cause instanceof ApiError && cause.status === 401) {
-          setOrder(null);
           setEditingMovie(null);
           await refreshAuth();
           setError("Your session ended. Sign in again to make changes.");
@@ -113,25 +111,17 @@ export default function App() {
       setRolledTitle(result.rolledMovie.title);
 
       if (result.needsOrder) {
-        setOrder({
-          draft: result.franchiseMovies,
-          franchiseId: result.franchiseMovies[0]?.franchise_id ?? "",
-        });
+        const franchiseId =
+          result.nowShowing.franchise_id ??
+          result.franchiseMovies[0]?.franchise_id;
+        if (franchiseId) {
+          navigate(`/franchises/${encodeURIComponent(franchiseId)}`);
+        }
       }
 
       window.setTimeout(() => setRolledTitle(null), 1800);
     });
-  }, [run]);
-
-  const openFranchiseOrder = useCallback(
-    (franchiseId: string) => {
-      void run(async () => {
-        const result = await api.franchise(franchiseId);
-        setOrder({ draft: result.movies, franchiseId });
-      });
-    },
-    [run],
-  );
+  }, [navigate, run]);
 
   const canMutate = auth?.authenticated === true;
   const login = useCallback(() => {
@@ -174,7 +164,7 @@ export default function App() {
             canMutate={canMutate}
             onLogin={login}
             onAuthExpired={refreshAuth}
-            onOrder={openFranchiseOrder}
+            onNavigate={navigate}
             roll={roll}
             run={run}
           />
@@ -184,7 +174,17 @@ export default function App() {
             canMutate={canMutate}
             onEdit={setEditingMovie}
             onNavigate={navigate}
-            onOrder={openFranchiseOrder}
+          />
+        ) : route.page === "franchise" ? (
+          <FranchiseDetailPage
+            busy={busy}
+            canMutate={canMutate}
+            franchiseId={route.franchiseId}
+            key={route.franchiseId}
+            movies={movies}
+            onLogin={login}
+            onNavigate={navigate}
+            run={run}
           />
         ) : (
           <MovieDetailPage movie={selectedMovie} onNavigate={navigate} />
@@ -193,15 +193,6 @@ export default function App() {
 
       <Footer />
       {rolledTitle && <RollReveal title={rolledTitle} />}
-      {order && (
-        <FranchiseOrderDialog
-          busy={busy}
-          draft={order.draft}
-          franchiseId={order.franchiseId}
-          onChange={(draft) => setOrder(draft ? { ...order, draft } : null)}
-          run={run}
-        />
-      )}
       {editingMovie && (
         <EditMovieDialog
           busy={busy}

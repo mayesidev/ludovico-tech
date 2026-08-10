@@ -37,7 +37,6 @@ describe("movie library", () => {
   it("filters, sorts, and exposes actions only to contributors", async () => {
     const onEdit = vi.fn();
     const onNavigate = vi.fn();
-    const onOrder = vi.fn();
     const user = userEvent.setup();
     render(
       <LibraryPage
@@ -45,7 +44,6 @@ describe("movie library", () => {
         movies={movies}
         onEdit={onEdit}
         onNavigate={onNavigate}
-        onOrder={onOrder}
       />,
     );
 
@@ -69,9 +67,7 @@ describe("movie library", () => {
       "ascending",
     );
     await user.click(screen.getAllByRole("button", { name: "Edit" })[0]);
-    await user.click(screen.getByRole("button", { name: "Order" }));
     expect(onEdit).toHaveBeenCalledWith(movies[1]);
-    expect(onOrder).toHaveBeenCalledWith("franchise-id");
     expect(screen.getByText("5 · A favorite")).toBeVisible();
     expect(screen.getByText("Unwatched")).toBeVisible();
     expect(screen.queryByText("Standalone")).toBeNull();
@@ -81,6 +77,8 @@ describe("movie library", () => {
     expect(movieLink).toHaveAttribute("href", "/movies/first-id");
     await user.click(movieLink);
     expect(onNavigate).toHaveBeenCalledWith("/movies/first-id");
+    const franchiseLink = screen.getByRole("link", { name: "Test Saga" });
+    expect(franchiseLink).toHaveAttribute("href", "/franchises/franchise-id");
   });
 
   it("keeps the public catalog browse-only", () => {
@@ -90,7 +88,6 @@ describe("movie library", () => {
         movies={movies}
         onEdit={vi.fn()}
         onNavigate={vi.fn()}
-        onOrder={vi.fn()}
       />,
     );
 

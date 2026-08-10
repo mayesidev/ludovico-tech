@@ -159,4 +159,30 @@ describe("application authorization presentation", () => {
       await screen.findByRole("heading", { level: 1, name: "Test Movie" }),
     ).toBeVisible();
   });
+
+  it("expires authorization safely while saving franchise order", async () => {
+    arrange(authenticated);
+    vi.mocked(api.authMe)
+      .mockResolvedValueOnce(authenticated)
+      .mockResolvedValueOnce(anonymous);
+    vi.spyOn(api, "order").mockRejectedValue(
+      new ApiError("Authentication required", 401),
+    );
+    window.history.replaceState(null, "", "/franchises/franchise-id");
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Test Saga" }),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Save order" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Your session ended. Sign in again to make changes.",
+    );
+    expect(
+      screen.getByRole("button", { name: "Sign in to set the order" }),
+    ).toBeVisible();
+    expect(api.order).toHaveBeenCalledWith("franchise-id", ["movie-id"]);
+  });
 });

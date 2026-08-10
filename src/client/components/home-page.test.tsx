@@ -50,7 +50,7 @@ const renderHome = (
     nowShowing: nowShowing(),
     onAuthExpired: vi.fn().mockResolvedValue(undefined),
     onLogin: vi.fn(),
-    onOrder: vi.fn(),
+    onNavigate: vi.fn(),
     remaining: [],
     roll: vi.fn(),
     run,
@@ -119,7 +119,7 @@ describe("home workflows", () => {
   });
 
   it("requires franchise order confirmation before rating", async () => {
-    const onOrder = vi.fn();
+    const onNavigate = vi.fn();
     const user = userEvent.setup();
     renderHome({
       nowShowing: nowShowing({
@@ -127,7 +127,7 @@ describe("home workflows", () => {
         franchise_name: "Test Saga",
         status: "pending_order",
       }),
-      onOrder,
+      onNavigate,
     });
 
     expect(screen.queryByRole("button", { name: "Rate it" })).toBeNull();
@@ -137,7 +137,11 @@ describe("home workflows", () => {
     await user.click(
       screen.getByRole("button", { name: "Confirm franchise order" }),
     );
-    expect(onOrder).toHaveBeenCalledWith("franchise-id");
+    expect(onNavigate).toHaveBeenCalledWith("/franchises/franchise-id");
+    expect(screen.getByRole("link", { name: "Test Saga" })).toHaveAttribute(
+      "href",
+      "/franchises/franchise-id",
+    );
   });
 
   it("searches TMDB, confirms a candidate, and adds its identity", async () => {

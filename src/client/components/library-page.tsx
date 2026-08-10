@@ -20,7 +20,6 @@ type LibraryPageProps = {
   movies: Movie[];
   onEdit: (movie: Movie) => void;
   onNavigate: Navigate;
-  onOrder: (franchiseId: string) => void;
 };
 
 export function LibraryPage({
@@ -28,7 +27,6 @@ export function LibraryPage({
   movies,
   onEdit,
   onNavigate,
-  onOrder,
 }: LibraryPageProps) {
   const [filter, setFilter] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -50,7 +48,16 @@ export function LibraryPage({
       {
         accessorKey: "franchise_name",
         header: "Franchise",
-        cell: ({ getValue }) => getValue<string | null>() ?? null,
+        cell: ({ row }) =>
+          row.original.franchise_id && row.original.franchise_name ? (
+            <AppLink
+              className="hover:text-marquee-light"
+              href={`/franchises/${encodeURIComponent(row.original.franchise_id)}`}
+              onNavigate={onNavigate}
+            >
+              {row.original.franchise_name}
+            </AppLink>
+          ) : null,
       },
       {
         accessorKey: "release_date",
@@ -92,20 +99,12 @@ export function LibraryPage({
               <Pencil size={13} />
               Edit
             </button>
-            {row.original.franchise_id && (
-              <button
-                className="rounded-lg border border-marquee-gold/15 px-2.5 py-1.5 text-xs text-zinc-400 hover:border-marquee-gold/35 hover:text-marquee-light"
-                onClick={() => void onOrder(row.original.franchise_id!)}
-              >
-                Order
-              </button>
-            )}
           </div>
         ),
       });
     }
     return definitions;
-  }, [canMutate, onEdit, onNavigate, onOrder]);
+  }, [canMutate, onEdit, onNavigate]);
   const table = useReactTable({
     data: movies,
     columns,

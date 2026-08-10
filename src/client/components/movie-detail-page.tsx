@@ -59,8 +59,14 @@ export function MovieDetailPage({ movie, onNavigate }: MovieDetailPageProps) {
             {movie.title}
           </h1>
 
-          {movie.franchise_name && (
-            <p className="mt-4 text-sm text-zinc-400">{movie.franchise_name}</p>
+          {movie.franchise_name && movie.franchise_id && (
+            <AppLink
+              className="mt-4 inline-flex text-sm font-semibold text-marquee-light hover:text-cream"
+              href={`/franchises/${encodeURIComponent(movie.franchise_id)}`}
+              onNavigate={onNavigate}
+            >
+              {movie.franchise_name}
+            </AppLink>
           )}
 
           {watched && (
