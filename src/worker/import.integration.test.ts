@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import {
   buildImportPlan,
@@ -32,6 +32,18 @@ const syntheticCatalog: GeneralizedImportDocument = {
   ],
   schemaVersion: 2,
   validated: true,
+};
+
+const worker = exports.default;
+
+const request = async <T>(path: string, init?: RequestInit) => {
+  const response = await worker.fetch(
+    new Request(`https://ludovico-tech.test${path}`, {
+      headers: { "Content-Type": "application/json", ...init?.headers },
+      ...init,
+    }),
+  );
+  return { body: (await response.json()) as T, response };
 };
 
 const importSyntheticCatalog = async (executions = 1) => {
@@ -133,5 +145,53 @@ describe("generalized catalog import", () => {
     });
     expect(rollCount?.count).toBe(0);
     expect(auditCount?.count).toBe(0);
+  });
+
+  it("confirms and rates a franchise selection with stable imported IDs", async () => {
+    await importSyntheticCatalog();
+    const members = await env.DB.prepare(
+      `SELECT franchises.id AS franchise_id, movies.id,
+              CASE WHEN ratings.id IS NULL THEN 0 ELSE 1 END AS watched
+       FROM franchise_movies
+       JOIN franchises ON franchises.id = franchise_movies.franchise_id
+       JOIN movies ON movies.id = franchise_movies.movie_id
+       LEFT JOIN ratings ON ratings.movie_id = movies.id
+       ORDER BY franchise_movies.position`,
+    ).all<{ franchise_id: string; id: string; watched: number }>();
+    const franchiseId = members.results[0]?.franchise_id;
+    const unwatchedId = members.results.find((movie) => !movie.watched)?.id;
+
+    expect(franchiseId).toMatch(/^franchise_/);
+    expect(members.results.map((movie) => movie.id)).toEqual([
+      expect.stringMatching(/^movie_/),
+      expect.stringMatching(/^movie_/),
+    ]);
+    expect(unwatchedId).toEqual(expect.stringMatching(/^movie_/));
+
+    const ordered = await request<{
+      nowShowing: { movie_id: string; status: string };
+    }>(`/api/franchises/${franchiseId}/order`, {
+      body: JSON.stringify({
+        movieIds: members.results.map((movie) => movie.id),
+      }),
+      method: "POST",
+    });
+    expect(ordered.response.status).toBe(200);
+    expect(ordered.body.nowShowing).toMatchObject({
+      movie_id: unwatchedId,
+      status: "ready",
+    });
+
+    const rated = await request<{
+      nowShowing: { movie_id: string; status: string };
+    }>(`/api/movies/${unwatchedId}/rate`, {
+      body: JSON.stringify({ phrase: "Imported workflow works", score: 4 }),
+      method: "POST",
+    });
+    expect(rated.response.status).toBe(200);
+    expect(rated.body.nowShowing).toMatchObject({
+      movie_id: unwatchedId,
+      status: "watched",
+    });
   });
 });

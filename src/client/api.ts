@@ -59,9 +59,20 @@ const request = async <T>(path: string, options?: RequestInit): Promise<T> => {
     ...options,
     headers: { "Content-Type": "application/json", ...options?.headers },
   });
-  const body = (await response.json().catch(() => ({}))) as { error?: string };
+  const body = (await response.json().catch(() => ({}))) as {
+    error?: unknown;
+    message?: unknown;
+  };
   if (!response.ok) {
-    throw new ApiError(body.error ?? "Something went wrong", response.status);
+    const message =
+      typeof body.error === "string"
+        ? body.error
+        : typeof body.message === "string"
+          ? body.message
+          : body.error !== undefined || body.message !== undefined
+            ? "Request validation failed"
+            : "Something went wrong";
+    throw new ApiError(message, response.status);
   }
   return body as T;
 };
