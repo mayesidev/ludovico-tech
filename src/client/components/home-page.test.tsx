@@ -102,6 +102,13 @@ describe("home workflows", () => {
       roll,
     });
 
+    expect(
+      screen.getByText(
+        (_, element) => element?.textContent === "“Worth continuing”",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText("4/5")).toBeNull();
+
     await user.click(screen.getByRole("button", { name: "Continue series" }));
     await user.click(
       screen.getByRole("button", { name: "Choose another movie" }),
@@ -267,6 +274,19 @@ describe("home workflows", () => {
         name: "No poster available for Rated Movie",
       }),
     ).toBeVisible();
+    expect(screen.getByText("4 · A real rating")).toBeVisible();
+    expect(screen.queryByText("4/5")).toBeNull();
     expect(screen.queryByText("Unwatched Movie")).toBeNull();
+  });
+
+  it("distinguishes the whole catalog from its unwatched subset", () => {
+    renderHome({
+      movies: [
+        movie({ id: "rated-id", rating_phrase: "Seen", rating_score: 3 }),
+        movie({ id: "unwatched-id", rating_score: null }),
+      ],
+    });
+
+    expect(screen.getByText("2 movies · 1 unwatched")).toBeVisible();
   });
 });

@@ -76,7 +76,7 @@ export function HomePage({
                     Now showing
                   </p>
                   <p className="text-xs text-zinc-500">
-                    {unwatchedCount} unwatched
+                    {movies.length} movies · {unwatchedCount} unwatched
                   </p>
                 </div>
                 {nowShowing?.franchise_name && (
@@ -98,7 +98,7 @@ export function HomePage({
                   <div className="mt-7 flex items-center gap-3">
                     <span className="flex items-center gap-1 text-marquee-light">
                       <Star size={17} fill="currentColor" />
-                      {nowShowing.rating_score}/5
+                      {nowShowing.rating_score}
                     </span>
                     <span className="text-sm italic text-zinc-400">
                       “
@@ -319,7 +319,7 @@ function HistoryCard({ movie }: { movie: Movie }) {
           </h3>
           {movie.rating_score !== null && (
             <p className="mt-3 text-sm leading-5 text-marquee-light">
-              {movie.rating_score}/5 · {movie.rating_phrase}
+              {movie.rating_score} · {movie.rating_phrase}
             </p>
           )}
         </div>
