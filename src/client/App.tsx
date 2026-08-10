@@ -209,7 +209,11 @@ export default function App() {
             run={run}
           />
         ) : (
-          <MovieDetailPage movie={selectedMovie} onNavigate={navigate} />
+          <MovieDetailPage
+            movie={selectedMovie}
+            onNavigate={navigate}
+            returnTo={route.page === "movie" ? route.returnTo : "library"}
+          />
         )}
       </main>
 

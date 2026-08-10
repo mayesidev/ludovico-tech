@@ -75,6 +75,9 @@ describe("application authorization presentation", () => {
     expect(screen.getByText("Test Saga")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Order" })).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Return to Library" }),
+    ).toHaveAttribute("href", "/library");
 
     await user.click(screen.getByRole("link", { name: "Ludovico Tech home" }));
     expect(screen.getByRole("link", { name: "Now showing" })).toHaveAttribute(

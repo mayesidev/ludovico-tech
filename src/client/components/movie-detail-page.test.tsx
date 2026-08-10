@@ -21,7 +21,9 @@ const movie: Movie = {
 
 describe("movie details", () => {
   it("shows confirmed catalog, rating, and TMDB details", () => {
-    render(<MovieDetailPage movie={movie} onNavigate={vi.fn()} />);
+    render(
+      <MovieDetailPage movie={movie} onNavigate={vi.fn()} returnTo="library" />,
+    );
 
     expect(
       screen.getByRole("heading", { level: 1, name: "Test Movie" }),
@@ -39,6 +41,9 @@ describe("movie details", () => {
       "href",
       "/franchises/franchise-id",
     );
+    expect(
+      screen.getByRole("link", { name: "Return to Library" }),
+    ).toHaveAttribute("href", "/library");
     expect(screen.getByRole("link", { name: "View on TMDB" })).toHaveAttribute(
       "href",
       "https://www.themoviedb.org/movie/603",
@@ -61,6 +66,7 @@ describe("movie details", () => {
           watched_at: null,
         }}
         onNavigate={vi.fn()}
+        returnTo="library"
       />,
     );
 
@@ -73,13 +79,36 @@ describe("movie details", () => {
   });
 
   it("offers a way back when the movie does not exist", () => {
-    render(<MovieDetailPage movie={null} onNavigate={vi.fn()} />);
+    render(
+      <MovieDetailPage movie={null} onNavigate={vi.fn()} returnTo="library" />,
+    );
 
     expect(
       screen.getByRole("heading", { level: 1, name: "Movie not found" }),
     ).toBeVisible();
     expect(
-      screen.getByRole("link", { name: "Return to the library" }),
+      screen.getByRole("link", { name: "Return to Library" }),
     ).toHaveAttribute("href", "/library");
+  });
+
+  it("returns home when opened from Now Showing", () => {
+    render(
+      <MovieDetailPage
+        movie={movie}
+        onNavigate={vi.fn()}
+        returnTo="now-showing"
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Return to Now Showing" }),
+    ).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Test Saga" })).toHaveAttribute(
+      "href",
+      "/franchises/franchise-id?from=now-showing",
+    );
+    expect(
+      screen.queryByRole("link", { name: "Return to Library" }),
+    ).toBeNull();
   });
 });

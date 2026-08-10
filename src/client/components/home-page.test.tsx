@@ -100,7 +100,7 @@ describe("home workflows", () => {
 
     expect(
       screen.getByRole("link", { name: "Test Movie (2020)" }),
-    ).toHaveAttribute("href", "/movies/movie-id");
+    ).toHaveAttribute("href", "/movies/movie-id?from=now-showing");
     expect(
       title.compareDocumentPosition(poster) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
@@ -251,12 +251,17 @@ describe("home workflows", () => {
     const detailsLink = screen.getByRole("link", {
       name: "View details for Rated Movie",
     });
-    expect(detailsLink).toHaveAttribute("href", "/movies/rated-id");
+    expect(detailsLink).toHaveAttribute(
+      "href",
+      "/movies/rated-id?from=now-showing",
+    );
     await user.click(detailsLink);
-    expect(onNavigate).toHaveBeenCalledWith("/movies/rated-id");
+    expect(onNavigate).toHaveBeenCalledWith(
+      "/movies/rated-id?from=now-showing",
+    );
   });
 
-  it("distinguishes the whole catalog from its unwatched subset", () => {
+  it("keeps the catalog summary out of the Now Showing card", () => {
     renderHome({
       movies: [
         movie({ id: "rated-id", rating_phrase: "Seen", rating_score: 3 }),
@@ -264,7 +269,10 @@ describe("home workflows", () => {
       ],
     });
 
-    expect(screen.getByText("1 unwatched out of 2 movies")).toBeVisible();
+    expect(screen.queryByText("1 unwatched out of 2 movies")).toBeNull();
+    expect(screen.getByText("Now showing", { selector: "p" })).toHaveClass(
+      "text-lg",
+    );
   });
 
   it("centers the current poster below its title", () => {

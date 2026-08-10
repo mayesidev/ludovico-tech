@@ -1,7 +1,11 @@
 export type AppRoute =
   | { page: "home" }
   | { page: "library" }
-  | { page: "movie"; movieId: string }
+  | {
+      page: "movie";
+      movieId: string;
+      returnTo: "library" | "now-showing";
+    }
   | {
       page: "franchise";
       franchiseId: string;
@@ -18,7 +22,14 @@ export const parseRoute = (pathname: string, search = ""): AppRoute => {
   }
   if (segments.length === 2 && segments[0] === "movies") {
     try {
-      return { page: "movie", movieId: decodeURIComponent(segments[1]) };
+      return {
+        page: "movie",
+        movieId: decodeURIComponent(segments[1]),
+        returnTo:
+          new URLSearchParams(search).get("from") === "now-showing"
+            ? "now-showing"
+            : "library",
+      };
     } catch {
       return { page: "not-found" };
     }
