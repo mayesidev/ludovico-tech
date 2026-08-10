@@ -55,6 +55,20 @@ pnpm import:generate -- \
 The reconciliation argument is optional. Use the generated manifest as the
 complete ordered chunk list.
 
+For an already-imported environment, generate an update-only metadata artifact
+instead of replaying the structural import:
+
+```sh
+pnpm import:metadata -- \
+  data/sanitized-import-v1.json \
+  data/tmdb-reconciliation-v1.json \
+  data/generated-tmdb-metadata-v1 \
+  2026-08-10T00:00:00.000Z
+```
+
+Its manifest is labeled `tmdb_metadata`; its chunks update confirmed movie
+metadata without inserting or changing catalog structure, ratings, or queue state.
+
 ## Apply locally
 
 Start with an isolated migrated development database:

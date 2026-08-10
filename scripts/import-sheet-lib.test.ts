@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildImportPlan,
+  buildTmdbMetadataPlan,
   parseImportCorrectionsJson,
   parseIntermediateJson,
   parseTmdbReconciliationJson,
@@ -577,5 +578,57 @@ describe("deterministic import planning", () => {
         }),
       ),
     ).toBeNull();
+  });
+});
+
+describe("update-only TMDB metadata planning", () => {
+  it("targets a confirmed existing identity without structural writes", () => {
+    const plan = buildTmdbMetadataPlan(
+      document([
+        submission({
+          franchiseIndicated: true,
+          franchiseName: "Corrected Synthetic Saga",
+          legacyImdbId: "tt1234567",
+        }),
+      ]),
+      reconciliation(),
+      "2026-08-10T11:00:00.000Z",
+    );
+    const sql = plan.statements.join("\n");
+
+    expect(plan.counts).toEqual({
+      franchises: 0,
+      movies: 1,
+      ratings: 0,
+      sources: 0,
+    });
+    expect(plan.diagnostics).toEqual([]);
+    expect(sql).toContain("UPDATE movies SET release_date");
+    expect(sql).toContain(
+      "WHERE legacy_imdb_id = 'tt1234567' AND title_normalized = 'synthetic movie'",
+    );
+    expect(sql).not.toMatch(
+      /INSERT|DELETE|franchise_movies|now_showing|ratings/,
+    );
+  });
+
+  it("rejects a match when one legacy ID represents conflicting source identities", () => {
+    const plan = buildTmdbMetadataPlan(
+      document([
+        submission({ legacyImdbId: "tt1234567" }),
+        submission({
+          legacyImdbId: "tt1234567",
+          sourceRow: 3,
+          title: "Different Synthetic Movie",
+        }),
+      ]),
+      reconciliation(),
+      "2026-08-10T11:00:00.000Z",
+    );
+
+    expect(plan.statements).toEqual([]);
+    expect(plan.diagnostics).toEqual([
+      { code: "TMDB_MATCH_UNUSED", row: null, severity: "error" },
+    ]);
   });
 });

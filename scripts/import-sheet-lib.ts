@@ -123,6 +123,78 @@ export interface ImportPlan {
   statements: string[];
 }
 
+export const buildTmdbMetadataPlan = (
+  document: GeneralizedImportDocument,
+  reconciliation: TmdbReconciliationDocument,
+  appliedAt: string,
+): ImportPlan => {
+  if (
+    document.schemaVersion !== INTERMEDIATE_SCHEMA_VERSION ||
+    !document.validated ||
+    !document.rows.every(isSubmission) ||
+    reconciliation.schemaVersion !== TMDB_RECONCILIATION_SCHEMA_VERSION ||
+    !reconciliation.complete ||
+    parseSubmissionTimestamp(appliedAt) !== appliedAt
+  ) {
+    return {
+      counts: { franchises: 0, movies: 0, ratings: 0, sources: 0 },
+      diagnostics: [diagnostic("INTERMEDIATE_SCHEMA_INVALID", null)],
+      statements: [],
+    };
+  }
+
+  const rowsByLegacyId = new Map<string, GeneralizedSubmission[]>();
+  for (const row of document.rows) {
+    if (!row.legacyImdbId) continue;
+    const rows = rowsByLegacyId.get(row.legacyImdbId) ?? [];
+    rows.push(row);
+    rowsByLegacyId.set(row.legacyImdbId, rows);
+  }
+
+  const diagnostics: ImportDiagnostic[] = [];
+  const statements: string[] = [];
+  for (const match of reconciliation.matches) {
+    const sourceRows = rowsByLegacyId.get(match.legacyImdbId) ?? [];
+    const identities = new Set(
+      sourceRows.map(
+        (row) =>
+          `${normalize(row.title)}\u0000${normalize(row.franchiseName ?? "")}`,
+      ),
+    );
+    if (
+      identities.size !== 1 ||
+      !sourceRows.every(
+        (row) => normalize(row.title) === match.sourceTitleNormalized,
+      )
+    ) {
+      diagnostics.push(diagnostic("TMDB_MATCH_UNUSED", null));
+      continue;
+    }
+
+    statements.push(
+      `UPDATE movies SET release_date = ${sql(match.releaseDate)}, poster_path = ${sql(match.posterPath)}, tmdb_id = ${match.tmdbId}, tmdb_fetched_at = ${sql(reconciliation.generatedAt)}, updated_at = ${sql(appliedAt)} WHERE legacy_imdb_id = ${sql(match.legacyImdbId)} AND title_normalized = ${sql(match.sourceTitleNormalized)} AND (tmdb_id IS NULL OR tmdb_id = ${match.tmdbId}) AND NOT EXISTS (SELECT 1 FROM movies AS linked WHERE linked.tmdb_id = ${match.tmdbId} AND linked.legacy_imdb_id <> ${sql(match.legacyImdbId)});`,
+    );
+  }
+
+  if (diagnostics.some((item) => item.severity === "error")) {
+    return {
+      counts: { franchises: 0, movies: 0, ratings: 0, sources: 0 },
+      diagnostics,
+      statements: [],
+    };
+  }
+  return {
+    counts: {
+      franchises: 0,
+      movies: statements.length,
+      ratings: 0,
+      sources: 0,
+    },
+    diagnostics,
+    statements,
+  };
+};
+
 export interface SqlChunk {
   filename: string;
   sql: string;
