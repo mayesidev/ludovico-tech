@@ -153,6 +153,36 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     ).toBeVisible();
   });
 
+  test("confirms deletion of an unwatched movie from its details", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Add a movie" }).click();
+    await page
+      .getByRole("textbox", { name: "Movie title" })
+      .fill("Browser Deletion Candidate");
+    await page.getByRole("button", { name: "Add movie", exact: true }).click();
+
+    await page.getByRole("link", { name: "Library" }).click();
+    await page
+      .getByRole("link", { name: "Browser Deletion Candidate", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Delete movie" }).click();
+    const confirmation = page.getByRole("dialog", {
+      name: "Delete Browser Deletion Candidate?",
+    });
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole("button", { name: "Delete movie" }).click();
+
+    await expect(page).toHaveURL(/\/library$/);
+    await expect(
+      page.getByRole("link", {
+        name: "Browser Deletion Candidate",
+        exact: true,
+      }),
+    ).toHaveCount(0);
+  });
+
   test("keeps the catalog browse-only when auth is anonymous", async ({
     page,
   }) => {

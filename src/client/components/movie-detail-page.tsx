@@ -1,4 +1,4 @@
-import { ArrowLeft, ExternalLink, Pencil } from "lucide-react";
+import { ArrowLeft, ExternalLink, Pencil, Trash2 } from "lucide-react";
 import type { Movie } from "../api";
 import { formatDate, formatRuntime } from "../lib/utils";
 import { AppLink } from "./app-link";
@@ -8,6 +8,7 @@ import { Badge, Button, Card } from "./ui";
 type MovieDetailPageProps = {
   canMutate?: boolean;
   movie: Movie | null;
+  onDelete?: (movie: Movie) => void;
   onEdit?: (movie: Movie) => void;
   onNavigate: (path: string) => void;
   returnTo: "library" | "now-showing";
@@ -16,6 +17,7 @@ type MovieDetailPageProps = {
 export function MovieDetailPage({
   canMutate = false,
   movie,
+  onDelete,
   onEdit,
   onNavigate,
   returnTo,
@@ -61,12 +63,20 @@ export function MovieDetailPage({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Badge>{watched ? "Watched" : "Unwatched"}</Badge>
-            {canMutate && onEdit && (
-              <Button onClick={() => onEdit(movie)} variant="secondary">
-                <Pencil size={15} />
-                Edit movie
-              </Button>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {canMutate && onEdit && (
+                <Button onClick={() => onEdit(movie)} variant="secondary">
+                  <Pencil size={15} />
+                  Edit movie
+                </Button>
+              )}
+              {canMutate && !watched && onDelete && (
+                <Button onClick={() => onDelete(movie)} variant="danger">
+                  <Trash2 size={15} />
+                  Delete movie
+                </Button>
+              )}
+            </div>
           </div>
 
           <h1 className="mt-5 font-display text-4xl font-bold tracking-normal text-cream sm:text-5xl">
@@ -98,16 +108,6 @@ export function MovieDetailPage({
             </div>
           </dl>
 
-          {movie.franchise_name && movie.franchise_id && (
-            <AppLink
-              className="mt-4 inline-flex text-sm font-semibold text-marquee-light hover:text-cream"
-              href={`/franchises/${encodeURIComponent(movie.franchise_id)}${returnTo === "now-showing" ? "?from=now-showing" : ""}`}
-              onNavigate={onNavigate}
-            >
-              {movie.franchise_name}
-            </AppLink>
-          )}
-
           {watched && (
             <div className="mt-8 border-l-2 border-marquee-gold/50 pl-5">
               <p className="text-2xl font-semibold text-marquee-light">
@@ -119,16 +119,29 @@ export function MovieDetailPage({
             </div>
           )}
 
-          {movie.tmdb_id !== null && (
-            <a
-              className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-marquee-light hover:text-cream"
-              href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
-              rel="noreferrer"
-              target="_blank"
-            >
-              View on TMDB
-              <ExternalLink size={15} />
-            </a>
+          {(movie.franchise_name || movie.tmdb_id !== null) && (
+            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
+              {movie.franchise_name && movie.franchise_id && (
+                <AppLink
+                  className="inline-flex text-sm font-semibold text-marquee-light hover:text-cream"
+                  href={`/franchises/${encodeURIComponent(movie.franchise_id)}${returnTo === "now-showing" ? "?from=now-showing" : ""}`}
+                  onNavigate={onNavigate}
+                >
+                  {movie.franchise_name}
+                </AppLink>
+              )}
+              {movie.tmdb_id !== null && (
+                <a
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-marquee-light hover:text-cream"
+                  href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  View on TMDB
+                  <ExternalLink size={15} />
+                </a>
+              )}
+            </div>
           )}
         </div>
       </Card>

@@ -122,6 +122,44 @@ describe("atomic catalog mutations", () => {
     ).toBeNull();
   });
 
+  it("rolls back deletion and its reference cleanup when its audit fails", async () => {
+    const movieId = "10000000-0000-4000-8000-000000000006";
+    await insertMovie(movieId, "Atomic Deletion");
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO rolls
+         (id, rolled_movie_id, actual_movie_id, created_at)
+         VALUES ('atomic-delete-roll', ?, ?, ?)`,
+      ).bind(movieId, movieId, timestamp),
+      env.DB.prepare(
+        `UPDATE now_showing
+         SET movie_id = ?, rolled_movie_id = ?, status = 'ready', updated_at = ?
+         WHERE id = 1`,
+      ).bind(movieId, movieId, timestamp),
+    ]);
+
+    await withRejectedAudits(async () => {
+      const response = await request(`/movies/${movieId}`, undefined, "DELETE");
+      expect(response.status).toBe(500);
+    });
+
+    expect(
+      await env.DB.prepare("SELECT id FROM movies WHERE id = ?")
+        .bind(movieId)
+        .first(),
+    ).not.toBeNull();
+    expect(
+      await env.DB.prepare(
+        "SELECT id FROM rolls WHERE id = 'atomic-delete-roll'",
+      ).first(),
+    ).not.toBeNull();
+    expect(
+      await env.DB.prepare(
+        "SELECT movie_id, status FROM now_showing WHERE id = 1",
+      ).first(),
+    ).toEqual({ movie_id: movieId, status: "ready" });
+  });
+
   it("rolls back a random roll when its audit fails", async () => {
     const movieId = "10000000-0000-4000-8000-000000000002";
     await insertMovie(movieId, "Atomic Roll");

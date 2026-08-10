@@ -26,6 +26,7 @@ describe("client API", () => {
       tmdbId: 42,
     });
     await api.updateMovie("movie-id", { title: "New title" });
+    await api.deleteMovie("movie-id");
     await api.tmdbSearch("A movie & sequel");
     await api.tmdbMovie(42);
 
@@ -40,6 +41,7 @@ describe("client API", () => {
       "/api/movies/movie-id/rate",
       "/api/franchises/franchise-id/order",
       "/api/movies",
+      "/api/movies/movie-id",
       "/api/movies/movie-id",
       "/api/tmdb/search?query=A%20movie%20%26%20sequel",
       "/api/tmdb/movies/42",
@@ -65,6 +67,7 @@ describe("client API", () => {
       body: JSON.stringify({ title: "New title" }),
       method: "PATCH",
     });
+    expect(fetchMock.mock.calls[11]?.[1]).toMatchObject({ method: "DELETE" });
   });
 
   it("returns parsed JSON and preserves a safe HTTP error status", async () => {

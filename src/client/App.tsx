@@ -15,6 +15,7 @@ import {
   RollReveal,
 } from "./components/app-shell";
 import { AddMovieDialog } from "./components/add-movie-dialog";
+import { DeleteMovieDialog } from "./components/delete-movie-dialog";
 import { EditMovieDialog } from "./components/edit-movie-dialog";
 import { FranchiseDetailPage } from "./components/franchise-detail-page";
 import { HomePage } from "./components/home-page";
@@ -36,6 +37,10 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [rolledTitle, setRolledTitle] = useState<string | null>(null);
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
+  const [deletingMovie, setDeletingMovie] = useState<{
+    movie: Movie;
+    returnTo: string;
+  } | null>(null);
   const [auth, setAuth] = useState<AuthState | null>(null);
   const [addingMovie, setAddingMovie] = useState(false);
   const addMovieTriggerRef = useRef<HTMLButtonElement>(null);
@@ -99,6 +104,7 @@ export default function App() {
       } catch (cause) {
         if (cause instanceof ApiError && cause.status === 401) {
           setEditingMovie(null);
+          setDeletingMovie(null);
           await refreshAuth();
           setError("Your session ended. Sign in again to make changes.");
         } else {
@@ -212,6 +218,15 @@ export default function App() {
           <MovieDetailPage
             canMutate={canMutate}
             movie={selectedMovie}
+            onDelete={(movie) =>
+              setDeletingMovie({
+                movie,
+                returnTo:
+                  route.page === "movie" && route.returnTo === "now-showing"
+                    ? "/"
+                    : "/library",
+              })
+            }
             onEdit={setEditingMovie}
             onNavigate={navigate}
             returnTo={route.page === "movie" ? route.returnTo : "library"}
@@ -236,6 +251,23 @@ export default function App() {
           onAuthExpired={refreshAuth}
           onClose={() => setEditingMovie(null)}
           run={run}
+        />
+      )}
+      {deletingMovie && (
+        <DeleteMovieDialog
+          busy={busy}
+          movie={deletingMovie.movie}
+          onClose={() => setDeletingMovie(null)}
+          onConfirm={() => {
+            const { movie, returnTo } = deletingMovie;
+            void run(
+              () => api.deleteMovie(movie.id),
+              () => {
+                setDeletingMovie(null);
+                navigate(returnTo);
+              },
+            );
+          }}
         />
       )}
     </div>

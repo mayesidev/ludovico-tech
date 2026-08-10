@@ -64,6 +64,43 @@ describe("movie details", () => {
 
     screen.getByRole("button", { name: "Edit movie" }).click();
     expect(onEdit).toHaveBeenCalledWith(movie);
+    expect(screen.queryByRole("button", { name: "Delete movie" })).toBeNull();
+  });
+
+  it("offers deletion only for an authenticated unwatched movie", () => {
+    const onDelete = vi.fn();
+    const unwatched = {
+      ...movie,
+      rating_phrase: null,
+      rating_score: null,
+      watched_at: null,
+    };
+    const { rerender } = render(
+      <MovieDetailPage
+        canMutate
+        movie={unwatched}
+        onDelete={onDelete}
+        onNavigate={vi.fn()}
+        returnTo="library"
+      />,
+    );
+
+    screen.getByRole("button", { name: "Delete movie" }).click();
+    expect(onDelete).toHaveBeenCalledWith(unwatched);
+    const franchiseLink = screen.getByRole("link", { name: "Test Saga" });
+    const tmdbLink = screen.getByRole("link", { name: "View on TMDB" });
+    expect(franchiseLink.parentElement).toBe(tmdbLink.parentElement);
+    expect(franchiseLink.parentElement).toHaveClass("gap-x-6");
+
+    rerender(
+      <MovieDetailPage
+        movie={unwatched}
+        onDelete={onDelete}
+        onNavigate={vi.fn()}
+        returnTo="library"
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Delete movie" })).toBeNull();
   });
 
   it("does not invent a TMDB link for an unconfirmed movie", () => {

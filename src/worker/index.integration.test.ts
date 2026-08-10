@@ -298,11 +298,129 @@ describe("Ludovico Tech Worker routes", () => {
       method: "POST",
       body: JSON.stringify({ score: 5, phrase: "Still missing" }),
     });
+    const missingDelete = await request("/api/movies/missing", {
+      method: "DELETE",
+    });
     expect([
       missingFranchise.response.status,
       missingEdit.response.status,
       missingRating.response.status,
-    ]).toEqual([404, 404, 404]);
+      missingDelete.response.status,
+    ]).toEqual([404, 404, 404, 404]);
+  });
+
+  it("deletes only unwatched movies and cleans catalog references atomically", async () => {
+    const candidate = await request<{
+      movie: { franchise_id: string; id: string };
+    }>("/api/movies", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Deletion Candidate",
+        franchiseName: "Deletion Saga",
+      }),
+    });
+    const sibling = await request<{ movie: { id: string } }>("/api/movies", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Deletion Sibling",
+        franchiseName: "Deletion Saga",
+      }),
+    });
+    const franchiseId = candidate.body.movie.franchise_id;
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO movie_import_sources
+         (source_key, movie_id, source_row, submitted_at, prior_viewed, imported_at)
+         VALUES ('delete-source', ?, 1, datetime('now'), 0, datetime('now'))`,
+      ).bind(candidate.body.movie.id),
+      env.DB.prepare(
+        `INSERT INTO rolls
+         (id, rolled_movie_id, actual_movie_id, franchise_id, created_at)
+         VALUES ('delete-roll', ?, ?, ?, datetime('now'))`,
+      ).bind(candidate.body.movie.id, candidate.body.movie.id, franchiseId),
+      env.DB.prepare(
+        `UPDATE now_showing
+         SET rolled_movie_id = ?, movie_id = ?, franchise_id = ?, status = 'ready'
+         WHERE id = 1`,
+      ).bind(candidate.body.movie.id, candidate.body.movie.id, franchiseId),
+    ]);
+
+    const deleted = await request<{ deleted: true; id: string }>(
+      `/api/movies/${candidate.body.movie.id}`,
+      { method: "DELETE" },
+    );
+    expect(deleted.response.status).toBe(200);
+    expect(deleted.body).toEqual({
+      deleted: true,
+      id: candidate.body.movie.id,
+    });
+    expect(
+      await env.DB.prepare("SELECT id FROM movies WHERE id = ?")
+        .bind(candidate.body.movie.id)
+        .first(),
+    ).toBeNull();
+    expect(
+      await env.DB.prepare(
+        "SELECT source_key FROM movie_import_sources WHERE source_key = 'delete-source'",
+      ).first(),
+    ).toBeNull();
+    expect(
+      await env.DB.prepare(
+        "SELECT id FROM rolls WHERE id = 'delete-roll'",
+      ).first(),
+    ).toBeNull();
+    expect(
+      await env.DB.prepare(
+        "SELECT movie_id, rolled_movie_id, franchise_id, status FROM now_showing WHERE id = 1",
+      ).first(),
+    ).toEqual({
+      franchise_id: null,
+      movie_id: null,
+      rolled_movie_id: null,
+      status: "empty",
+    });
+    expect(
+      await env.DB.prepare("SELECT id FROM franchises WHERE id = ?")
+        .bind(franchiseId)
+        .first(),
+    ).not.toBeNull();
+    expect(
+      await env.DB.prepare(
+        "SELECT action FROM audit_log WHERE entity_id = ? AND action = 'deleted'",
+      )
+        .bind(candidate.body.movie.id)
+        .first(),
+    ).toEqual({ action: "deleted" });
+
+    const orphaned = await request(`/api/movies/${sibling.body.movie.id}`, {
+      method: "DELETE",
+    });
+    expect(orphaned.response.status).toBe(200);
+    expect(
+      await env.DB.prepare("SELECT id FROM franchises WHERE id = ?")
+        .bind(franchiseId)
+        .first(),
+    ).toBeNull();
+
+    const watched = await request<{ movie: { id: string } }>("/api/movies", {
+      method: "POST",
+      body: JSON.stringify({ title: "Protected Watched Movie" }),
+    });
+    await request(`/api/movies/${watched.body.movie.id}/rate`, {
+      method: "POST",
+      body: JSON.stringify({ score: 3.5, phrase: "Must be retained" }),
+    });
+    const rejected = await request<{ error: string }>(
+      `/api/movies/${watched.body.movie.id}`,
+      { method: "DELETE" },
+    );
+    expect(rejected.response.status).toBe(409);
+    expect(rejected.body.error).toBe("Watched movies cannot be deleted");
+    expect(
+      await env.DB.prepare("SELECT id FROM movies WHERE id = ?")
+        .bind(watched.body.movie.id)
+        .first(),
+    ).not.toBeNull();
   });
 
   it("accepts rating boundaries and updates one shared watched rating", async () => {
