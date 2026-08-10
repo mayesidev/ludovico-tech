@@ -62,134 +62,125 @@ export function HomePage({
 
   return (
     <div className="space-y-14">
+      {canMutate && (
+        <AddMovieSection busy={busy} onAuthExpired={onAuthExpired} run={run} />
+      )}
       <section aria-labelledby="now-showing-title">
         <Card className="relative overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_10%,rgba(216,172,76,0.14),transparent_32%),linear-gradient(120deg,rgba(120,23,41,0.12),transparent_55%)]" />
-          <div className="relative grid gap-8 p-6 sm:p-8 lg:grid-cols-[220px_1fr] lg:p-10">
-            <div className="order-2 w-full max-w-[160px] justify-self-center lg:order-1 lg:max-w-[220px] lg:justify-self-auto">
+          <div className="relative p-6 sm:p-8 lg:p-10">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-marquee-gold">
+                Now showing
+              </p>
+              <p className="text-xs text-zinc-500">
+                {movies.length} movies · {unwatchedCount} unwatched
+              </p>
+            </div>
+            {nowShowing?.franchise_name && franchiseHref && (
+              <AppLink
+                className="mt-5 inline-flex"
+                href={franchiseHref}
+                onNavigate={onNavigate}
+              >
+                <Badge>{nowShowing.franchise_name}</Badge>
+              </AppLink>
+            )}
+            <h1
+              className="mt-4 max-w-3xl font-display text-4xl font-bold leading-none tracking-[-0.035em] text-cream sm:text-6xl"
+              id="now-showing-title"
+            >
+              {nowShowing?.title ?? "No movie selected"}
+            </h1>
+
+            <div className="mt-7 w-full max-w-[220px]">
               <Poster
                 path={nowShowing?.poster_path}
                 title={nowShowing?.title ?? "No movie selected"}
                 large
               />
             </div>
-            <div className="order-1 flex min-h-[300px] flex-col justify-between lg:order-2">
-              <div>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-marquee-gold">
-                    Now showing
-                  </p>
-                  <p className="text-xs text-zinc-500">
-                    {movies.length} movies · {unwatchedCount} unwatched
-                  </p>
-                </div>
-                {nowShowing?.franchise_name && franchiseHref && (
-                  <AppLink
-                    className="mt-5 inline-flex"
-                    href={franchiseHref}
-                    onNavigate={onNavigate}
+
+            {nowShowing?.title && (
+              <p className="mt-4 text-sm text-zinc-500">
+                {formatDate(nowShowing.release_date)}
+                {isWatched && " · Watched"}
+              </p>
+            )}
+            {isWatched && nowShowing?.rating_score !== null && (
+              <div className="mt-7 flex items-center gap-3">
+                <span className="flex items-center gap-1 text-marquee-light">
+                  <Star size={17} fill="currentColor" />
+                  {nowShowing.rating_score}
+                </span>
+                <span className="text-sm italic text-zinc-400">
+                  “{nowShowing.rating_phrase || "A rating without a tagline."}”
+                </span>
+              </div>
+            )}
+
+            {canMutate &&
+            nowShowing?.movie_id &&
+            !isWatched &&
+            nowShowing.status !== "pending_order" ? (
+              <RatingForm busy={busy} movieId={nowShowing.movie_id} run={run} />
+            ) : canMutate ? (
+              <div className="mt-8 flex flex-wrap gap-3">
+                {nowShowing?.status === "pending_order" && franchiseHref && (
+                  <Button
+                    disabled={busy}
+                    onClick={() => onNavigate(franchiseHref)}
                   >
-                    <Badge>{nowShowing.franchise_name}</Badge>
-                  </AppLink>
+                    Confirm franchise order
+                  </Button>
                 )}
-                <h1
-                  className="mt-4 max-w-3xl font-display text-4xl font-bold leading-none tracking-[-0.035em] text-cream sm:text-6xl"
-                  id="now-showing-title"
-                >
-                  {nowShowing?.title ?? "No movie selected"}
-                </h1>
-                {nowShowing?.title && (
-                  <p className="mt-3 text-sm text-zinc-500">
-                    {formatDate(nowShowing.release_date)}
-                    {isWatched && " · Watched"}
-                  </p>
+                {isWatched && franchiseId && hasNext && (
+                  <Button
+                    onClick={() => void run(() => api.next())}
+                    disabled={busy}
+                  >
+                    <ArrowDown size={16} />
+                    Continue series
+                  </Button>
                 )}
-                {isWatched && nowShowing?.rating_score !== null && (
-                  <div className="mt-7 flex items-center gap-3">
-                    <span className="flex items-center gap-1 text-marquee-light">
-                      <Star size={17} fill="currentColor" />
-                      {nowShowing.rating_score}
-                    </span>
-                    <span className="text-sm italic text-zinc-400">
-                      “
-                      {nowShowing.rating_phrase ||
-                        "A rating without a tagline."}
-                      ”
-                    </span>
-                  </div>
+                {nowShowing?.status !== "pending_order" && (
+                  <Button onClick={roll} disabled={busy}>
+                    {busy ? (
+                      <LoaderCircle className="animate-spin" size={16} />
+                    ) : (
+                      <RotateCw size={16} />
+                    )}
+                    {isWatched && franchiseId && hasNext
+                      ? "Choose another movie"
+                      : hasSelection
+                        ? "Choose the next movie"
+                        : "Choose a movie"}
+                  </Button>
                 )}
               </div>
-
-              {canMutate &&
-              nowShowing?.movie_id &&
-              !isWatched &&
-              nowShowing.status !== "pending_order" ? (
-                <RatingForm
-                  busy={busy}
-                  movieId={nowShowing.movie_id}
-                  run={run}
-                />
-              ) : canMutate ? (
-                <div className="mt-8 flex flex-wrap gap-3">
-                  {nowShowing?.status === "pending_order" && franchiseHref && (
-                    <Button
-                      disabled={busy}
-                      onClick={() => onNavigate(franchiseHref)}
-                    >
-                      Confirm franchise order
-                    </Button>
-                  )}
-                  {isWatched && franchiseId && hasNext && (
-                    <Button
-                      onClick={() => void run(() => api.next())}
-                      disabled={busy}
-                    >
-                      <ArrowDown size={16} />
-                      Continue series
-                    </Button>
-                  )}
-                  {nowShowing?.status !== "pending_order" && (
-                    <Button onClick={roll} disabled={busy}>
-                      {busy ? (
-                        <LoaderCircle className="animate-spin" size={16} />
-                      ) : (
-                        <RotateCw size={16} />
-                      )}
-                      {isWatched && franchiseId && hasNext
-                        ? "Choose another movie"
-                        : hasSelection
-                          ? "Choose the next movie"
-                          : "Choose a movie"}
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                <div className="mt-8">
-                  {nowShowing?.status === "pending_order" && franchiseHref ? (
-                    <Button
-                      onClick={() => onNavigate(franchiseHref)}
-                      variant="secondary"
-                    >
-                      Review franchise order
-                    </Button>
-                  ) : (
-                    <Button onClick={onLogin} variant="secondary">
-                      {isWatched || !hasSelection
-                        ? "Sign in to choose what’s next"
-                        : "Sign in to rate this movie"}
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
+            ) : (
+              <div className="mt-8">
+                {nowShowing?.status === "pending_order" && franchiseHref ? (
+                  <Button
+                    onClick={() => onNavigate(franchiseHref)}
+                    variant="secondary"
+                  >
+                    Review franchise order
+                  </Button>
+                ) : (
+                  <Button onClick={onLogin} variant="secondary">
+                    {isWatched || !hasSelection
+                      ? "Sign in to choose what’s next"
+                      : "Sign in to rate this movie"}
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </Card>
       </section>
 
       <HistorySection movies={movies} />
-      {canMutate && (
-        <AddMovieSection busy={busy} onAuthExpired={onAuthExpired} run={run} />
-      )}
     </div>
   );
 }
@@ -273,7 +264,7 @@ function RatingForm({
             id={phraseId}
             value={phrase}
             onChange={(event) => setPhrase(event.target.value)}
-            placeholder="Give it a goofy phrase…"
+            placeholder="whats?"
             maxLength={120}
             required
           />
@@ -400,7 +391,7 @@ function AddMovieSection({
   };
 
   return (
-    <div className="border-t border-curtain/35 pt-12">
+    <div>
       <div className="flex justify-end">
         <Button
           aria-expanded={open}
