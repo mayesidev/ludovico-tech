@@ -119,6 +119,9 @@ export default function App() {
   );
 
   const canMutate = auth?.authenticated === true;
+  const login = useCallback(() => {
+    window.location.href = "/api/auth/google";
+  }, []);
 
   return (
     <div className="theater-background min-h-screen overflow-x-hidden text-zinc-100">
@@ -126,6 +129,7 @@ export default function App() {
       <AppHeader
         tab={tab}
         auth={auth}
+        onLogin={login}
         onTabChange={setTab}
         onLogout={() =>
           void run(
@@ -148,6 +152,7 @@ export default function App() {
             movies={movies}
             busy={busy}
             canMutate={canMutate}
+            onLogin={login}
             onAuthExpired={refreshAuth}
             onOrder={openFranchiseOrder}
             roll={roll}

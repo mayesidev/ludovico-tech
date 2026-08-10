@@ -49,6 +49,7 @@ const renderHome = (
     movies: [movie()],
     nowShowing: nowShowing(),
     onAuthExpired: vi.fn().mockResolvedValue(undefined),
+    onLogin: vi.fn(),
     onOrder: vi.fn(),
     remaining: [],
     roll: vi.fn(),
@@ -103,7 +104,7 @@ describe("home workflows", () => {
 
     await user.click(screen.getByRole("button", { name: "Continue series" }));
     await user.click(
-      screen.getByRole("button", { name: "Roll something new" }),
+      screen.getByRole("button", { name: "Choose another movie" }),
     );
 
     expect(api.next).toHaveBeenCalledOnce();
@@ -123,7 +124,9 @@ describe("home workflows", () => {
     });
 
     expect(screen.queryByRole("button", { name: "Rate it" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Roll next" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Choose the next movie" }),
+    ).toBeNull();
     await user.click(
       screen.getByRole("button", { name: "Confirm franchise order" }),
     );
@@ -199,9 +202,71 @@ describe("home workflows", () => {
 
     expect(screen.queryByRole("button", { name: "Rate it" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add a movie" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Roll next" })).toBeNull();
     expect(
-      screen.getByRole("heading", { level: 3, name: "Test Movie" }),
+      screen.queryByRole("button", { name: "Choose the next movie" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Test Movie" }),
     ).toBeVisible();
+  });
+
+  it("uses the current title as the primary page heading", () => {
+    renderHome();
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Test Movie" }),
+    ).toBeVisible();
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.queryByText("Weekly screening")).toBeNull();
+    expect(screen.queryByText("What’s on the marquee?")).toBeNull();
+    expect(screen.queryByText(/Roll the list/)).toBeNull();
+  });
+
+  it("places the relevant sign-in action with protected movie controls", async () => {
+    const onLogin = vi.fn();
+    const user = userEvent.setup();
+    renderHome({ canMutate: false, onLogin });
+
+    await user.click(
+      screen.getByRole("button", { name: "Sign in to rate this movie" }),
+    );
+
+    expect(onLogin).toHaveBeenCalledOnce();
+  });
+
+  it("renders one aligned empty history state without fake entries", () => {
+    renderHome({ movies: [] });
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Watched movies" }),
+    ).toBeVisible();
+    expect(screen.getByText("No movies have been rated yet.")).toBeVisible();
+    expect(screen.queryByText("Coming soon")).toBeNull();
+    expect(screen.queryByText("More history")).toBeNull();
+  });
+
+  it("shows only real watched entries and does not repeat fallback titles", () => {
+    renderHome({
+      movies: [
+        movie({
+          id: "rated-id",
+          rating_phrase: "A real rating",
+          rating_score: 4,
+          title: "Rated Movie",
+        }),
+        movie({ id: "unwatched-id", title: "Unwatched Movie" }),
+      ],
+    });
+
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Rated Movie" }),
+    ).toBeVisible();
+    expect(screen.getAllByText("Rated Movie")).toHaveLength(1);
+    expect(
+      screen.getByRole("img", {
+        name: "No poster available for Rated Movie",
+      }),
+    ).toBeVisible();
+    expect(screen.queryByText("Unwatched Movie")).toBeNull();
   });
 });

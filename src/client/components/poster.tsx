@@ -28,13 +28,14 @@ export function Poster({
 
   return (
     <div
+      aria-label={`No poster available for ${title}`}
       className={cn(
         "poster-fallback grid aspect-[2/3] w-full place-items-center rounded-2xl border border-marquee-gold/15 p-5 text-center",
         sizeClass,
       )}
+      role="img"
     >
       <Clapperboard className="text-marquee-gold/70" size={large ? 34 : 20} />
-      <span className="mt-3 text-xs font-semibold text-zinc-500">{title}</span>
     </div>
   );
 }

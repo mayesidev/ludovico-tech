@@ -8,7 +8,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
 
     await expect(page).toHaveTitle("Ludovico Tech");
     await expect(
-      page.getByRole("heading", { name: "What’s on the marquee?" }),
+      page.getByRole("heading", { level: 1, name: "No movie selected" }),
     ).toBeVisible();
     await page.getByRole("button", { name: "Add a movie" }).click();
     await page
@@ -16,7 +16,9 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       .fill("Browser Test Feature");
     await page.getByRole("button", { name: "Add movie", exact: true }).click();
 
-    await page.getByRole("button", { name: "Roll next", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Choose a movie", exact: true })
+      .click();
     await expect(page.getByText("The roll is in")).toBeHidden({
       timeout: 5_000,
     });
@@ -53,7 +55,9 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
         .click();
     }
 
-    await page.getByRole("button", { name: "Roll next", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Choose the next movie", exact: true })
+      .click();
     await expect(page.getByRole("status")).toBeHidden({
       timeout: 5_000,
     });
@@ -66,7 +70,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       .click();
     await orderDialog.getByRole("button", { name: "Use this order" }).click();
     await expect(
-      page.getByRole("heading", { level: 3, name: "Browser Chapter Two" }),
+      page.getByRole("heading", { level: 1, name: "Browser Chapter Two" }),
     ).toBeVisible();
 
     await page.getByRole("button", { name: "4", exact: true }).click();
@@ -76,7 +80,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await page.getByRole("button", { name: "Rate it" }).click();
     await page.getByRole("button", { name: "Continue series" }).click();
     await expect(
-      page.getByRole("heading", { level: 3, name: "Browser Chapter One" }),
+      page.getByRole("heading", { level: 1, name: "Browser Chapter One" }),
     ).toBeVisible();
 
     await page.getByRole("button", { name: "3.5", exact: true }).click();
@@ -86,7 +90,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await page.getByRole("button", { name: "Rate it" }).click();
 
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.getByRole("button", { name: "Roll something new" }).click();
+    await page.getByRole("button", { name: "Choose another movie" }).click();
     const reveal = page.getByRole("status");
     await expect(reveal).toBeVisible();
     expect(
@@ -96,7 +100,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     ).toBe("none");
     await expect(reveal).toBeHidden({ timeout: 5_000 });
     await expect(
-      page.getByRole("heading", { level: 3, name: "Browser Chapter Three" }),
+      page.getByRole("heading", { level: 1, name: "Browser Chapter Three" }),
     ).toBeVisible();
   });
 
@@ -116,7 +120,9 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     });
     await page.goto("/");
 
-    await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Sign in", exact: true }),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "Add a movie" })).toHaveCount(
       0,
     );
@@ -149,7 +155,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       });
     });
     await page.goto("/");
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
 
     await expect(page).toHaveURL("http://127.0.0.1:5174/oauth-provider/google");
   });

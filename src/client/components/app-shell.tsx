@@ -16,6 +16,7 @@ import tmdbLogo from "../assets/tmdb-logo.svg";
 type AppHeaderProps = {
   tab: Tab;
   auth: AuthState | null;
+  onLogin: () => void;
   onTabChange: (tab: Tab) => void;
   onLogout: () => void;
 };
@@ -23,6 +24,7 @@ type AppHeaderProps = {
 export function AppHeader({
   tab,
   auth,
+  onLogin,
   onTabChange,
   onLogout,
 }: AppHeaderProps) {
@@ -67,7 +69,7 @@ export function AppHeader({
               Library
             </NavButton>
           </nav>
-          <AuthControls auth={auth} onLogout={onLogout} />
+          <AuthControls auth={auth} onLogin={onLogin} onLogout={onLogout} />
         </div>
       </div>
     </header>
@@ -104,21 +106,18 @@ function NavButton({
 
 function AuthControls({
   auth,
+  onLogin,
   onLogout,
 }: {
   auth: AuthState | null;
+  onLogin: () => void;
   onLogout: () => void;
 }) {
   if (!auth || auth.local) return null;
 
   if (!auth.authenticated) {
     return (
-      <Button
-        variant="secondary"
-        onClick={() => {
-          window.location.href = "/api/auth/google";
-        }}
-      >
+      <Button variant="secondary" onClick={onLogin}>
         Sign in
       </Button>
     );
