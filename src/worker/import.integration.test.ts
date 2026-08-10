@@ -2,6 +2,7 @@ import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import {
   buildImportPlan,
+  buildTmdbMetadataPlan,
   renderSqlChunks,
   type GeneralizedImportDocument,
   type TmdbReconciliationDocument,
@@ -163,6 +164,47 @@ describe("generalized catalog import", () => {
       tmdb_fetched_at: "2026-08-10T10:00:00.000Z",
       tmdb_id: 42,
     });
+  });
+
+  it("updates metadata without replaying structure after a franchise label changes", async () => {
+    await importSyntheticCatalog();
+    const correctedCatalog: GeneralizedImportDocument = {
+      ...syntheticCatalog,
+      rows: syntheticCatalog.rows.map((movie) => ({
+        ...movie,
+        franchiseName: "Corrected Synthetic Saga",
+      })),
+    };
+    const plan = buildTmdbMetadataPlan(
+      correctedCatalog,
+      syntheticReconciliation,
+      "2026-08-10T11:00:00.000Z",
+    );
+    for (const chunk of renderSqlChunks(plan.statements, 1)) {
+      await env.DB.exec(chunk.sql);
+      await env.DB.exec(chunk.sql);
+    }
+
+    const counts = await env.DB.prepare(
+      `SELECT (SELECT COUNT(*) FROM movies) AS movies,
+              (SELECT COUNT(*) FROM franchises) AS franchises,
+              (SELECT COUNT(*) FROM ratings) AS ratings,
+              (SELECT COUNT(*) FROM movie_import_sources) AS sources`,
+    ).first();
+    const linked = await env.DB.prepare(
+      "SELECT title, tmdb_id FROM movies WHERE legacy_imdb_id = ?",
+    )
+      .bind("tt1234568")
+      .first();
+
+    expect(plan.statements).toHaveLength(1);
+    expect(counts).toEqual({
+      franchises: 1,
+      movies: 2,
+      ratings: 1,
+      sources: 2,
+    });
+    expect(linked).toEqual({ title: "Synthetic Movie Two", tmdb_id: 42 });
   });
 
   it("restores the active franchise selection without fabricated roll history", async () => {

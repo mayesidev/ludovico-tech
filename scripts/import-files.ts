@@ -50,6 +50,7 @@ export const writeImportArtifacts = (
   counts: ImportCounts,
   importedAt: string,
   diagnostics: ImportDiagnostic[],
+  artifactType: "catalog_import" | "tmdb_metadata" = "catalog_import",
 ) => {
   mkdirSync(outputDirectory, { recursive: true });
   clearGeneratedImportFiles(outputDirectory);
@@ -64,6 +65,7 @@ export const writeImportArtifacts = (
     join(outputDirectory, "manifest.json"),
     `${JSON.stringify(
       {
+        artifactType,
         chunks: chunks.map((chunk) => chunk.filename),
         counts,
         importedAt,
