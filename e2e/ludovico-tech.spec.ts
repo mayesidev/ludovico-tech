@@ -125,4 +125,32 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await expect(page.getByRole("button", { name: "Edit" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Order" })).toHaveCount(0);
   });
+
+  test("starts browser login through the Google authorization route", async ({
+    page,
+  }) => {
+    await page.route("**/api/auth/me", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({
+          actor: null,
+          authenticated: false,
+          local: false,
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/auth/google", async (route) => {
+      await route.fulfill({
+        headers: {
+          location: "http://127.0.0.1:5174/oauth-provider/google",
+        },
+        status: 302,
+      });
+    });
+    await page.goto("/");
+    await page.getByRole("button", { name: "Sign in" }).click();
+
+    await expect(page).toHaveURL("http://127.0.0.1:5174/oauth-provider/google");
+  });
 });

@@ -18,6 +18,9 @@ type WorkerEnvironment = {
 };
 
 type WranglerConfig = {
+  assets?: {
+    run_worker_first?: boolean | string[];
+  };
   d1_databases?: D1Binding[];
   env?: Record<string, WorkerEnvironment>;
   name?: string;
@@ -91,6 +94,11 @@ if (config.workers_dev !== false) {
 }
 if (config.preview_urls !== false) {
   throw new Error("Worker preview URLs must be explicitly disabled");
+}
+if (
+  JSON.stringify(config.assets?.run_worker_first) !== JSON.stringify(["/api/*"])
+) {
+  throw new Error("Browser navigations under /api must run the Worker first");
 }
 if (config.d1_databases?.length) {
   throw new Error(
