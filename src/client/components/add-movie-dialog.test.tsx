@@ -98,6 +98,48 @@ describe("add movie dialog", () => {
     expect(onAuthExpired).toHaveBeenCalledOnce();
   });
 
+  it("checks a manually entered TMDB ID before adding it", async () => {
+    vi.spyOn(api, "tmdbMovie").mockResolvedValue({
+      movie: {
+        id: 42,
+        posterPath: null,
+        releaseDate: "2021-03-04",
+        runtimeMinutes: 97,
+        title: "Matched Movie",
+      },
+    });
+    vi.spyOn(api, "addMovie").mockResolvedValue({ movie });
+    const user = userEvent.setup();
+    render(
+      <AddMovieDialog
+        busy={false}
+        onAuthExpired={vi.fn()}
+        onClose={vi.fn()}
+        run={run}
+      />,
+    );
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Movie title" }),
+      "Possible title",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "TMDB movie ID (optional)" }),
+      "42",
+    );
+    await user.click(screen.getByRole("button", { name: "Check ID" }));
+
+    expect(
+      await screen.findByText("Confirmed: Matched Movie (TMDB #42)"),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Add movie" }));
+    expect(api.addMovie).toHaveBeenCalledWith({
+      franchiseName: "",
+      title: "Matched Movie",
+      tmdbId: 42,
+    });
+  });
+
   it("closes with Escape", async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();

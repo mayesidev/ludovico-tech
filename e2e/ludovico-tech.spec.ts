@@ -122,6 +122,37 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     ).toBeVisible();
   });
 
+  test("edits a movie and franchise from its details page", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Add a movie" }).click();
+    await page
+      .getByRole("textbox", { name: "Movie title" })
+      .fill("Browser Editable Movie");
+    await page.getByRole("button", { name: "Add movie", exact: true }).click();
+
+    await page.getByRole("link", { name: "Library" }).click();
+    await page
+      .getByRole("link", { name: "Browser Editable Movie", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Edit movie" }).click();
+    await page
+      .getByRole("textbox", { name: "Movie title" })
+      .fill("Browser Edited Movie");
+    await page
+      .getByRole("textbox", { name: "Series or franchise" })
+      .fill("Browser Edit Saga");
+    await page.getByRole("button", { name: "Save changes" }).click();
+
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Browser Edited Movie" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Browser Edit Saga" }),
+    ).toBeVisible();
+  });
+
   test("keeps the catalog browse-only when auth is anonymous", async ({
     page,
   }) => {

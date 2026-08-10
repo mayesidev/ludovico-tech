@@ -1,29 +1,41 @@
 import { useId, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { Pencil, X } from "lucide-react";
 import type { Movie } from "../api";
 import { api } from "../api";
+import { parseTmdbId } from "../lib/tmdb-id";
 import type { RunAction } from "../types";
 import { Dialog } from "./dialog";
+import { TmdbMovieFields } from "./tmdb-movie-fields";
 import { Button, Input } from "./ui";
 
 export function EditMovieDialog({
   busy,
   movie,
+  onAuthExpired,
   onClose,
   run,
 }: {
   busy: boolean;
   movie: Movie;
+  onAuthExpired: () => Promise<void>;
   onClose: () => void;
   run: RunAction;
 }) {
   const [title, setTitle] = useState(movie.title);
+  const [franchiseName, setFranchiseName] = useState(
+    movie.franchise_name ?? "",
+  );
+  const [tmdbId, setTmdbId] = useState(
+    movie.tmdb_id === null ? "" : String(movie.tmdb_id),
+  );
   const [attempted, setAttempted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
   const descriptionId = useId();
   const errorId = useId();
-  const invalid = attempted && !title.trim();
+  const franchiseId = useId();
+  const parsedTmdbId = parseTmdbId(tmdbId);
+  const invalidTitle = attempted && !title.trim();
 
   return (
     <Dialog
@@ -37,8 +49,18 @@ export function EditMovieDialog({
         onSubmit={(event) => {
           event.preventDefault();
           setAttempted(true);
-          if (!title.trim()) return;
-          void run(() => api.updateMovie(movie.id, { title }), onClose);
+          if (!title.trim() || parsedTmdbId === undefined) return;
+          const titleChanged = title.trim() !== movie.title;
+          const tmdbChanged = parsedTmdbId !== movie.tmdb_id;
+          void run(
+            () =>
+              api.updateMovie(movie.id, {
+                franchiseName,
+                title,
+                tmdbId: titleChanged || tmdbChanged ? parsedTmdbId : undefined,
+              }),
+            onClose,
+          );
         }}
       >
         <div className="mb-6 flex items-start justify-between">
@@ -50,13 +72,13 @@ export function EditMovieDialog({
               className="mt-2 font-display text-3xl font-bold text-cream"
               id={titleId}
             >
-              Edit title
+              Edit movie
             </h2>
             <p
               className="mt-2 text-sm leading-6 text-zinc-400"
               id={descriptionId}
             >
-              Release dates and posters are managed through TMDB.
+              Update the catalog title, franchise, or confirmed TMDB match.
             </p>
           </div>
           <button
@@ -70,30 +92,39 @@ export function EditMovieDialog({
         </div>
 
         <div className="space-y-4">
-          <label className="block text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">
-            Title
-            <Input
-              aria-describedby={invalid ? errorId : undefined}
-              aria-invalid={invalid}
-              className="mt-2"
-              ref={inputRef}
-              required
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-            />
-          </label>
-          {invalid && (
+          <TmdbMovieFields
+            onAuthExpired={onAuthExpired}
+            onTitleChange={setTitle}
+            onTmdbIdChange={setTmdbId}
+            title={title}
+            titleErrorId={errorId}
+            titleInputRef={inputRef}
+            titleInvalid={invalidTitle}
+            tmdbId={tmdbId}
+          />
+          {invalidTitle && (
             <p className="mt-2 text-sm text-red-200" id={errorId} role="alert">
               Enter a movie title.
             </p>
           )}
+          <label className="block text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">
+            Series or franchise
+            <Input
+              className="mt-2"
+              id={franchiseId}
+              value={franchiseName}
+              onChange={(event) => setFranchiseName(event.target.value)}
+              placeholder="Optional"
+            />
+          </label>
         </div>
 
         <div className="mt-6 flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button disabled={busy} type="submit">
+          <Button disabled={busy || parsedTmdbId === undefined} type="submit">
+            <Pencil size={16} />
             Save changes
           </Button>
         </div>

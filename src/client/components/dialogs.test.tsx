@@ -36,6 +36,7 @@ function EditHarness() {
         <EditMovieDialog
           busy={false}
           movie={movie("movie-id", "Original Title")}
+          onAuthExpired={vi.fn().mockResolvedValue(undefined)}
           onClose={() => setOpen(false)}
           run={run}
         />
@@ -54,8 +55,8 @@ describe("accessible dialogs", () => {
 
     const trigger = screen.getByRole("button", { name: "Open edit" });
     await user.click(trigger);
-    expect(screen.getByRole("dialog", { name: "Edit title" })).toBeVisible();
-    const input = screen.getByRole("textbox", { name: "Title" });
+    expect(screen.getByRole("dialog", { name: "Edit movie" })).toBeVisible();
+    const input = screen.getByRole("textbox", { name: "Movie title" });
     expect(input).toHaveFocus();
     await user.clear(input);
     await user.click(screen.getByRole("button", { name: "Save changes" }));
@@ -65,7 +66,9 @@ describe("accessible dialogs", () => {
     await user.type(input, "Updated Title");
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     expect(api.updateMovie).toHaveBeenCalledWith("movie-id", {
+      franchiseName: "Test Saga",
       title: "Updated Title",
+      tmdbId: null,
     });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(trigger).toHaveFocus();
@@ -74,5 +77,49 @@ describe("accessible dialogs", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(trigger).toHaveFocus();
+  });
+
+  it("searches again after a title change and updates franchise membership", async () => {
+    vi.spyOn(api, "tmdbSearch").mockResolvedValue({
+      results: [
+        {
+          id: 42,
+          posterPath: null,
+          releaseDate: "2026-08-10",
+          title: "Authoritative Title",
+        },
+      ],
+    });
+    vi.spyOn(api, "updateMovie").mockResolvedValue({
+      movie: {
+        ...movie("movie-id", "Authoritative Title"),
+        franchise_name: "New Saga",
+        tmdb_id: 42,
+      },
+    });
+    const user = userEvent.setup();
+    render(<EditHarness />);
+
+    await user.click(screen.getByRole("button", { name: "Open edit" }));
+    const title = screen.getByRole("textbox", { name: "Movie title" });
+    await user.clear(title);
+    await user.type(title, "Candidate Title");
+    expect(screen.queryByText(/TMDB #[0-9]+ will be checked/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Search TMDB" }));
+    await user.click(
+      await screen.findByRole("button", { name: /Authoritative Title/ }),
+    );
+    const franchise = screen.getByRole("textbox", {
+      name: "Series or franchise",
+    });
+    await user.clear(franchise);
+    await user.type(franchise, "New Saga");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    expect(api.updateMovie).toHaveBeenCalledWith("movie-id", {
+      franchiseName: "New Saga",
+      title: "Authoritative Title",
+      tmdbId: 42,
+    });
   });
 });

@@ -210,7 +210,9 @@ export default function App() {
           />
         ) : (
           <MovieDetailPage
+            canMutate={canMutate}
             movie={selectedMovie}
+            onEdit={setEditingMovie}
             onNavigate={navigate}
             returnTo={route.page === "movie" ? route.returnTo : "library"}
           />
@@ -231,6 +233,7 @@ export default function App() {
         <EditMovieDialog
           busy={busy}
           movie={editingMovie}
+          onAuthExpired={refreshAuth}
           onClose={() => setEditingMovie(null)}
           run={run}
         />

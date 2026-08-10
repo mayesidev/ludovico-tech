@@ -1,18 +1,22 @@
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink, Pencil } from "lucide-react";
 import type { Movie } from "../api";
 import { formatDate, formatRuntime } from "../lib/utils";
 import { AppLink } from "./app-link";
 import { Poster } from "./poster";
-import { Badge, Card } from "./ui";
+import { Badge, Button, Card } from "./ui";
 
 type MovieDetailPageProps = {
+  canMutate?: boolean;
   movie: Movie | null;
+  onEdit?: (movie: Movie) => void;
   onNavigate: (path: string) => void;
   returnTo: "library" | "now-showing";
 };
 
 export function MovieDetailPage({
+  canMutate = false,
   movie,
+  onEdit,
   onNavigate,
   returnTo,
 }: MovieDetailPageProps) {
@@ -55,8 +59,14 @@ export function MovieDetailPage({
       <Card className="grid gap-8 p-6 sm:grid-cols-[220px_1fr] sm:p-8 lg:p-10">
         <Poster path={movie.poster_path} title={movie.title} large />
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <Badge>{watched ? "Watched" : "Unwatched"}</Badge>
+            {canMutate && onEdit && (
+              <Button onClick={() => onEdit(movie)} variant="secondary">
+                <Pencil size={15} />
+                Edit movie
+              </Button>
+            )}
           </div>
 
           <h1 className="mt-5 font-display text-4xl font-bold tracking-normal text-cream sm:text-5xl">
