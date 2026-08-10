@@ -107,6 +107,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
   test("keeps the catalog browse-only when auth is anonymous", async ({
     page,
   }) => {
+    await page.setViewportSize({ width: 320, height: 700 });
     await page.route("**/api/auth/me", async (route) => {
       await route.fulfill({
         body: JSON.stringify({
@@ -123,6 +124,28 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await expect(
       page.getByRole("button", { name: "Sign in", exact: true }),
     ).toBeVisible();
+    const home = await page
+      .getByRole("button", { name: "Ludovico Tech home" })
+      .boundingBox();
+    const nowShowing = await page
+      .getByRole("button", { name: "Now showing" })
+      .boundingBox();
+    const library = await page
+      .getByRole("button", { name: "Library" })
+      .boundingBox();
+    const signIn = await page
+      .getByRole("button", { name: "Sign in", exact: true })
+      .boundingBox();
+
+    expect(home).not.toBeNull();
+    expect(nowShowing).not.toBeNull();
+    expect(library).not.toBeNull();
+    expect(signIn).not.toBeNull();
+    expect(home!.x + home!.width).toBeLessThanOrEqual(signIn!.x);
+    expect(signIn!.x + signIn!.width).toBeLessThanOrEqual(320);
+    expect(signIn!.height).toBeLessThanOrEqual(40);
+    expect(nowShowing!.y).toBeGreaterThan(home!.y);
+    expect(library!.x + library!.width).toBeLessThanOrEqual(320);
     await expect(page.getByRole("button", { name: "Add a movie" })).toHaveCount(
       0,
     );
