@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { api, type Movie, type NowShowing } from "../api";
@@ -60,21 +60,25 @@ const renderHome = (
 };
 
 describe("home workflows", () => {
-  it("requires both the half-point rating and custom phrase", async () => {
+  it("selects a half-point rating with a slider and requires the custom phrase", async () => {
     vi.spyOn(api, "rate").mockResolvedValue({ nowShowing: nowShowing() });
     const user = userEvent.setup();
     renderHome();
 
+    const slider = screen.getByRole("slider", { name: "Final rating" });
+    expect(slider).toHaveAttribute("min", "0");
+    expect(slider).toHaveAttribute("max", "5");
+    expect(slider).toHaveAttribute("step", "0.5");
+    expect(slider).toHaveValue("2.5");
     await user.click(screen.getByRole("button", { name: "Rate it" }));
-    expect(screen.getByText("Choose a rating from 0 to 5.")).toHaveRole(
-      "alert",
-    );
     expect(screen.getByText("Add the custom rating phrase.")).toHaveRole(
       "alert",
     );
     expect(api.rate).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole("button", { name: "4.5" }));
+    fireEvent.change(slider, { target: { value: "4.5" } });
+    expect(slider).toHaveValue("4.5");
+    expect(screen.getByLabelText("Selected rating")).toHaveTextContent("4.5");
     await user.type(
       screen.getByRole("textbox", { name: "Custom rating phrase (required)" }),
       "  A custom classic  ",
@@ -82,6 +86,7 @@ describe("home workflows", () => {
     await user.click(screen.getByRole("button", { name: "Rate it" }));
 
     expect(api.rate).toHaveBeenCalledWith("movie-id", 4.5, "A custom classic");
+    expect(screen.queryByText("4.5/5")).toBeNull();
   });
 
   it("orders the linked title, poster, and rating controls", () => {

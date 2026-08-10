@@ -23,7 +23,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       timeout: 5_000,
     });
 
-    await page.getByRole("button", { name: "4.5", exact: true }).click();
+    await page.getByRole("slider", { name: "Final rating" }).fill("4.5");
     await page
       .getByRole("textbox", { name: "Custom rating phrase (required)" })
       .fill("A browser-tested classic");
@@ -91,7 +91,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       page.getByRole("heading", { level: 1, name: "Browser Chapter Two" }),
     ).toBeVisible();
 
-    await page.getByRole("button", { name: "4", exact: true }).click();
+    await page.getByRole("slider", { name: "Final rating" }).fill("4");
     await page
       .getByRole("textbox", { name: "Custom rating phrase (required)" })
       .fill("The second one goes first");
@@ -101,7 +101,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       page.getByRole("heading", { level: 1, name: "Browser Chapter One" }),
     ).toBeVisible();
 
-    await page.getByRole("button", { name: "3.5", exact: true }).click();
+    await page.getByRole("slider", { name: "Final rating" }).fill("3.5");
     await page
       .getByRole("textbox", { name: "Custom rating phrase (required)" })
       .fill("Back to chapter one");
