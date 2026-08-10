@@ -36,6 +36,7 @@ const movies: Movie[] = [
 describe("movie library", () => {
   it("filters, sorts, and exposes actions only to contributors", async () => {
     const onEdit = vi.fn();
+    const onNavigate = vi.fn();
     const onOrder = vi.fn();
     const user = userEvent.setup();
     render(
@@ -43,6 +44,7 @@ describe("movie library", () => {
         canMutate
         movies={movies}
         onEdit={onEdit}
+        onNavigate={onNavigate}
         onOrder={onOrder}
       />,
     );
@@ -75,6 +77,10 @@ describe("movie library", () => {
     expect(screen.queryByText("Standalone")).toBeNull();
     expect(screen.queryByText("In rotation")).toBeNull();
     expect(screen.queryByText("5/5")).toBeNull();
+    const movieLink = screen.getByRole("link", { name: "Alpha Movie" });
+    expect(movieLink).toHaveAttribute("href", "/movies/first-id");
+    await user.click(movieLink);
+    expect(onNavigate).toHaveBeenCalledWith("/movies/first-id");
   });
 
   it("keeps the public catalog browse-only", () => {
@@ -83,6 +89,7 @@ describe("movie library", () => {
         canMutate={false}
         movies={movies}
         onEdit={vi.fn()}
+        onNavigate={vi.fn()}
         onOrder={vi.fn()}
       />,
     );

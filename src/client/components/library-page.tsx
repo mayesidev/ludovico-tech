@@ -10,13 +10,16 @@ import {
 } from "@tanstack/react-table";
 import { Pencil, Search } from "lucide-react";
 import type { Movie } from "../api";
+import type { Navigate } from "../types";
 import { formatDate } from "../lib/utils";
+import { AppLink } from "./app-link";
 import { Badge, Card, Input } from "./ui";
 
 type LibraryPageProps = {
   canMutate: boolean;
   movies: Movie[];
   onEdit: (movie: Movie) => void;
+  onNavigate: Navigate;
   onOrder: (franchiseId: string) => void;
 };
 
@@ -24,6 +27,7 @@ export function LibraryPage({
   canMutate,
   movies,
   onEdit,
+  onNavigate,
   onOrder,
 }: LibraryPageProps) {
   const [filter, setFilter] = useState("");
@@ -34,7 +38,13 @@ export function LibraryPage({
         accessorKey: "title",
         header: "Title",
         cell: ({ row }) => (
-          <p className="font-semibold text-cream">{row.original.title}</p>
+          <AppLink
+            className="font-semibold text-cream hover:text-marquee-light"
+            href={`/movies/${encodeURIComponent(row.original.id)}`}
+            onNavigate={onNavigate}
+          >
+            {row.original.title}
+          </AppLink>
         ),
       },
       {
@@ -95,7 +105,7 @@ export function LibraryPage({
       });
     }
     return definitions;
-  }, [canMutate, onEdit, onOrder]);
+  }, [canMutate, onEdit, onNavigate, onOrder]);
   const table = useReactTable({
     data: movies,
     columns,
