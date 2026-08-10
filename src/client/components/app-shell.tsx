@@ -42,7 +42,7 @@ export function AppHeader({
             <Clapperboard size={20} strokeWidth={2.5} />
           </span>
           <span className="min-w-0">
-            <span className="block whitespace-nowrap font-display text-base font-bold tracking-tight text-cream sm:text-lg">
+            <span className="block whitespace-nowrap font-display text-base font-bold tracking-normal text-cream sm:text-lg">
               Ludovico Tech
             </span>
             <span className="hidden text-[10px] font-bold uppercase tracking-[0.2em] text-marquee-gold/55 sm:block">

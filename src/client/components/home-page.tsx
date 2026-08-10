@@ -75,7 +75,7 @@ export function HomePage({
                 Now showing
               </p>
               <p className="text-xs text-zinc-500">
-                {movies.length} movies · {unwatchedCount} unwatched
+                {unwatchedCount} unwatched out of {movies.length} movies
               </p>
             </div>
             {nowShowing?.franchise_name && franchiseHref && (
@@ -88,13 +88,13 @@ export function HomePage({
               </AppLink>
             )}
             <h1
-              className="mt-4 max-w-3xl font-display text-4xl font-bold leading-none tracking-[-0.035em] text-cream sm:text-6xl"
+              className="mt-4 max-w-3xl font-display text-4xl font-bold leading-none tracking-normal text-cream sm:text-6xl"
               id="now-showing-title"
             >
               {nowShowing?.title ?? "No movie selected"}
             </h1>
 
-            <div className="mt-7 w-full max-w-[220px]">
+            <div className="mx-auto mt-7 w-full max-w-[220px]">
               <Poster
                 path={nowShowing?.poster_path}
                 title={nowShowing?.title ?? "No movie selected"}
@@ -293,7 +293,7 @@ function HistorySection({ movies }: { movies: Movie[] }) {
   return (
     <section aria-labelledby="watched-movies-title">
       <h2
-        className="mb-5 font-display text-2xl font-bold tracking-tight text-cream sm:text-3xl"
+        className="mb-5 font-display text-2xl font-bold tracking-normal text-cream sm:text-3xl"
         id="watched-movies-title"
       >
         Watched movies

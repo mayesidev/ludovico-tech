@@ -50,7 +50,7 @@ export function MovieDetailPage({ movie, onNavigate }: MovieDetailPageProps) {
             <Badge>{watched ? "Watched" : "Unwatched"}</Badge>
           </div>
 
-          <h1 className="mt-5 font-display text-4xl font-bold tracking-tight text-cream sm:text-5xl">
+          <h1 className="mt-5 font-display text-4xl font-bold tracking-normal text-cream sm:text-5xl">
             {movie.title}
           </h1>
 
