@@ -48,16 +48,28 @@ export function MovieDetailPage({ movie, onNavigate }: MovieDetailPageProps) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
             <Badge>{watched ? "Watched" : "Unwatched"}</Badge>
-            {movie.release_date && (
-              <span className="text-sm text-zinc-500">
-                {formatDate(movie.release_date)}
-              </span>
-            )}
           </div>
 
           <h1 className="mt-5 font-display text-4xl font-bold tracking-tight text-cream sm:text-5xl">
             {movie.title}
           </h1>
+
+          <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2">
+            {movie.release_date && (
+              <div>
+                <dt className="text-zinc-500">Release date</dt>
+                <dd className="mt-1 text-zinc-300">
+                  {formatDate(movie.release_date)}
+                </dd>
+              </div>
+            )}
+            <div>
+              <dt className="text-zinc-500">Date added</dt>
+              <dd className="mt-1 text-zinc-300">
+                {formatDate(movie.added_at)}
+              </dd>
+            </div>
+          </dl>
 
           {movie.franchise_name && movie.franchise_id && (
             <AppLink

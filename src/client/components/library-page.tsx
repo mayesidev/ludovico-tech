@@ -65,6 +65,11 @@ export function LibraryPage({
         cell: ({ getValue }) => formatDate(getValue<string | null>()),
       },
       {
+        accessorKey: "added_at",
+        header: "Date added",
+        cell: ({ getValue }) => formatDate(getValue<string>()),
+      },
+      {
         accessorKey: "rating_score",
         header: "Rating",
         cell: ({ row }) =>
@@ -142,7 +147,7 @@ export function LibraryPage({
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] text-left text-sm">
+          <table className="w-full min-w-[1080px] text-left text-sm">
             <thead className="border-b border-curtain/35 bg-curtain/10 text-xs uppercase tracking-[0.14em] text-zinc-500">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>

@@ -57,6 +57,9 @@ describe("movie library", () => {
     expect(
       screen.getByRole("columnheader", { name: "Franchise" }),
     ).toBeVisible();
+    expect(
+      screen.getByRole("columnheader", { name: "Date added" }),
+    ).toBeVisible();
 
     await user.clear(
       screen.getByRole("textbox", { name: "Search movie library" }),
@@ -70,6 +73,7 @@ describe("movie library", () => {
     expect(onEdit).toHaveBeenCalledWith(movies[1]);
     expect(screen.getByText("5 · A favorite")).toBeVisible();
     expect(screen.getByText("Unwatched")).toBeVisible();
+    expect(screen.getAllByText("Aug 7, 2026")).toHaveLength(2);
     expect(screen.queryByText("Standalone")).toBeNull();
     expect(screen.queryByText("In rotation")).toBeNull();
     expect(screen.queryByText("5/5")).toBeNull();
@@ -79,6 +83,10 @@ describe("movie library", () => {
     expect(onNavigate).toHaveBeenCalledWith("/movies/first-id");
     const franchiseLink = screen.getByRole("link", { name: "Test Saga" });
     expect(franchiseLink).toHaveAttribute("href", "/franchises/franchise-id");
+    await user.click(screen.getByRole("button", { name: "Date added" }));
+    expect(
+      screen.getByRole("columnheader", { name: /Date added/ }),
+    ).toHaveAttribute("aria-sort", "ascending");
   });
 
   it("keeps the public catalog browse-only", () => {
