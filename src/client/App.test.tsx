@@ -51,10 +51,15 @@ describe("application authorization presentation", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "What’s on the marquee?" }),
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "No movie selected",
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Roll next" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /^Sign in$/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Choose a movie" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add a movie" })).toBeNull();
 
     const library = screen.getByRole("button", { name: "Library" });
@@ -80,7 +85,7 @@ describe("application authorization presentation", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("button", { name: "Roll next" }),
+      await screen.findByRole("button", { name: "Choose a movie" }),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Add a movie" })).toBeVisible();
     await user.click(
@@ -88,10 +93,10 @@ describe("application authorization presentation", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Sign in" })).toBeVisible(),
+      expect(screen.getByRole("button", { name: /^Sign in$/ })).toBeVisible(),
     );
     expect(api.logout).toHaveBeenCalledOnce();
-    expect(screen.queryByRole("button", { name: "Roll next" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Choose a movie" })).toBeNull();
   });
 
   it("refreshes authentication and removes mutation controls after a 401", async () => {
@@ -105,15 +110,17 @@ describe("application authorization presentation", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: "Roll next" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Choose a movie" }),
+    );
 
     expect(
       await screen.findByRole("alert", {
         name: "",
       }),
     ).toHaveTextContent("Your session ended. Sign in again to make changes.");
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Roll next" })).toBeNull();
+    expect(screen.getByRole("button", { name: /^Sign in$/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Choose a movie" })).toBeNull();
     expect(api.authMe).toHaveBeenCalledTimes(2);
   });
 });

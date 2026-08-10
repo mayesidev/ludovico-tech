@@ -17,7 +17,7 @@ import {
 } from "../api";
 import type { RunAction } from "../types";
 import { cn, formatDate } from "../lib/utils";
-import { Badge, Button, Card, Input, SectionHeading } from "./ui";
+import { Badge, Button, Card, Input } from "./ui";
 import { Poster } from "./poster";
 
 const scoreOptions = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
@@ -28,6 +28,7 @@ type HomePageProps = {
   movies: Movie[];
   busy: boolean;
   canMutate: boolean;
+  onLogin: () => void;
   onAuthExpired: () => Promise<void>;
   onOrder: (franchiseId: string) => void;
   roll: () => void;
@@ -40,6 +41,7 @@ export function HomePage({
   movies,
   busy,
   canMutate,
+  onLogin,
   onAuthExpired,
   onOrder,
   roll,
@@ -48,75 +50,49 @@ export function HomePage({
   const isWatched =
     nowShowing?.rating_score !== null && nowShowing?.rating_score !== undefined;
   const hasNext = remaining.some((movie) => movie.rating_score === null);
+  const hasSelection = Boolean(nowShowing?.movie_id);
   const unwatchedCount = movies.filter(
     (movie) => movie.rating_score === null,
   ).length;
   const franchiseId = nowShowing?.franchise_id;
 
   return (
-    <div className="space-y-16">
-      <section className="grid items-end gap-10 lg:grid-cols-[1.1fr_0.9fr]">
-        <div>
-          <p className="mb-5 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-marquee-gold">
-            <span className="size-2 rounded-full bg-marquee-light shadow-[0_0_18px] shadow-marquee-gold" />
-            Weekly screening
-          </p>
-          <h1 className="max-w-3xl font-display text-5xl font-bold leading-[0.95] tracking-[-0.055em] text-cream sm:text-7xl">
-            What’s on the <span className="text-marquee-light">marquee?</span>
-          </h1>
-          <p className="mt-6 max-w-xl text-base leading-7 text-zinc-400">
-            One shared list. One movie at a time. A little ceremony before the
-            next screening.
-          </p>
-        </div>
-        <div className="justify-self-end text-right">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-600">
-            The collection
-          </p>
-          <p className="mt-1 font-display text-5xl font-bold text-cream">
-            {unwatchedCount || "—"}
-          </p>
-          <p className="text-sm text-zinc-500">movies in rotation</p>
-        </div>
-      </section>
-
-      <section>
-        <SectionHeading
-          eyebrow="Now showing"
-          title={nowShowing?.title ?? "The screen is waiting"}
-          description={
-            nowShowing?.franchise_name
-              ? `${nowShowing.franchise_name} · choose your own order`
-              : "Roll the list when the group is ready for something new."
-          }
-        />
+    <div className="space-y-14">
+      <section aria-labelledby="now-showing-title">
         <Card className="relative overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_10%,rgba(216,172,76,0.14),transparent_32%),linear-gradient(120deg,rgba(120,23,41,0.12),transparent_55%)]" />
           <div className="relative grid gap-8 p-6 sm:p-8 lg:grid-cols-[220px_1fr] lg:p-10">
-            <Poster
-              path={nowShowing?.poster_path}
-              title={nowShowing?.title ?? "Waiting for the next roll"}
-              large
-            />
-            <div className="flex min-h-[300px] flex-col justify-between">
+            <div className="order-2 w-full max-w-[160px] justify-self-center lg:order-1 lg:max-w-[220px] lg:justify-self-auto">
+              <Poster
+                path={nowShowing?.poster_path}
+                title={nowShowing?.title ?? "No movie selected"}
+                large
+              />
+            </div>
+            <div className="order-1 flex min-h-[300px] flex-col justify-between lg:order-2">
               <div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-marquee-gold">
+                    Now showing
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    {unwatchedCount} unwatched
+                  </p>
+                </div>
                 {nowShowing?.franchise_name && (
-                  <Badge className="mb-5">{nowShowing.franchise_name}</Badge>
+                  <Badge className="mt-5">{nowShowing.franchise_name}</Badge>
                 )}
-                {nowShowing?.title ? (
-                  <>
-                    <h3 className="font-display text-4xl font-bold tracking-tight text-cream sm:text-5xl">
-                      {nowShowing.title}
-                    </h3>
-                    <p className="mt-3 text-sm text-zinc-500">
-                      {formatDate(nowShowing.release_date)}
-                      {isWatched && " · Watched"}
-                    </p>
-                  </>
-                ) : (
-                  <h3 className="max-w-md font-display text-4xl font-bold tracking-tight text-cream">
-                    Cue the drumroll.
-                  </h3>
+                <h1
+                  className="mt-4 max-w-3xl font-display text-4xl font-bold leading-none tracking-[-0.035em] text-cream sm:text-6xl"
+                  id="now-showing-title"
+                >
+                  {nowShowing?.title ?? "No movie selected"}
+                </h1>
+                {nowShowing?.title && (
+                  <p className="mt-3 text-sm text-zinc-500">
+                    {formatDate(nowShowing.release_date)}
+                    {isWatched && " · Watched"}
+                  </p>
                 )}
                 {isWatched && nowShowing?.rating_score !== null && (
                   <div className="mt-7 flex items-center gap-3">
@@ -170,12 +146,24 @@ export function HomePage({
                         <RotateCw size={16} />
                       )}
                       {isWatched && franchiseId && hasNext
-                        ? "Roll something new"
-                        : "Roll next"}
+                        ? "Choose another movie"
+                        : hasSelection
+                          ? "Choose the next movie"
+                          : "Choose a movie"}
                     </Button>
                   )}
                 </div>
-              ) : null}
+              ) : (
+                <div className="mt-8">
+                  <Button onClick={onLogin} variant="secondary">
+                    {nowShowing?.status === "pending_order"
+                      ? "Sign in to confirm series order"
+                      : isWatched || !hasSelection
+                        ? "Sign in to choose what’s next"
+                        : "Sign in to rate this movie"}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </Card>
@@ -296,53 +284,44 @@ function HistorySection({ movies }: { movies: Movie[] }) {
     .sort((a, b) => (b.watched_at ?? "").localeCompare(a.watched_at ?? ""));
 
   return (
-    <section>
-      <SectionHeading
-        eyebrow="Recently viewed"
-        title="A little history"
-        description="The movies that have already made it through the program."
-      />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {watchedMovies.slice(0, 4).map((movie, index) => (
-          <HistoryCard key={movie.id} movie={movie} index={index} />
-        ))}
-        {watchedMovies.length === 0 &&
-          [...Array(4)].map((_, index) => (
-            <HistoryCard key={`empty-${index}`} movie={null} index={index} />
+    <section aria-labelledby="watched-movies-title">
+      <h2
+        className="mb-5 font-display text-2xl font-bold tracking-tight text-cream sm:text-3xl"
+        id="watched-movies-title"
+      >
+        Watched movies
+      </h2>
+      {watchedMovies.length > 0 ? (
+        <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {watchedMovies.slice(0, 4).map((movie) => (
+            <HistoryCard key={movie.id} movie={movie} />
           ))}
-      </div>
+        </div>
+      ) : (
+        <Card className="p-6 text-sm text-zinc-500">
+          No movies have been rated yet.
+        </Card>
+      )}
     </section>
   );
 }
 
-function HistoryCard({ movie, index }: { movie: Movie | null; index: number }) {
-  const placeholderTitles = [
-    "A recent favorite",
-    "A questionable classic",
-    "One for the archives",
-    "A movie happened",
-  ];
-
+function HistoryCard({ movie }: { movie: Movie }) {
   return (
-    <Card className="overflow-hidden p-3">
-      <div className="flex gap-3">
-        <Poster
-          path={movie?.poster_path}
-          title={movie?.title ?? placeholderTitles[index]}
-        />
-        <div className="flex flex-col justify-center">
-          <p className="text-xs uppercase tracking-[0.14em] text-zinc-600">
-            {movie ? "Recently viewed" : "Coming soon"}
-          </p>
-          <p className="mt-2 font-display text-lg font-bold text-cream">
-            {movie?.title ?? "More history"}
-          </p>
-          {movie?.rating_score !== null &&
-            movie?.rating_score !== undefined && (
-              <p className="mt-2 text-xs text-marquee-light">
-                {movie.rating_score}/5 · {movie.rating_phrase}
-              </p>
-            )}
+    <Card className="h-full overflow-hidden p-4">
+      <div className="flex items-start gap-4">
+        <div className="w-[72px] shrink-0">
+          <Poster path={movie.poster_path} title={movie.title} />
+        </div>
+        <div className="min-w-0 pt-1">
+          <h3 className="font-display text-lg font-bold leading-tight text-cream">
+            {movie.title}
+          </h3>
+          {movie.rating_score !== null && (
+            <p className="mt-3 text-sm leading-5 text-marquee-light">
+              {movie.rating_score}/5 · {movie.rating_phrase}
+            </p>
+          )}
         </div>
       </div>
     </Card>
@@ -404,13 +383,8 @@ function AddMovieSection({
   };
 
   return (
-    <section className="border-t border-curtain/35 pt-16">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <SectionHeading
-          eyebrow="Contribute"
-          title="Add to the list"
-          description="Find the movie, confirm the match, and send it into rotation."
-        />
+    <div className="border-t border-curtain/35 pt-12">
+      <div className="flex justify-end">
         <Button
           aria-expanded={open}
           disabled={busy}
@@ -541,6 +515,6 @@ function AddMovieSection({
           )}
         </Card>
       )}
-    </section>
+    </div>
   );
 }
