@@ -137,10 +137,12 @@ describe("home workflows", () => {
     await user.click(
       screen.getByRole("button", { name: "Confirm franchise order" }),
     );
-    expect(onNavigate).toHaveBeenCalledWith("/franchises/franchise-id");
+    expect(onNavigate).toHaveBeenCalledWith(
+      "/franchises/franchise-id?from=now-showing",
+    );
     expect(screen.getByRole("link", { name: "Test Saga" })).toHaveAttribute(
       "href",
-      "/franchises/franchise-id",
+      "/franchises/franchise-id?from=now-showing",
     );
   });
 

@@ -51,6 +51,7 @@ describe("franchise details", () => {
         movies={movies}
         onLogin={vi.fn()}
         onNavigate={vi.fn()}
+        returnTo="library"
         run={run}
       />,
     );
@@ -90,6 +91,7 @@ describe("franchise details", () => {
         movies={movies}
         onLogin={onLogin}
         onNavigate={vi.fn()}
+        returnTo="library"
         run={run}
       />,
     );
@@ -111,6 +113,7 @@ describe("franchise details", () => {
         movies={movies}
         onLogin={vi.fn()}
         onNavigate={vi.fn()}
+        returnTo="library"
         run={run}
       />,
     );
@@ -121,5 +124,30 @@ describe("franchise details", () => {
     expect(
       screen.getByRole("link", { name: "Return to the library" }),
     ).toHaveAttribute("href", "/library");
+  });
+
+  it("returns an order confirmation to Now showing after saving", async () => {
+    vi.spyOn(api, "order").mockResolvedValue({ nowShowing: {} as never });
+    const user = userEvent.setup();
+    render(
+      <FranchiseDetailPage
+        busy={false}
+        canMutate
+        franchiseId="franchise-id"
+        movies={movies}
+        onLogin={vi.fn()}
+        onNavigate={vi.fn()}
+        returnTo="now-showing"
+        run={run}
+      />,
+    );
+
+    const returnLink = screen.getByRole("link", {
+      name: "Return to Now Showing",
+    });
+    expect(returnLink).toHaveAttribute("href", "/");
+    await user.click(screen.getByRole("button", { name: "Save order" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Order saved.");
+    expect(returnLink).toHaveAttribute("href", "/");
   });
 });
