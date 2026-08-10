@@ -8,9 +8,18 @@ import { Badge, Card } from "./ui";
 type MovieDetailPageProps = {
   movie: Movie | null;
   onNavigate: (path: string) => void;
+  returnTo: "library" | "now-showing";
 };
 
-export function MovieDetailPage({ movie, onNavigate }: MovieDetailPageProps) {
+export function MovieDetailPage({
+  movie,
+  onNavigate,
+  returnTo,
+}: MovieDetailPageProps) {
+  const returnHref = returnTo === "now-showing" ? "/" : "/library";
+  const returnLabel =
+    returnTo === "now-showing" ? "Return to Now Showing" : "Return to Library";
+
   if (!movie) {
     return (
       <div className="mx-auto max-w-3xl py-12 text-center">
@@ -20,11 +29,11 @@ export function MovieDetailPage({ movie, onNavigate }: MovieDetailPageProps) {
         <p className="mt-3 text-zinc-400">This movie is not in the catalog.</p>
         <AppLink
           className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-marquee-light hover:text-cream"
-          href="/library"
+          href={returnHref}
           onNavigate={onNavigate}
         >
           <ArrowLeft size={16} />
-          Return to the library
+          {returnLabel}
         </AppLink>
       </div>
     );
@@ -36,11 +45,11 @@ export function MovieDetailPage({ movie, onNavigate }: MovieDetailPageProps) {
     <div className="mx-auto max-w-4xl">
       <AppLink
         className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-zinc-400 hover:text-marquee-light"
-        href="/library"
+        href={returnHref}
         onNavigate={onNavigate}
       >
         <ArrowLeft size={16} />
-        Library
+        {returnLabel}
       </AppLink>
 
       <Card className="grid gap-8 p-6 sm:grid-cols-[220px_1fr] sm:p-8 lg:p-10">
@@ -82,7 +91,7 @@ export function MovieDetailPage({ movie, onNavigate }: MovieDetailPageProps) {
           {movie.franchise_name && movie.franchise_id && (
             <AppLink
               className="mt-4 inline-flex text-sm font-semibold text-marquee-light hover:text-cream"
-              href={`/franchises/${encodeURIComponent(movie.franchise_id)}`}
+              href={`/franchises/${encodeURIComponent(movie.franchise_id)}${returnTo === "now-showing" ? "?from=now-showing" : ""}`}
               onNavigate={onNavigate}
             >
               {movie.franchise_name}

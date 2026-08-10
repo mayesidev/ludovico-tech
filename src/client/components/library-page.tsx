@@ -30,6 +30,9 @@ export function LibraryPage({
 }: LibraryPageProps) {
   const [filter, setFilter] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
+  const unwatchedCount = movies.filter(
+    (movie) => movie.rating_score === null,
+  ).length;
   const columns = useMemo<ColumnDef<Movie>[]>(() => {
     const definitions: ColumnDef<Movie>[] = [
       {
@@ -38,7 +41,7 @@ export function LibraryPage({
         cell: ({ row }) => (
           <AppLink
             className="font-semibold text-cream hover:text-marquee-light"
-            href={`/movies/${encodeURIComponent(row.original.id)}`}
+            href={`/movies/${encodeURIComponent(row.original.id)}?from=library`}
             onNavigate={onNavigate}
           >
             {row.original.title}
@@ -128,7 +131,9 @@ export function LibraryPage({
           <h1 className="font-display text-3xl font-bold tracking-normal text-cream sm:text-4xl">
             Library
           </h1>
-          <p className="mt-2 text-sm text-zinc-500">{movies.length} movies</p>
+          <p className="mt-2 text-sm text-zinc-500">
+            {unwatchedCount} unwatched out of {movies.length} movies
+          </p>
         </div>
         <div className="relative w-full sm:w-72">
           <Search className="absolute left-3 top-3.5 text-zinc-600" size={16} />

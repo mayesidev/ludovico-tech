@@ -33,6 +33,21 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await expect(
       page.getByText(/A browser-tested classic/).first(),
     ).toBeVisible();
+
+    await page
+      .getByRole("link", { name: "Browser Test Feature", exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/movies\/[^?]+\?from=now-showing$/);
+    await page.getByRole("link", { name: "Return to Now Showing" }).click();
+    await expect(page).toHaveURL(/\/$/);
+
+    await page
+      .getByRole("link", { name: "View details for Browser Test Feature" })
+      .click();
+    await expect(
+      page.getByRole("link", { name: "Return to Now Showing" }),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "Return to Now Showing" }).click();
   });
 
   test("orders and continues a series, then rerolls with reduced motion", async ({
@@ -153,7 +168,20 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       0,
     );
     await expect(page.getByRole("button", { name: "Rate it" })).toHaveCount(0);
+    const nowShowingLabel = page
+      .locator("main section")
+      .first()
+      .getByText("Now showing", { exact: true });
+    expect(
+      await nowShowingLabel.evaluate((element) =>
+        Number.parseFloat(getComputedStyle(element).fontSize),
+      ),
+    ).toBeGreaterThanOrEqual(18);
+    await expect(page.getByText(/unwatched out of \d+ movies/)).toHaveCount(0);
     await page.getByRole("link", { name: "Library" }).click();
+    await expect(
+      page.getByText(/\d+ unwatched out of \d+ movies/),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "Edit" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Order" })).toHaveCount(0);
     await page.getByRole("link", { name: "Browser Test Feature" }).click();

@@ -37,9 +37,6 @@ export function HomePage({
     nowShowing?.rating_score !== null && nowShowing?.rating_score !== undefined;
   const hasNext = remaining.some((movie) => movie.rating_score === null);
   const hasSelection = Boolean(nowShowing?.movie_id);
-  const unwatchedCount = movies.filter(
-    (movie) => movie.rating_score === null,
-  ).length;
   const franchiseId = nowShowing?.franchise_id;
   const franchiseHref = franchiseId
     ? `/franchises/${encodeURIComponent(franchiseId)}?from=now-showing`
@@ -53,12 +50,9 @@ export function HomePage({
         <Card className="relative overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_10%,rgba(216,172,76,0.14),transparent_32%),linear-gradient(120deg,rgba(120,23,41,0.12),transparent_55%)]" />
           <div className="relative p-6 text-center sm:p-8 lg:p-10">
-            <div className="flex flex-col items-center gap-2">
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-marquee-gold">
+            <div className="flex flex-col items-center">
+              <p className="font-display text-lg font-bold uppercase tracking-[0.18em] text-marquee-gold sm:text-xl">
                 Now showing
-              </p>
-              <p className="text-xs text-zinc-500">
-                {unwatchedCount} unwatched out of {movies.length} movies
               </p>
             </div>
             <h1
@@ -69,7 +63,7 @@ export function HomePage({
                 <AppLink
                   aria-label={`${nowShowing.title}${releaseYear ? ` (${releaseYear})` : ""}`}
                   className="transition hover:text-marquee-light"
-                  href={`/movies/${encodeURIComponent(nowShowing.movie_id)}`}
+                  href={`/movies/${encodeURIComponent(nowShowing.movie_id)}?from=now-showing`}
                   onNavigate={onNavigate}
                 >
                   {nowShowing.title}
@@ -326,7 +320,7 @@ function HistoryCard({
     <AppLink
       aria-label={`View details for ${movie.title}`}
       className="block h-full rounded-3xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-marquee-light"
-      href={`/movies/${encodeURIComponent(movie.id)}`}
+      href={`/movies/${encodeURIComponent(movie.id)}?from=now-showing`}
       onNavigate={onNavigate}
     >
       <Card className="h-full overflow-hidden p-4 transition hover:border-marquee-gold/35 hover:bg-curtain/10">

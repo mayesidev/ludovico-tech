@@ -8,6 +8,12 @@ describe("client routes", () => {
     expect(parseRoute("/movies/movie%20id")).toEqual({
       page: "movie",
       movieId: "movie id",
+      returnTo: "library",
+    });
+    expect(parseRoute("/movies/movie%20id", "?from=now-showing")).toEqual({
+      page: "movie",
+      movieId: "movie id",
+      returnTo: "now-showing",
     });
     expect(parseRoute("/franchises/saga%20id")).toEqual({
       page: "franchise",

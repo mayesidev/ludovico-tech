@@ -49,6 +49,7 @@ describe("movie library", () => {
       />,
     );
 
+    expect(screen.getByText("1 unwatched out of 2 movies")).toBeVisible();
     await user.type(
       screen.getByRole("textbox", { name: "Search movie library" }),
       "Zulu",
@@ -80,9 +81,9 @@ describe("movie library", () => {
     expect(screen.queryByText("In rotation")).toBeNull();
     expect(screen.queryByText("5/5")).toBeNull();
     const movieLink = screen.getByRole("link", { name: "Alpha Movie" });
-    expect(movieLink).toHaveAttribute("href", "/movies/first-id");
+    expect(movieLink).toHaveAttribute("href", "/movies/first-id?from=library");
     await user.click(movieLink);
-    expect(onNavigate).toHaveBeenCalledWith("/movies/first-id");
+    expect(onNavigate).toHaveBeenCalledWith("/movies/first-id?from=library");
     const franchiseLink = screen.getByRole("link", { name: "Test Saga" });
     expect(franchiseLink).toHaveAttribute("href", "/franchises/franchise-id");
     await user.click(screen.getByRole("button", { name: "Date added" }));
