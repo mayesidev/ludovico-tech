@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   LoaderCircle,
@@ -17,6 +17,7 @@ import {
 } from "../api";
 import type { Navigate, RunAction } from "../types";
 import { cn, formatDate } from "../lib/utils";
+import { selectWatchedHistory } from "../lib/watched-history";
 import { AppLink } from "./app-link";
 import { Badge, Button, Card, Input } from "./ui";
 import { Poster } from "./poster";
@@ -287,9 +288,7 @@ function RatingForm({
 }
 
 function HistorySection({ movies }: { movies: Movie[] }) {
-  const watchedMovies = movies
-    .filter((movie) => movie.rating_score !== null)
-    .sort((a, b) => (b.watched_at ?? "").localeCompare(a.watched_at ?? ""));
+  const watchedMovies = useMemo(() => selectWatchedHistory(movies), [movies]);
 
   return (
     <section aria-labelledby="watched-movies-title">
@@ -301,7 +300,7 @@ function HistorySection({ movies }: { movies: Movie[] }) {
       </h2>
       {watchedMovies.length > 0 ? (
         <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {watchedMovies.slice(0, 4).map((movie) => (
+          {watchedMovies.map((movie) => (
             <HistoryCard key={movie.id} movie={movie} />
           ))}
         </div>
