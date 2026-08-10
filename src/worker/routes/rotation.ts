@@ -123,7 +123,14 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
 
   app.post(
     "/franchises/:id/order",
-    zValidator("json", orderInput),
+    zValidator("json", orderInput, (result, c) => {
+      if (!result.success) {
+        return c.json(
+          { error: "Order must contain valid movie identifiers" },
+          400,
+        );
+      }
+    }),
     async (c) => {
       const actor = await mutationActor(c);
       if (!actor) return c.json({ error: "Authentication required" }, 401);

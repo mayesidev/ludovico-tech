@@ -354,6 +354,15 @@ describe("Ludovico Tech Worker routes", () => {
       expect(invalid.response.status).toBe(400);
     }
 
+    const invalidIdentifier = await request<{ error: string }>(orderPath, {
+      method: "POST",
+      body: JSON.stringify({ movieIds: [first.body.movie.id, ""] }),
+    });
+    expect(invalidIdentifier.response.status).toBe(400);
+    expect(invalidIdentifier.body.error).toBe(
+      "Order must contain valid movie identifiers",
+    );
+
     const valid = await request(orderPath, {
       method: "POST",
       body: JSON.stringify({

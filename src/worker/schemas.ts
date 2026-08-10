@@ -26,5 +26,5 @@ export const ratingInput = z.object({
 });
 
 export const orderInput = z.object({
-  movieIds: z.array(z.string().uuid()).min(1),
+  movieIds: z.array(z.string().trim().min(1).max(200)).min(1),
 });

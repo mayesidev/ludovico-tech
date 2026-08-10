@@ -89,5 +89,15 @@ describe("client API", () => {
       message: "Something went wrong",
       status: 502,
     });
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse({ error: { issues: [{ message: "Invalid UUID" }] } }, 400),
+    );
+    await expect(
+      api.order("franchise-id", ["movie-imported"]),
+    ).rejects.toMatchObject({
+      message: "Request validation failed",
+      status: 400,
+    });
   });
 });
