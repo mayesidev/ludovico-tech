@@ -13,6 +13,7 @@ const movie: Movie = {
   rating_phrase: "There is no spoon",
   rating_score: 5,
   release_date: "1999-03-31",
+  runtime_minutes: 136,
   title: "Test Movie",
   tmdb_id: 603,
   watched_at: "2026-08-07T00:00:00.000Z",
@@ -29,6 +30,8 @@ describe("movie details", () => {
     expect(screen.getByText("Mar 31, 1999")).toBeVisible();
     expect(screen.getByText("Release date")).toBeVisible();
     expect(screen.getByText("Date added")).toBeVisible();
+    expect(screen.getByText("Runtime")).toBeVisible();
+    expect(screen.getByText("2h 16m")).toBeVisible();
     expect(screen.getByText("Aug 7, 2026")).toBeVisible();
     expect(screen.getByText("5")).toBeVisible();
     expect(screen.getByText("“There is no spoon”")).toBeVisible();
@@ -53,6 +56,7 @@ describe("movie details", () => {
           rating_phrase: null,
           rating_score: null,
           release_date: null,
+          runtime_minutes: null,
           tmdb_id: null,
           watched_at: null,
         }}
@@ -64,6 +68,7 @@ describe("movie details", () => {
     expect(screen.queryByRole("link", { name: "View on TMDB" })).toBeNull();
     expect(screen.queryByText("Test Saga")).toBeNull();
     expect(screen.queryByText("Release date")).toBeNull();
+    expect(screen.queryByText("Runtime")).toBeNull();
     expect(screen.getByText("Unknown date")).toBeVisible();
   });
 

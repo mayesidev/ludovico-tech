@@ -17,5 +17,13 @@ export const formatDate = (value: string | null | undefined) => {
   }).format(date);
 };
 
+export const formatRuntime = (minutes: number) => {
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  if (hours === 0) return `${remainingMinutes}m`;
+  if (remainingMinutes === 0) return `${hours}h`;
+  return `${hours}h ${remainingMinutes}m`;
+};
+
 export const posterUrl = (path: string | null | undefined) =>
   path ? `https://image.tmdb.org/t/p/w500${path}` : null;

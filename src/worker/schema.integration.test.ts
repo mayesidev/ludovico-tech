@@ -142,6 +142,24 @@ describe("catalog schema", () => {
     ).rejects.toThrow();
   });
 
+  it("allows only positive movie runtimes when known", async () => {
+    await insertMovie("movie-valid-runtime");
+    await env.DB.prepare("UPDATE movies SET runtime_minutes = ? WHERE id = ?")
+      .bind(123, "movie-valid-runtime")
+      .run();
+    expect(
+      await env.DB.prepare("SELECT runtime_minutes FROM movies WHERE id = ?")
+        .bind("movie-valid-runtime")
+        .first(),
+    ).toEqual({ runtime_minutes: 123 });
+
+    await expect(
+      env.DB.prepare("UPDATE movies SET runtime_minutes = 0 WHERE id = ?")
+        .bind("movie-valid-runtime")
+        .run(),
+    ).rejects.toThrow();
+  });
+
   it("keeps source provenance and actor identifiers out of public movie DTOs", async () => {
     await insertMovie("movie-public", "Public Movie");
     await env.DB.prepare(

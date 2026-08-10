@@ -11,6 +11,10 @@ export type TmdbMovie = {
   title: string;
 };
 
+export type TmdbMovieDetail = TmdbMovie & {
+  runtimeMinutes: number | null;
+};
+
 export class TmdbServiceError extends Error {
   readonly retryAfter: string | null;
   readonly status: 429 | 502 | 503;
@@ -132,6 +136,19 @@ const mapCachedMovie = (value: unknown): TmdbMovie | null => {
   return movie as unknown as TmdbMovie;
 };
 
+const mapCachedMovieDetail = (value: unknown): TmdbMovieDetail | null => {
+  const movie = mapCachedMovie(value);
+  if (!movie || !value || typeof value !== "object") return null;
+  const runtimeMinutes = (value as Record<string, unknown>).runtimeMinutes;
+  if (
+    runtimeMinutes !== null &&
+    (!Number.isSafeInteger(runtimeMinutes) || Number(runtimeMinutes) <= 0)
+  ) {
+    return null;
+  }
+  return { ...movie, runtimeMinutes: runtimeMinutes as number | null };
+};
+
 const mapMovie = (value: unknown): TmdbMovie | null => {
   if (!value || typeof value !== "object") return null;
   const movie = value as Record<string, unknown>;
@@ -156,6 +173,23 @@ const mapMovie = (value: unknown): TmdbMovie | null => {
       ? String(movie.release_date)
       : null,
     title: movie.title.trim().slice(0, 200),
+  };
+};
+
+const mapMovieDetail = (value: unknown): TmdbMovieDetail | null => {
+  const movie = mapMovie(value);
+  if (!movie || !value || typeof value !== "object") return null;
+  const runtime = (value as Record<string, unknown>).runtime;
+  if (
+    runtime !== null &&
+    runtime !== 0 &&
+    (!Number.isSafeInteger(runtime) || Number(runtime) <= 0)
+  ) {
+    return null;
+  }
+  return {
+    ...movie,
+    runtimeMinutes: runtime === null || runtime === 0 ? null : Number(runtime),
   };
 };
 
@@ -202,7 +236,7 @@ export const getTmdbMovie = async (
   movieId: number,
 ) => {
   const key = await cacheKey("movie", String(movieId));
-  const cached = mapCachedMovie(await readCache<unknown>(env, key));
+  const cached = mapCachedMovieDetail(await readCache<unknown>(env, key));
   if (cached) return cached;
 
   const value = await fetchTmdb(
@@ -210,7 +244,7 @@ export const getTmdbMovie = async (
     `/3/movie/${movieId}`,
     new URLSearchParams({ language: "en-US" }),
   );
-  const movie = mapMovie(value);
+  const movie = mapMovieDetail(value);
   if (!movie || movie.id !== movieId) throw new TmdbServiceError(502);
   await writeCache(env, key, movie, DETAIL_TTL_MS);
   return movie;

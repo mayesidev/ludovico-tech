@@ -49,11 +49,12 @@ const reconciliation = (
       posterPath: "/synthetic.jpg",
       providerTitleNormalized: "synthetic movie",
       releaseDate: "2024-01-02",
+      runtimeMinutes: 123,
       sourceTitleNormalized: "synthetic movie",
       tmdbId: 42,
     },
   ],
-  schemaVersion: 1,
+  schemaVersion: 2,
   ...overrides,
 });
 
@@ -569,6 +570,14 @@ describe("deterministic import planning", () => {
       parseTmdbReconciliationJson(
         JSON.stringify({
           ...valid,
+          matches: [{ ...valid.matches[0], runtimeMinutes: 0 }],
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseTmdbReconciliationJson(
+        JSON.stringify({
+          ...valid,
           matches: [
             {
               ...valid.matches[0],
@@ -604,6 +613,7 @@ describe("update-only TMDB metadata planning", () => {
     });
     expect(plan.diagnostics).toEqual([]);
     expect(sql).toContain("UPDATE movies SET release_date");
+    expect(sql).toContain("runtime_minutes = 123");
     expect(sql).toContain(
       "WHERE legacy_imdb_id = 'tt1234567' AND title_normalized = 'synthetic movie'",
     );

@@ -12,6 +12,11 @@ export type TmdbFindMovie = {
   title: string;
 };
 
+export type TmdbMovieDetail = {
+  id: number;
+  runtimeMinutes: number | null;
+};
+
 export type TmdbReconciliationDiagnosticCode =
   | "DUPLICATE_EXTERNAL_ID"
   | "DUPLICATE_TMDB_ID"
@@ -36,6 +41,7 @@ export type TmdbReconciliationResult = {
 };
 
 export type FindTmdbMovies = (legacyImdbId: string) => Promise<TmdbFindMovie[]>;
+export type GetTmdbMovie = (tmdbId: number) => Promise<TmdbMovieDetail>;
 
 const mapProviderMovie = (value: unknown): TmdbFindMovie | null => {
   if (!value || typeof value !== "object") return null;
@@ -76,12 +82,35 @@ export const parseTmdbFindResponse = (
     : null;
 };
 
+export const parseTmdbMovieResponse = (
+  value: unknown,
+): TmdbMovieDetail | null => {
+  if (!value || typeof value !== "object") return null;
+  const movie = value as Record<string, unknown>;
+  if (!Number.isInteger(movie.id) || Number(movie.id) <= 0) return null;
+  if (
+    movie.runtime !== null &&
+    movie.runtime !== 0 &&
+    (!Number.isSafeInteger(movie.runtime) || Number(movie.runtime) < 0)
+  ) {
+    return null;
+  }
+  return {
+    id: Number(movie.id),
+    runtimeMinutes:
+      movie.runtime === null || movie.runtime === 0
+        ? null
+        : Number(movie.runtime),
+  };
+};
+
 const identityKey = (title: string, franchiseName: string | null) =>
   `${normalizeCatalogText(title)}\u0000${normalizeCatalogText(franchiseName ?? "")}`;
 
 export const reconcileTmdb = async (
   source: GeneralizedImportDocument,
   findMovies: FindTmdbMovies,
+  getMovie: GetTmdbMovie,
   generatedAt: string,
 ): Promise<TmdbReconciliationResult> => {
   const groups = new Map<
@@ -138,11 +167,26 @@ export const reconcileTmdb = async (
       continue;
     }
 
+    let providerDetail: TmdbMovieDetail;
+    try {
+      providerDetail = await getMovie(providerMovies[0].id);
+    } catch {
+      diagnostics.push({ code: "LOOKUP_FAILED", sourceRows });
+      complete = false;
+      break;
+    }
+    if (providerDetail.id !== providerMovies[0].id) {
+      diagnostics.push({ code: "LOOKUP_FAILED", sourceRows });
+      complete = false;
+      break;
+    }
+
     matches.push({
       legacyImdbId: rows[0].legacyImdbId!,
       posterPath: providerMovies[0].posterPath,
       providerTitleNormalized,
       releaseDate: providerMovies[0].releaseDate,
+      runtimeMinutes: providerDetail.runtimeMinutes,
       sourceTitleNormalized,
       tmdbId: providerMovies[0].id,
     });

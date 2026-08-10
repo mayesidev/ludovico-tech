@@ -1,6 +1,6 @@
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import type { Movie } from "../api";
-import { formatDate } from "../lib/utils";
+import { formatDate, formatRuntime } from "../lib/utils";
 import { AppLink } from "./app-link";
 import { Poster } from "./poster";
 import { Badge, Card } from "./ui";
@@ -60,6 +60,14 @@ export function MovieDetailPage({ movie, onNavigate }: MovieDetailPageProps) {
                 <dt className="text-zinc-500">Release date</dt>
                 <dd className="mt-1 text-zinc-300">
                   {formatDate(movie.release_date)}
+                </dd>
+              </div>
+            )}
+            {movie.runtime_minutes !== null && (
+              <div>
+                <dt className="text-zinc-500">Runtime</dt>
+                <dd className="mt-1 text-zinc-300">
+                  {formatRuntime(movie.runtime_minutes)}
                 </dd>
               </div>
             )}

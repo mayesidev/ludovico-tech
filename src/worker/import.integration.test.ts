@@ -47,11 +47,12 @@ const syntheticReconciliation: TmdbReconciliationDocument = {
       posterPath: "/synthetic-two.jpg",
       providerTitleNormalized: "synthetic movie two",
       releaseDate: "2024-01-02",
+      runtimeMinutes: 123,
       sourceTitleNormalized: "synthetic movie two",
       tmdbId: 42,
     },
   ],
-  schemaVersion: 1,
+  schemaVersion: 2,
 };
 
 const request = async <T>(path: string, init?: RequestInit) => {
@@ -150,7 +151,7 @@ describe("generalized catalog import", () => {
     }
 
     const movie = await env.DB.prepare(
-      `SELECT title, release_date, poster_path, tmdb_id, tmdb_fetched_at
+      `SELECT title, release_date, poster_path, runtime_minutes, tmdb_id, tmdb_fetched_at
        FROM movies WHERE legacy_imdb_id = ?`,
     )
       .bind("tt1234568")
@@ -160,6 +161,7 @@ describe("generalized catalog import", () => {
     expect(movie).toEqual({
       poster_path: "/synthetic-two.jpg",
       release_date: "2024-01-02",
+      runtime_minutes: 123,
       title: "Synthetic Movie Two",
       tmdb_fetched_at: "2026-08-10T10:00:00.000Z",
       tmdb_id: 42,

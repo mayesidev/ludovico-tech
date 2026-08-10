@@ -16,6 +16,7 @@ const movie = (id: string, title: string): Movie => ({
   rating_phrase: null,
   rating_score: null,
   release_date: null,
+  runtime_minutes: null,
   title,
   tmdb_id: null,
   watched_at: null,

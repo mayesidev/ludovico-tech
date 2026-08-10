@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { GeneralizedImportDocument } from "./import-sheet-lib";
 import {
   parseTmdbFindResponse,
+  parseTmdbMovieResponse,
   reconcileTmdb,
   type TmdbFindMovie,
 } from "./reconcile-tmdb-lib";
@@ -38,6 +39,8 @@ const match = (overrides: Partial<TmdbFindMovie> = {}): TmdbFindMovie => ({
 });
 
 const generatedAt = "2026-08-10T10:00:00.000Z";
+const getMovie = () =>
+  vi.fn().mockResolvedValue({ id: 42, runtimeMinutes: 123 });
 
 describe("TMDB import reconciliation", () => {
   it("accepts only a sanitized TMDB find response", () => {
@@ -55,14 +58,30 @@ describe("TMDB import reconciliation", () => {
       }),
     ).toEqual([match()]);
     expect(parseTmdbFindResponse({ movie_results: [{ id: "42" }] })).toBeNull();
+    expect(parseTmdbMovieResponse({ id: 42, runtime: 123 })).toEqual({
+      id: 42,
+      runtimeMinutes: 123,
+    });
+    expect(parseTmdbMovieResponse({ id: 42, runtime: 0 })).toEqual({
+      id: 42,
+      runtimeMinutes: null,
+    });
+    expect(parseTmdbMovieResponse({ id: 42, runtime: "123" })).toBeNull();
   });
 
   it("confirms one exact normalized title match", async () => {
     const find = vi.fn().mockResolvedValue([match()]);
-    const result = await reconcileTmdb(document([movie()]), find, generatedAt);
+    const detail = getMovie();
+    const result = await reconcileTmdb(
+      document([movie()]),
+      find,
+      detail,
+      generatedAt,
+    );
 
     expect(find).toHaveBeenCalledOnce();
     expect(find).toHaveBeenCalledWith("tt1234567");
+    expect(detail).toHaveBeenCalledWith(42);
     expect(result.diagnostics).toEqual([]);
     expect(result.document).toEqual({
       complete: true,
@@ -73,11 +92,12 @@ describe("TMDB import reconciliation", () => {
           posterPath: "/synthetic.jpg",
           providerTitleNormalized: "synthetic movie",
           releaseDate: "2024-01-02",
+          runtimeMinutes: 123,
           sourceTitleNormalized: "synthetic movie",
           tmdbId: 42,
         },
       ],
-      schemaVersion: 1,
+      schemaVersion: 2,
     });
   });
 
@@ -85,6 +105,7 @@ describe("TMDB import reconciliation", () => {
     const result = await reconcileTmdb(
       document([movie()]),
       vi.fn().mockResolvedValue([match({ title: "Different Movie" })]),
+      getMovie(),
       generatedAt,
     );
 
@@ -107,6 +128,7 @@ describe("TMDB import reconciliation", () => {
         }),
       ]),
       find,
+      getMovie(),
       generatedAt,
     );
 
@@ -122,6 +144,7 @@ describe("TMDB import reconciliation", () => {
     await reconcileTmdb(
       document([movie(), movie({ sourceRow: 3 })]),
       find,
+      getMovie(),
       generatedAt,
     );
 
@@ -133,6 +156,7 @@ describe("TMDB import reconciliation", () => {
     const result = await reconcileTmdb(
       document([movie(), movie({ legacyImdbId: "tt7654321", sourceRow: 3 })]),
       find,
+      getMovie(),
       generatedAt,
     );
 
@@ -157,6 +181,7 @@ describe("TMDB import reconciliation", () => {
         .fn()
         .mockResolvedValueOnce([match()])
         .mockResolvedValueOnce([match({ title: "Other Synthetic Movie" })]),
+      getMovie(),
       generatedAt,
     );
 
@@ -164,6 +189,21 @@ describe("TMDB import reconciliation", () => {
     expect(result.diagnostics).toEqual([
       { code: "DUPLICATE_TMDB_ID", sourceRows: [2] },
       { code: "DUPLICATE_TMDB_ID", sourceRows: [3] },
+    ]);
+  });
+
+  it("stops when authoritative movie details cannot be retrieved", async () => {
+    const result = await reconcileTmdb(
+      document([movie()]),
+      vi.fn().mockResolvedValue([match()]),
+      vi.fn().mockRejectedValue(new Error("provider unavailable")),
+      generatedAt,
+    );
+
+    expect(result.document.complete).toBe(false);
+    expect(result.document.matches).toEqual([]);
+    expect(result.diagnostics).toEqual([
+      { code: "LOOKUP_FAILED", sourceRows: [2] },
     ]);
   });
 });

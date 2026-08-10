@@ -132,8 +132,8 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     statements.push(
       c.env.DB.prepare(
         `INSERT INTO movies (id, title, title_normalized, added_at, added_by, updated_at, updated_by,
-        release_date, poster_path, tmdb_id, tmdb_fetched_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        release_date, poster_path, runtime_minutes, tmdb_id, tmdb_fetched_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         id,
         title,
@@ -144,6 +144,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         actor.id,
         metadata?.releaseDate ?? null,
         metadata?.posterPath ?? null,
+        metadata?.runtimeMinutes ?? null,
         input.tmdbId ?? null,
         input.tmdbId ? timestamp : null,
       ),
@@ -198,7 +199,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     await c.env.DB.batch([
       c.env.DB.prepare(
         `UPDATE movies SET title = ?, title_normalized = ?, updated_at = ?, updated_by = ?,
-        release_date = ?, poster_path = ?, tmdb_id = ?,
+        release_date = ?, poster_path = ?, runtime_minutes = ?, tmdb_id = ?,
         tmdb_fetched_at = CASE WHEN ? THEN ? ELSE tmdb_fetched_at END
         WHERE id = ?`,
       ).bind(
@@ -208,6 +209,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         actor.id,
         metadata?.releaseDate ?? existing.release_date,
         metadata?.posterPath ?? existing.poster_path,
+        metadata?.runtimeMinutes ?? existing.runtime_minutes,
         input.tmdbId === undefined ? existing.tmdb_id : input.tmdbId,
         input.tmdbId !== undefined ? 1 : 0,
         input.tmdbId ? timestamp : null,

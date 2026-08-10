@@ -13,6 +13,7 @@ const movie = (overrides: Partial<Movie> = {}): Movie => ({
   rating_phrase: null,
   rating_score: null,
   release_date: "2020-01-02",
+  runtime_minutes: null,
   title: "Test Movie",
   tmdb_id: null,
   watched_at: null,

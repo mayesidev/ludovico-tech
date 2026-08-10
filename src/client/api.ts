@@ -4,6 +4,7 @@ export type Movie = {
   added_at: string;
   release_date: string | null;
   poster_path: string | null;
+  runtime_minutes: number | null;
   tmdb_id: number | null;
   franchise_id: string | null;
   franchise_name?: string | null;
