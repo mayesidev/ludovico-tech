@@ -658,7 +658,7 @@ describe("production authorization boundary", () => {
     const bindings = productionEnv({ ALLOWED_EMAILS: invitedEmail });
     const publicReads = [
       "/api/movies",
-      "/api/franchises",
+      "/api/collections",
       "/api/now-showing",
       "/api/auth/me",
     ];
@@ -681,7 +681,7 @@ describe("production authorization boundary", () => {
       ],
       ["/api/roll", "POST"],
       [
-        "/api/franchises/00000000-0000-4000-8000-000000000001/order",
+        "/api/collections/00000000-0000-4000-8000-000000000001/order",
         "POST",
         { movieIds: ["00000000-0000-4000-8000-000000000001"] },
       ],

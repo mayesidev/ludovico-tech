@@ -14,8 +14,8 @@ const source: GeneralizedImportDocument = {
   nowShowingSourceRow: null,
   rows: [
     {
-      franchiseIndicated: false,
-      franchiseName: null,
+      collectionIndicated: false,
+      collectionName: null,
       legacyImdbId: "tt1234567",
       priorViewed: false,
       rating: null,
@@ -24,7 +24,7 @@ const source: GeneralizedImportDocument = {
       title: "Synthetic Movie",
     },
   ],
-  schemaVersion: 2,
+  schemaVersion: 3,
   validated: true,
 };
 

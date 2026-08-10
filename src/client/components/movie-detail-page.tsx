@@ -106,16 +106,16 @@ export function MovieDetailPage({
                 {formatDate(movie.added_at)}
               </dd>
             </div>
-            {movie.franchise_name && movie.franchise_id && (
+            {movie.collection_name && movie.collection_id && (
               <div>
-                <dt className="text-zinc-500">Series / franchise</dt>
+                <dt className="text-zinc-500">Collection</dt>
                 <dd className="mt-1">
                   <AppLink
                     className="font-semibold text-marquee-light hover:text-cream"
-                    href={`/franchises/${encodeURIComponent(movie.franchise_id)}${returnTo === "now-showing" ? "?from=now-showing" : ""}`}
+                    href={`/collections/${encodeURIComponent(movie.collection_id)}${returnTo === "now-showing" ? "?from=now-showing" : ""}`}
                     onNavigate={onNavigate}
                   >
-                    {movie.franchise_name}
+                    {movie.collection_name}
                   </AppLink>
                 </dd>
               </div>

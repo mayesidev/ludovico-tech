@@ -104,8 +104,8 @@ export const parseTmdbMovieResponse = (
   };
 };
 
-const identityKey = (title: string, franchiseName: string | null) =>
-  `${normalizeCatalogText(title)}\u0000${normalizeCatalogText(franchiseName ?? "")}`;
+const identityKey = (title: string, collectionName: string | null) =>
+  `${normalizeCatalogText(title)}\u0000${normalizeCatalogText(collectionName ?? "")}`;
 
 export const reconcileTmdb = async (
   source: GeneralizedImportDocument,
@@ -133,7 +133,7 @@ export const reconcileTmdb = async (
   )) {
     const sourceRows = rows.map((row) => row.sourceRow).sort((a, b) => a - b);
     const identities = new Set(
-      rows.map((row) => identityKey(row.title, row.franchiseName)),
+      rows.map((row) => identityKey(row.title, row.collectionName)),
     );
     if (identities.size !== 1) {
       diagnostics.push({ code: "DUPLICATE_EXTERNAL_ID", sourceRows });

@@ -6,9 +6,9 @@ import { api, ApiError, type AuthState, type Movie } from "./api";
 
 const movie: Movie = {
   added_at: "2026-08-07T00:00:00.000Z",
-  franchise_id: "franchise-id",
-  franchise_name: "Test Saga",
-  franchise_position: 1,
+  collection_id: "collection-id",
+  collection_name: "Test Saga",
+  collection_position: 1,
   id: "movie-id",
   poster_path: null,
   rating_phrase: null,
@@ -37,7 +37,7 @@ const arrange = (auth: AuthState) => {
   vi.spyOn(api, "movies").mockResolvedValue({ movies: [movie] });
   vi.spyOn(api, "nowShowing").mockResolvedValue({
     nowShowing: null,
-    remainingFranchiseMovies: [],
+    remainingCollectionMovies: [],
   });
 };
 
@@ -229,7 +229,7 @@ describe("application authorization presentation", () => {
     await waitFor(() => expect(window.location.pathname).toBe("/"));
   });
 
-  it("expires authorization safely while saving franchise order", async () => {
+  it("expires authorization safely while saving collection order", async () => {
     arrange(authenticated);
     vi.mocked(api.authMe)
       .mockResolvedValueOnce(authenticated)
@@ -237,7 +237,7 @@ describe("application authorization presentation", () => {
     vi.spyOn(api, "order").mockRejectedValue(
       new ApiError("Authentication required", 401),
     );
-    window.history.replaceState(null, "", "/franchises/franchise-id");
+    window.history.replaceState(null, "", "/collections/collection-id");
     const user = userEvent.setup();
     render(<App />);
 
@@ -252,6 +252,6 @@ describe("application authorization presentation", () => {
     expect(
       screen.getByRole("button", { name: "Sign in to set the order" }),
     ).toBeVisible();
-    expect(api.order).toHaveBeenCalledWith("franchise-id", ["movie-id"]);
+    expect(api.order).toHaveBeenCalledWith("collection-id", ["movie-id"]);
   });
 });

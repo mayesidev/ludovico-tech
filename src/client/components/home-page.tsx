@@ -35,9 +35,9 @@ export function HomePage({
     nowShowing?.rating_score !== null && nowShowing?.rating_score !== undefined;
   const hasNext = remaining.some((movie) => movie.rating_score === null);
   const hasSelection = Boolean(nowShowing?.movie_id);
-  const franchiseId = nowShowing?.franchise_id;
-  const franchiseHref = franchiseId
-    ? `/franchises/${encodeURIComponent(franchiseId)}?from=now-showing`
+  const collectionId = nowShowing?.collection_id;
+  const collectionHref = collectionId
+    ? `/collections/${encodeURIComponent(collectionId)}?from=now-showing`
     : null;
 
   const releaseYear = nowShowing?.release_date?.slice(0, 4) ?? null;
@@ -75,13 +75,13 @@ export function HomePage({
                 "No movie selected"
               )}
             </h1>
-            {nowShowing?.franchise_name && franchiseHref && (
+            {nowShowing?.collection_name && collectionHref && (
               <AppLink
                 className="mt-4 inline-flex"
-                href={franchiseHref}
+                href={collectionHref}
                 onNavigate={onNavigate}
               >
-                <Badge>{nowShowing.franchise_name}</Badge>
+                <Badge>{nowShowing.collection_name}</Badge>
               </AppLink>
             )}
 
@@ -115,21 +115,21 @@ export function HomePage({
               <RatingForm busy={busy} movieId={nowShowing.movie_id} run={run} />
             ) : canMutate ? (
               <div className="mt-8 flex flex-wrap justify-center gap-3">
-                {nowShowing?.status === "pending_order" && franchiseHref && (
+                {nowShowing?.status === "pending_order" && collectionHref && (
                   <Button
                     disabled={busy}
-                    onClick={() => onNavigate(franchiseHref)}
+                    onClick={() => onNavigate(collectionHref)}
                   >
-                    Confirm franchise order
+                    Confirm collection order
                   </Button>
                 )}
-                {isWatched && franchiseId && hasNext && (
+                {isWatched && collectionId && hasNext && (
                   <Button
                     onClick={() => void run(() => api.next())}
                     disabled={busy}
                   >
                     <ArrowDown size={16} />
-                    Continue series
+                    Continue collection
                   </Button>
                 )}
                 {nowShowing?.status !== "pending_order" && (
@@ -139,7 +139,7 @@ export function HomePage({
                     ) : (
                       <RotateCw size={16} />
                     )}
-                    {isWatched && franchiseId && hasNext
+                    {isWatched && collectionId && hasNext
                       ? "Choose another movie"
                       : hasSelection
                         ? "Choose the next movie"
@@ -149,12 +149,12 @@ export function HomePage({
               </div>
             ) : (
               <div className="mt-8 text-center">
-                {nowShowing?.status === "pending_order" && franchiseHref ? (
+                {nowShowing?.status === "pending_order" && collectionHref ? (
                   <Button
-                    onClick={() => onNavigate(franchiseHref)}
+                    onClick={() => onNavigate(collectionHref)}
                     variant="secondary"
                   >
-                    Review franchise order
+                    Review collection order
                   </Button>
                 ) : (
                   <Button onClick={onLogin} variant="secondary">

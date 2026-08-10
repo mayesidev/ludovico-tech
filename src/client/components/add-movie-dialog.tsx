@@ -19,13 +19,13 @@ export function AddMovieDialog({
   run: RunAction;
 }) {
   const [title, setTitle] = useState("");
-  const [franchiseName, setFranchiseName] = useState("");
+  const [collectionName, setCollectionName] = useState("");
   const [tmdbId, setTmdbId] = useState("");
   const [attempted, setAttempted] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const dialogTitleId = useId();
   const dialogDescriptionId = useId();
-  const franchiseId = useId();
+  const collectionId = useId();
   const titleErrorId = useId();
   const parsedTmdbId = parseTmdbId(tmdbId);
   const invalidTitle = attempted && !title.trim();
@@ -74,14 +74,14 @@ export function AddMovieDialog({
             Enter a movie title.
           </p>
         )}
-        <label className="sr-only" htmlFor={franchiseId}>
-          Series or franchise (optional)
+        <label className="sr-only" htmlFor={collectionId}>
+          Collection (optional)
         </label>
         <Input
-          id={franchiseId}
-          value={franchiseName}
-          onChange={(event) => setFranchiseName(event.target.value)}
-          placeholder="Series / franchise (optional)"
+          id={collectionId}
+          value={collectionName}
+          onChange={(event) => setCollectionName(event.target.value)}
+          placeholder="Collection (optional)"
         />
       </div>
 
@@ -100,7 +100,7 @@ export function AddMovieDialog({
                 () =>
                   api.addMovie({
                     title,
-                    franchiseName,
+                    collectionName,
                     tmdbId: parsedTmdbId,
                   }),
                 onClose,

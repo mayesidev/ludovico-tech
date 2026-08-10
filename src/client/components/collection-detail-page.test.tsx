@@ -3,13 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { api, type Movie } from "../api";
 import type { RunAction } from "../types";
-import { FranchiseDetailPage } from "./franchise-detail-page";
+import { CollectionDetailPage } from "./collection-detail-page";
 
 const movie = (overrides: Partial<Movie>): Movie => ({
   added_at: "2026-08-07T00:00:00.000Z",
-  franchise_id: "franchise-id",
-  franchise_name: "Test Saga",
-  franchise_position: 1,
+  collection_id: "collection-id",
+  collection_name: "Test Saga",
+  collection_position: 1,
   id: "first-id",
   poster_path: null,
   rating_phrase: null,
@@ -24,7 +24,7 @@ const movie = (overrides: Partial<Movie>): Movie => ({
 
 const movies = [
   movie({
-    franchise_position: 2,
+    collection_position: 2,
     id: "second-id",
     rating_phrase: "A sequel phrase",
     rating_score: 4,
@@ -32,7 +32,7 @@ const movies = [
     watched_at: "2026-08-07T00:00:00.000Z",
   }),
   movie({}),
-  movie({ franchise_id: null, franchise_name: null, id: "outside-id" }),
+  movie({ collection_id: null, collection_name: null, id: "outside-id" }),
 ];
 
 const run: RunAction = async (action, after) => {
@@ -40,15 +40,15 @@ const run: RunAction = async (action, after) => {
   after?.();
 };
 
-describe("franchise details", () => {
+describe("collection details", () => {
   it("lists every member in saved order and persists a complete reorder", async () => {
     vi.spyOn(api, "order").mockResolvedValue({ nowShowing: {} as never });
     const user = userEvent.setup();
     render(
-      <FranchiseDetailPage
+      <CollectionDetailPage
         busy={false}
         canMutate
-        franchiseId="franchise-id"
+        collectionId="collection-id"
         movies={movies}
         onLogin={vi.fn()}
         onNavigate={vi.fn()}
@@ -73,7 +73,7 @@ describe("franchise details", () => {
     await user.click(screen.getByRole("button", { name: "Save order" }));
 
     await waitFor(() =>
-      expect(api.order).toHaveBeenCalledWith("franchise-id", [
+      expect(api.order).toHaveBeenCalledWith("collection-id", [
         "second-id",
         "first-id",
       ]),
@@ -85,10 +85,10 @@ describe("franchise details", () => {
     const onLogin = vi.fn();
     const user = userEvent.setup();
     render(
-      <FranchiseDetailPage
+      <CollectionDetailPage
         busy={false}
         canMutate={false}
-        franchiseId="franchise-id"
+        collectionId="collection-id"
         movies={movies}
         onLogin={onLogin}
         onNavigate={vi.fn()}
@@ -107,10 +107,10 @@ describe("franchise details", () => {
 
   it("renders a useful not-found state", () => {
     render(
-      <FranchiseDetailPage
+      <CollectionDetailPage
         busy={false}
         canMutate={false}
-        franchiseId="missing-id"
+        collectionId="missing-id"
         movies={movies}
         onLogin={vi.fn()}
         onNavigate={vi.fn()}
@@ -120,7 +120,7 @@ describe("franchise details", () => {
     );
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "Franchise not found" }),
+      screen.getByRole("heading", { level: 1, name: "Collection not found" }),
     ).toBeVisible();
     expect(
       screen.getByRole("link", { name: "Return to the library" }),
@@ -131,10 +131,10 @@ describe("franchise details", () => {
     vi.spyOn(api, "order").mockResolvedValue({ nowShowing: {} as never });
     const user = userEvent.setup();
     render(
-      <FranchiseDetailPage
+      <CollectionDetailPage
         busy={false}
         canMutate
-        franchiseId="franchise-id"
+        collectionId="collection-id"
         movies={movies}
         onLogin={vi.fn()}
         onNavigate={vi.fn()}

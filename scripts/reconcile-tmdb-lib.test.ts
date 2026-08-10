@@ -10,8 +10,8 @@ import {
 const movie = (
   overrides: Partial<GeneralizedImportDocument["rows"][number]> = {},
 ): GeneralizedImportDocument["rows"][number] => ({
-  franchiseIndicated: false,
-  franchiseName: null,
+  collectionIndicated: false,
+  collectionName: null,
   legacyImdbId: "tt1234567",
   priorViewed: false,
   rating: null,
@@ -26,7 +26,7 @@ const document = (
 ): GeneralizedImportDocument => ({
   nowShowingSourceRow: null,
   rows,
-  schemaVersion: 2,
+  schemaVersion: 3,
   validated: true,
 });
 
@@ -121,8 +121,8 @@ describe("TMDB import reconciliation", () => {
       document([
         movie(),
         movie({
-          franchiseIndicated: true,
-          franchiseName: "Distinct Saga",
+          collectionIndicated: true,
+          collectionName: "Distinct Saga",
           sourceRow: 3,
           title: "Distinct Movie",
         }),

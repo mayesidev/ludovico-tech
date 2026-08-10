@@ -7,9 +7,9 @@ import { LibraryPage } from "./library-page";
 const movies: Movie[] = [
   {
     added_at: "2026-08-07T00:00:00.000Z",
-    franchise_id: "franchise-id",
-    franchise_name: "Test Saga",
-    franchise_position: 2,
+    collection_id: "collection-id",
+    collection_name: "Test Saga",
+    collection_position: 2,
     id: "second-id",
     poster_path: null,
     rating_phrase: null,
@@ -22,7 +22,7 @@ const movies: Movie[] = [
   },
   {
     added_at: "2026-08-07T00:00:00.000Z",
-    franchise_id: null,
+    collection_id: null,
     id: "first-id",
     poster_path: null,
     rating_phrase: "A favorite",
@@ -58,7 +58,7 @@ describe("movie library", () => {
     expect(screen.getByText("Zulu Movie")).toBeVisible();
     expect(screen.queryByText("Alpha Movie")).toBeNull();
     expect(
-      screen.getByRole("columnheader", { name: "Franchise" }),
+      screen.getByRole("columnheader", { name: "Collection" }),
     ).toBeVisible();
     expect(
       screen.getByRole("columnheader", { name: "Date added" }),
@@ -85,8 +85,11 @@ describe("movie library", () => {
     expect(movieLink).toHaveAttribute("href", "/movies/first-id?from=library");
     await user.click(movieLink);
     expect(onNavigate).toHaveBeenCalledWith("/movies/first-id?from=library");
-    const franchiseLink = screen.getByRole("link", { name: "Test Saga" });
-    expect(franchiseLink).toHaveAttribute("href", "/franchises/franchise-id");
+    const collectionLink = screen.getByRole("link", { name: "Test Saga" });
+    expect(collectionLink).toHaveAttribute(
+      "href",
+      "/collections/collection-id",
+    );
     const tmdbLink = screen.getByRole("link", { name: "View on TMDB" });
     expect(tmdbLink).toHaveAttribute(
       "href",

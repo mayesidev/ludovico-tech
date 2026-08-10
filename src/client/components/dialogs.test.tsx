@@ -8,9 +8,9 @@ import { EditMovieDialog } from "./edit-movie-dialog";
 
 const movie = (id: string, title: string): Movie => ({
   added_at: "2026-08-07T00:00:00.000Z",
-  franchise_id: "franchise-id",
-  franchise_name: "Test Saga",
-  franchise_position: 1,
+  collection_id: "collection-id",
+  collection_name: "Test Saga",
+  collection_position: 1,
   id,
   poster_path: null,
   rating_phrase: null,
@@ -66,7 +66,7 @@ describe("accessible dialogs", () => {
     await user.type(input, "Updated Title");
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     expect(api.updateMovie).toHaveBeenCalledWith("movie-id", {
-      franchiseName: "Test Saga",
+      collectionName: "Test Saga",
       title: "Updated Title",
       tmdbId: null,
     });
@@ -79,7 +79,7 @@ describe("accessible dialogs", () => {
     expect(trigger).toHaveFocus();
   });
 
-  it("searches again after a title change and updates franchise membership", async () => {
+  it("searches again after a title change and updates collection membership", async () => {
     vi.spyOn(api, "tmdbSearch").mockResolvedValue({
       results: [
         {
@@ -93,7 +93,7 @@ describe("accessible dialogs", () => {
     vi.spyOn(api, "updateMovie").mockResolvedValue({
       movie: {
         ...movie("movie-id", "Authoritative Title"),
-        franchise_name: "New Saga",
+        collection_name: "New Saga",
         tmdb_id: 42,
       },
     });
@@ -109,15 +109,15 @@ describe("accessible dialogs", () => {
     await user.click(
       await screen.findByRole("button", { name: /Authoritative Title/ }),
     );
-    const franchise = screen.getByRole("textbox", {
-      name: "Series or franchise",
+    const collection = screen.getByRole("textbox", {
+      name: "Collection",
     });
-    await user.clear(franchise);
-    await user.type(franchise, "New Saga");
+    await user.clear(collection);
+    await user.type(collection, "New Saga");
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
     expect(api.updateMovie).toHaveBeenCalledWith("movie-id", {
-      franchiseName: "New Saga",
+      collectionName: "New Saga",
       title: "Authoritative Title",
       tmdbId: 42,
     });

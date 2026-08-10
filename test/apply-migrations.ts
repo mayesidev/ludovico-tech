@@ -15,9 +15,9 @@ beforeEach(async () => {
     env.DB.prepare("DELETE FROM now_showing"),
     env.DB.prepare("DELETE FROM ratings"),
     env.DB.prepare("DELETE FROM movie_import_sources"),
-    env.DB.prepare("DELETE FROM franchise_movies"),
+    env.DB.prepare("DELETE FROM collection_movies"),
     env.DB.prepare("DELETE FROM movies"),
-    env.DB.prepare("DELETE FROM franchises"),
+    env.DB.prepare("DELETE FROM collections"),
     env.DB.prepare("DELETE FROM users"),
     env.DB.prepare(
       "INSERT INTO now_showing (id, status, updated_at) VALUES (1, 'empty', datetime('now'))",

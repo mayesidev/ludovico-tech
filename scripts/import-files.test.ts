@@ -14,7 +14,7 @@ describe("generated import files", () => {
     writeImportArtifacts(
       directory,
       [{ filename: "chunk-0001.sql", sql: "SELECT 1;\n" }],
-      { franchises: 0, movies: 1, ratings: 0, sources: 1 },
+      { collections: 0, movies: 1, ratings: 0, sources: 1 },
       "2026-08-06T20:00:00.000Z",
       [],
     );

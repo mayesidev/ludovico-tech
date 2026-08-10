@@ -4,7 +4,7 @@ import type { AppEnv } from "../env";
 import {
   getMovie,
   getNowShowing,
-  getRemainingFranchiseMovies,
+  getRemainingCollectionMovies,
   movieSelect,
   type MovieRow,
 } from "../db";
@@ -29,42 +29,45 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     return c.json({ movies: result.results });
   });
 
-  app.get("/franchises", async (c) => {
+  app.get("/collections", async (c) => {
     const result = await c.env.DB.prepare(
-      `SELECT franchises.*, COUNT(movies.id) AS movie_count,
+      `SELECT collections.*, COUNT(movies.id) AS movie_count,
       SUM(CASE WHEN ratings.id IS NOT NULL THEN 1 ELSE 0 END) AS watched_count
-     FROM franchises
-     LEFT JOIN franchise_movies ON franchise_movies.franchise_id = franchises.id
-     LEFT JOIN movies ON movies.id = franchise_movies.movie_id
+     FROM collections
+     LEFT JOIN collection_movies ON collection_movies.collection_id = collections.id
+     LEFT JOIN movies ON movies.id = collection_movies.movie_id
      LEFT JOIN ratings ON ratings.movie_id = movies.id
-     GROUP BY franchises.id ORDER BY franchises.name COLLATE NOCASE`,
+     GROUP BY collections.id ORDER BY collections.name COLLATE NOCASE`,
     ).all();
-    return c.json({ franchises: result.results });
+    return c.json({ collections: result.results });
   });
 
-  app.get("/franchises/:id", async (c) => {
-    const franchise = await c.env.DB.prepare(
-      "SELECT id, name, order_confirmed, created_at, updated_at FROM franchises WHERE id = ?",
+  app.get("/collections/:id", async (c) => {
+    const collection = await c.env.DB.prepare(
+      "SELECT id, name, order_confirmed, created_at, updated_at FROM collections WHERE id = ?",
     )
       .bind(c.req.param("id"))
       .first();
-    if (!franchise) return c.json({ error: "Franchise not found" }, 404);
+    if (!collection) return c.json({ error: "Collection not found" }, 404);
 
     const movies = await c.env.DB.prepare(
-      `${movieSelect} WHERE franchise_movies.franchise_id = ? ORDER BY franchise_movies.position ASC`,
+      `${movieSelect} WHERE collection_movies.collection_id = ? ORDER BY collection_movies.position ASC`,
     )
       .bind(c.req.param("id"))
       .all<MovieRow>();
-    return c.json({ franchise, movies: movies.results });
+    return c.json({ collection, movies: movies.results });
   });
 
   app.get("/now-showing", async (c) => {
     const current = await getNowShowing(c.env);
     if (!current) return c.json({ nowShowing: null });
-    const remaining = current.franchise_id
-      ? await getRemainingFranchiseMovies(c.env, current.franchise_id)
+    const remaining = current.collection_id
+      ? await getRemainingCollectionMovies(c.env, current.collection_id)
       : [];
-    return c.json({ nowShowing: current, remainingFranchiseMovies: remaining });
+    return c.json({
+      nowShowing: current,
+      remainingCollectionMovies: remaining,
+    });
   });
 
   app.post("/movies", zValidator("json", movieInput), async (c) => {
@@ -94,24 +97,24 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       }
     }
     const title = metadata?.title ?? input.title;
-    let franchiseId: string | null = null;
+    let collectionId: string | null = null;
     const statements: D1PreparedStatement[] = [];
 
-    if (input.franchiseName) {
+    if (input.collectionName) {
       const existing = await c.env.DB.prepare(
-        "SELECT id FROM franchises WHERE name_normalized = ?",
+        "SELECT id FROM collections WHERE name_normalized = ?",
       )
-        .bind(normalizeTitle(input.franchiseName))
+        .bind(normalizeTitle(input.collectionName))
         .first<{ id: string }>();
-      franchiseId = existing?.id ?? newId();
+      collectionId = existing?.id ?? newId();
       if (!existing) {
         statements.push(
           c.env.DB.prepare(
-            "INSERT INTO franchises (id, name, name_normalized, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO collections (id, name, name_normalized, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
           ).bind(
-            franchiseId,
-            input.franchiseName,
-            normalizeTitle(input.franchiseName),
+            collectionId,
+            input.collectionName,
+            normalizeTitle(input.collectionName),
             timestamp,
             timestamp,
           ),
@@ -119,12 +122,12 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       }
     }
 
-    const position = franchiseId
+    const position = collectionId
       ? ((
           await c.env.DB.prepare(
-            "SELECT COALESCE(MAX(position), 0) AS max_position FROM franchise_movies WHERE franchise_id = ?",
+            "SELECT COALESCE(MAX(position), 0) AS max_position FROM collection_movies WHERE collection_id = ?",
           )
-            .bind(franchiseId)
+            .bind(collectionId)
             .first<{ max_position: number }>()
         )?.max_position ?? 0) + 1
       : null;
@@ -150,11 +153,11 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       ),
     );
 
-    if (franchiseId && position !== null) {
+    if (collectionId && position !== null) {
       statements.push(
         c.env.DB.prepare(
-          "INSERT INTO franchise_movies (franchise_id, movie_id, position) VALUES (?, ?, ?)",
-        ).bind(franchiseId, id, position),
+          "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
+        ).bind(collectionId, id, position),
       );
     }
     statements.push(
@@ -220,40 +223,41 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       metadata?.runtimeMinutes ??
       (tmdbChangeRequested ? null : existing.runtime_minutes);
 
-    let targetFranchiseId = existing.franchise_id;
-    let targetFranchiseName: string | null = null;
-    let createFranchise = false;
-    const franchiseChangeRequested = input.franchiseName !== undefined;
-    if (franchiseChangeRequested) {
-      targetFranchiseName = input.franchiseName || null;
-      if (!targetFranchiseName) {
-        targetFranchiseId = null;
+    let targetCollectionId = existing.collection_id;
+    let targetCollectionName: string | null = null;
+    let createCollection = false;
+    const collectionChangeRequested = input.collectionName !== undefined;
+    if (collectionChangeRequested) {
+      targetCollectionName = input.collectionName || null;
+      if (!targetCollectionName) {
+        targetCollectionId = null;
       } else if (
-        existing.franchise_id &&
-        normalizeTitle(targetFranchiseName) ===
-          normalizeTitle(existing.franchise_name ?? "")
+        existing.collection_id &&
+        normalizeTitle(targetCollectionName) ===
+          normalizeTitle(existing.collection_name ?? "")
       ) {
-        targetFranchiseId = existing.franchise_id;
+        targetCollectionId = existing.collection_id;
       } else {
         const target = await c.env.DB.prepare(
-          "SELECT id FROM franchises WHERE name_normalized = ?",
+          "SELECT id FROM collections WHERE name_normalized = ?",
         )
-          .bind(normalizeTitle(targetFranchiseName))
+          .bind(normalizeTitle(targetCollectionName))
           .first<{ id: string }>();
-        targetFranchiseId = target?.id ?? newId();
-        createFranchise = !target;
+        targetCollectionId = target?.id ?? newId();
+        createCollection = !target;
       }
     }
 
     const membershipChanged =
-      franchiseChangeRequested && targetFranchiseId !== existing.franchise_id;
+      collectionChangeRequested &&
+      targetCollectionId !== existing.collection_id;
     const targetPosition =
-      membershipChanged && targetFranchiseId
+      membershipChanged && targetCollectionId
         ? ((
             await c.env.DB.prepare(
-              "SELECT COALESCE(MAX(position), 0) + 1 AS position FROM franchise_movies WHERE franchise_id = ?",
+              "SELECT COALESCE(MAX(position), 0) + 1 AS position FROM collection_movies WHERE collection_id = ?",
             )
-              .bind(targetFranchiseId)
+              .bind(targetCollectionId)
               .first<{ position: number }>()
           )?.position ?? 1)
         : null;
@@ -280,39 +284,39 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     ];
 
     if (membershipChanged) {
-      if (createFranchise && targetFranchiseId && targetFranchiseName) {
+      if (createCollection && targetCollectionId && targetCollectionName) {
         statements.push(
           c.env.DB.prepare(
-            "INSERT INTO franchises (id, name, name_normalized, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO collections (id, name, name_normalized, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
           ).bind(
-            targetFranchiseId,
-            targetFranchiseName,
-            normalizeTitle(targetFranchiseName),
+            targetCollectionId,
+            targetCollectionName,
+            normalizeTitle(targetCollectionName),
             timestamp,
             timestamp,
           ),
         );
       }
-      if (existing.franchise_id) {
+      if (existing.collection_id) {
         statements.push(
           c.env.DB.prepare(
-            "DELETE FROM franchise_movies WHERE franchise_id = ? AND movie_id = ?",
-          ).bind(existing.franchise_id, movieId),
+            "DELETE FROM collection_movies WHERE collection_id = ? AND movie_id = ?",
+          ).bind(existing.collection_id, movieId),
         );
       }
-      if (targetFranchiseId && targetPosition !== null) {
+      if (targetCollectionId && targetPosition !== null) {
         statements.push(
           c.env.DB.prepare(
-            "INSERT INTO franchise_movies (franchise_id, movie_id, position) VALUES (?, ?, ?)",
-          ).bind(targetFranchiseId, movieId, targetPosition),
+            "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
+          ).bind(targetCollectionId, movieId, targetPosition),
           c.env.DB.prepare(
-            "UPDATE franchises SET order_confirmed = 0, updated_at = ? WHERE id = ?",
-          ).bind(timestamp, targetFranchiseId),
+            "UPDATE collections SET order_confirmed = 0, updated_at = ? WHERE id = ?",
+          ).bind(timestamp, targetCollectionId),
         );
       }
       statements.push(
         c.env.DB.prepare(
-          `UPDATE now_showing SET franchise_id = ?,
+          `UPDATE now_showing SET collection_id = ?,
            status = CASE
              WHEN status = 'watched' THEN 'watched'
              WHEN ? IS NULL THEN 'ready'
@@ -320,19 +324,19 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
            END,
            updated_at = ?
            WHERE id = 1 AND movie_id = ?`,
-        ).bind(targetFranchiseId, targetFranchiseId, timestamp, movieId),
+        ).bind(targetCollectionId, targetCollectionId, timestamp, movieId),
       );
-      if (existing.franchise_id) {
+      if (existing.collection_id) {
         statements.push(
           c.env.DB.prepare(
-            "UPDATE franchises SET updated_at = ? WHERE id = ?",
-          ).bind(timestamp, existing.franchise_id),
+            "UPDATE collections SET updated_at = ? WHERE id = ?",
+          ).bind(timestamp, existing.collection_id),
           c.env.DB.prepare(
-            `DELETE FROM franchises WHERE id = ?
+            `DELETE FROM collections WHERE id = ?
              AND NOT EXISTS (
-               SELECT 1 FROM franchise_movies WHERE franchise_id = ?
+               SELECT 1 FROM collection_movies WHERE collection_id = ?
              )`,
-          ).bind(existing.franchise_id, existing.franchise_id),
+          ).bind(existing.collection_id, existing.collection_id),
         );
       }
     }
@@ -379,7 +383,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       ),
       c.env.DB.prepare(
         `UPDATE now_showing
-         SET rolled_movie_id = NULL, movie_id = NULL, franchise_id = NULL,
+         SET rolled_movie_id = NULL, movie_id = NULL, collection_id = NULL,
              status = 'empty', rolled_at = NULL, updated_at = ?
          WHERE id = 1 AND (movie_id = ? OR rolled_movie_id = ?)
            AND EXISTS (SELECT 1 FROM audit_log WHERE id = ?)`,
@@ -394,15 +398,15 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
          AND EXISTS (SELECT 1 FROM audit_log WHERE id = ?)`,
       ).bind(movieId, auditId),
     ];
-    if (existing.franchise_id) {
+    if (existing.collection_id) {
       statements.push(
         c.env.DB.prepare(
-          `DELETE FROM franchises WHERE id = ?
+          `DELETE FROM collections WHERE id = ?
            AND NOT EXISTS (
-             SELECT 1 FROM franchise_movies WHERE franchise_id = ?
+             SELECT 1 FROM collection_movies WHERE collection_id = ?
            )
            AND EXISTS (SELECT 1 FROM audit_log WHERE id = ?)`,
-        ).bind(existing.franchise_id, existing.franchise_id, auditId),
+        ).bind(existing.collection_id, existing.collection_id, auditId),
       );
     }
 

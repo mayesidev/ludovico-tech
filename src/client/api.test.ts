@@ -15,13 +15,13 @@ describe("client API", () => {
     await api.logout();
     await api.nowShowing();
     await api.movies("watched");
-    await api.franchise("franchise-id");
+    await api.collection("collection-id");
     await api.roll();
     await api.next();
     await api.rate("movie-id", 4.5, "Custom phrase");
-    await api.order("franchise-id", ["first", "second"]);
+    await api.order("collection-id", ["first", "second"]);
     await api.addMovie({
-      franchiseName: "Saga",
+      collectionName: "Saga",
       title: "Movie",
       tmdbId: 42,
     });
@@ -35,11 +35,11 @@ describe("client API", () => {
       "/api/auth/logout",
       "/api/now-showing",
       "/api/movies?status=watched",
-      "/api/franchises/franchise-id",
+      "/api/collections/collection-id",
       "/api/roll",
       "/api/next",
       "/api/movies/movie-id/rate",
-      "/api/franchises/franchise-id/order",
+      "/api/collections/collection-id/order",
       "/api/movies",
       "/api/movies/movie-id",
       "/api/movies/movie-id",
@@ -57,7 +57,7 @@ describe("client API", () => {
     });
     expect(fetchMock.mock.calls[9]?.[1]).toMatchObject({
       body: JSON.stringify({
-        franchiseName: "Saga",
+        collectionName: "Saga",
         title: "Movie",
         tmdbId: 42,
       }),
@@ -103,7 +103,7 @@ describe("client API", () => {
       jsonResponse({ error: { issues: [{ message: "Invalid UUID" }] } }, 400),
     );
     await expect(
-      api.order("franchise-id", ["movie-imported"]),
+      api.order("collection-id", ["movie-imported"]),
     ).rejects.toMatchObject({
       message: "Request validation failed",
       status: 400,

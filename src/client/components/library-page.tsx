@@ -49,16 +49,16 @@ export function LibraryPage({
         ),
       },
       {
-        accessorKey: "franchise_name",
-        header: "Franchise",
+        accessorKey: "collection_name",
+        header: "Collection",
         cell: ({ row }) =>
-          row.original.franchise_id && row.original.franchise_name ? (
+          row.original.collection_id && row.original.collection_name ? (
             <AppLink
               className="hover:text-marquee-light"
-              href={`/franchises/${encodeURIComponent(row.original.franchise_id)}`}
+              href={`/collections/${encodeURIComponent(row.original.collection_id)}`}
               onNavigate={onNavigate}
             >
-              {row.original.franchise_name}
+              {row.original.collection_name}
             </AppLink>
           ) : null,
       },

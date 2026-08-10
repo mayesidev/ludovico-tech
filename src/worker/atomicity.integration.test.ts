@@ -40,11 +40,11 @@ const withRejectedAudits = async (operation: () => Promise<void>) => {
 };
 
 describe("atomic catalog mutations", () => {
-  it("rolls back movie and franchise creation when its audit fails", async () => {
+  it("rolls back movie and collection creation when its audit fails", async () => {
     await withRejectedAudits(async () => {
       const response = await request("/movies", {
         title: "Atomic Creation",
-        franchiseName: "Atomic Series",
+        collectionName: "Atomic Collection",
       });
       expect(response.status).toBe(500);
       await expect(response.json()).resolves.toEqual({
@@ -55,13 +55,13 @@ describe("atomic catalog mutations", () => {
     const movie = await env.DB.prepare("SELECT id FROM movies WHERE title = ?")
       .bind("Atomic Creation")
       .first();
-    const franchise = await env.DB.prepare(
-      "SELECT id FROM franchises WHERE name = ?",
+    const collection = await env.DB.prepare(
+      "SELECT id FROM collections WHERE name = ?",
     )
-      .bind("Atomic Series")
+      .bind("Atomic Collection")
       .first();
     expect(movie).toBeNull();
-    expect(franchise).toBeNull();
+    expect(collection).toBeNull();
   });
 
   it("rolls back rating and Now Showing completion when its audit fails", async () => {
@@ -103,7 +103,7 @@ describe("atomic catalog mutations", () => {
       const response = await request(
         `/movies/${movieId}`,
         {
-          franchiseName: "Atomic Edit Series",
+          collectionName: "Atomic Edit Collection",
           title: "Changed Atomic Title",
         },
         "PATCH",
@@ -117,7 +117,7 @@ describe("atomic catalog mutations", () => {
     expect(movie?.title).toBe("Original Atomic Title");
     expect(
       await env.DB.prepare(
-        "SELECT id FROM franchises WHERE name = 'Atomic Edit Series'",
+        "SELECT id FROM collections WHERE name = 'Atomic Edit Collection'",
       ).first(),
     ).toBeNull();
   });
@@ -165,7 +165,7 @@ describe("atomic catalog mutations", () => {
     await insertMovie(movieId, "Atomic Roll");
     await env.DB.prepare(
       `UPDATE now_showing
-       SET movie_id = NULL, rolled_movie_id = NULL, franchise_id = NULL,
+       SET movie_id = NULL, rolled_movie_id = NULL, collection_id = NULL,
            status = 'empty', updated_at = ?
        WHERE id = 1`,
     )
@@ -189,51 +189,51 @@ describe("atomic catalog mutations", () => {
     expect(state).toEqual({ movie_id: null, status: "empty" });
   });
 
-  it("rolls back franchise order and pending selection when its audit fails", async () => {
-    const franchiseId = "20000000-0000-4000-8000-000000000001";
+  it("rolls back collection order and pending selection when its audit fails", async () => {
+    const collectionId = "20000000-0000-4000-8000-000000000001";
     const firstId = "20000000-0000-4000-8000-000000000002";
     const secondId = "20000000-0000-4000-8000-000000000003";
     await env.DB.prepare(
-      `INSERT INTO franchises
+      `INSERT INTO collections
        (id, name, name_normalized, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?)`,
     )
-      .bind(franchiseId, "Atomic Order", "atomic order", timestamp, timestamp)
+      .bind(collectionId, "Atomic Order", "atomic order", timestamp, timestamp)
       .run();
     await insertMovie(firstId, "Atomic Order One");
     await insertMovie(secondId, "Atomic Order Two");
     await env.DB.batch([
       env.DB.prepare(
-        "INSERT INTO franchise_movies (franchise_id, movie_id, position) VALUES (?, ?, ?)",
-      ).bind(franchiseId, firstId, 1),
+        "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
+      ).bind(collectionId, firstId, 1),
       env.DB.prepare(
-        "INSERT INTO franchise_movies (franchise_id, movie_id, position) VALUES (?, ?, ?)",
-      ).bind(franchiseId, secondId, 2),
+        "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
+      ).bind(collectionId, secondId, 2),
       env.DB.prepare(
         `UPDATE now_showing
-         SET movie_id = ?, rolled_movie_id = ?, franchise_id = ?,
+         SET movie_id = ?, rolled_movie_id = ?, collection_id = ?,
              status = 'pending_order', updated_at = ?
          WHERE id = 1`,
-      ).bind(firstId, firstId, franchiseId, timestamp),
+      ).bind(firstId, firstId, collectionId, timestamp),
     ]);
 
     await withRejectedAudits(async () => {
-      const response = await request(`/franchises/${franchiseId}/order`, {
+      const response = await request(`/collections/${collectionId}/order`, {
         movieIds: [secondId, firstId],
       });
       expect(response.status).toBe(500);
     });
 
     const membership = await env.DB.prepare(
-      `SELECT movie_id, position FROM franchise_movies
-       WHERE franchise_id = ? ORDER BY position`,
+      `SELECT movie_id, position FROM collection_movies
+       WHERE collection_id = ? ORDER BY position`,
     )
-      .bind(franchiseId)
+      .bind(collectionId)
       .all<{ movie_id: string; position: number }>();
-    const franchise = await env.DB.prepare(
-      "SELECT order_confirmed FROM franchises WHERE id = ?",
+    const collection = await env.DB.prepare(
+      "SELECT order_confirmed FROM collections WHERE id = ?",
     )
-      .bind(franchiseId)
+      .bind(collectionId)
       .first<{ order_confirmed: number }>();
     const state = await env.DB.prepare(
       "SELECT movie_id, status FROM now_showing WHERE id = 1",
@@ -242,21 +242,21 @@ describe("atomic catalog mutations", () => {
       { movie_id: firstId, position: 1 },
       { movie_id: secondId, position: 2 },
     ]);
-    expect(franchise?.order_confirmed).toBe(0);
+    expect(collection?.order_confirmed).toBe(0);
     expect(state).toEqual({ movie_id: firstId, status: "pending_order" });
   });
 
-  it("rolls back franchise continuation when its audit fails", async () => {
-    const franchiseId = "30000000-0000-4000-8000-000000000001";
+  it("rolls back collection continuation when its audit fails", async () => {
+    const collectionId = "30000000-0000-4000-8000-000000000001";
     const currentId = "30000000-0000-4000-8000-000000000002";
     const nextId = "30000000-0000-4000-8000-000000000003";
     await env.DB.prepare(
-      `INSERT INTO franchises
+      `INSERT INTO collections
        (id, name, name_normalized, order_confirmed, created_at, updated_at)
        VALUES (?, ?, ?, 1, ?, ?)`,
     )
       .bind(
-        franchiseId,
+        collectionId,
         "Atomic Continuation",
         "atomic continuation",
         timestamp,
@@ -267,11 +267,11 @@ describe("atomic catalog mutations", () => {
     await insertMovie(nextId, "Atomic Continuation Two");
     await env.DB.batch([
       env.DB.prepare(
-        "INSERT INTO franchise_movies (franchise_id, movie_id, position) VALUES (?, ?, ?)",
-      ).bind(franchiseId, currentId, 1),
+        "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
+      ).bind(collectionId, currentId, 1),
       env.DB.prepare(
-        "INSERT INTO franchise_movies (franchise_id, movie_id, position) VALUES (?, ?, ?)",
-      ).bind(franchiseId, nextId, 2),
+        "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
+      ).bind(collectionId, nextId, 2),
       env.DB.prepare(
         `INSERT INTO ratings
          (id, movie_id, recorded_at, watched_at, score, phrase, source)
@@ -286,10 +286,10 @@ describe("atomic catalog mutations", () => {
       ),
       env.DB.prepare(
         `UPDATE now_showing
-         SET movie_id = ?, rolled_movie_id = ?, franchise_id = ?,
+         SET movie_id = ?, rolled_movie_id = ?, collection_id = ?,
              status = 'watched', updated_at = ?
          WHERE id = 1`,
-      ).bind(currentId, currentId, franchiseId, timestamp),
+      ).bind(currentId, currentId, collectionId, timestamp),
     ]);
 
     await withRejectedAudits(async () => {

@@ -17,7 +17,7 @@ import {
 import { AddMovieDialog } from "./components/add-movie-dialog";
 import { DeleteMovieDialog } from "./components/delete-movie-dialog";
 import { EditMovieDialog } from "./components/edit-movie-dialog";
-import { FranchiseDetailPage } from "./components/franchise-detail-page";
+import { CollectionDetailPage } from "./components/collection-detail-page";
 import { HomePage } from "./components/home-page";
 import { LibraryPage } from "./components/library-page";
 import { MovieDetailPage } from "./components/movie-detail-page";
@@ -61,7 +61,7 @@ export default function App() {
         api.movies(),
       ]);
       setNowShowing(current.nowShowing);
-      setRemaining(current.remainingFranchiseMovies);
+      setRemaining(current.remainingCollectionMovies);
       setMovies(list.movies);
       setError(null);
     } catch (cause) {
@@ -123,12 +123,12 @@ export default function App() {
       setRolledTitle(result.rolledMovie.title);
 
       if (result.needsOrder) {
-        const franchiseId =
-          result.nowShowing.franchise_id ??
-          result.franchiseMovies[0]?.franchise_id;
-        if (franchiseId) {
+        const collectionId =
+          result.nowShowing.collection_id ??
+          result.collectionMovies[0]?.collection_id;
+        if (collectionId) {
           navigate(
-            `/franchises/${encodeURIComponent(franchiseId)}?from=now-showing`,
+            `/collections/${encodeURIComponent(collectionId)}?from=now-showing`,
           );
         }
       }
@@ -202,12 +202,12 @@ export default function App() {
             onEdit={setEditingMovie}
             onNavigate={navigate}
           />
-        ) : route.page === "franchise" ? (
-          <FranchiseDetailPage
+        ) : route.page === "collection" ? (
+          <CollectionDetailPage
             busy={busy}
             canMutate={canMutate}
-            franchiseId={route.franchiseId}
-            key={route.franchiseId}
+            collectionId={route.collectionId}
+            key={route.collectionId}
             movies={movies}
             onLogin={login}
             onNavigate={navigate}

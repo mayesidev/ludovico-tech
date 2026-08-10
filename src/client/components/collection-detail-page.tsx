@@ -5,10 +5,10 @@ import type { Navigate, RunAction } from "../types";
 import { AppLink } from "./app-link";
 import { Badge, Button, Card } from "./ui";
 
-type FranchiseDetailPageProps = {
+type CollectionDetailPageProps = {
   busy: boolean;
   canMutate: boolean;
-  franchiseId: string;
+  collectionId: string;
   movies: Movie[];
   onLogin: () => void;
   onNavigate: Navigate;
@@ -16,28 +16,28 @@ type FranchiseDetailPageProps = {
   run: RunAction;
 };
 
-const byFranchiseOrder = (left: Movie, right: Movie) => {
-  const leftPosition = left.franchise_position ?? Number.MAX_SAFE_INTEGER;
-  const rightPosition = right.franchise_position ?? Number.MAX_SAFE_INTEGER;
+const byCollectionOrder = (left: Movie, right: Movie) => {
+  const leftPosition = left.collection_position ?? Number.MAX_SAFE_INTEGER;
+  const rightPosition = right.collection_position ?? Number.MAX_SAFE_INTEGER;
   return leftPosition - rightPosition || left.title.localeCompare(right.title);
 };
 
-export function FranchiseDetailPage({
+export function CollectionDetailPage({
   busy,
   canMutate,
-  franchiseId,
+  collectionId,
   movies,
   onLogin,
   onNavigate,
   returnTo,
   run,
-}: FranchiseDetailPageProps) {
+}: CollectionDetailPageProps) {
   const members = useMemo(
     () =>
       movies
-        .filter((movie) => movie.franchise_id === franchiseId)
-        .sort(byFranchiseOrder),
-    [franchiseId, movies],
+        .filter((movie) => movie.collection_id === collectionId)
+        .sort(byCollectionOrder),
+    [collectionId, movies],
   );
   const [draft, setDraft] = useState(members);
   const [saved, setSaved] = useState(false);
@@ -53,10 +53,10 @@ export function FranchiseDetailPage({
     return (
       <div className="mx-auto max-w-3xl py-12 text-center">
         <h1 className="font-display text-4xl font-bold text-cream">
-          Franchise not found
+          Collection not found
         </h1>
         <p className="mt-3 text-zinc-400">
-          This franchise is not in the catalog.
+          This collection is not in the catalog.
         </p>
         <AppLink
           className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-marquee-light hover:text-cream"
@@ -70,7 +70,7 @@ export function FranchiseDetailPage({
     );
   }
 
-  const franchiseName = members[0].franchise_name ?? "Franchise";
+  const collectionName = members[0].collection_name ?? "Collection";
   const move = (index: number, direction: -1 | 1) => {
     const next = [...draft];
     const swapIndex = index + direction;
@@ -93,10 +93,10 @@ export function FranchiseDetailPage({
 
       <div className="mb-8">
         <p className="text-xs font-bold uppercase tracking-[0.22em] text-marquee-gold">
-          Franchise
+          Collection
         </p>
         <h1 className="mt-2 font-display text-4xl font-bold tracking-normal text-cream sm:text-5xl">
-          {franchiseName}
+          {collectionName}
         </h1>
         <p className="mt-3 text-sm text-zinc-500">
           {members.length} {members.length === 1 ? "movie" : "movies"}
@@ -168,7 +168,7 @@ export function FranchiseDetailPage({
                 void run(
                   () =>
                     api.order(
-                      franchiseId,
+                      collectionId,
                       draft.map((movie) => movie.id),
                     ),
                   () => setSaved(true),

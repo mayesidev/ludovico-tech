@@ -45,7 +45,7 @@ if (!inputArgument || !outputArgument || !importedAt) {
     const plan =
       reconciliationArgument && !reconciliation
         ? {
-            counts: { franchises: 0, movies: 0, ratings: 0, sources: 0 },
+            counts: { collections: 0, movies: 0, ratings: 0, sources: 0 },
             diagnostics: [
               {
                 code: "TMDB_RECONCILIATION_INVALID" as const,

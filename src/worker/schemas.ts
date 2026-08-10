@@ -2,13 +2,13 @@ import { z } from "zod";
 
 export const movieInput = z.object({
   title: z.string().trim().min(1).max(200),
-  franchiseName: z.string().trim().max(200).optional().default(""),
+  collectionName: z.string().trim().max(200).optional().default(""),
   tmdbId: z.number().int().positive().optional().nullable(),
 });
 
 export const movieEditInput = z
   .object({
-    franchiseName: z.string().trim().max(200).optional().nullable(),
+    collectionName: z.string().trim().max(200).optional().nullable(),
     title: z.string().trim().min(1).max(200).optional(),
     tmdbId: z.number().int().positive().optional().nullable(),
   })

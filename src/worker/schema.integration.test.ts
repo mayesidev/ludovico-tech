@@ -104,40 +104,40 @@ describe("catalog schema", () => {
     ).rejects.toThrow();
   });
 
-  it("enforces positive unique franchise positions and one membership per movie", async () => {
+  it("enforces positive unique collection positions and one membership per movie", async () => {
     await env.DB.prepare(
-      `INSERT INTO franchises
+      `INSERT INTO collections
        (id, name, name_normalized, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?)`,
     )
       .bind(
-        "franchise-one",
-        "Example Series",
-        "example series",
+        "collection-one",
+        "Example Collection",
+        "example collection",
         "2026-08-06T00:00:00.000Z",
         "2026-08-06T00:00:00.000Z",
       )
       .run();
-    await insertMovie("franchise-movie-one");
-    await insertMovie("franchise-movie-two");
+    await insertMovie("collection-movie-one");
+    await insertMovie("collection-movie-two");
     await env.DB.prepare(
-      "INSERT INTO franchise_movies (franchise_id, movie_id, position) VALUES (?, ?, ?)",
+      "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
     )
-      .bind("franchise-one", "franchise-movie-one", 1)
+      .bind("collection-one", "collection-movie-one", 1)
       .run();
 
     await expect(
       env.DB.prepare(
-        "INSERT INTO franchise_movies (franchise_id, movie_id, position) VALUES (?, ?, ?)",
+        "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
       )
-        .bind("franchise-one", "franchise-movie-two", 1)
+        .bind("collection-one", "collection-movie-two", 1)
         .run(),
     ).rejects.toThrow();
     await expect(
       env.DB.prepare(
-        "INSERT INTO franchise_movies (franchise_id, movie_id, position) VALUES (?, ?, ?)",
+        "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
       )
-        .bind("franchise-one", "franchise-movie-two", 0)
+        .bind("collection-one", "collection-movie-two", 0)
         .run(),
     ).rejects.toThrow();
   });

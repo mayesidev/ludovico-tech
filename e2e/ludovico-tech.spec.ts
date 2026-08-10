@@ -53,7 +53,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await page.getByRole("link", { name: "Return to Now Showing" }).click();
   });
 
-  test("orders and continues a series, then rerolls with reduced motion", async ({
+  test("orders and continues a collection, then rerolls with reduced motion", async ({
     page,
   }) => {
     await page.goto("/");
@@ -66,7 +66,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       await page.getByRole("button", { name: "Add a movie" }).click();
       await page.getByRole("textbox", { name: "Movie title" }).fill(title);
       await page
-        .getByRole("textbox", { name: "Series or franchise (optional)" })
+        .getByRole("textbox", { name: "Collection (optional)" })
         .fill("Browser Saga");
       await page
         .getByRole("button", { name: "Add movie", exact: true })
@@ -79,7 +79,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await expect(page.getByRole("status")).toBeHidden({
       timeout: 5_000,
     });
-    await expect(page).toHaveURL(/\/franchises\//);
+    await expect(page).toHaveURL(/\/collections\//);
     await expect(
       page.getByRole("heading", { level: 1, name: "Browser Saga" }),
     ).toBeVisible();
@@ -99,7 +99,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       .getByRole("textbox", { name: "Custom rating phrase (required)" })
       .fill("The second one goes first");
     await page.getByRole("button", { name: "Rate it" }).click();
-    await page.getByRole("button", { name: "Continue series" }).click();
+    await page.getByRole("button", { name: "Continue collection" }).click();
     await expect(
       page.getByRole("heading", { level: 1, name: "Browser Chapter One" }),
     ).toBeVisible();
@@ -125,7 +125,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     ).toBeVisible();
   });
 
-  test("edits a movie and franchise from its details page", async ({
+  test("edits a movie and collection from its details page", async ({
     page,
   }) => {
     await page.goto("/");
@@ -144,7 +144,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       .getByRole("textbox", { name: "Movie title" })
       .fill("Browser Edited Movie");
     await page
-      .getByRole("textbox", { name: "Series or franchise" })
+      .getByRole("textbox", { name: "Collection" })
       .fill("Browser Edit Saga");
     await page.getByRole("button", { name: "Save changes" }).click();
 
@@ -154,7 +154,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await expect(
       page.getByRole("link", { name: "Browser Edit Saga" }),
     ).toBeVisible();
-    await expect(page.getByText("Series / franchise")).toBeVisible();
+    await expect(page.getByText("Collection")).toBeVisible();
   });
 
   test("confirms deletion of an unwatched movie from its details", async ({
