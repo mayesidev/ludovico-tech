@@ -22,8 +22,8 @@ export function EditMovieDialog({
   run: RunAction;
 }) {
   const [title, setTitle] = useState(movie.title);
-  const [franchiseName, setFranchiseName] = useState(
-    movie.franchise_name ?? "",
+  const [collectionName, setCollectionName] = useState(
+    movie.collection_name ?? "",
   );
   const [tmdbId, setTmdbId] = useState(
     movie.tmdb_id === null ? "" : String(movie.tmdb_id),
@@ -33,7 +33,7 @@ export function EditMovieDialog({
   const titleId = useId();
   const descriptionId = useId();
   const errorId = useId();
-  const franchiseId = useId();
+  const collectionId = useId();
   const parsedTmdbId = parseTmdbId(tmdbId);
   const invalidTitle = attempted && !title.trim();
 
@@ -55,7 +55,7 @@ export function EditMovieDialog({
           void run(
             () =>
               api.updateMovie(movie.id, {
-                franchiseName,
+                collectionName,
                 title,
                 tmdbId: titleChanged || tmdbChanged ? parsedTmdbId : undefined,
               }),
@@ -78,7 +78,7 @@ export function EditMovieDialog({
               className="mt-2 text-sm leading-6 text-zinc-400"
               id={descriptionId}
             >
-              Update the catalog title, franchise, or confirmed TMDB match.
+              Update the catalog title, collection, or confirmed TMDB match.
             </p>
           </div>
           <button
@@ -108,12 +108,12 @@ export function EditMovieDialog({
             </p>
           )}
           <label className="block text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">
-            Series or franchise
+            Collection
             <Input
               className="mt-2"
-              id={franchiseId}
-              value={franchiseName}
-              onChange={(event) => setFranchiseName(event.target.value)}
+              id={collectionId}
+              value={collectionName}
+              onChange={(event) => setCollectionName(event.target.value)}
               placeholder="Optional"
             />
           </label>

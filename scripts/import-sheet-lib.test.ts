@@ -17,8 +17,8 @@ const header = "opaque-a,opaque-b,opaque-c,opaque-d,opaque-e,opaque-f,opaque-g";
 const submission = (
   overrides: Partial<GeneralizedSubmission> = {},
 ): GeneralizedSubmission => ({
-  franchiseIndicated: false,
-  franchiseName: null,
+  collectionIndicated: false,
+  collectionName: null,
   legacyImdbId: null,
   priorViewed: false,
   rating: null,
@@ -34,7 +34,7 @@ const document = (
 ): GeneralizedImportDocument => ({
   nowShowingSourceRow,
   rows,
-  schemaVersion: 2,
+  schemaVersion: 3,
   validated: true,
 });
 
@@ -68,8 +68,8 @@ describe("private Sheet sanitization", () => {
       nowShowingSourceRow: null,
       rows: [
         {
-          franchiseIndicated: true,
-          franchiseName: "Synthetic Saga",
+          collectionIndicated: true,
+          collectionName: "Synthetic Saga",
           legacyImdbId: "tt1234567",
           priorViewed: false,
           rating: { phrase: "A synthetic delight", score: 4.5 },
@@ -78,7 +78,7 @@ describe("private Sheet sanitization", () => {
           title: "Synthetic Movie",
         },
       ],
-      schemaVersion: 2,
+      schemaVersion: 3,
       validated: true,
     });
     expect(JSON.stringify(result)).not.toContain("opaque-a");
@@ -93,7 +93,7 @@ describe("private Sheet sanitization", () => {
     expect(result.diagnostics).toEqual([
       { code: "INVALID_PRIOR_VIEWED", row: 2, severity: "error" },
       {
-        code: "INVALID_FRANCHISE_INDICATOR",
+        code: "INVALID_COLLECTION_INDICATOR",
         row: 2,
         severity: "error",
       },
@@ -103,32 +103,32 @@ describe("private Sheet sanitization", () => {
     expect(serializedDiagnostics).not.toContain("PRIVATE");
   });
 
-  it("reports franchise indicator disagreement without changing membership", () => {
+  it("reports collection indicator disagreement without changing membership", () => {
     const result = sanitizeSourceCsv(
       `${header}\n8/1/2026 10:30:00,Synthetic Movie,No,No,Synthetic Saga,,\n`,
     );
 
     expect(result.document.validated).toBe(true);
-    expect(result.document.rows[0].franchiseName).toBe("Synthetic Saga");
+    expect(result.document.rows[0].collectionName).toBe("Synthetic Saga");
     expect(result.diagnostics).toEqual([
       {
-        code: "FRANCHISE_INDICATOR_MISMATCH",
+        code: "COLLECTION_INDICATOR_MISMATCH",
         row: 2,
         severity: "warning",
       },
     ]);
   });
 
-  it("retains uncertain franchise indicators as a review warning", () => {
+  it("retains uncertain collection indicators as a review warning", () => {
     const result = sanitizeSourceCsv(
       `${header}\n8/1/2026 10:30:00,Synthetic Movie,No,Maybe,Synthetic Saga,,\n`,
     );
 
     expect(result.document.validated).toBe(true);
-    expect(result.document.rows[0].franchiseIndicated).toBeNull();
+    expect(result.document.rows[0].collectionIndicated).toBeNull();
     expect(result.diagnostics).toEqual([
       {
-        code: "FRANCHISE_INDICATOR_UNCERTAIN",
+        code: "COLLECTION_INDICATOR_UNCERTAIN",
         row: 2,
         severity: "warning",
       },
@@ -160,7 +160,7 @@ describe("private Sheet sanitization", () => {
             sourceRow: 3,
           },
         ],
-        schemaVersion: 2,
+        schemaVersion: 3,
       }),
     );
     const result = sanitizeSourceCsv(
@@ -186,7 +186,7 @@ describe("private Sheet sanitization", () => {
             { score: 4, sourceRow: 2 },
             { score: 5, sourceRow: 2 },
           ],
-          schemaVersion: 2,
+          schemaVersion: 3,
         }),
       ),
     ).toBeNull();
@@ -197,7 +197,7 @@ describe("private Sheet sanitization", () => {
           legacyImdbIds: [],
           nowShowingSourceRow: null,
           ratings: [{ score: 4.25, sourceRow: 2 }],
-          schemaVersion: 2,
+          schemaVersion: 3,
         }),
       ),
     ).toBeNull();
@@ -226,7 +226,7 @@ describe("private Sheet sanitization", () => {
         legacyImdbIds: [{ id: "tt123456", sourceRow: 2 }],
         nowShowingSourceRow: null,
         ratings: [],
-        schemaVersion: 2,
+        schemaVersion: 3,
       }),
     );
     const result = sanitizeSourceCsv(
@@ -246,7 +246,7 @@ describe("private Sheet sanitization", () => {
         legacyImdbIds: [],
         nowShowingSourceRow: null,
         ratings: [],
-        schemaVersion: 2,
+        schemaVersion: 3,
       }),
     );
     const result = sanitizeSourceCsv(
@@ -269,7 +269,7 @@ describe("private Sheet sanitization", () => {
           legacyImdbIds: [],
           nowShowingSourceRow: null,
           ratings: [],
-          schemaVersion: 2,
+          schemaVersion: 3,
         }),
       ),
     ).toBeNull();
@@ -306,7 +306,7 @@ describe("private Sheet sanitization", () => {
         legacyImdbIds: [],
         nowShowingSourceRow: 2,
         ratings: [],
-        schemaVersion: 2,
+        schemaVersion: 3,
       }),
     );
     const result = sanitizeSourceCsv(
@@ -349,7 +349,7 @@ describe("deterministic import planning", () => {
 
     expect(plan.diagnostics).toEqual([]);
     expect(plan.counts).toEqual({
-      franchises: 0,
+      collections: 0,
       movies: 1,
       ratings: 0,
       sources: 2,
@@ -390,7 +390,7 @@ describe("deterministic import planning", () => {
     );
 
     expect(plan.counts).toEqual({
-      franchises: 0,
+      collections: 0,
       movies: 1,
       ratings: 1,
       sources: 2,
@@ -402,8 +402,8 @@ describe("deterministic import planning", () => {
       document([
         submission({ legacyImdbId: "tt1234567" }),
         submission({
-          franchiseIndicated: true,
-          franchiseName: "Distinct Synthetic Saga",
+          collectionIndicated: true,
+          collectionName: "Distinct Synthetic Saga",
           legacyImdbId: "tt1234567",
           sourceRow: 3,
           title: "Conflicting Synthetic Movie",
@@ -466,8 +466,8 @@ describe("deterministic import planning", () => {
   it("produces identical SQL for identical validated input", async () => {
     const input = document([
       submission({
-        franchiseIndicated: true,
-        franchiseName: "Synthetic Saga",
+        collectionIndicated: true,
+        collectionName: "Synthetic Saga",
         rating: { phrase: "Director's choice", score: 5 },
       }),
     ]);
@@ -479,13 +479,13 @@ describe("deterministic import planning", () => {
     expect(first.statements.join("\n")).toContain("Director''s choice");
   });
 
-  it("restores an unwatched franchise selection pending user order", async () => {
+  it("restores an unwatched collection selection pending user order", async () => {
     const plan = await buildImportPlan(
       document(
         [
           submission({
-            franchiseIndicated: true,
-            franchiseName: "Synthetic Saga",
+            collectionIndicated: true,
+            collectionName: "Synthetic Saga",
           }),
         ],
         2,
@@ -509,7 +509,7 @@ describe("deterministic import planning", () => {
 
     expect(plan.diagnostics).toEqual([]);
     expect(plan.statements.join("\n")).toContain(
-      "franchise_id = NULL, status = 'ready'",
+      "collection_id = NULL, status = 'ready'",
     );
   });
 
@@ -595,8 +595,8 @@ describe("update-only TMDB metadata planning", () => {
     const plan = buildTmdbMetadataPlan(
       document([
         submission({
-          franchiseIndicated: true,
-          franchiseName: "Corrected Synthetic Saga",
+          collectionIndicated: true,
+          collectionName: "Corrected Synthetic Saga",
           legacyImdbId: "tt1234567",
         }),
       ]),
@@ -606,7 +606,7 @@ describe("update-only TMDB metadata planning", () => {
     const sql = plan.statements.join("\n");
 
     expect(plan.counts).toEqual({
-      franchises: 0,
+      collections: 0,
       movies: 1,
       ratings: 0,
       sources: 0,
@@ -618,7 +618,7 @@ describe("update-only TMDB metadata planning", () => {
       "WHERE legacy_imdb_id = 'tt1234567' AND title_normalized = 'synthetic movie'",
     );
     expect(sql).not.toMatch(
-      /INSERT|DELETE|franchise_movies|now_showing|ratings/,
+      /INSERT|DELETE|collection_movies|now_showing|ratings/,
     );
   });
 

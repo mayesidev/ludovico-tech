@@ -7,8 +7,8 @@ export type AppRoute =
       returnTo: "library" | "now-showing";
     }
   | {
-      page: "franchise";
-      franchiseId: string;
+      page: "collection";
+      collectionId: string;
       returnTo: "library" | "now-showing";
     }
   | { page: "not-found" };
@@ -34,11 +34,11 @@ export const parseRoute = (pathname: string, search = ""): AppRoute => {
       return { page: "not-found" };
     }
   }
-  if (segments.length === 2 && segments[0] === "franchises") {
+  if (segments.length === 2 && segments[0] === "collections") {
     try {
       return {
-        page: "franchise",
-        franchiseId: decodeURIComponent(segments[1]),
+        page: "collection",
+        collectionId: decodeURIComponent(segments[1]),
         returnTo:
           new URLSearchParams(search).get("from") === "now-showing"
             ? "now-showing"

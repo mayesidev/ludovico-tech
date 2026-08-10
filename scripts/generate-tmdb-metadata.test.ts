@@ -26,8 +26,8 @@ describe("TMDB metadata artifact command", () => {
       nowShowingSourceRow: null,
       rows: [
         {
-          franchiseIndicated: false,
-          franchiseName: null,
+          collectionIndicated: false,
+          collectionName: null,
           legacyImdbId: "tt1234567",
           priorViewed: false,
           rating: null,
@@ -36,7 +36,7 @@ describe("TMDB metadata artifact command", () => {
           title: "Synthetic Movie",
         },
       ],
-      schemaVersion: 2,
+      schemaVersion: 3,
       validated: true,
     };
     const reconciliation: TmdbReconciliationDocument = {
@@ -77,7 +77,7 @@ describe("TMDB metadata artifact command", () => {
       expect(manifest).toMatchObject({
         artifactType: "tmdb_metadata",
         chunks: ["chunk-0001.sql"],
-        counts: { franchises: 0, movies: 1, ratings: 0, sources: 0 },
+        counts: { collections: 0, movies: 1, ratings: 0, sources: 0 },
       });
       expect(sql).toContain("UPDATE movies SET release_date");
       expect(sql).toContain("runtime_minutes = 123");

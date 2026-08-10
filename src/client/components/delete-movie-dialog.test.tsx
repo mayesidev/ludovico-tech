@@ -6,7 +6,7 @@ import { DeleteMovieDialog } from "./delete-movie-dialog";
 
 const movie: Movie = {
   added_at: "2026-08-07T00:00:00.000Z",
-  franchise_id: null,
+  collection_id: null,
   id: "movie-id",
   poster_path: null,
   rating_phrase: null,

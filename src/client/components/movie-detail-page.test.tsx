@@ -5,9 +5,9 @@ import { MovieDetailPage } from "./movie-detail-page";
 
 const movie: Movie = {
   added_at: "2026-08-07T00:00:00.000Z",
-  franchise_id: "franchise-id",
-  franchise_name: "Test Saga",
-  franchise_position: 1,
+  collection_id: "collection-id",
+  collection_name: "Test Saga",
+  collection_position: 1,
   id: "movie-id",
   poster_path: null,
   rating_phrase: "There is no spoon",
@@ -33,14 +33,14 @@ describe("movie details", () => {
     expect(screen.getByText("Release date")).toBeVisible();
     expect(screen.getByText("Date added")).toBeVisible();
     expect(screen.getByText("Runtime")).toBeVisible();
-    expect(screen.getByText("Series / franchise")).toBeVisible();
+    expect(screen.getByText("Collection")).toBeVisible();
     expect(screen.getByText("2h 16m")).toBeVisible();
     expect(screen.getByText("Aug 7, 2026")).toBeVisible();
     expect(screen.getByText("5")).toBeVisible();
     expect(screen.getByText("“There is no spoon”")).toBeVisible();
     expect(screen.getByRole("link", { name: "Test Saga" })).toHaveAttribute(
       "href",
-      "/franchises/franchise-id",
+      "/collections/collection-id",
     );
     expect(
       screen.getByRole("link", { name: "Return to Library" }),
@@ -88,8 +88,8 @@ describe("movie details", () => {
 
     screen.getByRole("button", { name: "Delete movie" }).click();
     expect(onDelete).toHaveBeenCalledWith(unwatched);
-    const franchiseLink = screen.getByRole("link", { name: "Test Saga" });
-    expect(franchiseLink.closest("dl")).not.toBeNull();
+    const collectionLink = screen.getByRole("link", { name: "Test Saga" });
+    expect(collectionLink.closest("dl")).not.toBeNull();
     expect(
       screen.getByRole("link", { name: "View on TMDB" }).closest("dl"),
     ).toBeNull();
@@ -110,8 +110,8 @@ describe("movie details", () => {
       <MovieDetailPage
         movie={{
           ...movie,
-          franchise_id: null,
-          franchise_name: null,
+          collection_id: null,
+          collection_name: null,
           added_at: "",
           rating_phrase: null,
           rating_score: null,
@@ -160,7 +160,7 @@ describe("movie details", () => {
     ).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Test Saga" })).toHaveAttribute(
       "href",
-      "/franchises/franchise-id?from=now-showing",
+      "/collections/collection-id?from=now-showing",
     );
     expect(
       screen.queryByRole("link", { name: "Return to Library" }),

@@ -11,13 +11,13 @@ one group viewing state.
 - A rating is 0–5 in half-point increments and requires the group's custom phrase.
 - Every unwatched title is eligible for a random roll. Another roll is unavailable
   until the current movie is rated.
-- A franchise is an optional user-defined grouping. Members own its order; an
+- A collection is an optional user-defined grouping. Members own its order; an
   external suggestion is never authoritative.
-- Rolling any franchise member queues its first unwatched ordered member. After
-  rating it, members may continue the franchise or return to a fresh random roll.
+- Rolling any collection member queues its first unwatched ordered member. After
+  rating it, members may continue the collection or return to a fresh random roll.
 - TMDB supplies application metadata. Legacy IMDb identifiers are optional,
   fallible import references rather than application identity.
-- Submitted title and franchise information outrank a conflicting legacy external
+- Submitted title and collection information outrank a conflicting legacy external
   identifier during import.
 - The application must run from empty migrations. Loading a legacy catalog is an
   optional operator action, never a bootstrap or test dependency.

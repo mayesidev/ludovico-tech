@@ -1,10 +1,10 @@
 import { zValidator } from "@hono/zod-validator";
 import { type Hono } from "hono";
 import {
-  getFranchiseMovies,
+  getCollectionMovies,
   getMovie,
   getNowShowing,
-  getRemainingFranchiseMovies,
+  getRemainingCollectionMovies,
 } from "../db";
 import { type AppEnv, newId, now } from "../env";
 import { auditStatement, mutationActor } from "../middleware";
@@ -25,37 +25,37 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
     }
 
     const rolled = await c.env.DB.prepare(
-      `SELECT movies.id, movies.title, franchise_movies.franchise_id
+      `SELECT movies.id, movies.title, collection_movies.collection_id
        FROM movies
-       LEFT JOIN franchise_movies ON franchise_movies.movie_id = movies.id
+       LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
        LEFT JOIN ratings ON ratings.movie_id = movies.id
        WHERE ratings.id IS NULL ORDER BY RANDOM() LIMIT 1`,
-    ).first<{ id: string; title: string; franchise_id: string | null }>();
+    ).first<{ id: string; title: string; collection_id: string | null }>();
     if (!rolled) {
       return c.json({ error: "There are no unwatched movies left" }, 409);
     }
 
     const timestamp = now();
-    const franchiseMovies = rolled.franchise_id
-      ? await getFranchiseMovies(c.env, rolled.franchise_id)
+    const collectionMovies = rolled.collection_id
+      ? await getCollectionMovies(c.env, rolled.collection_id)
       : [];
-    const franchise = rolled.franchise_id
+    const collection = rolled.collection_id
       ? await c.env.DB.prepare(
-          "SELECT order_confirmed FROM franchises WHERE id = ?",
+          "SELECT order_confirmed FROM collections WHERE id = ?",
         )
-          .bind(rolled.franchise_id)
+          .bind(rolled.collection_id)
           .first<{ order_confirmed: number }>()
       : null;
-    const remainingFranchiseMovies = rolled.franchise_id
-      ? await getRemainingFranchiseMovies(c.env, rolled.franchise_id)
+    const remainingCollectionMovies = rolled.collection_id
+      ? await getRemainingCollectionMovies(c.env, rolled.collection_id)
       : [];
     const actual = selectQueuedMovie(
       rolled,
-      Boolean(franchise?.order_confirmed),
-      remainingFranchiseMovies,
+      Boolean(collection?.order_confirmed),
+      remainingCollectionMovies,
     );
     const status =
-      rolled.franchise_id && !franchise?.order_confirmed
+      rolled.collection_id && !collection?.order_confirmed
         ? "pending_order"
         : "ready";
 
@@ -63,7 +63,7 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
     const [rollInsert] = await c.env.DB.batch([
       c.env.DB.prepare(
         `INSERT INTO rolls
-         (id, rolled_movie_id, actual_movie_id, franchise_id, created_at, actor_id)
+         (id, rolled_movie_id, actual_movie_id, collection_id, created_at, actor_id)
          SELECT ?, ?, ?, ?, ?, ?
          WHERE EXISTS (
            SELECT 1 FROM now_showing
@@ -73,18 +73,18 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
         rollId,
         rolled.id,
         actual.id,
-        rolled.franchise_id,
+        rolled.collection_id,
         timestamp,
         actor.id,
       ),
       c.env.DB.prepare(
-        `UPDATE now_showing SET rolled_movie_id = ?, movie_id = ?, franchise_id = ?,
+        `UPDATE now_showing SET rolled_movie_id = ?, movie_id = ?, collection_id = ?,
          status = ?, rolled_at = ?, updated_at = ?
          WHERE id = 1 AND EXISTS (SELECT 1 FROM rolls WHERE id = ?)`,
       ).bind(
         rolled.id,
         actual.id,
-        rolled.franchise_id,
+        rolled.collection_id,
         status,
         timestamp,
         timestamp,
@@ -117,12 +117,12 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
       rolledMovie: await getMovie(c.env, rolled.id),
       nowShowing: await getNowShowing(c.env),
       needsOrder: status === "pending_order",
-      franchiseMovies,
+      collectionMovies,
     });
   });
 
   app.post(
-    "/franchises/:id/order",
+    "/collections/:id/order",
     zValidator("json", orderInput, (result, c) => {
       if (!result.success) {
         return c.json(
@@ -135,16 +135,16 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
       const actor = await mutationActor(c);
       if (!actor) return c.json({ error: "Authentication required" }, 401);
 
-      const franchiseId = c.req.param("id");
+      const collectionId = c.req.param("id");
       const input = c.req.valid("json");
       const members = await c.env.DB.prepare(
-        `SELECT franchise_movies.movie_id AS id,
+        `SELECT collection_movies.movie_id AS id,
          CASE WHEN ratings.id IS NULL THEN 0 ELSE 1 END AS watched
-         FROM franchise_movies
-         LEFT JOIN ratings ON ratings.movie_id = franchise_movies.movie_id
-         WHERE franchise_movies.franchise_id = ?`,
+         FROM collection_movies
+         LEFT JOIN ratings ON ratings.movie_id = collection_movies.movie_id
+         WHERE collection_movies.collection_id = ?`,
       )
-        .bind(franchiseId)
+        .bind(collectionId)
         .all<{ id: string; watched: number }>();
       const memberIds = new Set(members.results.map((movie) => movie.id));
       if (
@@ -155,7 +155,7 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
         return c.json(
           {
             error:
-              "Order must include every movie in the franchise exactly once",
+              "Order must include every movie in the collection exactly once",
           },
           400,
         );
@@ -173,32 +173,32 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
 
       const statements = [
         c.env.DB.prepare(
-          "UPDATE franchise_movies SET position = position + 1000000 WHERE franchise_id = ?",
-        ).bind(franchiseId),
+          "UPDATE collection_movies SET position = position + 1000000 WHERE collection_id = ?",
+        ).bind(collectionId),
         ...input.movieIds.map((movieId, index) =>
           c.env.DB.prepare(
-            "UPDATE franchise_movies SET position = ? WHERE franchise_id = ? AND movie_id = ?",
-          ).bind(index + 1, franchiseId, movieId),
+            "UPDATE collection_movies SET position = ? WHERE collection_id = ? AND movie_id = ?",
+          ).bind(index + 1, collectionId, movieId),
         ),
       ];
       statements.push(
         c.env.DB.prepare(
-          "UPDATE franchises SET order_confirmed = 1, updated_at = ? WHERE id = ?",
-        ).bind(timestamp, franchiseId),
+          "UPDATE collections SET order_confirmed = 1, updated_at = ? WHERE id = ?",
+        ).bind(timestamp, collectionId),
       );
       if (firstUnwatchedId) {
         statements.push(
           c.env.DB.prepare(
             `UPDATE now_showing SET movie_id = ?, status = 'ready', updated_at = ?
-             WHERE id = 1 AND franchise_id = ? AND status = 'pending_order'`,
-          ).bind(firstUnwatchedId, timestamp, franchiseId),
+             WHERE id = 1 AND collection_id = ? AND status = 'pending_order'`,
+          ).bind(firstUnwatchedId, timestamp, collectionId),
         );
       }
       statements.push(
         auditStatement(
           c.env,
-          "franchise",
-          franchiseId,
+          "collection",
+          collectionId,
           "order_updated",
           actor.id,
           { movieIds: input.movieIds },
@@ -217,19 +217,19 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
     if (
       !current?.movie_id ||
       current.rating_score === null ||
-      !current.franchise_id
+      !current.collection_id
     ) {
       return c.json(
-        { error: "No watched franchise movie is ready to advance" },
+        { error: "No watched collection movie is ready to advance" },
         409,
       );
     }
     const next = (
-      await getRemainingFranchiseMovies(c.env, current.franchise_id)
+      await getRemainingCollectionMovies(c.env, current.collection_id)
     )[0];
     if (!next) {
       return c.json(
-        { error: "This franchise is complete", complete: true },
+        { error: "This collection is complete", complete: true },
         409,
       );
     }

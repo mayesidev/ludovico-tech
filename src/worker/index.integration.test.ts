@@ -89,40 +89,40 @@ describe("Ludovico Tech Worker routes", () => {
     expect(unwatched.body.movies).toEqual([]);
   });
 
-  it("persists a franchise order and advances to the next movie", async () => {
+  it("persists a collection order and advances to the next movie", async () => {
     const first = await request<{ movie: { id: string } }>("/api/movies", {
       method: "POST",
       body: JSON.stringify({
         title: "Integration Chapter One",
-        franchiseName: "Integration Saga",
+        collectionName: "Integration Saga",
       }),
     });
     const second = await request<{ movie: { id: string } }>("/api/movies", {
       method: "POST",
       body: JSON.stringify({
         title: "Integration Chapter Two",
-        franchiseName: "Integration Saga",
+        collectionName: "Integration Saga",
       }),
     });
 
     const rolled = await request<{
       needsOrder: boolean;
-      franchiseMovies: Array<{ id: string }>;
+      collectionMovies: Array<{ id: string }>;
     }>("/api/roll", { method: "POST" });
     expect(rolled.response.status).toBe(200);
     expect(rolled.body.needsOrder).toBe(true);
-    expect(rolled.body.franchiseMovies.map((movie) => movie.id).sort()).toEqual(
-      [first.body.movie.id, second.body.movie.id].sort(),
-    );
+    expect(
+      rolled.body.collectionMovies.map((movie) => movie.id).sort(),
+    ).toEqual([first.body.movie.id, second.body.movie.id].sort());
 
-    const franchiseId = (
-      await request<{ movies: Array<{ id: string; franchise_id: string }> }>(
+    const collectionId = (
+      await request<{ movies: Array<{ id: string; collection_id: string }> }>(
         "/api/movies",
       )
-    ).body.movies[0].franchise_id;
+    ).body.movies[0].collection_id;
     const ordered = await request<{
       nowShowing: { movie_id: string; status: string };
-    }>(`/api/franchises/${franchiseId}/order`, {
+    }>(`/api/collections/${collectionId}/order`, {
       method: "POST",
       body: JSON.stringify({
         movieIds: [second.body.movie.id, first.body.movie.id],
@@ -146,63 +146,65 @@ describe("Ludovico Tech Worker routes", () => {
     expect(next.body.nowShowing.movie_id).toBe(first.body.movie.id);
   });
 
-  it("moves and removes franchise membership while keeping Now Showing consistent", async () => {
+  it("moves and removes collection membership while keeping Now Showing consistent", async () => {
     const target = await request<{
-      movie: { franchise_id: string; id: string };
+      movie: { collection_id: string; id: string };
     }>("/api/movies", {
       method: "POST",
       body: JSON.stringify({
         title: "Existing Replacement Chapter",
-        franchiseName: "Replacement Saga",
+        collectionName: "Replacement Saga",
       }),
     });
     const added = await request<{
-      movie: { franchise_id: string; id: string };
+      movie: { collection_id: string; id: string };
     }>("/api/movies", {
       method: "POST",
       body: JSON.stringify({
         title: "Editable Chapter",
-        franchiseName: "Original Saga",
+        collectionName: "Original Saga",
       }),
     });
-    const originalFranchiseId = added.body.movie.franchise_id;
+    const originalCollectionId = added.body.movie.collection_id;
     await env.DB.prepare(
       `UPDATE now_showing
-       SET movie_id = ?, rolled_movie_id = ?, franchise_id = ?, status = 'pending_order'
+       SET movie_id = ?, rolled_movie_id = ?, collection_id = ?, status = 'pending_order'
        WHERE id = 1`,
     )
-      .bind(added.body.movie.id, added.body.movie.id, originalFranchiseId)
+      .bind(added.body.movie.id, added.body.movie.id, originalCollectionId)
       .run();
 
     const moved = await request<{
-      movie: { franchise_id: string; franchise_name: string };
+      movie: { collection_id: string; collection_name: string };
     }>(`/api/movies/${added.body.movie.id}`, {
       method: "PATCH",
-      body: JSON.stringify({ franchiseName: "Replacement Saga" }),
+      body: JSON.stringify({ collectionName: "Replacement Saga" }),
     });
     expect(moved.response.status).toBe(200);
-    expect(moved.body.movie.franchise_name).toBe("Replacement Saga");
-    expect(moved.body.movie.franchise_id).toBe(target.body.movie.franchise_id);
+    expect(moved.body.movie.collection_name).toBe("Replacement Saga");
+    expect(moved.body.movie.collection_id).toBe(
+      target.body.movie.collection_id,
+    );
     expect(
-      await env.DB.prepare("SELECT id FROM franchises WHERE id = ?")
-        .bind(originalFranchiseId)
+      await env.DB.prepare("SELECT id FROM collections WHERE id = ?")
+        .bind(originalCollectionId)
         .first(),
     ).toBeNull();
     expect(
       await env.DB.prepare(
-        "SELECT franchise_id, status FROM now_showing WHERE id = 1",
+        "SELECT collection_id, status FROM now_showing WHERE id = 1",
       ).first(),
     ).toEqual({
-      franchise_id: moved.body.movie.franchise_id,
+      collection_id: moved.body.movie.collection_id,
       status: "pending_order",
     });
     expect(
       (
         await env.DB.prepare(
-          `SELECT movie_id, position FROM franchise_movies
-           WHERE franchise_id = ? ORDER BY position`,
+          `SELECT movie_id, position FROM collection_movies
+           WHERE collection_id = ? ORDER BY position`,
         )
-          .bind(target.body.movie.franchise_id)
+          .bind(target.body.movie.collection_id)
           .all()
       ).results,
     ).toEqual([
@@ -211,24 +213,24 @@ describe("Ludovico Tech Worker routes", () => {
     ]);
 
     const removed = await request<{
-      movie: { franchise_id: null; franchise_name: null };
+      movie: { collection_id: null; collection_name: null };
     }>(`/api/movies/${added.body.movie.id}`, {
       method: "PATCH",
-      body: JSON.stringify({ franchiseName: "" }),
+      body: JSON.stringify({ collectionName: "" }),
     });
     expect(removed.response.status).toBe(200);
     expect(removed.body.movie).toMatchObject({
-      franchise_id: null,
-      franchise_name: null,
+      collection_id: null,
+      collection_name: null,
     });
     expect(
       await env.DB.prepare(
-        "SELECT franchise_id, status FROM now_showing WHERE id = 1",
+        "SELECT collection_id, status FROM now_showing WHERE id = 1",
       ).first(),
-    ).toEqual({ franchise_id: null, status: "ready" });
+    ).toEqual({ collection_id: null, status: "ready" });
     expect(
-      await env.DB.prepare("SELECT id FROM franchises WHERE id = ?")
-        .bind(target.body.movie.franchise_id)
+      await env.DB.prepare("SELECT id FROM collections WHERE id = ?")
+        .bind(target.body.movie.collection_id)
         .first(),
     ).not.toBeNull();
   });
@@ -289,7 +291,7 @@ describe("Ludovico Tech Worker routes", () => {
       unwatchedMovie.body.movie.id,
     ]);
 
-    const missingFranchise = await request("/api/franchises/missing");
+    const missingCollection = await request("/api/collections/missing");
     const missingEdit = await request("/api/movies/missing", {
       method: "PATCH",
       body: JSON.stringify({ title: "Still missing" }),
@@ -302,7 +304,7 @@ describe("Ludovico Tech Worker routes", () => {
       method: "DELETE",
     });
     expect([
-      missingFranchise.response.status,
+      missingCollection.response.status,
       missingEdit.response.status,
       missingRating.response.status,
       missingDelete.response.status,
@@ -311,22 +313,22 @@ describe("Ludovico Tech Worker routes", () => {
 
   it("deletes only unwatched movies and cleans catalog references atomically", async () => {
     const candidate = await request<{
-      movie: { franchise_id: string; id: string };
+      movie: { collection_id: string; id: string };
     }>("/api/movies", {
       method: "POST",
       body: JSON.stringify({
         title: "Deletion Candidate",
-        franchiseName: "Deletion Saga",
+        collectionName: "Deletion Saga",
       }),
     });
     const sibling = await request<{ movie: { id: string } }>("/api/movies", {
       method: "POST",
       body: JSON.stringify({
         title: "Deletion Sibling",
-        franchiseName: "Deletion Saga",
+        collectionName: "Deletion Saga",
       }),
     });
-    const franchiseId = candidate.body.movie.franchise_id;
+    const collectionId = candidate.body.movie.collection_id;
     await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO movie_import_sources
@@ -335,14 +337,14 @@ describe("Ludovico Tech Worker routes", () => {
       ).bind(candidate.body.movie.id),
       env.DB.prepare(
         `INSERT INTO rolls
-         (id, rolled_movie_id, actual_movie_id, franchise_id, created_at)
+         (id, rolled_movie_id, actual_movie_id, collection_id, created_at)
          VALUES ('delete-roll', ?, ?, ?, datetime('now'))`,
-      ).bind(candidate.body.movie.id, candidate.body.movie.id, franchiseId),
+      ).bind(candidate.body.movie.id, candidate.body.movie.id, collectionId),
       env.DB.prepare(
         `UPDATE now_showing
-         SET rolled_movie_id = ?, movie_id = ?, franchise_id = ?, status = 'ready'
+         SET rolled_movie_id = ?, movie_id = ?, collection_id = ?, status = 'ready'
          WHERE id = 1`,
-      ).bind(candidate.body.movie.id, candidate.body.movie.id, franchiseId),
+      ).bind(candidate.body.movie.id, candidate.body.movie.id, collectionId),
     ]);
 
     const deleted = await request<{ deleted: true; id: string }>(
@@ -371,17 +373,17 @@ describe("Ludovico Tech Worker routes", () => {
     ).toBeNull();
     expect(
       await env.DB.prepare(
-        "SELECT movie_id, rolled_movie_id, franchise_id, status FROM now_showing WHERE id = 1",
+        "SELECT movie_id, rolled_movie_id, collection_id, status FROM now_showing WHERE id = 1",
       ).first(),
     ).toEqual({
-      franchise_id: null,
+      collection_id: null,
       movie_id: null,
       rolled_movie_id: null,
       status: "empty",
     });
     expect(
-      await env.DB.prepare("SELECT id FROM franchises WHERE id = ?")
-        .bind(franchiseId)
+      await env.DB.prepare("SELECT id FROM collections WHERE id = ?")
+        .bind(collectionId)
         .first(),
     ).not.toBeNull();
     expect(
@@ -397,8 +399,8 @@ describe("Ludovico Tech Worker routes", () => {
     });
     expect(orphaned.response.status).toBe(200);
     expect(
-      await env.DB.prepare("SELECT id FROM franchises WHERE id = ?")
-        .bind(franchiseId)
+      await env.DB.prepare("SELECT id FROM collections WHERE id = ?")
+        .bind(collectionId)
         .first(),
     ).toBeNull();
 
@@ -526,26 +528,26 @@ describe("Ludovico Tech Worker routes", () => {
     expect(rerolled.body.nowShowing.movie_id).toBe(fresh.body.movie.id);
   });
 
-  it("rejects incomplete franchise orders and reports completion", async () => {
+  it("rejects incomplete collection orders and reports completion", async () => {
     const first = await request<{ movie: { id: string } }>("/api/movies", {
       method: "POST",
       body: JSON.stringify({
         title: "Order Chapter One",
-        franchiseName: "Order Saga",
+        collectionName: "Order Saga",
       }),
     });
     const second = await request<{ movie: { id: string } }>("/api/movies", {
       method: "POST",
       body: JSON.stringify({
         title: "Order Chapter Two",
-        franchiseName: "Order Saga",
+        collectionName: "Order Saga",
       }),
     });
     const catalog = await request<{
-      movies: Array<{ franchise_id: string; id: string }>;
+      movies: Array<{ collection_id: string; id: string }>;
     }>("/api/movies");
-    const franchiseId = catalog.body.movies[0].franchise_id;
-    const orderPath = `/api/franchises/${franchiseId}/order`;
+    const collectionId = catalog.body.movies[0].collection_id;
+    const orderPath = `/api/collections/${collectionId}/order`;
 
     for (const movieIds of [
       [first.body.movie.id],
@@ -592,7 +594,7 @@ describe("Ludovico Tech Worker routes", () => {
     expect(next.body.nowShowing.movie_id).toBe(first.body.movie.id);
     await request(`/api/movies/${first.body.movie.id}/rate`, {
       method: "POST",
-      body: JSON.stringify({ score: 4, phrase: "Series complete" }),
+      body: JSON.stringify({ score: 4, phrase: "Collection complete" }),
     });
     const complete = await request<{ complete: boolean; error: string }>(
       "/api/next",
@@ -601,7 +603,7 @@ describe("Ludovico Tech Worker routes", () => {
     expect(complete.response.status).toBe(409);
     expect(complete.body).toEqual({
       complete: true,
-      error: "This franchise is complete",
+      error: "This collection is complete",
     });
   });
 });

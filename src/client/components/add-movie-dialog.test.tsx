@@ -7,7 +7,7 @@ import { AddMovieDialog } from "./add-movie-dialog";
 
 const movie: Movie = {
   added_at: "2026-08-07T00:00:00.000Z",
-  franchise_id: null,
+  collection_id: null,
   id: "added-id",
   poster_path: null,
   rating_phrase: null,
@@ -52,7 +52,7 @@ describe("add movie dialog", () => {
     await waitFor(() => expect(title).toHaveFocus());
     await user.type(title, "Candidate");
     await user.type(
-      screen.getByRole("textbox", { name: "Series or franchise (optional)" }),
+      screen.getByRole("textbox", { name: "Collection (optional)" }),
       "A Saga",
     );
     await user.click(screen.getByRole("button", { name: "Search TMDB" }));
@@ -62,7 +62,7 @@ describe("add movie dialog", () => {
     await user.click(screen.getByRole("button", { name: "Add movie" }));
 
     expect(api.addMovie).toHaveBeenCalledWith({
-      franchiseName: "A Saga",
+      collectionName: "A Saga",
       title: "Matched Movie",
       tmdbId: 42,
     });
@@ -134,7 +134,7 @@ describe("add movie dialog", () => {
     ).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Add movie" }));
     expect(api.addMovie).toHaveBeenCalledWith({
-      franchiseName: "",
+      collectionName: "",
       title: "Matched Movie",
       tmdbId: 42,
     });

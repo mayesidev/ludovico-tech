@@ -6,9 +6,9 @@ export type Movie = {
   poster_path: string | null;
   runtime_minutes: number | null;
   tmdb_id: number | null;
-  franchise_id: string | null;
-  franchise_name?: string | null;
-  franchise_position?: number | null;
+  collection_id: string | null;
+  collection_name?: string | null;
+  collection_position?: number | null;
   rating_score: number | null;
   rating_phrase: string | null;
   watched_at: string | null;
@@ -18,7 +18,7 @@ export type NowShowing = {
   id: number;
   rolled_movie_id: string | null;
   movie_id: string | null;
-  franchise_id: string | null;
+  collection_id: string | null;
   status: "empty" | "pending_order" | "ready" | "watched";
   title: string | null;
   release_date: string | null;
@@ -26,12 +26,12 @@ export type NowShowing = {
   rating_score: number | null;
   rating_phrase: string | null;
   watched_at: string | null;
-  franchise_name: string | null;
+  collection_name: string | null;
 };
 
 export type NowShowingResponse = {
   nowShowing: NowShowing | null;
-  remainingFranchiseMovies: Movie[];
+  remainingCollectionMovies: Movie[];
 };
 export type TmdbResult = {
   id: number;
@@ -88,16 +88,16 @@ export const api = {
   nowShowing: () => request<NowShowingResponse>("/api/now-showing"),
   movies: (status = "all") =>
     request<{ movies: Movie[] }>(`/api/movies?status=${status}`),
-  franchise: (id: string) =>
-    request<{ franchise: { id: string; name: string }; movies: Movie[] }>(
-      `/api/franchises/${id}`,
+  collection: (id: string) =>
+    request<{ collection: { id: string; name: string }; movies: Movie[] }>(
+      `/api/collections/${id}`,
     ),
   roll: () =>
     request<{
       rolledMovie: Movie;
       nowShowing: NowShowing;
       needsOrder: boolean;
-      franchiseMovies: Movie[];
+      collectionMovies: Movie[];
     }>("/api/roll", { method: "POST" }),
   next: () =>
     request<{ nowShowing: NowShowing }>("/api/next", { method: "POST" }),
@@ -107,13 +107,13 @@ export const api = {
       body: JSON.stringify({ score, phrase }),
     }),
   order: (id: string, movieIds: string[]) =>
-    request<{ nowShowing: NowShowing }>(`/api/franchises/${id}/order`, {
+    request<{ nowShowing: NowShowing }>(`/api/collections/${id}/order`, {
       method: "POST",
       body: JSON.stringify({ movieIds }),
     }),
   addMovie: (movie: {
     title: string;
-    franchiseName?: string;
+    collectionName?: string;
     tmdbId?: number | null;
   }) =>
     request<{ movie: Movie }>("/api/movies", {
@@ -123,7 +123,7 @@ export const api = {
   updateMovie: (
     id: string,
     movie: {
-      franchiseName?: string | null;
+      collectionName?: string | null;
       title?: string;
       tmdbId?: number | null;
     },

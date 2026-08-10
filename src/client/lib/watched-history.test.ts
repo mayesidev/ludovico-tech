@@ -8,7 +8,7 @@ const movie = (
   ratingScore: number | null = 4,
 ): Movie => ({
   added_at: "2026-01-01T00:00:00.000Z",
-  franchise_id: null,
+  collection_id: null,
   id,
   poster_path: null,
   rating_phrase: ratingScore === null ? null : `${id} rating`,

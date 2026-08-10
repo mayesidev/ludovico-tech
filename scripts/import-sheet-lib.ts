@@ -1,14 +1,14 @@
 import { parse } from "csv-parse/sync";
 
-export const INTERMEDIATE_SCHEMA_VERSION = 2 as const;
+export const INTERMEDIATE_SCHEMA_VERSION = 3 as const;
 export const TMDB_RECONCILIATION_SCHEMA_VERSION = 2 as const;
 
 const SOURCE_COLUMN_INDEX = {
   submittedAt: 0,
   title: 1,
   priorViewed: 2,
-  franchiseIndicated: 3,
-  franchiseName: 4,
+  collectionIndicated: 3,
+  collectionName: 4,
   legacyImdbReference: 5,
   rating: 6,
 } as const;
@@ -21,10 +21,10 @@ export type ImportDiagnosticCode =
   | "DUPLICATE_EXTERNAL_ID"
   | "DUPLICATE_SOURCE_ROW"
   | "EXTERNAL_ID_CORRECTION_UNUSED"
-  | "FRANCHISE_INDICATOR_MISMATCH"
-  | "FRANCHISE_INDICATOR_UNCERTAIN"
+  | "COLLECTION_INDICATOR_MISMATCH"
+  | "COLLECTION_INDICATOR_UNCERTAIN"
   | "INTERMEDIATE_SCHEMA_INVALID"
-  | "INVALID_FRANCHISE_INDICATOR"
+  | "INVALID_COLLECTION_INDICATOR"
   | "INVALID_IMDB_REFERENCE"
   | "INVALID_PRIOR_VIEWED"
   | "INVALID_RATING"
@@ -72,8 +72,8 @@ const emptyImportCorrections = (): ImportCorrections => ({
 });
 
 export interface GeneralizedSubmission {
-  franchiseIndicated: boolean | null;
-  franchiseName: string | null;
+  collectionIndicated: boolean | null;
+  collectionName: string | null;
   legacyImdbId: string | null;
   priorViewed: boolean;
   rating: GeneralizedRating | null;
@@ -112,7 +112,7 @@ export interface SanitizationResult {
 }
 
 export interface ImportCounts {
-  franchises: number;
+  collections: number;
   movies: number;
   ratings: number;
   sources: number;
@@ -138,7 +138,7 @@ export const buildTmdbMetadataPlan = (
     parseSubmissionTimestamp(appliedAt) !== appliedAt
   ) {
     return {
-      counts: { franchises: 0, movies: 0, ratings: 0, sources: 0 },
+      counts: { collections: 0, movies: 0, ratings: 0, sources: 0 },
       diagnostics: [diagnostic("INTERMEDIATE_SCHEMA_INVALID", null)],
       statements: [],
     };
@@ -159,7 +159,7 @@ export const buildTmdbMetadataPlan = (
     const identities = new Set(
       sourceRows.map(
         (row) =>
-          `${normalize(row.title)}\u0000${normalize(row.franchiseName ?? "")}`,
+          `${normalize(row.title)}\u0000${normalize(row.collectionName ?? "")}`,
       ),
     );
     if (
@@ -179,14 +179,14 @@ export const buildTmdbMetadataPlan = (
 
   if (diagnostics.some((item) => item.severity === "error")) {
     return {
-      counts: { franchises: 0, movies: 0, ratings: 0, sources: 0 },
+      counts: { collections: 0, movies: 0, ratings: 0, sources: 0 },
       diagnostics,
       statements: [],
     };
   }
   return {
     counts: {
-      franchises: 0,
+      collections: 0,
       movies: statements.length,
       ratings: 0,
       sources: 0,
@@ -234,7 +234,7 @@ const parseBoolean = (value: string) => {
   }
 };
 
-const parseFranchiseIndicator = (value: string) => {
+const parseCollectionIndicator = (value: string) => {
   const parsed = parseBoolean(value);
   if (parsed !== null) return parsed;
   return normalize(value) === "maybe" ? null : undefined;
@@ -389,11 +389,11 @@ export const sanitizeSourceCsv = (
     const priorViewed = parseBoolean(
       record[SOURCE_COLUMN_INDEX.priorViewed] ?? "",
     );
-    const franchiseIndicated = parseFranchiseIndicator(
-      record[SOURCE_COLUMN_INDEX.franchiseIndicated] ?? "",
+    const collectionIndicated = parseCollectionIndicator(
+      record[SOURCE_COLUMN_INDEX.collectionIndicated] ?? "",
     );
-    const franchiseName =
-      (record[SOURCE_COLUMN_INDEX.franchiseName] ?? "").trim() || null;
+    const collectionName =
+      (record[SOURCE_COLUMN_INDEX.collectionName] ?? "").trim() || null;
     let imdb = parseImdbId(
       record[SOURCE_COLUMN_INDEX.legacyImdbReference] ?? "",
     );
@@ -425,8 +425,8 @@ export const sanitizeSourceCsv = (
     if (priorViewed === null) {
       diagnostics.push(diagnostic("INVALID_PRIOR_VIEWED", sourceRow));
     }
-    if (franchiseIndicated === undefined) {
-      diagnostics.push(diagnostic("INVALID_FRANCHISE_INDICATOR", sourceRow));
+    if (collectionIndicated === undefined) {
+      diagnostics.push(diagnostic("INVALID_COLLECTION_INDICATOR", sourceRow));
     }
     if (rating === undefined) {
       diagnostics.push(diagnostic("INVALID_RATING", sourceRow));
@@ -437,17 +437,17 @@ export const sanitizeSourceCsv = (
       );
     }
     if (
-      franchiseIndicated !== undefined &&
-      franchiseIndicated !== null &&
-      franchiseIndicated !== Boolean(franchiseName)
+      collectionIndicated !== undefined &&
+      collectionIndicated !== null &&
+      collectionIndicated !== Boolean(collectionName)
     ) {
       diagnostics.push(
-        diagnostic("FRANCHISE_INDICATOR_MISMATCH", sourceRow, "warning"),
+        diagnostic("COLLECTION_INDICATOR_MISMATCH", sourceRow, "warning"),
       );
     }
-    if (franchiseIndicated === null) {
+    if (collectionIndicated === null) {
       diagnostics.push(
-        diagnostic("FRANCHISE_INDICATOR_UNCERTAIN", sourceRow, "warning"),
+        diagnostic("COLLECTION_INDICATOR_UNCERTAIN", sourceRow, "warning"),
       );
     }
 
@@ -455,12 +455,12 @@ export const sanitizeSourceCsv = (
       submittedAt &&
       title &&
       priorViewed !== null &&
-      franchiseIndicated !== undefined &&
+      collectionIndicated !== undefined &&
       rating !== undefined
     ) {
       rows.push({
-        franchiseIndicated,
-        franchiseName,
+        collectionIndicated,
+        collectionName,
         legacyImdbId: imdb.id,
         priorViewed,
         rating,
@@ -522,7 +522,7 @@ export const sanitizeSourceCsv = (
 const isBoolean = (value: unknown): value is boolean =>
   typeof value === "boolean";
 
-const isFranchiseIndicator = (value: unknown): value is boolean | null =>
+const isCollectionIndicator = (value: unknown): value is boolean | null =>
   value === null || isBoolean(value);
 
 const isNullableString = (value: unknown): value is string | null =>
@@ -653,8 +653,8 @@ const isSubmission = (value: unknown): value is GeneralizedSubmission => {
   const row = value as Record<string, unknown>;
   return (
     hasExactKeys(row, [
-      "franchiseIndicated",
-      "franchiseName",
+      "collectionIndicated",
+      "collectionName",
       "legacyImdbId",
       "priorViewed",
       "rating",
@@ -670,11 +670,11 @@ const isSubmission = (value: unknown): value is GeneralizedSubmission => {
     row.title === row.title.trim() &&
     row.title.length > 0 &&
     isBoolean(row.priorViewed) &&
-    isFranchiseIndicator(row.franchiseIndicated) &&
-    isNullableString(row.franchiseName) &&
-    (row.franchiseName === null ||
-      (row.franchiseName === row.franchiseName.trim() &&
-        row.franchiseName.length > 0)) &&
+    isCollectionIndicator(row.collectionIndicated) &&
+    isNullableString(row.collectionName) &&
+    (row.collectionName === null ||
+      (row.collectionName === row.collectionName.trim() &&
+        row.collectionName.length > 0)) &&
     isNullableString(row.legacyImdbId) &&
     (row.legacyImdbId === null || /^tt\d{6,9}$/.test(row.legacyImdbId)) &&
     isRating(row.rating)
@@ -810,7 +810,7 @@ const sql = (value: string | number | null) => {
 interface AccumulatedMovie {
   addedAt: string;
   firstSourceRow: number;
-  franchiseName: string | null;
+  collectionName: string | null;
   id: string;
   legacyImdbId: string | null;
   rating: GeneralizedRating | null;
@@ -835,7 +835,7 @@ export const buildImportPlan = async (
     parseSubmissionTimestamp(importedAt) !== importedAt
   ) {
     return {
-      counts: { franchises: 0, movies: 0, ratings: 0, sources: 0 },
+      counts: { collections: 0, movies: 0, ratings: 0, sources: 0 },
       diagnostics: [diagnostic("INTERMEDIATE_SCHEMA_INVALID", null)],
       statements: [],
     };
@@ -859,8 +859,8 @@ export const buildImportPlan = async (
       row.submittedAt,
       row.title.trim(),
       row.priorViewed,
-      row.franchiseIndicated,
-      row.franchiseName?.trim() ?? null,
+      row.collectionIndicated,
+      row.collectionName?.trim() ?? null,
       row.legacyImdbId,
       row.rating?.score ?? null,
       row.rating?.phrase.trim() ?? null,
@@ -869,10 +869,10 @@ export const buildImportPlan = async (
     duplicateOccurrences.set(fingerprint, occurrence);
     const sourceKey = await hash("source", `${fingerprint}\u0000${occurrence}`);
     const titleNormalized = normalize(row.title);
-    const franchiseName = row.franchiseName?.trim() || null;
-    const franchiseNormalized = normalize(franchiseName ?? "");
+    const collectionName = row.collectionName?.trim() || null;
+    const collectionNormalized = normalize(collectionName ?? "");
     const movieKey = row.legacyImdbId
-      ? `imdb:${row.legacyImdbId}\u0000title:${titleNormalized}\u0000franchise:${franchiseNormalized}`
+      ? `imdb:${row.legacyImdbId}\u0000title:${titleNormalized}\u0000collection:${collectionNormalized}`
       : `submission:${fingerprint}`;
     const existing = movies.get(movieKey);
     const tmdbMatch = row.legacyImdbId
@@ -883,7 +883,7 @@ export const buildImportPlan = async (
       movies.set(movieKey, {
         addedAt: row.submittedAt,
         firstSourceRow: row.sourceRow,
-        franchiseName,
+        collectionName,
         id: await stableId("movie", movieKey),
         legacyImdbId: row.legacyImdbId,
         rating: row.rating,
@@ -960,7 +960,7 @@ export const buildImportPlan = async (
 
   if (diagnostics.some((item) => item.severity === "error")) {
     return {
-      counts: { franchises: 0, movies: 0, ratings: 0, sources: 0 },
+      counts: { collections: 0, movies: 0, ratings: 0, sources: 0 },
       diagnostics,
       statements: [],
     };
@@ -971,28 +971,28 @@ export const buildImportPlan = async (
       left.firstSourceRow - right.firstSourceRow ||
       left.id.localeCompare(right.id),
   );
-  const franchiseMap = new Map<
+  const collectionMap = new Map<
     string,
     { id: string; name: string; movies: AccumulatedMovie[] }
   >();
   for (const movie of orderedMovies) {
-    if (!movie.franchiseName) continue;
-    const key = normalize(movie.franchiseName);
-    const franchise = franchiseMap.get(key) ?? {
-      id: await stableId("franchise", key),
+    if (!movie.collectionName) continue;
+    const key = normalize(movie.collectionName);
+    const collection = collectionMap.get(key) ?? {
+      id: await stableId("collection", key),
       movies: [],
-      name: movie.franchiseName,
+      name: movie.collectionName,
     };
-    franchise.movies.push(movie);
-    franchiseMap.set(key, franchise);
+    collection.movies.push(movie);
+    collectionMap.set(key, collection);
   }
 
   const statements: string[] = [];
-  for (const [nameNormalized, franchise] of [
-    ...franchiseMap.entries(),
+  for (const [nameNormalized, collection] of [
+    ...collectionMap.entries(),
   ].sort()) {
     statements.push(
-      `INSERT OR IGNORE INTO franchises (id, name, name_normalized, order_confirmed, created_at, updated_at) VALUES (${sql(franchise.id)}, ${sql(franchise.name)}, ${sql(nameNormalized)}, 0, ${sql(importedAt)}, ${sql(importedAt)});`,
+      `INSERT OR IGNORE INTO collections (id, name, name_normalized, order_confirmed, created_at, updated_at) VALUES (${sql(collection.id)}, ${sql(collection.name)}, ${sql(nameNormalized)}, 0, ${sql(importedAt)}, ${sql(importedAt)});`,
     );
   }
 
@@ -1014,20 +1014,20 @@ export const buildImportPlan = async (
     }
   }
 
-  for (const [, franchise] of [...franchiseMap.entries()].sort()) {
-    for (const [index, movie] of franchise.movies.entries()) {
+  for (const [, collection] of [...collectionMap.entries()].sort()) {
+    for (const [index, movie] of collection.movies.entries()) {
       statements.push(
-        `INSERT OR IGNORE INTO franchise_movies (franchise_id, movie_id, position) VALUES (${sql(franchise.id)}, ${sql(movie.id)}, ${index + 1});`,
+        `INSERT OR IGNORE INTO collection_movies (collection_id, movie_id, position) VALUES (${sql(collection.id)}, ${sql(movie.id)}, ${index + 1});`,
       );
     }
   }
 
   if (nowShowing) {
-    const franchise = nowShowing.franchiseName
-      ? franchiseMap.get(normalize(nowShowing.franchiseName))
+    const collection = nowShowing.collectionName
+      ? collectionMap.get(normalize(nowShowing.collectionName))
       : null;
     statements.push(
-      `UPDATE now_showing SET rolled_movie_id = NULL, movie_id = ${sql(nowShowing.id)}, franchise_id = ${sql(franchise?.id ?? null)}, status = ${sql(franchise ? "pending_order" : "ready")}, rolled_at = NULL, updated_at = ${sql(importedAt)} WHERE id = 1 AND status = 'empty';`,
+      `UPDATE now_showing SET rolled_movie_id = NULL, movie_id = ${sql(nowShowing.id)}, collection_id = ${sql(collection?.id ?? null)}, status = ${sql(collection ? "pending_order" : "ready")}, rolled_at = NULL, updated_at = ${sql(importedAt)} WHERE id = 1 AND status = 'empty';`,
     );
   }
 
@@ -1040,7 +1040,7 @@ export const buildImportPlan = async (
 
   return {
     counts: {
-      franchises: franchiseMap.size,
+      collections: collectionMap.size,
       movies: orderedMovies.length,
       ratings: orderedMovies.filter((movie) => movie.rating).length,
       sources: orderedMovies.reduce(

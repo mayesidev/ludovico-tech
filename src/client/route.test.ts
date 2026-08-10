@@ -15,14 +15,14 @@ describe("client routes", () => {
       movieId: "movie id",
       returnTo: "now-showing",
     });
-    expect(parseRoute("/franchises/saga%20id")).toEqual({
-      page: "franchise",
-      franchiseId: "saga id",
+    expect(parseRoute("/collections/saga%20id")).toEqual({
+      page: "collection",
+      collectionId: "saga id",
       returnTo: "library",
     });
-    expect(parseRoute("/franchises/saga%20id", "?from=now-showing")).toEqual({
-      page: "franchise",
-      franchiseId: "saga id",
+    expect(parseRoute("/collections/saga%20id", "?from=now-showing")).toEqual({
+      page: "collection",
+      collectionId: "saga id",
       returnTo: "now-showing",
     });
   });

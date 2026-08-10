@@ -7,7 +7,7 @@ import { HomePage } from "./home-page";
 
 const movie = (overrides: Partial<Movie> = {}): Movie => ({
   added_at: "2026-08-07T00:00:00.000Z",
-  franchise_id: null,
+  collection_id: null,
   id: "movie-id",
   poster_path: null,
   rating_phrase: null,
@@ -21,8 +21,8 @@ const movie = (overrides: Partial<Movie> = {}): Movie => ({
 });
 
 const nowShowing = (overrides: Partial<NowShowing> = {}): NowShowing => ({
-  franchise_id: null,
-  franchise_name: null,
+  collection_id: null,
+  collection_name: null,
   id: 1,
   movie_id: "movie-id",
   poster_path: null,
@@ -115,7 +115,7 @@ describe("home workflows", () => {
     expect(phrase).toHaveAttribute("placeholder", "whats?");
   });
 
-  it("offers series continuation or a fresh roll after a watched title", async () => {
+  it("offers collection continuation or a fresh roll after a watched title", async () => {
     vi.spyOn(api, "next").mockResolvedValue({
       nowShowing: nowShowing({ movie_id: "second-id" }),
     });
@@ -123,13 +123,13 @@ describe("home workflows", () => {
     const user = userEvent.setup();
     renderHome({
       nowShowing: nowShowing({
-        franchise_id: "franchise-id",
-        franchise_name: "Test Saga",
+        collection_id: "collection-id",
+        collection_name: "Test Saga",
         rating_phrase: "Worth continuing",
         rating_score: 4,
         status: "watched",
       }),
-      remaining: [movie({ franchise_id: "franchise-id", id: "second-id" })],
+      remaining: [movie({ collection_id: "collection-id", id: "second-id" })],
       roll,
     });
 
@@ -140,7 +140,9 @@ describe("home workflows", () => {
     ).toBeVisible();
     expect(screen.queryByText("4/5")).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "Continue series" }));
+    await user.click(
+      screen.getByRole("button", { name: "Continue collection" }),
+    );
     await user.click(
       screen.getByRole("button", { name: "Choose another movie" }),
     );
@@ -149,13 +151,13 @@ describe("home workflows", () => {
     expect(roll).toHaveBeenCalledOnce();
   });
 
-  it("requires franchise order confirmation before rating", async () => {
+  it("requires collection order confirmation before rating", async () => {
     const onNavigate = vi.fn();
     const user = userEvent.setup();
     renderHome({
       nowShowing: nowShowing({
-        franchise_id: "franchise-id",
-        franchise_name: "Test Saga",
+        collection_id: "collection-id",
+        collection_name: "Test Saga",
         status: "pending_order",
       }),
       onNavigate,
@@ -166,14 +168,14 @@ describe("home workflows", () => {
       screen.queryByRole("button", { name: "Choose the next movie" }),
     ).toBeNull();
     await user.click(
-      screen.getByRole("button", { name: "Confirm franchise order" }),
+      screen.getByRole("button", { name: "Confirm collection order" }),
     );
     expect(onNavigate).toHaveBeenCalledWith(
-      "/franchises/franchise-id?from=now-showing",
+      "/collections/collection-id?from=now-showing",
     );
     expect(screen.getByRole("link", { name: "Test Saga" })).toHaveAttribute(
       "href",
-      "/franchises/franchise-id?from=now-showing",
+      "/collections/collection-id?from=now-showing",
     );
   });
 
@@ -298,11 +300,11 @@ describe("home workflows", () => {
     expect(title.parentElement).toHaveClass("text-center");
   });
 
-  it("places the franchise below the linked title", () => {
+  it("places the collection below the linked title", () => {
     renderHome({
       nowShowing: nowShowing({
-        franchise_id: "franchise-id",
-        franchise_name: "Test Saga",
+        collection_id: "collection-id",
+        collection_name: "Test Saga",
       }),
     });
 
@@ -310,8 +312,8 @@ describe("home workflows", () => {
       level: 1,
       name: "Test Movie (2020)",
     });
-    const franchise = screen.getByRole("link", { name: "Test Saga" });
-    expect(title.compareDocumentPosition(franchise)).toBe(
+    const collection = screen.getByRole("link", { name: "Test Saga" });
+    expect(title.compareDocumentPosition(collection)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
   });

@@ -8,15 +8,15 @@ export type MovieRow = {
   poster_path: string | null;
   runtime_minutes: number | null;
   tmdb_id: number | null;
-  franchise_id: string | null;
+  collection_id: string | null;
   rating_score: number | null;
   rating_phrase: string | null;
   watched_at: string | null;
-  franchise_name?: string | null;
-  franchise_position?: number | null;
+  collection_name?: string | null;
+  collection_position?: number | null;
 };
 
-export type FranchiseRow = {
+export type CollectionRow = {
   id: string;
   name: string;
   order_confirmed: number;
@@ -28,7 +28,7 @@ export type NowShowingRow = {
   id: number;
   rolled_movie_id: string | null;
   movie_id: string | null;
-  franchise_id: string | null;
+  collection_id: string | null;
   status: "empty" | "pending_order" | "ready" | "watched";
   rolled_at: string | null;
   updated_at: string;
@@ -38,20 +38,20 @@ export type NowShowingRow = {
   rating_score: number | null;
   rating_phrase: string | null;
   watched_at: string | null;
-  movie_franchise_id: string | null;
-  franchise_name: string | null;
+  movie_collection_id: string | null;
+  collection_name: string | null;
 };
 
 export const movieSelect = `
   SELECT movies.id, movies.title, movies.added_at, movies.release_date,
     movies.poster_path, movies.runtime_minutes, movies.tmdb_id,
-    franchises.name AS franchise_name,
-    franchise_movies.franchise_id, franchise_movies.position AS franchise_position,
+    collections.name AS collection_name,
+    collection_movies.collection_id, collection_movies.position AS collection_position,
     ratings.score AS rating_score, ratings.phrase AS rating_phrase,
     ratings.watched_at
   FROM movies
-  LEFT JOIN franchise_movies ON franchise_movies.movie_id = movies.id
-  LEFT JOIN franchises ON franchises.id = franchise_movies.franchise_id
+  LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
+  LEFT JOIN collections ON collections.id = collection_movies.collection_id
   LEFT JOIN ratings ON ratings.movie_id = movies.id
 `;
 
@@ -64,38 +64,38 @@ export const getNowShowing = async (env: AppEnv["Bindings"]) =>
   env.DB.prepare(
     `SELECT now_showing.*, movies.title, movies.release_date, movies.poster_path,
         ratings.score AS rating_score, ratings.phrase AS rating_phrase,
-        ratings.watched_at, franchise_movies.franchise_id AS movie_franchise_id,
-        franchises.name AS franchise_name
+        ratings.watched_at, collection_movies.collection_id AS movie_collection_id,
+        collections.name AS collection_name
        FROM now_showing
        LEFT JOIN movies ON movies.id = now_showing.movie_id
        LEFT JOIN ratings ON ratings.movie_id = movies.id
-       LEFT JOIN franchise_movies ON franchise_movies.movie_id = movies.id
-       LEFT JOIN franchises ON franchises.id = now_showing.franchise_id
+       LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
+       LEFT JOIN collections ON collections.id = now_showing.collection_id
        WHERE now_showing.id = 1`,
   ).first<NowShowingRow>();
 
-export const getRemainingFranchiseMovies = async (
+export const getRemainingCollectionMovies = async (
   env: AppEnv["Bindings"],
-  franchiseId: string,
+  collectionId: string,
 ) => {
   const result = await env.DB.prepare(
     `${movieSelect}
-       WHERE franchise_movies.franchise_id = ? AND ratings.id IS NULL
-       ORDER BY franchise_movies.position ASC, movies.added_at ASC`,
+       WHERE collection_movies.collection_id = ? AND ratings.id IS NULL
+       ORDER BY collection_movies.position ASC, movies.added_at ASC`,
   )
-    .bind(franchiseId)
+    .bind(collectionId)
     .all<MovieRow>();
   return result.results;
 };
 
-export const getFranchiseMovies = async (
+export const getCollectionMovies = async (
   env: AppEnv["Bindings"],
-  franchiseId: string,
+  collectionId: string,
 ) => {
   const result = await env.DB.prepare(
-    `${movieSelect} WHERE franchise_movies.franchise_id = ? ORDER BY franchise_movies.position ASC, movies.added_at ASC`,
+    `${movieSelect} WHERE collection_movies.collection_id = ? ORDER BY collection_movies.position ASC, movies.added_at ASC`,
   )
-    .bind(franchiseId)
+    .bind(collectionId)
     .all<MovieRow>();
   return result.results;
 };
