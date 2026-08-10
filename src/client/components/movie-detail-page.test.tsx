@@ -29,7 +29,10 @@ describe("movie details", () => {
     expect(screen.getByText("Mar 31, 1999")).toBeVisible();
     expect(screen.getByText("5")).toBeVisible();
     expect(screen.getByText("“There is no spoon”")).toBeVisible();
-    expect(screen.getByText("Test Saga")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Test Saga" })).toHaveAttribute(
+      "href",
+      "/franchises/franchise-id",
+    );
     expect(screen.getByRole("link", { name: "View on TMDB" })).toHaveAttribute(
       "href",
       "https://www.themoviedb.org/movie/603",

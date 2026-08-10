@@ -2,6 +2,7 @@ export type AppRoute =
   | { page: "home" }
   | { page: "library" }
   | { page: "movie"; movieId: string }
+  | { page: "franchise"; franchiseId: string }
   | { page: "not-found" };
 
 export const parseRoute = (pathname: string): AppRoute => {
@@ -14,6 +15,16 @@ export const parseRoute = (pathname: string): AppRoute => {
   if (segments.length === 2 && segments[0] === "movies") {
     try {
       return { page: "movie", movieId: decodeURIComponent(segments[1]) };
+    } catch {
+      return { page: "not-found" };
+    }
+  }
+  if (segments.length === 2 && segments[0] === "franchises") {
+    try {
+      return {
+        page: "franchise",
+        franchiseId: decodeURIComponent(segments[1]),
+      };
     } catch {
       return { page: "not-found" };
     }

@@ -61,14 +61,17 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await expect(page.getByRole("status")).toBeHidden({
       timeout: 5_000,
     });
-    const orderDialog = page.getByRole("dialog", {
-      name: "How should we watch it?",
-    });
-    await expect(orderDialog).toBeVisible();
-    await orderDialog
+    await expect(page).toHaveURL(/\/franchises\//);
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Browser Saga" }),
+    ).toBeVisible();
+    await page.reload();
+    await page
       .getByRole("button", { name: "Move Browser Chapter Two up" })
       .click();
-    await orderDialog.getByRole("button", { name: "Use this order" }).click();
+    await page.getByRole("button", { name: "Save order" }).click();
+    await expect(page.getByRole("status")).toHaveText("Order saved.");
+    await page.getByRole("link", { name: "Now showing" }).click();
     await expect(
       page.getByRole("heading", { level: 1, name: "Browser Chapter Two" }),
     ).toBeVisible();

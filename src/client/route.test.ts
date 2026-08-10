@@ -9,6 +9,10 @@ describe("client routes", () => {
       page: "movie",
       movieId: "movie id",
     });
+    expect(parseRoute("/franchises/saga%20id")).toEqual({
+      page: "franchise",
+      franchiseId: "saga id",
+    });
   });
 
   it("rejects unknown and malformed routes", () => {
