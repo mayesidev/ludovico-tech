@@ -346,6 +346,73 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     return c.json({ movie: await getMovie(c.env, movieId) });
   });
 
+  app.delete("/movies/:id", async (c) => {
+    const actor = await mutationActor(c);
+    if (!actor) return c.json({ error: "Authentication required" }, 401);
+
+    const movieId = c.req.param("id");
+    const existing = await getMovie(c.env, movieId);
+    if (!existing) return c.json({ error: "Movie not found" }, 404);
+    if (existing.rating_score !== null) {
+      return c.json({ error: "Watched movies cannot be deleted" }, 409);
+    }
+
+    const timestamp = now();
+    const auditId = newId();
+    const statements: D1PreparedStatement[] = [
+      c.env.DB.prepare(
+        `INSERT INTO audit_log
+         (id, entity_type, entity_id, action, actor_id, created_at, details_json)
+         SELECT ?, 'movie', ?, 'deleted', ?, ?, ?
+         WHERE EXISTS (
+           SELECT 1 FROM movies
+           LEFT JOIN ratings ON ratings.movie_id = movies.id
+           WHERE movies.id = ? AND ratings.id IS NULL
+         )`,
+      ).bind(
+        auditId,
+        movieId,
+        actor.id,
+        timestamp,
+        JSON.stringify({ title: existing.title }),
+        movieId,
+      ),
+      c.env.DB.prepare(
+        `UPDATE now_showing
+         SET rolled_movie_id = NULL, movie_id = NULL, franchise_id = NULL,
+             status = 'empty', rolled_at = NULL, updated_at = ?
+         WHERE id = 1 AND (movie_id = ? OR rolled_movie_id = ?)
+           AND EXISTS (SELECT 1 FROM audit_log WHERE id = ?)`,
+      ).bind(timestamp, movieId, movieId, auditId),
+      c.env.DB.prepare(
+        `DELETE FROM rolls
+         WHERE (rolled_movie_id = ? OR actual_movie_id = ?)
+           AND EXISTS (SELECT 1 FROM audit_log WHERE id = ?)`,
+      ).bind(movieId, movieId, auditId),
+      c.env.DB.prepare(
+        `DELETE FROM movies WHERE id = ?
+         AND EXISTS (SELECT 1 FROM audit_log WHERE id = ?)`,
+      ).bind(movieId, auditId),
+    ];
+    if (existing.franchise_id) {
+      statements.push(
+        c.env.DB.prepare(
+          `DELETE FROM franchises WHERE id = ?
+           AND NOT EXISTS (
+             SELECT 1 FROM franchise_movies WHERE franchise_id = ?
+           )
+           AND EXISTS (SELECT 1 FROM audit_log WHERE id = ?)`,
+        ).bind(existing.franchise_id, existing.franchise_id, auditId),
+      );
+    }
+
+    const [auditInsert] = await c.env.DB.batch(statements);
+    if (!auditInsert.meta.changes) {
+      return c.json({ error: "Watched movies cannot be deleted" }, 409);
+    }
+    return c.json({ deleted: true, id: movieId });
+  });
+
   app.post("/movies/:id/rate", zValidator("json", ratingInput), async (c) => {
     const actor = await mutationActor(c);
     if (!actor) return c.json({ error: "Authentication required" }, 401);

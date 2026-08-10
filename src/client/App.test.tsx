@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
@@ -176,6 +176,57 @@ describe("application authorization presentation", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "Test Movie" }),
     ).toBeVisible();
+  });
+
+  it("confirms deletion from details and returns to the library", async () => {
+    arrange(authenticated);
+    vi.spyOn(api, "deleteMovie").mockResolvedValue({
+      deleted: true,
+      id: movie.id,
+    });
+    window.history.replaceState(null, "", "/movies/movie-id?from=library");
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Delete movie" }),
+    );
+    const confirmation = screen.getByRole("dialog", {
+      name: "Delete Test Movie?",
+    });
+    expect(confirmation).toBeVisible();
+    expect(
+      screen.getAllByRole("button", { name: "Delete movie" }),
+    ).toHaveLength(1);
+    await user.click(
+      within(confirmation).getByRole("button", { name: "Delete movie" }),
+    );
+
+    await waitFor(() => expect(window.location.pathname).toBe("/library"));
+    expect(api.deleteMovie).toHaveBeenCalledWith("movie-id");
+  });
+
+  it("returns to Now Showing after deleting from that context", async () => {
+    arrange(authenticated);
+    vi.spyOn(api, "deleteMovie").mockResolvedValue({
+      deleted: true,
+      id: movie.id,
+    });
+    window.history.replaceState(null, "", "/movies/movie-id?from=now-showing");
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Delete movie" }),
+    );
+    const confirmation = screen.getByRole("dialog", {
+      name: "Delete Test Movie?",
+    });
+    await user.click(
+      within(confirmation).getByRole("button", { name: "Delete movie" }),
+    );
+
+    await waitFor(() => expect(window.location.pathname).toBe("/"));
   });
 
   it("expires authorization safely while saving franchise order", async () => {

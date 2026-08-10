@@ -38,8 +38,24 @@ export function Dialog({
         ? document.activeElement
         : null;
     const dialog = dialogRef.current;
+    const overlay = dialog?.parentElement;
+    const background = Array.from(
+      overlay?.parentElement?.children ?? [],
+    ).filter(
+      (element): element is HTMLElement =>
+        element instanceof HTMLElement && element !== overlay,
+    );
+    const backgroundState = background.map((element) => ({
+      ariaHidden: element.getAttribute("aria-hidden"),
+      element,
+      inert: element.inert,
+    }));
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    for (const element of background) {
+      element.inert = true;
+      element.setAttribute("aria-hidden", "true");
+    }
 
     (
       initialFocus?.current ??
@@ -79,6 +95,11 @@ export function Dialog({
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = previousOverflow;
+      for (const { ariaHidden, element, inert } of backgroundState) {
+        element.inert = inert;
+        if (ariaHidden === null) element.removeAttribute("aria-hidden");
+        else element.setAttribute("aria-hidden", ariaHidden);
+      }
       returnFocus?.focus();
     };
   }, [initialFocus]);

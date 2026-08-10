@@ -132,6 +132,10 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(movie),
     }),
+  deleteMovie: (id: string) =>
+    request<{ deleted: true; id: string }>(`/api/movies/${id}`, {
+      method: "DELETE",
+    }),
   tmdbSearch: (query: string) =>
     request<{ results: TmdbResult[] }>(
       `/api/tmdb/search?query=${encodeURIComponent(query)}`,
