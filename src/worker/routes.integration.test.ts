@@ -576,7 +576,7 @@ describe("TMDB routes and metadata attachment", () => {
     expect(movie).not.toHaveProperty("added_by");
     expect(movie).not.toHaveProperty("updated_by");
 
-    const spoofedEdit = await request(
+    const staleEdit = await request(
       `/api/movies/${String(movie.id)}`,
       session.bindings,
       {
@@ -589,11 +589,30 @@ describe("TMDB routes and metadata attachment", () => {
         }),
       },
     );
-    expect(await spoofedEdit.json()).toMatchObject({
+    expect(staleEdit.status).toBe(400);
+    expect(await staleEdit.json()).toEqual({
+      error: "Confirm or remove the TMDB match after changing the title",
+    });
+
+    const unlinked = await request(
+      `/api/movies/${String(movie.id)}`,
+      session.bindings,
+      {
+        method: "PATCH",
+        headers: { Cookie: session.cookie },
+        body: JSON.stringify({
+          title: "Allowed manual title",
+          tmdbId: null,
+        }),
+      },
+    );
+    expect(await unlinked.json()).toMatchObject({
       movie: {
-        poster_path: "/authoritative.jpg",
-        release_date: "2026-08-05",
+        poster_path: null,
+        release_date: null,
+        runtime_minutes: null,
         title: "Allowed manual title",
+        tmdb_id: null,
       },
     });
     expect(duplicate.status).toBe(409);

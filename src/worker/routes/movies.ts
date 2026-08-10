@@ -176,6 +176,19 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     if (!existing) return c.json({ error: "Movie not found" }, 404);
 
     const timestamp = now();
+    const titleChanged =
+      input.title !== undefined && input.title !== existing.title;
+    if (
+      titleChanged &&
+      existing.tmdb_id !== null &&
+      input.tmdbId === undefined
+    ) {
+      return c.json(
+        { error: "Confirm or remove the TMDB match after changing the title" },
+        400,
+      );
+    }
+
     let metadata = null;
     if (input.tmdbId) {
       try {
@@ -196,7 +209,56 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       }
     }
     const title = metadata?.title ?? input.title ?? existing.title;
-    await c.env.DB.batch([
+    const tmdbChangeRequested = input.tmdbId !== undefined;
+    const releaseDate =
+      metadata?.releaseDate ??
+      (tmdbChangeRequested ? null : existing.release_date);
+    const posterPath =
+      metadata?.posterPath ??
+      (tmdbChangeRequested ? null : existing.poster_path);
+    const runtimeMinutes =
+      metadata?.runtimeMinutes ??
+      (tmdbChangeRequested ? null : existing.runtime_minutes);
+
+    let targetFranchiseId = existing.franchise_id;
+    let targetFranchiseName: string | null = null;
+    let createFranchise = false;
+    const franchiseChangeRequested = input.franchiseName !== undefined;
+    if (franchiseChangeRequested) {
+      targetFranchiseName = input.franchiseName || null;
+      if (!targetFranchiseName) {
+        targetFranchiseId = null;
+      } else if (
+        existing.franchise_id &&
+        normalizeTitle(targetFranchiseName) ===
+          normalizeTitle(existing.franchise_name ?? "")
+      ) {
+        targetFranchiseId = existing.franchise_id;
+      } else {
+        const target = await c.env.DB.prepare(
+          "SELECT id FROM franchises WHERE name_normalized = ?",
+        )
+          .bind(normalizeTitle(targetFranchiseName))
+          .first<{ id: string }>();
+        targetFranchiseId = target?.id ?? newId();
+        createFranchise = !target;
+      }
+    }
+
+    const membershipChanged =
+      franchiseChangeRequested && targetFranchiseId !== existing.franchise_id;
+    const targetPosition =
+      membershipChanged && targetFranchiseId
+        ? ((
+            await c.env.DB.prepare(
+              "SELECT COALESCE(MAX(position), 0) + 1 AS position FROM franchise_movies WHERE franchise_id = ?",
+            )
+              .bind(targetFranchiseId)
+              .first<{ position: number }>()
+          )?.position ?? 1)
+        : null;
+
+    const statements: D1PreparedStatement[] = [
       c.env.DB.prepare(
         `UPDATE movies SET title = ?, title_normalized = ?, updated_at = ?, updated_by = ?,
         release_date = ?, poster_path = ?, runtime_minutes = ?, tmdb_id = ?,
@@ -207,18 +269,80 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         normalizeTitle(title),
         timestamp,
         actor.id,
-        metadata?.releaseDate ?? existing.release_date,
-        metadata?.posterPath ?? existing.poster_path,
-        metadata?.runtimeMinutes ?? existing.runtime_minutes,
+        releaseDate,
+        posterPath,
+        runtimeMinutes,
         input.tmdbId === undefined ? existing.tmdb_id : input.tmdbId,
-        input.tmdbId !== undefined ? 1 : 0,
+        tmdbChangeRequested ? 1 : 0,
         input.tmdbId ? timestamp : null,
         movieId,
       ),
+    ];
+
+    if (membershipChanged) {
+      if (createFranchise && targetFranchiseId && targetFranchiseName) {
+        statements.push(
+          c.env.DB.prepare(
+            "INSERT INTO franchises (id, name, name_normalized, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+          ).bind(
+            targetFranchiseId,
+            targetFranchiseName,
+            normalizeTitle(targetFranchiseName),
+            timestamp,
+            timestamp,
+          ),
+        );
+      }
+      if (existing.franchise_id) {
+        statements.push(
+          c.env.DB.prepare(
+            "DELETE FROM franchise_movies WHERE franchise_id = ? AND movie_id = ?",
+          ).bind(existing.franchise_id, movieId),
+        );
+      }
+      if (targetFranchiseId && targetPosition !== null) {
+        statements.push(
+          c.env.DB.prepare(
+            "INSERT INTO franchise_movies (franchise_id, movie_id, position) VALUES (?, ?, ?)",
+          ).bind(targetFranchiseId, movieId, targetPosition),
+          c.env.DB.prepare(
+            "UPDATE franchises SET order_confirmed = 0, updated_at = ? WHERE id = ?",
+          ).bind(timestamp, targetFranchiseId),
+        );
+      }
+      statements.push(
+        c.env.DB.prepare(
+          `UPDATE now_showing SET franchise_id = ?,
+           status = CASE
+             WHEN status = 'watched' THEN 'watched'
+             WHEN ? IS NULL THEN 'ready'
+             ELSE 'pending_order'
+           END,
+           updated_at = ?
+           WHERE id = 1 AND movie_id = ?`,
+        ).bind(targetFranchiseId, targetFranchiseId, timestamp, movieId),
+      );
+      if (existing.franchise_id) {
+        statements.push(
+          c.env.DB.prepare(
+            "UPDATE franchises SET updated_at = ? WHERE id = ?",
+          ).bind(timestamp, existing.franchise_id),
+          c.env.DB.prepare(
+            `DELETE FROM franchises WHERE id = ?
+             AND NOT EXISTS (
+               SELECT 1 FROM franchise_movies WHERE franchise_id = ?
+             )`,
+          ).bind(existing.franchise_id, existing.franchise_id),
+        );
+      }
+    }
+
+    statements.push(
       auditStatement(c.env, "movie", movieId, "updated", actor.id, {
         fields: Object.keys(input),
       }),
-    ]);
+    );
+    await c.env.DB.batch(statements);
     return c.json({ movie: await getMovie(c.env, movieId) });
   });
 

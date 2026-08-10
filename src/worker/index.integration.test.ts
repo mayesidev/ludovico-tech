@@ -146,6 +146,93 @@ describe("Ludovico Tech Worker routes", () => {
     expect(next.body.nowShowing.movie_id).toBe(first.body.movie.id);
   });
 
+  it("moves and removes franchise membership while keeping Now Showing consistent", async () => {
+    const target = await request<{
+      movie: { franchise_id: string; id: string };
+    }>("/api/movies", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Existing Replacement Chapter",
+        franchiseName: "Replacement Saga",
+      }),
+    });
+    const added = await request<{
+      movie: { franchise_id: string; id: string };
+    }>("/api/movies", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Editable Chapter",
+        franchiseName: "Original Saga",
+      }),
+    });
+    const originalFranchiseId = added.body.movie.franchise_id;
+    await env.DB.prepare(
+      `UPDATE now_showing
+       SET movie_id = ?, rolled_movie_id = ?, franchise_id = ?, status = 'pending_order'
+       WHERE id = 1`,
+    )
+      .bind(added.body.movie.id, added.body.movie.id, originalFranchiseId)
+      .run();
+
+    const moved = await request<{
+      movie: { franchise_id: string; franchise_name: string };
+    }>(`/api/movies/${added.body.movie.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ franchiseName: "Replacement Saga" }),
+    });
+    expect(moved.response.status).toBe(200);
+    expect(moved.body.movie.franchise_name).toBe("Replacement Saga");
+    expect(moved.body.movie.franchise_id).toBe(target.body.movie.franchise_id);
+    expect(
+      await env.DB.prepare("SELECT id FROM franchises WHERE id = ?")
+        .bind(originalFranchiseId)
+        .first(),
+    ).toBeNull();
+    expect(
+      await env.DB.prepare(
+        "SELECT franchise_id, status FROM now_showing WHERE id = 1",
+      ).first(),
+    ).toEqual({
+      franchise_id: moved.body.movie.franchise_id,
+      status: "pending_order",
+    });
+    expect(
+      (
+        await env.DB.prepare(
+          `SELECT movie_id, position FROM franchise_movies
+           WHERE franchise_id = ? ORDER BY position`,
+        )
+          .bind(target.body.movie.franchise_id)
+          .all()
+      ).results,
+    ).toEqual([
+      { movie_id: target.body.movie.id, position: 1 },
+      { movie_id: added.body.movie.id, position: 2 },
+    ]);
+
+    const removed = await request<{
+      movie: { franchise_id: null; franchise_name: null };
+    }>(`/api/movies/${added.body.movie.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ franchiseName: "" }),
+    });
+    expect(removed.response.status).toBe(200);
+    expect(removed.body.movie).toMatchObject({
+      franchise_id: null,
+      franchise_name: null,
+    });
+    expect(
+      await env.DB.prepare(
+        "SELECT franchise_id, status FROM now_showing WHERE id = 1",
+      ).first(),
+    ).toEqual({ franchise_id: null, status: "ready" });
+    expect(
+      await env.DB.prepare("SELECT id FROM franchises WHERE id = ?")
+        .bind(target.body.movie.franchise_id)
+        .first(),
+    ).not.toBeNull();
+  });
+
   it("rejects ratings that use quarter points", async () => {
     const added = await request<{ movie: { id: string } }>("/api/movies", {
       method: "POST",

@@ -105,6 +105,11 @@ describe("application authorization presentation", () => {
     await user.click(screen.getByRole("link", { name: "Library" }));
     expect(window.location.pathname).toBe("/library");
     expect(screen.getByRole("button", { name: "Add a movie" })).toBeVisible();
+    await user.click(screen.getByRole("link", { name: "Test Movie" }));
+    await user.click(screen.getByRole("button", { name: "Edit movie" }));
+    expect(screen.getByRole("dialog", { name: "Edit movie" })).toBeVisible();
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("link", { name: "Return to Library" }));
     await user.click(
       screen.getByRole("button", { name: "Sign out Invited User" }),
     );

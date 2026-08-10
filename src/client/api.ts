@@ -39,6 +39,9 @@ export type TmdbResult = {
   releaseDate: string | null;
   posterPath: string | null;
 };
+export type TmdbMovieDetail = TmdbResult & {
+  runtimeMinutes: number | null;
+};
 export type AuthState = {
   authenticated: boolean;
   actor: { email: string; displayName: string } | null;
@@ -120,6 +123,7 @@ export const api = {
   updateMovie: (
     id: string,
     movie: {
+      franchiseName?: string | null;
       title?: string;
       tmdbId?: number | null;
     },
@@ -132,4 +136,6 @@ export const api = {
     request<{ results: TmdbResult[] }>(
       `/api/tmdb/search?query=${encodeURIComponent(query)}`,
     ),
+  tmdbMovie: (id: number) =>
+    request<{ movie: TmdbMovieDetail }>(`/api/tmdb/movies/${id}`),
 };

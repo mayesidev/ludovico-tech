@@ -102,7 +102,10 @@ describe("atomic catalog mutations", () => {
     await withRejectedAudits(async () => {
       const response = await request(
         `/movies/${movieId}`,
-        { title: "Changed Atomic Title" },
+        {
+          franchiseName: "Atomic Edit Series",
+          title: "Changed Atomic Title",
+        },
         "PATCH",
       );
       expect(response.status).toBe(500);
@@ -112,6 +115,11 @@ describe("atomic catalog mutations", () => {
       .bind(movieId)
       .first<{ title: string }>();
     expect(movie?.title).toBe("Original Atomic Title");
+    expect(
+      await env.DB.prepare(
+        "SELECT id FROM franchises WHERE name = 'Atomic Edit Series'",
+      ).first(),
+    ).toBeNull();
   });
 
   it("rolls back a random roll when its audit fails", async () => {

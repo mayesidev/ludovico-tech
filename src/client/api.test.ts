@@ -27,6 +27,7 @@ describe("client API", () => {
     });
     await api.updateMovie("movie-id", { title: "New title" });
     await api.tmdbSearch("A movie & sequel");
+    await api.tmdbMovie(42);
 
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
       "/api/auth/me",
@@ -41,6 +42,7 @@ describe("client API", () => {
       "/api/movies",
       "/api/movies/movie-id",
       "/api/tmdb/search?query=A%20movie%20%26%20sequel",
+      "/api/tmdb/movies/42",
     ]);
     expect(fetchMock.mock.calls[7]?.[1]?.method).toBe("POST");
     expect(JSON.parse(String(fetchMock.mock.calls[7]?.[1]?.body))).toEqual({
@@ -58,6 +60,10 @@ describe("client API", () => {
         tmdbId: 42,
       }),
       method: "POST",
+    });
+    expect(fetchMock.mock.calls[10]?.[1]).toMatchObject({
+      body: JSON.stringify({ title: "New title" }),
+      method: "PATCH",
     });
   });
 

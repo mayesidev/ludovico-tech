@@ -50,6 +50,22 @@ describe("movie details", () => {
     );
   });
 
+  it("offers editing to authenticated contributors", async () => {
+    const onEdit = vi.fn();
+    render(
+      <MovieDetailPage
+        canMutate
+        movie={movie}
+        onEdit={onEdit}
+        onNavigate={vi.fn()}
+        returnTo="library"
+      />,
+    );
+
+    screen.getByRole("button", { name: "Edit movie" }).click();
+    expect(onEdit).toHaveBeenCalledWith(movie);
+  });
+
   it("does not invent a TMDB link for an unconfirmed movie", () => {
     render(
       <MovieDetailPage

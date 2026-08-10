@@ -8,6 +8,7 @@ export const movieInput = z.object({
 
 export const movieEditInput = z
   .object({
+    franchiseName: z.string().trim().max(200).optional().nullable(),
     title: z.string().trim().min(1).max(200).optional(),
     tmdbId: z.number().int().positive().optional().nullable(),
   })
