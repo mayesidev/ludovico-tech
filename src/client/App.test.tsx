@@ -62,17 +62,21 @@ describe("application authorization presentation", () => {
     expect(screen.queryByRole("button", { name: "Choose a movie" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add a movie" })).toBeNull();
 
-    const library = screen.getByRole("button", { name: "Library" });
+    const library = screen.getByRole("link", { name: "Library" });
     await user.click(library);
+    expect(window.location.pathname).toBe("/library");
     expect(library).toHaveAttribute("aria-current", "page");
-    expect(screen.getByText("Test Movie")).toBeInTheDocument();
+    await user.click(screen.getByRole("link", { name: "Test Movie" }));
+    expect(window.location.pathname).toBe("/movies/movie-id");
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Test Movie" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Test Saga")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Order" })).toBeNull();
 
-    await user.click(
-      screen.getByRole("button", { name: "Ludovico Tech home" }),
-    );
-    expect(screen.getByRole("button", { name: "Now showing" })).toHaveAttribute(
+    await user.click(screen.getByRole("link", { name: "Ludovico Tech home" }));
+    expect(screen.getByRole("link", { name: "Now showing" })).toHaveAttribute(
       "aria-current",
       "page",
     );
@@ -122,5 +126,37 @@ describe("application authorization presentation", () => {
     expect(screen.getByRole("button", { name: /^Sign in$/ })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Choose a movie" })).toBeNull();
     expect(api.authMe).toHaveBeenCalledTimes(2);
+  });
+
+  it("loads movie URLs directly and follows browser history", async () => {
+    arrange(anonymous);
+    vi.mocked(api.movies).mockResolvedValue({
+      movies: [{ ...movie, tmdb_id: 603 }],
+    });
+    window.history.replaceState(null, "", "/movies/movie-id");
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Test Movie" }),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "View on TMDB" })).toHaveAttribute(
+      "href",
+      "https://www.themoviedb.org/movie/603",
+    );
+
+    window.history.pushState(null, "", "/movies/missing-id");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Movie not found",
+      }),
+    ).toBeVisible();
+
+    window.history.back();
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Test Movie" }),
+    ).toBeVisible();
   });
 });

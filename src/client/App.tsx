@@ -17,10 +17,14 @@ import { EditMovieDialog } from "./components/edit-movie-dialog";
 import { FranchiseOrderDialog } from "./components/franchise-order-dialog";
 import { HomePage } from "./components/home-page";
 import { LibraryPage } from "./components/library-page";
+import { MovieDetailPage } from "./components/movie-detail-page";
+import { parseRoute } from "./route";
 import type { MovieOrderState, RunAction, Tab } from "./types";
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("home");
+  const [route, setRoute] = useState(() =>
+    parseRoute(window.location.pathname),
+  );
   const [nowShowing, setNowShowing] = useState<NowShowing | null>(null);
   const [remaining, setRemaining] = useState<Movie[]>([]);
   const [movies, setMovies] = useState<Movie[]>([]);
@@ -67,6 +71,17 @@ export default function App() {
   useEffect(() => {
     void Promise.resolve().then(refreshAuth);
   }, [refreshAuth]);
+
+  useEffect(() => {
+    const handlePopState = () => setRoute(parseRoute(window.location.pathname));
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const navigate = useCallback((path: string) => {
+    window.history.pushState(null, "", path);
+    setRoute(parseRoute(window.location.pathname));
+  }, []);
 
   const run = useCallback<RunAction>(
     async (action, after) => {
@@ -122,6 +137,11 @@ export default function App() {
   const login = useCallback(() => {
     window.location.href = "/api/auth/google";
   }, []);
+  const tab: Tab = route.page === "home" ? "home" : "library";
+  const selectedMovie =
+    route.page === "movie"
+      ? (movies.find((movie) => movie.id === route.movieId) ?? null)
+      : null;
 
   return (
     <div className="theater-background min-h-screen overflow-x-hidden text-zinc-100">
@@ -130,7 +150,7 @@ export default function App() {
         tab={tab}
         auth={auth}
         onLogin={login}
-        onTabChange={setTab}
+        onNavigate={navigate}
         onLogout={() =>
           void run(
             () => api.logout(),
@@ -145,7 +165,7 @@ export default function App() {
         )}
         {loading ? (
           <LoadingState />
-        ) : tab === "home" ? (
+        ) : route.page === "home" ? (
           <HomePage
             nowShowing={nowShowing}
             remaining={remaining}
@@ -158,13 +178,16 @@ export default function App() {
             roll={roll}
             run={run}
           />
-        ) : (
+        ) : route.page === "library" ? (
           <LibraryPage
             movies={movies}
             canMutate={canMutate}
             onEdit={setEditingMovie}
+            onNavigate={navigate}
             onOrder={openFranchiseOrder}
           />
+        ) : (
+          <MovieDetailPage movie={selectedMovie} onNavigate={navigate} />
         )}
       </main>
 

@@ -8,16 +8,17 @@ import {
   X,
 } from "lucide-react";
 import type { AuthState } from "../api";
-import type { Tab } from "../types";
+import type { Navigate, Tab } from "../types";
 import { Button } from "./ui";
 import { cn } from "../lib/utils";
 import tmdbLogo from "../assets/tmdb-logo.svg";
+import { AppLink } from "./app-link";
 
 type AppHeaderProps = {
   tab: Tab;
   auth: AuthState | null;
   onLogin: () => void;
-  onTabChange: (tab: Tab) => void;
+  onNavigate: Navigate;
   onLogout: () => void;
 };
 
@@ -25,16 +26,17 @@ export function AppHeader({
   tab,
   auth,
   onLogin,
-  onTabChange,
+  onNavigate,
   onLogout,
 }: AppHeaderProps) {
   return (
     <header className="relative z-10 border-b border-curtain/50 bg-ink/85 shadow-[0_1px_24px_rgba(120,23,41,0.12)] backdrop-blur-xl">
       <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto] items-center gap-x-3 gap-y-3 px-5 py-4 sm:flex sm:justify-between sm:gap-2 lg:px-8">
-        <button
+        <AppLink
           aria-label="Ludovico Tech home"
           className="flex min-w-0 items-center gap-2.5 text-left sm:gap-3"
-          onClick={() => onTabChange("home")}
+          href="/"
+          onNavigate={onNavigate}
         >
           <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-marquee-light/40 bg-marquee-gold text-ink shadow-lg shadow-marquee-gold/15 sm:size-10 sm:rounded-2xl">
             <Clapperboard size={20} strokeWidth={2.5} />
@@ -47,7 +49,7 @@ export function AppHeader({
               The watch club
             </span>
           </span>
-        </button>
+        </AppLink>
 
         <div className="contents sm:flex sm:items-center sm:gap-3">
           <nav
@@ -56,14 +58,16 @@ export function AppHeader({
           >
             <NavButton
               active={tab === "home"}
-              onClick={() => onTabChange("home")}
+              href="/"
+              onNavigate={onNavigate}
               icon={<Sparkles size={15} />}
             >
               Now showing
             </NavButton>
             <NavButton
               active={tab === "library"}
-              onClick={() => onTabChange("library")}
+              href="/library"
+              onNavigate={onNavigate}
               icon={<Table2 size={15} />}
             >
               Library
@@ -80,19 +84,22 @@ export function AppHeader({
 
 function NavButton({
   active,
-  onClick,
+  href,
+  onNavigate,
   icon,
   children,
 }: {
   active: boolean;
-  onClick: () => void;
+  href: string;
+  onNavigate: Navigate;
   icon: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <button
+    <AppLink
       aria-current={active ? "page" : undefined}
-      onClick={onClick}
+      href={href}
+      onNavigate={onNavigate}
       className={cn(
         "flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-2 text-xs font-semibold transition sm:gap-2 sm:px-3",
         active
@@ -102,7 +109,7 @@ function NavButton({
     >
       <span className="hidden sm:inline-flex">{icon}</span>
       {children}
-    </button>
+    </AppLink>
   );
 }
 

@@ -125,13 +125,13 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       page.getByRole("button", { name: "Sign in", exact: true }),
     ).toBeVisible();
     const home = await page
-      .getByRole("button", { name: "Ludovico Tech home" })
+      .getByRole("link", { name: "Ludovico Tech home" })
       .boundingBox();
     const nowShowing = await page
-      .getByRole("button", { name: "Now showing" })
+      .getByRole("link", { name: "Now showing" })
       .boundingBox();
     const library = await page
-      .getByRole("button", { name: "Library" })
+      .getByRole("link", { name: "Library" })
       .boundingBox();
     const signIn = await page
       .getByRole("button", { name: "Sign in", exact: true })
@@ -150,9 +150,23 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       0,
     );
     await expect(page.getByRole("button", { name: "Rate it" })).toHaveCount(0);
-    await page.getByRole("button", { name: "Library" }).click();
+    await page.getByRole("link", { name: "Library" }).click();
     await expect(page.getByRole("button", { name: "Edit" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Order" })).toHaveCount(0);
+    await page.getByRole("link", { name: "Browser Test Feature" }).click();
+    await expect(page).toHaveURL(/\/movies\//);
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Browser Test Feature" }),
+    ).toBeVisible();
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Browser Test Feature" }),
+    ).toBeVisible();
+    await page.goBack();
+    await expect(page).toHaveURL(/\/library$/);
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Library" }),
+    ).toBeVisible();
   });
 
   test("starts browser login through the Google authorization route", async ({
