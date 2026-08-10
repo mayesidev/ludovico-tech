@@ -84,6 +84,31 @@ describe("home workflows", () => {
     expect(api.rate).toHaveBeenCalledWith("movie-id", 4.5, "A custom classic");
   });
 
+  it("orders the add action, title, poster, and rating controls", () => {
+    renderHome();
+
+    const addMovie = screen.getByRole("button", { name: "Add a movie" });
+    const title = screen.getByRole("heading", { level: 1, name: "Test Movie" });
+    const poster = screen.getByRole("img", {
+      name: "No poster available for Test Movie",
+    });
+    const phrase = screen.getByRole("textbox", {
+      name: "Custom rating phrase (required)",
+    });
+
+    expect(
+      addMovie.compareDocumentPosition(title) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      title.compareDocumentPosition(poster) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      poster.compareDocumentPosition(phrase) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(phrase).toHaveAttribute("placeholder", "whats?");
+  });
+
   it("offers series continuation or a fresh roll after a watched title", async () => {
     vi.spyOn(api, "next").mockResolvedValue({
       nowShowing: nowShowing({ movie_id: "second-id" }),
