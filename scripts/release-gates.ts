@@ -96,6 +96,9 @@ type Fetcher = (
 
 type Sleep = (milliseconds: number) => Promise<void>;
 
+const deploymentVerificationAttempts = 13;
+const deploymentVerificationDelayMs = 5_000;
+
 const json = async (response: Response) => {
   if (!response.ok) throw new Error("Deployment endpoint is not ready");
   try {
@@ -119,13 +122,17 @@ export const verifyDeployment = async (
   releaseTag: string,
   gitSha: string,
   expectedEnvironment: string,
-  attempts = 6,
+  attempts = deploymentVerificationAttempts,
 ) => {
   const origin = validateDeploymentTarget(baseUrl, releaseTag, gitSha);
   if (!deploymentEnvironments.has(expectedEnvironment)) {
     throw new Error("Deployment environment is invalid");
   }
-  if (!Number.isInteger(attempts) || attempts < 1 || attempts > 10) {
+  if (
+    !Number.isInteger(attempts) ||
+    attempts < 1 ||
+    attempts > deploymentVerificationAttempts
+  ) {
     throw new Error("Deployment verification attempt count is invalid");
   }
 
@@ -164,7 +171,7 @@ export const verifyDeployment = async (
       return;
     } catch (error) {
       if (attempt === attempts) throw error;
-      await sleep(5_000);
+      await sleep(deploymentVerificationDelayMs);
     }
   }
 };

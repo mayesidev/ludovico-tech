@@ -157,6 +157,45 @@ describe("deployed release verification", () => {
     );
   });
 
+  it("allows a bounded minute for a new release to reach the stable hostname", async () => {
+    const previousRelease = {
+      commit: "c".repeat(40),
+      environment: "staging",
+      ok: true,
+      version: "v1.2.2",
+    };
+    const currentRelease = {
+      commit: gitSha,
+      environment: "staging",
+      ok: true,
+      version: releaseTag,
+    };
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json(previousRelease))
+      .mockResolvedValueOnce(Response.json(previousRelease))
+      .mockResolvedValueOnce(Response.json(previousRelease))
+      .mockResolvedValueOnce(Response.json(previousRelease))
+      .mockResolvedValueOnce(Response.json(previousRelease))
+      .mockResolvedValueOnce(Response.json(previousRelease))
+      .mockResolvedValueOnce(Response.json(currentRelease))
+      .mockResolvedValueOnce(Response.json({ movies: [] }));
+    const sleep = vi.fn().mockResolvedValue(undefined);
+
+    await verifyDeployment(
+      fetcher,
+      sleep,
+      baseUrl,
+      releaseTag,
+      gitSha,
+      "staging",
+    );
+
+    expect(sleep).toHaveBeenCalledTimes(6);
+    expect(sleep).toHaveBeenCalledWith(5_000);
+    expect(fetcher).toHaveBeenCalledTimes(8);
+  });
+
   it("fails after bounded mismatches without calling a real network", async () => {
     const fetcher = vi.fn().mockImplementation(async () =>
       Response.json({
