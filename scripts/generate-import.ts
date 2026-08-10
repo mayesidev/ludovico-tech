@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import {
   buildImportPlan,
   parseIntermediateJson,
+  parseTmdbReconciliationJson,
   renderSqlChunks,
   type ImportDiagnostic,
 } from "./import-sheet-lib";
@@ -12,13 +13,12 @@ import {
   writeValidationReport,
 } from "./import-files";
 
-const [inputArgument, outputArgument, importedAt] = process.argv
-  .slice(2)
-  .filter((argument) => argument !== "--");
+const [inputArgument, outputArgument, importedAt, reconciliationArgument] =
+  process.argv.slice(2).filter((argument) => argument !== "--");
 
 if (!inputArgument || !outputArgument || !importedAt) {
   console.error(
-    "Usage: pnpm import:generate -- <intermediate.json> <output-directory> <imported-at-iso>",
+    "Usage: pnpm import:generate -- <intermediate.json> <output-directory> <imported-at-iso> [reconciliation.json]",
   );
   process.exitCode = 2;
 } else {
@@ -37,7 +37,25 @@ if (!inputArgument || !outputArgument || !importedAt) {
       },
     ];
   } else {
-    const plan = await buildImportPlan(document, importedAt);
+    const reconciliation = reconciliationArgument
+      ? parseTmdbReconciliationJson(
+          readFileSync(resolve(reconciliationArgument), "utf8"),
+        )
+      : null;
+    const plan =
+      reconciliationArgument && !reconciliation
+        ? {
+            counts: { franchises: 0, movies: 0, ratings: 0, sources: 0 },
+            diagnostics: [
+              {
+                code: "TMDB_RECONCILIATION_INVALID" as const,
+                row: null,
+                severity: "error" as const,
+              },
+            ],
+            statements: [],
+          }
+        : await buildImportPlan(document, importedAt, reconciliation);
     diagnostics = plan.diagnostics;
     if (!diagnostics.some((item) => item.severity === "error")) {
       const chunks = renderSqlChunks(plan.statements);

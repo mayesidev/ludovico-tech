@@ -25,6 +25,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "import:sanitize": "tsx scripts/sanitize-sheet.ts",
+    "import:reconcile": "tsx scripts/reconcile-tmdb.ts",
     "import:generate": "tsx scripts/generate-import.ts",
     "release:gate": "node scripts/release-gates.ts"
   },

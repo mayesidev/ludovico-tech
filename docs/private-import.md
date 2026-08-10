@@ -8,7 +8,8 @@ Never paste source headings or values into logs, commits, issues, or pull reques
 The positional source contract, public-safe intermediate types, validation, and
 diagnostic codes are defined in
 [`scripts/import-sheet-lib.ts`](../scripts/import-sheet-lib.ts) and its synthetic
-tests. Import commands do not call external services.
+tests. Sanitization and generation do not call external services; only the
+explicit reconciliation stage does.
 
 ## Sanitize
 
@@ -25,6 +26,20 @@ The correction file is optional. Its accepted public-safe shape is enforced by
 in a private source or correction file and rerun sanitization; do not weaken the
 validator.
 
+## Reconcile external metadata (optional)
+
+```sh
+pnpm import:reconcile -- \
+  data/sanitized-import-v1.json \
+  data/tmdb-reconciliation-v1.json \
+  data/tmdb-reconciliation-report-v1.json \
+  data/tmdb-reconciliation-cache-v1.json
+```
+
+This manual stage calls TMDB sequentially and caches each sanitized lookup. It
+confirms only one exact normalized title match. Conflicts remain unlinked for
+private review, and an interrupted run resumes from its cache.
+
 ## Generate
 
 Choose and retain one explicit UTC import time:
@@ -33,10 +48,12 @@ Choose and retain one explicit UTC import time:
 pnpm import:generate -- \
   data/sanitized-import-v1.json \
   data/generated-import-v1 \
-  2026-08-08T00:00:00.000Z
+  2026-08-08T00:00:00.000Z \
+  data/tmdb-reconciliation-v1.json
 ```
 
-Use the generated manifest as the complete ordered chunk list.
+The reconciliation argument is optional. Use the generated manifest as the
+complete ordered chunk list.
 
 ## Apply locally
 
