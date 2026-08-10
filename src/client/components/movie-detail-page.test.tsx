@@ -27,6 +27,9 @@ describe("movie details", () => {
     ).toBeVisible();
     expect(screen.getByText("Watched")).toBeVisible();
     expect(screen.getByText("Mar 31, 1999")).toBeVisible();
+    expect(screen.getByText("Release date")).toBeVisible();
+    expect(screen.getByText("Date added")).toBeVisible();
+    expect(screen.getByText("Aug 7, 2026")).toBeVisible();
     expect(screen.getByText("5")).toBeVisible();
     expect(screen.getByText("“There is no spoon”")).toBeVisible();
     expect(screen.getByRole("link", { name: "Test Saga" })).toHaveAttribute(
@@ -46,6 +49,7 @@ describe("movie details", () => {
           ...movie,
           franchise_id: null,
           franchise_name: null,
+          added_at: "",
           rating_phrase: null,
           rating_score: null,
           release_date: null,
@@ -59,6 +63,8 @@ describe("movie details", () => {
     expect(screen.getByText("Unwatched")).toBeVisible();
     expect(screen.queryByRole("link", { name: "View on TMDB" })).toBeNull();
     expect(screen.queryByText("Test Saga")).toBeNull();
+    expect(screen.queryByText("Release date")).toBeNull();
+    expect(screen.getByText("Unknown date")).toBeVisible();
   });
 
   it("offers a way back when the movie does not exist", () => {
