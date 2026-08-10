@@ -54,6 +54,9 @@ describe("movie library", () => {
     expect(screen.getByText("1 of 2 movies")).toBeVisible();
     expect(screen.getByText("Zulu Movie")).toBeVisible();
     expect(screen.queryByText("Alpha Movie")).toBeNull();
+    expect(
+      screen.getByRole("columnheader", { name: "Franchise" }),
+    ).toBeVisible();
 
     await user.clear(
       screen.getByRole("textbox", { name: "Search movie library" }),
@@ -67,6 +70,11 @@ describe("movie library", () => {
     await user.click(screen.getByRole("button", { name: "Order" }));
     expect(onEdit).toHaveBeenCalledWith(movies[1]);
     expect(onOrder).toHaveBeenCalledWith("franchise-id");
+    expect(screen.getByText("5 · A favorite")).toBeVisible();
+    expect(screen.getByText("Unwatched")).toBeVisible();
+    expect(screen.queryByText("Standalone")).toBeNull();
+    expect(screen.queryByText("In rotation")).toBeNull();
+    expect(screen.queryByText("5/5")).toBeNull();
   });
 
   it("keeps the public catalog browse-only", () => {
@@ -83,5 +91,9 @@ describe("movie library", () => {
     expect(screen.queryByRole("button", { name: "Order" })).toBeNull();
     expect(screen.queryByRole("columnheader", { name: "Actions" })).toBeNull();
     expect(screen.getByText("2 of 2 movies")).toBeVisible();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Library" }),
+    ).toBeVisible();
+    expect(screen.getByText("Test Saga")).toBeVisible();
   });
 });

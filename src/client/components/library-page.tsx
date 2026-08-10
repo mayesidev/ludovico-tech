@@ -11,7 +11,7 @@ import {
 import { Pencil, Search } from "lucide-react";
 import type { Movie } from "../api";
 import { formatDate } from "../lib/utils";
-import { Badge, Card, Input, SectionHeading } from "./ui";
+import { Badge, Card, Input } from "./ui";
 
 type LibraryPageProps = {
   canMutate: boolean;
@@ -34,13 +34,13 @@ export function LibraryPage({
         accessorKey: "title",
         header: "Title",
         cell: ({ row }) => (
-          <div>
-            <p className="font-semibold text-cream">{row.original.title}</p>
-            <p className="text-xs text-zinc-500">
-              {row.original.franchise_name ?? "Standalone"}
-            </p>
-          </div>
+          <p className="font-semibold text-cream">{row.original.title}</p>
         ),
+      },
+      {
+        accessorKey: "franchise_name",
+        header: "Franchise",
+        cell: ({ getValue }) => getValue<string | null>() ?? null,
       },
       {
         accessorKey: "release_date",
@@ -51,13 +51,11 @@ export function LibraryPage({
         accessorKey: "rating_score",
         header: "Rating",
         cell: ({ row }) =>
-          row.original.rating_score === null ? (
-            <Badge>Not watched</Badge>
-          ) : (
+          row.original.rating_score !== null ? (
             <span className="text-marquee-light">
-              {row.original.rating_score}/5
+              {row.original.rating_score} · {row.original.rating_phrase}
             </span>
-          ),
+          ) : null,
       },
       {
         accessorKey: "watched_at",
@@ -66,7 +64,7 @@ export function LibraryPage({
           row.original.rating_score !== null ? (
             <Badge>Watched</Badge>
           ) : (
-            <Badge>In rotation</Badge>
+            <Badge>Unwatched</Badge>
           ),
       },
     ];
@@ -112,11 +110,12 @@ export function LibraryPage({
   return (
     <div>
       <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-        <SectionHeading
-          eyebrow="The library"
-          title="Every movie in rotation"
-          description="Search the whole list, including movies already viewed."
-        />
+        <div>
+          <h1 className="font-display text-3xl font-bold tracking-tight text-cream sm:text-4xl">
+            Library
+          </h1>
+          <p className="mt-2 text-sm text-zinc-500">{movies.length} movies</p>
+        </div>
         <div className="relative w-full sm:w-72">
           <Search className="absolute left-3 top-3.5 text-zinc-600" size={16} />
           <label className="sr-only" htmlFor="library-search">
@@ -134,7 +133,7 @@ export function LibraryPage({
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-left text-sm">
+          <table className="w-full min-w-[960px] text-left text-sm">
             <thead className="border-b border-curtain/35 bg-curtain/10 text-xs uppercase tracking-[0.14em] text-zinc-500">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
