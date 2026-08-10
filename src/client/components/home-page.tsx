@@ -56,6 +56,9 @@ export function HomePage({
     (movie) => movie.rating_score === null,
   ).length;
   const franchiseId = nowShowing?.franchise_id;
+  const franchiseHref = franchiseId
+    ? `/franchises/${encodeURIComponent(franchiseId)}?from=now-showing`
+    : null;
 
   return (
     <div className="space-y-14">
@@ -80,10 +83,10 @@ export function HomePage({
                     {movies.length} movies · {unwatchedCount} unwatched
                   </p>
                 </div>
-                {nowShowing?.franchise_name && franchiseId && (
+                {nowShowing?.franchise_name && franchiseHref && (
                   <AppLink
                     className="mt-5 inline-flex"
-                    href={`/franchises/${encodeURIComponent(franchiseId)}`}
+                    href={franchiseHref}
                     onNavigate={onNavigate}
                   >
                     <Badge>{nowShowing.franchise_name}</Badge>
@@ -128,14 +131,10 @@ export function HomePage({
                 />
               ) : canMutate ? (
                 <div className="mt-8 flex flex-wrap gap-3">
-                  {nowShowing?.status === "pending_order" && franchiseId && (
+                  {nowShowing?.status === "pending_order" && franchiseHref && (
                     <Button
                       disabled={busy}
-                      onClick={() =>
-                        onNavigate(
-                          `/franchises/${encodeURIComponent(franchiseId)}`,
-                        )
-                      }
+                      onClick={() => onNavigate(franchiseHref)}
                     >
                       Confirm franchise order
                     </Button>
@@ -166,13 +165,9 @@ export function HomePage({
                 </div>
               ) : (
                 <div className="mt-8">
-                  {nowShowing?.status === "pending_order" && franchiseId ? (
+                  {nowShowing?.status === "pending_order" && franchiseHref ? (
                     <Button
-                      onClick={() =>
-                        onNavigate(
-                          `/franchises/${encodeURIComponent(franchiseId)}`,
-                        )
-                      }
+                      onClick={() => onNavigate(franchiseHref)}
                       variant="secondary"
                     >
                       Review franchise order

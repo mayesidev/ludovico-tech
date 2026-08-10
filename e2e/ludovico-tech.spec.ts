@@ -71,7 +71,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       .click();
     await page.getByRole("button", { name: "Save order" }).click();
     await expect(page.getByRole("status")).toHaveText("Order saved.");
-    await page.getByRole("link", { name: "Now showing" }).click();
+    await page.getByRole("link", { name: "Return to Now Showing" }).click();
     await expect(
       page.getByRole("heading", { level: 1, name: "Browser Chapter Two" }),
     ).toBeVisible();

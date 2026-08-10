@@ -23,7 +23,7 @@ import type { RunAction, Tab } from "./types";
 
 export default function App() {
   const [route, setRoute] = useState(() =>
-    parseRoute(window.location.pathname),
+    parseRoute(window.location.pathname, window.location.search),
   );
   const [nowShowing, setNowShowing] = useState<NowShowing | null>(null);
   const [remaining, setRemaining] = useState<Movie[]>([]);
@@ -72,14 +72,15 @@ export default function App() {
   }, [refreshAuth]);
 
   useEffect(() => {
-    const handlePopState = () => setRoute(parseRoute(window.location.pathname));
+    const handlePopState = () =>
+      setRoute(parseRoute(window.location.pathname, window.location.search));
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
   const navigate = useCallback((path: string) => {
     window.history.pushState(null, "", path);
-    setRoute(parseRoute(window.location.pathname));
+    setRoute(parseRoute(window.location.pathname, window.location.search));
   }, []);
 
   const run = useCallback<RunAction>(
@@ -115,7 +116,9 @@ export default function App() {
           result.nowShowing.franchise_id ??
           result.franchiseMovies[0]?.franchise_id;
         if (franchiseId) {
-          navigate(`/franchises/${encodeURIComponent(franchiseId)}`);
+          navigate(
+            `/franchises/${encodeURIComponent(franchiseId)}?from=now-showing`,
+          );
         }
       }
 
@@ -184,6 +187,7 @@ export default function App() {
             movies={movies}
             onLogin={login}
             onNavigate={navigate}
+            returnTo={route.returnTo}
             run={run}
           />
         ) : (

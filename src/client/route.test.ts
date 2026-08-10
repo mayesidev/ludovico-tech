@@ -12,6 +12,12 @@ describe("client routes", () => {
     expect(parseRoute("/franchises/saga%20id")).toEqual({
       page: "franchise",
       franchiseId: "saga id",
+      returnTo: "library",
+    });
+    expect(parseRoute("/franchises/saga%20id", "?from=now-showing")).toEqual({
+      page: "franchise",
+      franchiseId: "saga id",
+      returnTo: "now-showing",
     });
   });
 

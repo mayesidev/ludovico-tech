@@ -12,6 +12,7 @@ type FranchiseDetailPageProps = {
   movies: Movie[];
   onLogin: () => void;
   onNavigate: Navigate;
+  returnTo: "library" | "now-showing";
   run: RunAction;
 };
 
@@ -28,6 +29,7 @@ export function FranchiseDetailPage({
   movies,
   onLogin,
   onNavigate,
+  returnTo,
   run,
 }: FranchiseDetailPageProps) {
   const members = useMemo(
@@ -39,6 +41,13 @@ export function FranchiseDetailPage({
   );
   const [draft, setDraft] = useState(members);
   const [saved, setSaved] = useState(false);
+  const returnHref = returnTo === "now-showing" ? "/" : "/library";
+  const returnLabel =
+    returnTo === "now-showing" ? "Return to Now Showing" : "Library";
+  const notFoundReturnLabel =
+    returnTo === "now-showing"
+      ? "Return to Now Showing"
+      : "Return to the library";
 
   if (members.length === 0) {
     return (
@@ -51,11 +60,11 @@ export function FranchiseDetailPage({
         </p>
         <AppLink
           className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-marquee-light hover:text-cream"
-          href="/library"
+          href={returnHref}
           onNavigate={onNavigate}
         >
           <ArrowLeft size={16} />
-          Return to the library
+          {notFoundReturnLabel}
         </AppLink>
       </div>
     );
@@ -75,11 +84,11 @@ export function FranchiseDetailPage({
     <div className="mx-auto max-w-4xl">
       <AppLink
         className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-zinc-400 hover:text-marquee-light"
-        href="/library"
+        href={returnHref}
         onNavigate={onNavigate}
       >
         <ArrowLeft size={16} />
-        Library
+        {returnLabel}
       </AppLink>
 
       <div className="mb-8">
