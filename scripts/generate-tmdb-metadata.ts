@@ -57,7 +57,7 @@ if (
         plan.counts,
         appliedAt,
         diagnostics,
-        "tmdb_metadata",
+        { artifactType: "tmdb_metadata", nowShowingStatus: null },
       );
       console.log(
         `Generated ${chunks.length} metadata chunks for ${plan.counts.movies} confirmed movies`,
