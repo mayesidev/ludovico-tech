@@ -26,23 +26,32 @@ describe("release input validation", () => {
     }
   });
 
-  it("requires an HTTPS origin and a full commit SHA", () => {
+  it("requires the exact HTTPS origin for the deployment environment", () => {
     expect(
       validateDeploymentTarget(
-        "https://movies.example.test",
+        "https://staging.ludovicotech.com",
         "v1.2.3",
         "a".repeat(40),
+        "staging",
       ).origin,
-    ).toBe("https://movies.example.test");
+    ).toBe("https://staging.ludovicotech.com");
     for (const baseUrl of [
       "http://movies.example.test",
       "https://user@movies.example.test",
       "https://movies.example.test/path",
     ]) {
       expect(() =>
-        validateDeploymentTarget(baseUrl, "v1.2.3", "a".repeat(40)),
+        validateDeploymentTarget(baseUrl, "v1.2.3", "a".repeat(40), "staging"),
       ).toThrow();
     }
+    expect(() =>
+      validateDeploymentTarget(
+        "https://ludovico-tech-staging.mayesidev.workers.dev",
+        "v1.2.3",
+        "a".repeat(40),
+        "staging",
+      ),
+    ).toThrow("does not match");
   });
 
   it("wires strict tag, target, and migration CLI commands", async () => {
@@ -55,9 +64,10 @@ describe("release input validation", () => {
     await expect(
       runReleaseGate([
         "validate-target",
-        "https://movies.example.test",
+        "https://staging.ludovicotech.com",
         "v1.2.3",
         "a".repeat(40),
+        "staging",
       ]),
     ).resolves.toBeUndefined();
 
@@ -115,7 +125,7 @@ describe("production migration gate", () => {
 });
 
 describe("deployed release verification", () => {
-  const baseUrl = "https://movies.example.test";
+  const baseUrl = "https://staging.ludovicotech.com";
   const releaseTag = "v1.2.3";
   const gitSha = "b".repeat(40);
 

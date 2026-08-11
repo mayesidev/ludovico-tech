@@ -4,7 +4,16 @@ import { resolve } from "node:path";
 
 const releaseTagPattern = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const gitShaPattern = /^[0-9a-f]{40}$/;
-const deploymentEnvironments = new Set(["production", "staging"]);
+const deploymentOrigins = {
+  production: "https://ludovicotech.com",
+  staging: "https://staging.ludovicotech.com",
+} as const;
+
+type DeploymentEnvironment = keyof typeof deploymentOrigins;
+
+const isDeploymentEnvironment = (
+  value: string,
+): value is DeploymentEnvironment => value in deploymentOrigins;
 
 export const isReleaseTag = (value: string) => releaseTagPattern.test(value);
 
@@ -32,10 +41,17 @@ export const validateDeploymentTarget = (
   baseUrl: string,
   releaseTag: string,
   gitSha: string,
+  expectedEnvironment: string,
 ) => {
+  if (!isDeploymentEnvironment(expectedEnvironment)) {
+    throw new Error("Deployment environment is invalid");
+  }
   const url = deploymentBaseUrl(baseUrl);
   if (!isReleaseTag(releaseTag)) throw new Error("Release tag is invalid");
   if (!gitShaPattern.test(gitSha)) throw new Error("Commit SHA is invalid");
+  if (url.origin !== deploymentOrigins[expectedEnvironment]) {
+    throw new Error("Deployment origin does not match the environment");
+  }
   return url;
 };
 
@@ -124,10 +140,12 @@ export const verifyDeployment = async (
   expectedEnvironment: string,
   attempts = deploymentVerificationAttempts,
 ) => {
-  const origin = validateDeploymentTarget(baseUrl, releaseTag, gitSha);
-  if (!deploymentEnvironments.has(expectedEnvironment)) {
-    throw new Error("Deployment environment is invalid");
-  }
+  const origin = validateDeploymentTarget(
+    baseUrl,
+    releaseTag,
+    gitSha,
+    expectedEnvironment,
+  );
   if (
     !Number.isInteger(attempts) ||
     attempts < 1 ||
@@ -193,8 +211,8 @@ export const runReleaseGate = async (args: string[]) => {
     if (!isReleaseTag(values[0])) throw new Error("Release tag is invalid");
     return;
   }
-  if (command === "validate-target" && values.length === 3) {
-    validateDeploymentTarget(values[0], values[1], values[2]);
+  if (command === "validate-target" && values.length === 4) {
+    validateDeploymentTarget(values[0], values[1], values[2], values[3]);
     return;
   }
   if (command === "check-migrations" && values.length === 2) {

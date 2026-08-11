@@ -130,7 +130,7 @@ jobs:
         run: |
           pnpm config:check:staging
           node "$RUNNER_TEMP/release-gates.ts" validate-target \
-            "$STAGING_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA"
+            "$STAGING_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" staging
 
       - name: Audit production dependencies
         run: pnpm audit:production

@@ -12,6 +12,7 @@ type D1Binding = {
 type WorkerEnvironment = {
   d1_databases?: D1Binding[];
   name?: string;
+  routes?: Array<{ custom_domain?: boolean; pattern?: string }>;
   secrets?: { required?: string[] };
   vars?: Record<string, string>;
   workers_dev?: boolean;
@@ -54,7 +55,7 @@ const requireValue = <T>(value: T | undefined, message: string): T => {
 const validateEnvironment = (
   key: "development" | "production" | "staging",
   expectedAuthMode: "development" | "google",
-  expectedWorkersDev: boolean,
+  expectedDomain: string | null,
 ) => {
   const environment = requireValue(
     config.env?.[key],
@@ -69,8 +70,18 @@ const validateEnvironment = (
   ) {
     throw new Error(`${key} runtime variables are not fail-closed`);
   }
-  if (environment.workers_dev !== expectedWorkersDev) {
-    throw new Error(`${key} workers.dev exposure is incorrect`);
+  if (environment.workers_dev !== false) {
+    throw new Error(`${key} workers.dev exposure must be disabled`);
+  }
+  const routes = environment.routes ?? [];
+  if (
+    (expectedDomain === null && routes.length !== 0) ||
+    (expectedDomain !== null &&
+      (routes.length !== 1 ||
+        routes[0]?.pattern !== expectedDomain ||
+        routes[0]?.custom_domain !== true))
+  ) {
+    throw new Error(`${key} custom domain is incorrect`);
   }
   const databases = environment.d1_databases ?? [];
   if (databases.length !== 1 || databases[0]?.binding !== "DB") {
@@ -106,9 +117,17 @@ if (config.d1_databases?.length) {
   );
 }
 
-const development = validateEnvironment("development", "development", false);
-const staging = validateEnvironment("staging", "google", true);
-const production = validateEnvironment("production", "google", true);
+const development = validateEnvironment("development", "development", null);
+const staging = validateEnvironment(
+  "staging",
+  "google",
+  "staging.ludovicotech.com",
+);
+const production = validateEnvironment(
+  "production",
+  "google",
+  "ludovicotech.com",
+);
 
 if (development.database.database_id !== DEVELOPMENT_DATABASE_ID) {
   throw new Error("Development must use the inert local-only D1 ID");
