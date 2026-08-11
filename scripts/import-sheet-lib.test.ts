@@ -51,10 +51,12 @@ const reconciliation = (
       releaseDate: "2024-01-02",
       runtimeMinutes: 123,
       sourceTitleNormalized: "synthetic movie",
+      tmdbCollectionId: 7,
+      tmdbCollectionName: "Synthetic Collection",
       tmdbId: 42,
     },
   ],
-  schemaVersion: 2,
+  schemaVersion: 3,
   ...overrides,
 });
 
@@ -432,6 +434,8 @@ describe("deterministic import planning", () => {
     expect(sql).toContain("'Synthetic Movie'");
     expect(sql).toContain("'/synthetic.jpg'");
     expect(sql).toContain("tmdb_id = 42");
+    expect(sql).toContain("tmdb_collection_id = 7");
+    expect(sql).toContain("tmdb_collection_name = 'Synthetic Collection'");
     expect(sql).toContain("NOT EXISTS (SELECT 1 FROM movies AS linked");
   });
 
@@ -587,6 +591,19 @@ describe("deterministic import planning", () => {
         }),
       ),
     ).toBeNull();
+    expect(
+      parseTmdbReconciliationJson(
+        JSON.stringify({
+          ...valid,
+          matches: [
+            {
+              ...valid.matches[0],
+              tmdbCollectionName: null,
+            },
+          ],
+        }),
+      ),
+    ).toBeNull();
   });
 });
 
@@ -614,6 +631,8 @@ describe("update-only TMDB metadata planning", () => {
     expect(plan.diagnostics).toEqual([]);
     expect(sql).toContain("UPDATE movies SET release_date");
     expect(sql).toContain("runtime_minutes = 123");
+    expect(sql).toContain("tmdb_collection_id = 7");
+    expect(sql).toContain("tmdb_collection_name = 'Synthetic Collection'");
     expect(sql).toContain(
       "WHERE legacy_imdb_id = 'tt1234567' AND title_normalized = 'synthetic movie'",
     );

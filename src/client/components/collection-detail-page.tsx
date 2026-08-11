@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowLeft, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, ExternalLink } from "lucide-react";
 import { api, type Movie } from "../api";
 import type { Navigate, RunAction } from "../types";
 import { AppLink } from "./app-link";
@@ -39,6 +39,20 @@ export function CollectionDetailPage({
         .sort(byCollectionOrder),
     [collectionId, movies],
   );
+  const tmdbCollections = useMemo(() => {
+    const references = new Map<number, string>();
+    for (const movie of members) {
+      if (
+        movie.tmdb_collection_id != null &&
+        movie.tmdb_collection_name != null
+      ) {
+        references.set(movie.tmdb_collection_id, movie.tmdb_collection_name);
+      }
+    }
+    return [...references.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }, [members]);
   const [draft, setDraft] = useState(members);
   const [saved, setSaved] = useState(false);
   const returnHref = returnTo === "now-showing" ? "/" : "/library";
@@ -101,6 +115,27 @@ export function CollectionDetailPage({
         <p className="mt-3 text-sm text-zinc-500">
           {members.length} {members.length === 1 ? "movie" : "movies"}
         </p>
+        {tmdbCollections.length > 0 && (
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+            <span className="text-zinc-500">
+              {tmdbCollections.length === 1
+                ? "Related TMDB collection"
+                : "Related TMDB collections"}
+            </span>
+            {tmdbCollections.map((tmdbCollection) => (
+              <a
+                className="inline-flex items-center gap-1.5 font-semibold text-marquee-light hover:text-cream"
+                href={`https://www.themoviedb.org/collection/${tmdbCollection.id}`}
+                key={tmdbCollection.id}
+                rel="noreferrer"
+                target="_blank"
+              >
+                {tmdbCollection.name}
+                <ExternalLink size={13} />
+              </a>
+            ))}
+          </div>
+        )}
       </div>
 
       <Card className="p-5 sm:p-7">

@@ -15,6 +15,8 @@ const movie: Movie = {
   release_date: "1999-03-31",
   runtime_minutes: 136,
   title: "Test Movie",
+  tmdb_collection_id: 2344,
+  tmdb_collection_name: "Test Movie Collection",
   tmdb_id: 603,
   watched_at: "2026-08-07T00:00:00.000Z",
 };
@@ -34,6 +36,7 @@ describe("movie details", () => {
     expect(screen.getByText("Date added")).toBeVisible();
     expect(screen.getByText("Runtime")).toBeVisible();
     expect(screen.getByText("Collection")).toBeVisible();
+    expect(screen.getByText("TMDB collection")).toBeVisible();
     expect(screen.getByText("2h 16m")).toBeVisible();
     expect(screen.getByText("Aug 7, 2026")).toBeVisible();
     expect(screen.getByText("5")).toBeVisible();
@@ -49,6 +52,9 @@ describe("movie details", () => {
       "href",
       "https://www.themoviedb.org/movie/603",
     );
+    expect(
+      screen.getByRole("link", { name: "Test Movie Collection" }),
+    ).toHaveAttribute("href", "https://www.themoviedb.org/collection/2344");
   });
 
   it("offers editing to authenticated contributors", async () => {
@@ -117,6 +123,8 @@ describe("movie details", () => {
           rating_score: null,
           release_date: null,
           runtime_minutes: null,
+          tmdb_collection_id: null,
+          tmdb_collection_name: null,
           tmdb_id: null,
           watched_at: null,
         }}
@@ -130,6 +138,7 @@ describe("movie details", () => {
     expect(screen.queryByText("Test Saga")).toBeNull();
     expect(screen.queryByText("Release date")).toBeNull();
     expect(screen.queryByText("Runtime")).toBeNull();
+    expect(screen.queryByText("TMDB collection")).toBeNull();
     expect(screen.getByText("Unknown date")).toBeVisible();
   });
 

@@ -422,6 +422,10 @@ describe("TMDB routes and metadata attachment", () => {
       Promise.resolve(
         new Response(
           JSON.stringify({
+            belongs_to_collection: {
+              id: 901,
+              name: "Authoritative Collection",
+            },
             id: 201,
             poster_path: "/authoritative.jpg",
             release_date: "2026-08-05",
@@ -442,6 +446,7 @@ describe("TMDB routes and metadata attachment", () => {
 
     expect(await first.json()).toEqual({
       movie: {
+        collection: { id: 901, name: "Authoritative Collection" },
         id: 201,
         posterPath: "/authoritative.jpg",
         releaseDate: "2026-08-05",
@@ -462,6 +467,7 @@ describe("TMDB routes and metadata attachment", () => {
     )
       .bind(
         JSON.stringify({
+          collection: null,
           id: 201,
           posterPath: "/authoritative.jpg",
           releaseDate: "2026-08-05",
@@ -527,6 +533,10 @@ describe("TMDB routes and metadata attachment", () => {
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
+            belongs_to_collection: {
+              id: 902,
+              name: "Attached Collection",
+            },
             id: 301,
             poster_path: "/authoritative.jpg",
             release_date: "2026-08-05",
@@ -539,6 +549,7 @@ describe("TMDB routes and metadata attachment", () => {
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
+            belongs_to_collection: null,
             id: 302,
             poster_path: "/refreshed.jpg",
             release_date: "2026-08-06",
@@ -552,6 +563,7 @@ describe("TMDB routes and metadata attachment", () => {
       method: "POST",
       headers: { Cookie: session.cookie },
       body: JSON.stringify({
+        collectionName: "Broad Local Collection",
         posterPath: "/spoofed.jpg",
         releaseDate: "1900-01-01",
         title: "Spoofed title",
@@ -570,11 +582,22 @@ describe("TMDB routes and metadata attachment", () => {
       release_date: "2026-08-05",
       runtime_minutes: 126,
       title: "Authoritative Movie",
+      tmdb_collection_id: 902,
+      tmdb_collection_name: "Attached Collection",
       tmdb_id: 301,
     });
     expect(movie).not.toHaveProperty("tmdb_fetched_at");
     expect(movie).not.toHaveProperty("added_by");
     expect(movie).not.toHaveProperty("updated_by");
+
+    const collectionDetail = await request(
+      `/api/collections/${String(movie.collection_id)}`,
+      session.bindings,
+    );
+    expect(await collectionDetail.json()).toMatchObject({
+      collection: { name: "Broad Local Collection" },
+      tmdbCollections: [{ id: 902, name: "Attached Collection" }],
+    });
 
     const staleEdit = await request(
       `/api/movies/${String(movie.id)}`,
@@ -612,6 +635,8 @@ describe("TMDB routes and metadata attachment", () => {
         release_date: null,
         runtime_minutes: null,
         title: "Allowed manual title",
+        tmdb_collection_id: null,
+        tmdb_collection_name: null,
         tmdb_id: null,
       },
     });
@@ -632,20 +657,26 @@ describe("TMDB routes and metadata attachment", () => {
         release_date: "2026-08-06",
         runtime_minutes: 144,
         title: "Refreshed Authoritative Movie",
+        tmdb_collection_id: null,
+        tmdb_collection_name: null,
         tmdb_id: 302,
       },
     });
     const storedMetadata = await env.DB.prepare(
-      "SELECT runtime_minutes, tmdb_id, tmdb_fetched_at FROM movies WHERE id = ?",
+      "SELECT runtime_minutes, tmdb_collection_id, tmdb_collection_name, tmdb_id, tmdb_fetched_at FROM movies WHERE id = ?",
     )
       .bind(String(movie.id))
       .first<{
         runtime_minutes: number | null;
+        tmdb_collection_id: number | null;
+        tmdb_collection_name: string | null;
         tmdb_fetched_at: string | null;
         tmdb_id: number | null;
       }>();
     expect(storedMetadata).toEqual({
       runtime_minutes: 144,
+      tmdb_collection_id: null,
+      tmdb_collection_name: null,
       tmdb_fetched_at: expect.any(String),
       tmdb_id: 302,
     });

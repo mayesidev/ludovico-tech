@@ -13,7 +13,7 @@ import {
 type ReconciliationCache = {
   findEntries: Record<string, TmdbFindMovie[]>;
   movieEntries: Record<string, TmdbMovieDetail>;
-  schemaVersion: 2;
+  schemaVersion: 3;
 };
 
 const [inputArgument, outputArgument, reportArgument, cacheArgument] =
@@ -44,18 +44,28 @@ const validCachedMovie = (value: unknown): value is TmdbFindMovie => {
 const validCachedMovieDetail = (value: unknown): value is TmdbMovieDetail => {
   if (!value || typeof value !== "object") return false;
   const movie = value as Record<string, unknown>;
+  const collection = movie.collection;
   return (
     Number.isInteger(movie.id) &&
     Number(movie.id) > 0 &&
     (movie.runtimeMinutes === null ||
       (Number.isSafeInteger(movie.runtimeMinutes) &&
-        Number(movie.runtimeMinutes) > 0))
+        Number(movie.runtimeMinutes) > 0)) &&
+    (collection === null ||
+      (typeof collection === "object" &&
+        Number.isInteger((collection as Record<string, unknown>).id) &&
+        Number((collection as Record<string, unknown>).id) > 0 &&
+        typeof (collection as Record<string, unknown>).name === "string" &&
+        String((collection as Record<string, unknown>).name).trim() ===
+          (collection as Record<string, unknown>).name &&
+        String((collection as Record<string, unknown>).name).length >= 1 &&
+        String((collection as Record<string, unknown>).name).length <= 200))
   );
 };
 
 const readCache = (path: string): ReconciliationCache => {
   if (!existsSync(path)) {
-    return { findEntries: {}, movieEntries: {}, schemaVersion: 2 };
+    return { findEntries: {}, movieEntries: {}, schemaVersion: 3 };
   }
   try {
     const value = JSON.parse(readFileSync(path, "utf8")) as Record<
@@ -77,15 +87,15 @@ const readCache = (path: string): ReconciliationCache => {
     ) {
       throw new Error("invalid cache entry");
     }
-    if (value.schemaVersion === 1) {
+    if (value.schemaVersion === 1 || value.schemaVersion === 2) {
       return {
         findEntries: findEntries as Record<string, TmdbFindMovie[]>,
         movieEntries: {},
-        schemaVersion: 2,
+        schemaVersion: 3,
       };
     }
     if (
-      value.schemaVersion !== 2 ||
+      value.schemaVersion !== 3 ||
       !value.movieEntries ||
       typeof value.movieEntries !== "object" ||
       Array.isArray(value.movieEntries) ||
@@ -214,7 +224,7 @@ if (!inputArgument || !outputArgument || !reportArgument || !cacheArgument) {
         uncachedMovieLookups,
       },
       diagnostics: result.diagnostics,
-      schemaVersion: 2,
+      schemaVersion: 3,
     });
     console.log(
       `Reconciliation ${result.document.complete ? "completed" : "stopped"}: ${result.document.matches.length} confirmed, ${result.diagnostics.length} review diagnostics, ${uncachedFindLookups} new find lookups, ${uncachedMovieLookups} new movie lookups`,

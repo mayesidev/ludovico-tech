@@ -120,6 +120,23 @@ export function MovieDetailPage({
                 </dd>
               </div>
             )}
+            {movie.tmdb_collection_id != null &&
+              movie.tmdb_collection_name != null && (
+                <div>
+                  <dt className="text-zinc-500">TMDB collection</dt>
+                  <dd className="mt-1">
+                    <a
+                      className="inline-flex items-center gap-1.5 font-semibold text-marquee-light hover:text-cream"
+                      href={`https://www.themoviedb.org/collection/${movie.tmdb_collection_id}`}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      {movie.tmdb_collection_name}
+                      <ExternalLink size={13} />
+                    </a>
+                  </dd>
+                </div>
+              )}
           </dl>
 
           {watched && (
