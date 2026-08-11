@@ -37,7 +37,13 @@
     },
     "staging": {
       "name": "ludovico-tech-staging",
-      "workers_dev": true,
+      "workers_dev": false,
+      "routes": [
+        {
+          "pattern": "staging.ludovicotech.com",
+          "custom_domain": true,
+        },
+      ],
       "vars": {
         "APP_ENV": "staging",
         "AUTH_MODE": "google",
@@ -62,7 +68,13 @@
     },
     "production": {
       "name": "ludovico-tech-production",
-      "workers_dev": true,
+      "workers_dev": false,
+      "routes": [
+        {
+          "pattern": "ludovicotech.com",
+          "custom_domain": true,
+        },
+      ],
       "vars": {
         "APP_ENV": "production",
         "AUTH_MODE": "google",

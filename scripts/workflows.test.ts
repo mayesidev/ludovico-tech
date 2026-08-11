@@ -58,6 +58,7 @@ describe("complete CI and deployment gates", () => {
     const deploy = source.indexOf("wrangler deploy --env staging");
     const smoke = source.indexOf(
       '"$STAGING_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" staging',
+      deploy,
     );
 
     expect(source).toContain("workflows: [Release]");
@@ -66,6 +67,9 @@ describe("complete CI and deployment gates", () => {
     expect(source).toContain("environment: staging");
     expect(source).toContain("ref: main");
     expect(source).toContain("pnpm config:check:staging");
+    expect(source).toContain(
+      '"$STAGING_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" staging',
+    );
     expect(source).toContain("Required staging secret %s is not configured");
     expect(source).toContain('--secrets-file "$secrets_file"');
     expect(source).toContain(
@@ -99,6 +103,9 @@ describe("complete CI and deployment gates", () => {
     expect(source).not.toContain("ref: ${{ inputs.tag }}");
     expect(source).toContain("releases/tags/$RELEASE_TAG");
     expect(source).toContain("pnpm config:check:production");
+    expect(source).toContain(
+      '"$PRODUCTION_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" production',
+    );
     expect(source).toContain(
       "wrangler d1 execute DB --remote --env production",
     );
