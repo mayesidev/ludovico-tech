@@ -46,7 +46,7 @@ const createArtifactBundle = () => {
     { collections: 1, movies: 2, ratings: 1, sources: 2 },
     "2026-08-10T12:00:00.000Z",
     [{ code: "COLLECTION_INDICATOR_UNCERTAIN", row: 2, severity: "warning" }],
-    { artifactType: "catalog_import", nowShowingStatus: "pending_order" },
+    { artifactType: "catalog_import", nowShowingStatus: "ready" },
   );
   writeImportArtifacts(
     metadataDirectory,
@@ -182,6 +182,25 @@ describe("private import artifact preflight", () => {
       ),
     ).toThrow("catalog_import validation report is invalid or failed");
   });
+
+  it("rejects an obsolete catalog artifact that can restore pending order", () => {
+    const directories = createArtifactBundle();
+    const manifestPath = join(directories.catalogDirectory, "manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    manifest.artifactSchemaVersion = 1;
+    manifest.nowShowingStatus = "pending_order";
+    writeFileSync(manifestPath, JSON.stringify(manifest));
+
+    expect(() =>
+      loadImportBundle(
+        directories.catalogDirectory,
+        directories.metadataDirectory,
+      ),
+    ).toThrow("catalog_import manifest is invalid");
+  });
 });
 
 describe("private import target confirmation", () => {
@@ -256,7 +275,7 @@ describe("private import execution", () => {
           : summary({
               collections: 1,
               movies: 2,
-              now_showing_status: "pending_order",
+              now_showing_status: "ready",
               ratings: 1,
               sources: 2,
               tmdb_movies: 1,

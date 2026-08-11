@@ -483,7 +483,7 @@ describe("deterministic import planning", () => {
     expect(first.statements.join("\n")).toContain("Director''s choice");
   });
 
-  it("restores an unwatched collection selection pending user order", async () => {
+  it("restores an unwatched collection selection ready in date-added order", async () => {
     const plan = await buildImportPlan(
       document(
         [
@@ -499,8 +499,9 @@ describe("deterministic import planning", () => {
     const sql = plan.statements.join("\n");
 
     expect(plan.diagnostics).toEqual([]);
-    expect(plan.nowShowingStatus).toBe("pending_order");
-    expect(sql).toContain("status = 'pending_order'");
+    expect(plan.nowShowingStatus).toBe("ready");
+    expect(sql).toContain("status = 'ready'");
+    expect(sql).not.toContain("status = 'pending_order'");
     expect(sql).toContain("rolled_movie_id = NULL");
     expect(sql).not.toContain("INSERT INTO rolls");
     expect(sql).not.toContain("INSERT INTO audit_log");

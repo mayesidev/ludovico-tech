@@ -16,6 +16,7 @@ export type MovieRow = {
   watched_at: string | null;
   collection_name?: string | null;
   collection_position?: number | null;
+  collection_order_confirmed?: number | null;
 };
 
 export type CollectionRow = {
@@ -31,7 +32,7 @@ export type NowShowingRow = {
   rolled_movie_id: string | null;
   movie_id: string | null;
   collection_id: string | null;
-  status: "empty" | "pending_order" | "ready" | "watched";
+  status: "empty" | "ready" | "watched";
   rolled_at: string | null;
   updated_at: string;
   title: string | null;
@@ -49,6 +50,7 @@ export const movieSelect = `
     movies.poster_path, movies.runtime_minutes, movies.tmdb_id,
     movies.tmdb_collection_id, movies.tmdb_collection_name,
     collections.name AS collection_name,
+    collections.order_confirmed AS collection_order_confirmed,
     collection_movies.collection_id, collection_movies.position AS collection_position,
     ratings.score AS rating_score, ratings.phrase AS rating_phrase,
     ratings.watched_at
@@ -84,7 +86,11 @@ export const getRemainingCollectionMovies = async (
   const result = await env.DB.prepare(
     `${movieSelect}
        WHERE collection_movies.collection_id = ? AND ratings.id IS NULL
-       ORDER BY collection_movies.position ASC, movies.added_at ASC`,
+       ORDER BY
+         CASE WHEN collections.order_confirmed = 1 THEN collection_movies.position END ASC,
+         CASE WHEN collections.order_confirmed = 0 THEN movies.added_at END ASC,
+         movies.added_at ASC,
+         movies.id ASC`,
   )
     .bind(collectionId)
     .all<MovieRow>();
@@ -96,7 +102,13 @@ export const getCollectionMovies = async (
   collectionId: string,
 ) => {
   const result = await env.DB.prepare(
-    `${movieSelect} WHERE collection_movies.collection_id = ? ORDER BY collection_movies.position ASC, movies.added_at ASC`,
+    `${movieSelect}
+     WHERE collection_movies.collection_id = ?
+     ORDER BY
+       CASE WHEN collections.order_confirmed = 1 THEN collection_movies.position END ASC,
+       CASE WHEN collections.order_confirmed = 0 THEN movies.added_at END ASC,
+       movies.added_at ASC,
+       movies.id ASC`,
   )
     .bind(collectionId)
     .all<MovieRow>();

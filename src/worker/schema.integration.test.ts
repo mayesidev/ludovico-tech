@@ -142,6 +142,67 @@ describe("catalog schema", () => {
     ).rejects.toThrow();
   });
 
+  it("migrates a pending collection selection to the earliest-added unwatched movie", async () => {
+    await env.DB.prepare(
+      `INSERT INTO collections
+       (id, name, name_normalized, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+      .bind(
+        "collection-default-order",
+        "Default Order Collection",
+        "default order collection",
+        "2026-08-06T00:00:00.000Z",
+        "2026-08-06T00:00:00.000Z",
+      )
+      .run();
+    await insertMovie("movie-added-later");
+    await insertMovie("movie-added-earlier");
+    await env.DB.batch([
+      env.DB.prepare("UPDATE movies SET added_at = ? WHERE id = ?").bind(
+        "2026-08-02T00:00:00.000Z",
+        "movie-added-later",
+      ),
+      env.DB.prepare("UPDATE movies SET added_at = ? WHERE id = ?").bind(
+        "2026-08-01T00:00:00.000Z",
+        "movie-added-earlier",
+      ),
+      env.DB.prepare(
+        "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
+      ).bind("collection-default-order", "movie-added-later", 1),
+      env.DB.prepare(
+        "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
+      ).bind("collection-default-order", "movie-added-earlier", 2),
+      env.DB.prepare(
+        `UPDATE now_showing
+         SET movie_id = ?, rolled_movie_id = ?, collection_id = ?, status = 'pending_order'
+         WHERE id = 1`,
+      ).bind(
+        "movie-added-later",
+        "movie-added-later",
+        "collection-default-order",
+      ),
+    ]);
+
+    const migration = env.TEST_MIGRATIONS.find(
+      (candidate) => candidate.name === "0005_default_collection_order.sql",
+    );
+    expect(migration).toBeDefined();
+    for (const query of migration?.queries ?? []) {
+      await env.DB.prepare(query).run();
+    }
+
+    expect(
+      await env.DB.prepare(
+        "SELECT movie_id, rolled_movie_id, status FROM now_showing WHERE id = 1",
+      ).first(),
+    ).toEqual({
+      movie_id: "movie-added-earlier",
+      rolled_movie_id: "movie-added-later",
+      status: "ready",
+    });
+  });
+
   it("allows only positive movie runtimes when known", async () => {
     await insertMovie("movie-valid-runtime");
     await env.DB.prepare("UPDATE movies SET runtime_minutes = ? WHERE id = ?")

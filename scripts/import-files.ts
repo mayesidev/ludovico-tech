@@ -17,12 +17,12 @@ import {
 const generatedFilename =
   /^(?:chunk-\d{4}\.sql|manifest\.json|validation-report\.json)$/;
 
-export const IMPORT_ARTIFACT_SCHEMA_VERSION = 1 as const;
+export const IMPORT_ARTIFACT_SCHEMA_VERSION = 2 as const;
 
 type ImportArtifactOptions =
   | {
       artifactType: "catalog_import";
-      nowShowingStatus: "empty" | "pending_order" | "ready";
+      nowShowingStatus: "empty" | "ready";
     }
   | {
       artifactType: "tmdb_metadata";

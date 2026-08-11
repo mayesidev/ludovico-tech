@@ -1,8 +1,19 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { api, ApiError, type AuthState, type Movie } from "./api";
+import {
+  POSTER_REEL_DURATION_MS,
+  POSTER_REVEAL_DURATION_MS,
+} from "./lib/poster-reel";
 
 const movie: Movie = {
   added_at: "2026-08-07T00:00:00.000Z",
@@ -45,6 +56,8 @@ describe("application authorization presentation", () => {
   beforeEach(() => {
     window.history.replaceState(null, "", "/");
   });
+
+  afterEach(() => vi.useRealTimers());
 
   it("lets anonymous visitors browse without rendering mutation controls", async () => {
     arrange(anonymous);
@@ -144,6 +157,54 @@ describe("application authorization presentation", () => {
     expect(screen.getByRole("button", { name: /^Sign in$/ })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Choose a movie" })).toBeNull();
     expect(api.authMe).toHaveBeenCalledTimes(2);
+  });
+
+  it("runs the poster reel before revealing the actual Now Showing movie", async () => {
+    arrange(authenticated);
+    vi.mocked(api.movies).mockResolvedValue({
+      movies: [{ ...movie, poster_path: "/reel.jpg" }],
+    });
+    vi.spyOn(api, "roll").mockResolvedValue({
+      rolledMovie: { ...movie, id: "rolled-id", title: "Rolled Later Movie" },
+      nowShowing: {
+        collection_id: "collection-id",
+        collection_name: "Test Saga",
+        id: 1,
+        movie_id: "actual-id",
+        poster_path: "/actual.jpg",
+        rating_phrase: null,
+        rating_score: null,
+        release_date: null,
+        rolled_movie_id: "rolled-id",
+        status: "ready",
+        title: "Actual First Movie",
+        watched_at: null,
+      },
+    });
+    render(<App />);
+
+    const choose = await screen.findByRole("button", {
+      name: "Choose a movie",
+    });
+    vi.useFakeTimers();
+    fireEvent.click(choose);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Choosing a movie");
+    await act(async () => {
+      vi.advanceTimersByTime(POSTER_REEL_DURATION_MS);
+      await Promise.resolve();
+    });
+    const reveal = screen.getByRole("status");
+    expect(reveal).toHaveTextContent("Now showing: Actual First Movie");
+    expect(
+      within(reveal).getByAltText("Poster for Actual First Movie"),
+    ).toBeVisible();
+
+    await act(async () => {
+      vi.advanceTimersByTime(POSTER_REVEAL_DURATION_MS);
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("loads movie URLs directly and follows browser history", async () => {

@@ -1,11 +1,6 @@
 import { zValidator } from "@hono/zod-validator";
 import { type Hono } from "hono";
-import {
-  getCollectionMovies,
-  getMovie,
-  getNowShowing,
-  getRemainingCollectionMovies,
-} from "../db";
+import { getMovie, getNowShowing, getRemainingCollectionMovies } from "../db";
 import { type AppEnv, newId, now } from "../env";
 import { auditStatement, mutationActor } from "../middleware";
 import { orderInput } from "../schemas";
@@ -36,28 +31,10 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
     }
 
     const timestamp = now();
-    const collectionMovies = rolled.collection_id
-      ? await getCollectionMovies(c.env, rolled.collection_id)
-      : [];
-    const collection = rolled.collection_id
-      ? await c.env.DB.prepare(
-          "SELECT order_confirmed FROM collections WHERE id = ?",
-        )
-          .bind(rolled.collection_id)
-          .first<{ order_confirmed: number }>()
-      : null;
     const remainingCollectionMovies = rolled.collection_id
       ? await getRemainingCollectionMovies(c.env, rolled.collection_id)
       : [];
-    const actual = selectQueuedMovie(
-      rolled,
-      Boolean(collection?.order_confirmed),
-      remainingCollectionMovies,
-    );
-    const status =
-      rolled.collection_id && !collection?.order_confirmed
-        ? "pending_order"
-        : "ready";
+    const actual = selectQueuedMovie(rolled, remainingCollectionMovies);
 
     const rollId = newId();
     const [rollInsert] = await c.env.DB.batch([
@@ -85,7 +62,7 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
         rolled.id,
         actual.id,
         rolled.collection_id,
-        status,
+        "ready",
         timestamp,
         timestamp,
         rollId,
@@ -116,8 +93,6 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
     return c.json({
       rolledMovie: await getMovie(c.env, rolled.id),
       nowShowing: await getNowShowing(c.env),
-      needsOrder: status === "pending_order",
-      collectionMovies,
     });
   });
 
@@ -190,7 +165,7 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
         statements.push(
           c.env.DB.prepare(
             `UPDATE now_showing SET movie_id = ?, status = 'ready', updated_at = ?
-             WHERE id = 1 AND collection_id = ? AND status = 'pending_order'`,
+             WHERE id = 1 AND collection_id = ? AND status IN ('pending_order', 'ready')`,
           ).bind(firstUnwatchedId, timestamp, collectionId),
         );
       }

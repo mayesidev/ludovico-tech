@@ -11,6 +11,7 @@ export type Movie = {
   collection_id: string | null;
   collection_name?: string | null;
   collection_position?: number | null;
+  collection_order_confirmed?: number | null;
   rating_score: number | null;
   rating_phrase: string | null;
   watched_at: string | null;
@@ -21,7 +22,7 @@ export type NowShowing = {
   rolled_movie_id: string | null;
   movie_id: string | null;
   collection_id: string | null;
-  status: "empty" | "pending_order" | "ready" | "watched";
+  status: "empty" | "ready" | "watched";
   title: string | null;
   release_date: string | null;
   poster_path: string | null;
@@ -105,8 +106,6 @@ export const api = {
     request<{
       rolledMovie: Movie;
       nowShowing: NowShowing;
-      needsOrder: boolean;
-      collectionMovies: Movie[];
     }>("/api/roll", { method: "POST" }),
   next: () =>
     request<{ nowShowing: NowShowing }>("/api/next", { method: "POST" }),

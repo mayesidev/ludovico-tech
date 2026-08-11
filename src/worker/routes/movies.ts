@@ -51,7 +51,13 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     if (!collection) return c.json({ error: "Collection not found" }, 404);
 
     const movies = await c.env.DB.prepare(
-      `${movieSelect} WHERE collection_movies.collection_id = ? ORDER BY collection_movies.position ASC`,
+      `${movieSelect}
+       WHERE collection_movies.collection_id = ?
+       ORDER BY
+         CASE WHEN collections.order_confirmed = 1 THEN collection_movies.position END ASC,
+         CASE WHEN collections.order_confirmed = 0 THEN movies.added_at END ASC,
+         movies.added_at ASC,
+         movies.id ASC`,
     )
       .bind(c.req.param("id"))
       .all<MovieRow>();
@@ -339,21 +345,44 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
             "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
           ).bind(targetCollectionId, movieId, targetPosition),
           c.env.DB.prepare(
-            "UPDATE collections SET order_confirmed = 0, updated_at = ? WHERE id = ?",
+            "UPDATE collections SET updated_at = ? WHERE id = ?",
           ).bind(timestamp, targetCollectionId),
         );
       }
       statements.push(
         c.env.DB.prepare(
           `UPDATE now_showing SET collection_id = ?,
+           movie_id = CASE
+             WHEN status = 'watched' OR ? IS NULL THEN movie_id
+             ELSE COALESCE(
+               (SELECT movies.id
+                FROM collection_movies
+                JOIN movies ON movies.id = collection_movies.movie_id
+                LEFT JOIN ratings ON ratings.movie_id = movies.id
+                JOIN collections ON collections.id = collection_movies.collection_id
+                WHERE collection_movies.collection_id = ? AND ratings.id IS NULL
+                ORDER BY
+                  CASE WHEN collections.order_confirmed = 1 THEN collection_movies.position END ASC,
+                  CASE WHEN collections.order_confirmed = 0 THEN movies.added_at END ASC,
+                  movies.added_at ASC,
+                  movies.id ASC
+                LIMIT 1),
+               movie_id
+             )
+           END,
            status = CASE
              WHEN status = 'watched' THEN 'watched'
-             WHEN ? IS NULL THEN 'ready'
-             ELSE 'pending_order'
+             ELSE 'ready'
            END,
            updated_at = ?
            WHERE id = 1 AND movie_id = ?`,
-        ).bind(targetCollectionId, targetCollectionId, timestamp, movieId),
+        ).bind(
+          targetCollectionId,
+          targetCollectionId,
+          targetCollectionId,
+          timestamp,
+          movieId,
+        ),
       );
       if (existing.collection_id) {
         statements.push(
