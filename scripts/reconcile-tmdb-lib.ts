@@ -13,6 +13,7 @@ export type TmdbFindMovie = {
 };
 
 export type TmdbMovieDetail = {
+  collection: { id: number; name: string } | null;
   id: number;
   runtimeMinutes: number | null;
 };
@@ -88,6 +89,27 @@ export const parseTmdbMovieResponse = (
   if (!value || typeof value !== "object") return null;
   const movie = value as Record<string, unknown>;
   if (!Number.isInteger(movie.id) || Number(movie.id) <= 0) return null;
+  const collectionValue = movie.belongs_to_collection;
+  let collection: TmdbMovieDetail["collection"];
+  if (collectionValue === null) {
+    collection = null;
+  } else if (collectionValue && typeof collectionValue === "object") {
+    const candidate = collectionValue as Record<string, unknown>;
+    if (
+      !Number.isInteger(candidate.id) ||
+      Number(candidate.id) <= 0 ||
+      typeof candidate.name !== "string" ||
+      !candidate.name.trim()
+    ) {
+      return null;
+    }
+    collection = {
+      id: Number(candidate.id),
+      name: candidate.name.trim().slice(0, 200),
+    };
+  } else {
+    return null;
+  }
   if (
     movie.runtime !== null &&
     movie.runtime !== 0 &&
@@ -96,6 +118,7 @@ export const parseTmdbMovieResponse = (
     return null;
   }
   return {
+    collection,
     id: Number(movie.id),
     runtimeMinutes:
       movie.runtime === null || movie.runtime === 0
@@ -188,6 +211,8 @@ export const reconcileTmdb = async (
       releaseDate: providerMovies[0].releaseDate,
       runtimeMinutes: providerDetail.runtimeMinutes,
       sourceTitleNormalized,
+      tmdbCollectionId: providerDetail.collection?.id ?? null,
+      tmdbCollectionName: providerDetail.collection?.name ?? null,
       tmdbId: providerMovies[0].id,
     });
   }

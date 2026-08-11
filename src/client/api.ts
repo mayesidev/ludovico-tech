@@ -6,6 +6,8 @@ export type Movie = {
   poster_path: string | null;
   runtime_minutes: number | null;
   tmdb_id: number | null;
+  tmdb_collection_id?: number | null;
+  tmdb_collection_name?: string | null;
   collection_id: string | null;
   collection_name?: string | null;
   collection_position?: number | null;
@@ -40,7 +42,12 @@ export type TmdbResult = {
   posterPath: string | null;
 };
 export type TmdbMovieDetail = TmdbResult & {
+  collection: TmdbCollectionReference | null;
   runtimeMinutes: number | null;
+};
+export type TmdbCollectionReference = {
+  id: number;
+  name: string;
 };
 export type AuthState = {
   authenticated: boolean;
@@ -89,9 +96,11 @@ export const api = {
   movies: (status = "all") =>
     request<{ movies: Movie[] }>(`/api/movies?status=${status}`),
   collection: (id: string) =>
-    request<{ collection: { id: string; name: string }; movies: Movie[] }>(
-      `/api/collections/${id}`,
-    ),
+    request<{
+      collection: { id: string; name: string };
+      movies: Movie[];
+      tmdbCollections: TmdbCollectionReference[];
+    }>(`/api/collections/${id}`),
   roll: () =>
     request<{
       rolledMovie: Movie;

@@ -55,7 +55,24 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     )
       .bind(c.req.param("id"))
       .all<MovieRow>();
-    return c.json({ collection, movies: movies.results });
+    const tmdbCollections = [
+      ...new Map(
+        movies.results
+          .filter(
+            (movie) =>
+              movie.tmdb_collection_id !== null &&
+              movie.tmdb_collection_name !== null,
+          )
+          .map((movie) => [
+            movie.tmdb_collection_id,
+            {
+              id: movie.tmdb_collection_id!,
+              name: movie.tmdb_collection_name!,
+            },
+          ]),
+      ).values(),
+    ].sort((left, right) => left.name.localeCompare(right.name));
+    return c.json({ collection, movies: movies.results, tmdbCollections });
   });
 
   app.get("/now-showing", async (c) => {
@@ -135,8 +152,9 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     statements.push(
       c.env.DB.prepare(
         `INSERT INTO movies (id, title, title_normalized, added_at, added_by, updated_at, updated_by,
-        release_date, poster_path, runtime_minutes, tmdb_id, tmdb_fetched_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        release_date, poster_path, runtime_minutes, tmdb_id, tmdb_fetched_at,
+        tmdb_collection_id, tmdb_collection_name)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         id,
         title,
@@ -150,6 +168,8 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         metadata?.runtimeMinutes ?? null,
         input.tmdbId ?? null,
         input.tmdbId ? timestamp : null,
+        metadata?.collection?.id ?? null,
+        metadata?.collection?.name ?? null,
       ),
     );
 
@@ -222,6 +242,12 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     const runtimeMinutes =
       metadata?.runtimeMinutes ??
       (tmdbChangeRequested ? null : existing.runtime_minutes);
+    const tmdbCollectionId = tmdbChangeRequested
+      ? (metadata?.collection?.id ?? null)
+      : existing.tmdb_collection_id;
+    const tmdbCollectionName = tmdbChangeRequested
+      ? (metadata?.collection?.name ?? null)
+      : existing.tmdb_collection_name;
 
     let targetCollectionId = existing.collection_id;
     let targetCollectionName: string | null = null;
@@ -266,6 +292,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       c.env.DB.prepare(
         `UPDATE movies SET title = ?, title_normalized = ?, updated_at = ?, updated_by = ?,
         release_date = ?, poster_path = ?, runtime_minutes = ?, tmdb_id = ?,
+        tmdb_collection_id = ?, tmdb_collection_name = ?,
         tmdb_fetched_at = CASE WHEN ? THEN ? ELSE tmdb_fetched_at END
         WHERE id = ?`,
       ).bind(
@@ -277,6 +304,8 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         posterPath,
         runtimeMinutes,
         input.tmdbId === undefined ? existing.tmdb_id : input.tmdbId,
+        tmdbCollectionId,
+        tmdbCollectionName,
         tmdbChangeRequested ? 1 : 0,
         input.tmdbId ? timestamp : null,
         movieId,

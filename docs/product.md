@@ -12,7 +12,8 @@ one group viewing state.
 - Every unwatched title is eligible for a random roll. Another roll is unavailable
   until the current movie is rated.
 - A collection is an optional user-defined grouping. Members own its order; an
-  external suggestion is never authoritative.
+  external suggestion is never authoritative. A confirmed movie may link to
+  TMDB's narrower collection without changing the local grouping.
 - Rolling any collection member queues its first unwatched ordered member. After
   rating it, members may continue the collection or return to a fresh random roll.
 - TMDB supplies application metadata. Legacy IMDb identifiers are optional,

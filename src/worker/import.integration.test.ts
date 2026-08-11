@@ -49,10 +49,12 @@ const syntheticReconciliation: TmdbReconciliationDocument = {
       releaseDate: "2024-01-02",
       runtimeMinutes: 123,
       sourceTitleNormalized: "synthetic movie two",
+      tmdbCollectionId: 7,
+      tmdbCollectionName: "Synthetic Collection",
       tmdbId: 42,
     },
   ],
-  schemaVersion: 2,
+  schemaVersion: 3,
 };
 
 const request = async <T>(path: string, init?: RequestInit) => {
@@ -151,7 +153,8 @@ describe("generalized catalog import", () => {
     }
 
     const movie = await env.DB.prepare(
-      `SELECT title, release_date, poster_path, runtime_minutes, tmdb_id, tmdb_fetched_at
+      `SELECT title, release_date, poster_path, runtime_minutes, tmdb_id,
+        tmdb_collection_id, tmdb_collection_name, tmdb_fetched_at
        FROM movies WHERE legacy_imdb_id = ?`,
     )
       .bind("tt1234568")
@@ -163,6 +166,8 @@ describe("generalized catalog import", () => {
       release_date: "2024-01-02",
       runtime_minutes: 123,
       title: "Synthetic Movie Two",
+      tmdb_collection_id: 7,
+      tmdb_collection_name: "Synthetic Collection",
       tmdb_fetched_at: "2026-08-10T10:00:00.000Z",
       tmdb_id: 42,
     });

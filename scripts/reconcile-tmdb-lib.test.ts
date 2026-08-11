@@ -40,7 +40,11 @@ const match = (overrides: Partial<TmdbFindMovie> = {}): TmdbFindMovie => ({
 
 const generatedAt = "2026-08-10T10:00:00.000Z";
 const getMovie = () =>
-  vi.fn().mockResolvedValue({ id: 42, runtimeMinutes: 123 });
+  vi.fn().mockResolvedValue({
+    collection: { id: 7, name: "Synthetic Collection" },
+    id: 42,
+    runtimeMinutes: 123,
+  });
 
 describe("TMDB import reconciliation", () => {
   it("accepts only a sanitized TMDB find response", () => {
@@ -58,15 +62,39 @@ describe("TMDB import reconciliation", () => {
       }),
     ).toEqual([match()]);
     expect(parseTmdbFindResponse({ movie_results: [{ id: "42" }] })).toBeNull();
-    expect(parseTmdbMovieResponse({ id: 42, runtime: 123 })).toEqual({
+    expect(
+      parseTmdbMovieResponse({
+        belongs_to_collection: {
+          id: 7,
+          name: "Synthetic Collection",
+          poster_path: "/ignored.jpg",
+        },
+        id: 42,
+        runtime: 123,
+      }),
+    ).toEqual({
+      collection: { id: 7, name: "Synthetic Collection" },
       id: 42,
       runtimeMinutes: 123,
     });
-    expect(parseTmdbMovieResponse({ id: 42, runtime: 0 })).toEqual({
+    expect(
+      parseTmdbMovieResponse({
+        belongs_to_collection: null,
+        id: 42,
+        runtime: 0,
+      }),
+    ).toEqual({
+      collection: null,
       id: 42,
       runtimeMinutes: null,
     });
-    expect(parseTmdbMovieResponse({ id: 42, runtime: "123" })).toBeNull();
+    expect(
+      parseTmdbMovieResponse({
+        belongs_to_collection: null,
+        id: 42,
+        runtime: "123",
+      }),
+    ).toBeNull();
   });
 
   it("confirms one exact normalized title match", async () => {
@@ -94,10 +122,12 @@ describe("TMDB import reconciliation", () => {
           releaseDate: "2024-01-02",
           runtimeMinutes: 123,
           sourceTitleNormalized: "synthetic movie",
+          tmdbCollectionId: 7,
+          tmdbCollectionName: "Synthetic Collection",
           tmdbId: 42,
         },
       ],
-      schemaVersion: 2,
+      schemaVersion: 3,
     });
   });
 

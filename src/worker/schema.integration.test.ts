@@ -160,6 +160,31 @@ describe("catalog schema", () => {
     ).rejects.toThrow();
   });
 
+  it("keeps TMDB collection identifiers and names paired", async () => {
+    await insertMovie("movie-tmdb-collection");
+    await expect(
+      env.DB.prepare("UPDATE movies SET tmdb_collection_id = 7 WHERE id = ?")
+        .bind("movie-tmdb-collection")
+        .run(),
+    ).rejects.toThrow();
+
+    await env.DB.prepare(
+      "UPDATE movies SET tmdb_collection_id = 7, tmdb_collection_name = 'Provider Collection' WHERE id = ?",
+    )
+      .bind("movie-tmdb-collection")
+      .run();
+    expect(
+      await env.DB.prepare(
+        "SELECT tmdb_collection_id, tmdb_collection_name FROM movies WHERE id = ?",
+      )
+        .bind("movie-tmdb-collection")
+        .first(),
+    ).toEqual({
+      tmdb_collection_id: 7,
+      tmdb_collection_name: "Provider Collection",
+    });
+  });
+
   it("keeps source provenance and actor identifiers out of public movie DTOs", async () => {
     await insertMovie("movie-public", "Public Movie");
     await env.DB.prepare(

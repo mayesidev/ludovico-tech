@@ -68,7 +68,16 @@ describe("TMDB reconciliation command", () => {
         ),
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ id: 42, runtime: 123 })),
+        new Response(
+          JSON.stringify({
+            belongs_to_collection: {
+              id: 7,
+              name: "Synthetic Collection",
+            },
+            id: 42,
+            runtime: 123,
+          }),
+        ),
       );
     vi.stubGlobal("fetch", fetchMock);
     vi.spyOn(console, "log").mockImplementation(() => undefined);
@@ -104,8 +113,14 @@ describe("TMDB reconciliation command", () => {
         JSON.parse(readFileSync(output, "utf8")) as Record<string, unknown>,
       ).toMatchObject({
         complete: true,
-        matches: [{ runtimeMinutes: 123 }],
-        schemaVersion: 2,
+        matches: [
+          {
+            runtimeMinutes: 123,
+            tmdbCollectionId: 7,
+            tmdbCollectionName: "Synthetic Collection",
+          },
+        ],
+        schemaVersion: 3,
       });
       expect(
         JSON.parse(readFileSync(report, "utf8")) as Record<string, unknown>,
@@ -136,8 +151,8 @@ describe("TMDB reconciliation command", () => {
     }
   });
 
-  it("migrates the existing find cache and requests only missing details", async () => {
-    const directory = mkdtempSync(join(tmpdir(), "ludovico-reconcile-v1-"));
+  it("migrates the existing detail cache and requests only collection-aware details", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "ludovico-reconcile-v2-"));
     const input = join(directory, "input.json");
     const output = join(directory, "output.json");
     const report = join(directory, "report.json");
@@ -146,7 +161,7 @@ describe("TMDB reconciliation command", () => {
     writeFileSync(
       cache,
       JSON.stringify({
-        entries: {
+        findEntries: {
           tt1234567: [
             {
               id: 42,
@@ -156,16 +171,21 @@ describe("TMDB reconciliation command", () => {
             },
           ],
         },
-        schemaVersion: 1,
+        movieEntries: { "42": { id: 42, runtimeMinutes: 123 } },
+        schemaVersion: 2,
       }),
     );
     process.env.TMDB_READ_ACCESS_TOKEN = "test-token";
     process.argv = ["node", "reconcile-tmdb", input, output, report, cache];
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(JSON.stringify({ id: 42, runtime: 123 })),
-      );
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          belongs_to_collection: null,
+          id: 42,
+          runtime: 123,
+        }),
+      ),
+    );
     vi.stubGlobal("fetch", fetchMock);
     vi.spyOn(console, "log").mockImplementation(() => undefined);
 
@@ -182,8 +202,10 @@ describe("TMDB reconciliation command", () => {
         JSON.parse(readFileSync(cache, "utf8")) as Record<string, unknown>,
       ).toMatchObject({
         findEntries: { tt1234567: [expect.objectContaining({ id: 42 })] },
-        movieEntries: { "42": { id: 42, runtimeMinutes: 123 } },
-        schemaVersion: 2,
+        movieEntries: {
+          "42": { collection: null, id: 42, runtimeMinutes: 123 },
+        },
+        schemaVersion: 3,
       });
       expect(
         JSON.parse(readFileSync(report, "utf8")) as Record<string, unknown>,

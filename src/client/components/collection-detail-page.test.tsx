@@ -66,6 +66,7 @@ describe("collection details", () => {
     expect(screen.getByText("Unwatched")).toBeVisible();
     expect(screen.getByText("Watched")).toBeVisible();
     expect(screen.getByText("4 · A sequel phrase")).toBeVisible();
+    expect(screen.queryByText(/Related TMDB collection/)).toBeNull();
 
     await user.click(
       screen.getByRole("button", { name: "Move Second Movie up" }),
@@ -79,6 +80,43 @@ describe("collection details", () => {
       ]),
     );
     expect(screen.getByRole("status")).toHaveTextContent("Order saved.");
+  });
+
+  it("links every distinct related TMDB collection without changing the local grouping", () => {
+    render(
+      <CollectionDetailPage
+        busy={false}
+        canMutate={false}
+        collectionId="collection-id"
+        movies={[
+          movie({
+            tmdb_collection_id: 7,
+            tmdb_collection_name: "First Official Collection",
+          }),
+          movie({
+            collection_position: 2,
+            id: "second-id",
+            tmdb_collection_id: 8,
+            tmdb_collection_name: "Second Official Collection",
+          }),
+        ]}
+        onLogin={vi.fn()}
+        onNavigate={vi.fn()}
+        returnTo="library"
+        run={run}
+      />,
+    );
+
+    expect(screen.getByText("Related TMDB collections")).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "First Official Collection" }),
+    ).toHaveAttribute("href", "https://www.themoviedb.org/collection/7");
+    expect(
+      screen.getByRole("link", { name: "Second Official Collection" }),
+    ).toHaveAttribute("href", "https://www.themoviedb.org/collection/8");
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Test Saga" }),
+    ).toBeVisible();
   });
 
   it("keeps ordering read-only for anonymous visitors", async () => {

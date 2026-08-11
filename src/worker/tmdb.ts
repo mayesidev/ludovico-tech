@@ -11,7 +11,13 @@ export type TmdbMovie = {
   title: string;
 };
 
+export type TmdbCollection = {
+  id: number;
+  name: string;
+};
+
 export type TmdbMovieDetail = TmdbMovie & {
+  collection: TmdbCollection | null;
   runtimeMinutes: number | null;
 };
 
@@ -136,17 +142,44 @@ const mapCachedMovie = (value: unknown): TmdbMovie | null => {
   return movie as unknown as TmdbMovie;
 };
 
+const mapTmdbCollection = (
+  value: unknown,
+): TmdbCollection | null | undefined => {
+  if (value === null) return null;
+  if (!value || typeof value !== "object") return undefined;
+  const collection = value as Record<string, unknown>;
+  if (
+    !Number.isInteger(collection.id) ||
+    Number(collection.id) <= 0 ||
+    typeof collection.name !== "string" ||
+    !collection.name.trim()
+  ) {
+    return undefined;
+  }
+  return {
+    id: Number(collection.id),
+    name: collection.name.trim().slice(0, 200),
+  };
+};
+
 const mapCachedMovieDetail = (value: unknown): TmdbMovieDetail | null => {
   const movie = mapCachedMovie(value);
   if (!movie || !value || typeof value !== "object") return null;
-  const runtimeMinutes = (value as Record<string, unknown>).runtimeMinutes;
+  const detail = value as Record<string, unknown>;
+  const collection = mapTmdbCollection(detail.collection);
+  const runtimeMinutes = detail.runtimeMinutes;
   if (
-    runtimeMinutes !== null &&
-    (!Number.isSafeInteger(runtimeMinutes) || Number(runtimeMinutes) <= 0)
+    collection === undefined ||
+    (runtimeMinutes !== null &&
+      (!Number.isSafeInteger(runtimeMinutes) || Number(runtimeMinutes) <= 0))
   ) {
     return null;
   }
-  return { ...movie, runtimeMinutes: runtimeMinutes as number | null };
+  return {
+    ...movie,
+    collection,
+    runtimeMinutes: runtimeMinutes as number | null,
+  };
 };
 
 const mapMovie = (value: unknown): TmdbMovie | null => {
@@ -179,16 +212,20 @@ const mapMovie = (value: unknown): TmdbMovie | null => {
 const mapMovieDetail = (value: unknown): TmdbMovieDetail | null => {
   const movie = mapMovie(value);
   if (!movie || !value || typeof value !== "object") return null;
-  const runtime = (value as Record<string, unknown>).runtime;
+  const detail = value as Record<string, unknown>;
+  const collection = mapTmdbCollection(detail.belongs_to_collection);
+  const runtime = detail.runtime;
   if (
-    runtime !== null &&
-    runtime !== 0 &&
-    (!Number.isSafeInteger(runtime) || Number(runtime) <= 0)
+    collection === undefined ||
+    (runtime !== null &&
+      runtime !== 0 &&
+      (!Number.isSafeInteger(runtime) || Number(runtime) <= 0))
   ) {
     return null;
   }
   return {
     ...movie,
+    collection,
     runtimeMinutes: runtime === null || runtime === 0 ? null : Number(runtime),
   };
 };

@@ -101,6 +101,7 @@ describe("add movie dialog", () => {
   it("checks a manually entered TMDB ID before adding it", async () => {
     vi.spyOn(api, "tmdbMovie").mockResolvedValue({
       movie: {
+        collection: null,
         id: 42,
         posterPath: null,
         releaseDate: "2021-03-04",
