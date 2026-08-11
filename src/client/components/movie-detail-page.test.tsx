@@ -22,7 +22,7 @@ const movie: Movie = {
 };
 
 describe("movie details", () => {
-  it("aligns a recorded rating with the title and shows catalog details", () => {
+  it("gives the title the header width not needed by the rating", () => {
     render(
       <MovieDetailPage movie={movie} onNavigate={vi.fn()} returnTo="library" />,
     );
@@ -35,7 +35,10 @@ describe("movie details", () => {
     expect(heading).toBeVisible();
     expect(rating).toBeVisible();
     expect(rating.parentElement).toBe(heading.parentElement);
-    expect(rating.parentElement).toHaveClass("sm:grid-cols-2");
+    expect(rating.parentElement).toHaveClass(
+      "sm:grid-cols-[minmax(0,1fr)_auto]",
+    );
+    expect(rating).toHaveClass("sm:max-w-64", "sm:justify-self-end");
     expect(screen.queryByText("Watched")).toBeNull();
     expect(screen.queryByText("Unwatched")).toBeNull();
     expect(screen.getByText("Mar 31, 1999")).toBeVisible();
