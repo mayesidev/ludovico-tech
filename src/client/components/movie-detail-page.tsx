@@ -3,7 +3,7 @@ import type { Movie } from "../api";
 import { formatDate, formatRuntime } from "../lib/utils";
 import { AppLink } from "./app-link";
 import { Poster } from "./poster";
-import { Badge, Button, Card } from "./ui";
+import { Button, Card } from "./ui";
 
 type MovieDetailPageProps = {
   canMutate?: boolean;
@@ -46,6 +46,8 @@ export function MovieDetailPage({
   }
 
   const watched = movie.rating_score !== null;
+  const canEdit = canMutate && onEdit;
+  const canDelete = canMutate && !watched && onDelete;
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -61,27 +63,24 @@ export function MovieDetailPage({
       <Card className="grid gap-8 p-6 sm:grid-cols-[220px_1fr] sm:p-8 lg:p-10">
         <Poster path={movie.poster_path} title={movie.title} large />
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Badge>{watched ? "Watched" : "Unwatched"}</Badge>
-            <div className="flex flex-wrap items-center gap-2">
-              {canMutate && onEdit && (
-                <Button onClick={() => onEdit(movie)} variant="secondary">
-                  <Pencil size={15} />
-                  Edit movie
-                </Button>
-              )}
-              {canMutate && !watched && onDelete && (
-                <Button onClick={() => onDelete(movie)} variant="danger">
-                  <Trash2 size={15} />
-                  Delete movie
-                </Button>
-              )}
-            </div>
+          <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
+            <h1 className="font-display text-4xl font-bold tracking-normal text-cream sm:text-5xl">
+              {movie.title}
+            </h1>
+            {watched && movie.rating_phrase !== null && (
+              <div
+                aria-label={`Rating: ${movie.rating_score} ${movie.rating_phrase}`}
+                className="flex min-w-0 items-baseline gap-3 border-marquee-gold/50 sm:border-l-2 sm:pl-5 sm:pt-1"
+              >
+                <span className="text-2xl font-semibold text-marquee-light">
+                  {movie.rating_score}
+                </span>
+                <span className="min-w-0 text-lg italic text-cream">
+                  {movie.rating_phrase}
+                </span>
+              </div>
+            )}
           </div>
-
-          <h1 className="mt-5 font-display text-4xl font-bold tracking-normal text-cream sm:text-5xl">
-            {movie.title}
-          </h1>
 
           <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2">
             {movie.release_date && (
@@ -139,27 +138,34 @@ export function MovieDetailPage({
               )}
           </dl>
 
-          {watched && (
-            <div className="mt-8 border-l-2 border-marquee-gold/50 pl-5">
-              <p className="text-2xl font-semibold text-marquee-light">
-                {movie.rating_score}
-              </p>
-              <p className="mt-1 text-lg italic text-cream">
-                “{movie.rating_phrase}”
-              </p>
+          {(movie.tmdb_id !== null || canEdit || canDelete) && (
+            <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
+              {movie.tmdb_id !== null && (
+                <a
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-marquee-light hover:text-cream"
+                  href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  View on TMDB
+                  <ExternalLink size={15} />
+                </a>
+              )}
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                {canEdit && (
+                  <Button onClick={() => onEdit(movie)} variant="secondary">
+                    <Pencil size={15} />
+                    Edit movie
+                  </Button>
+                )}
+                {canDelete && (
+                  <Button onClick={() => onDelete(movie)} variant="danger">
+                    <Trash2 size={15} />
+                    Delete movie
+                  </Button>
+                )}
+              </div>
             </div>
-          )}
-
-          {movie.tmdb_id !== null && (
-            <a
-              className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-marquee-light hover:text-cream"
-              href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
-              rel="noreferrer"
-              target="_blank"
-            >
-              View on TMDB
-              <ExternalLink size={15} />
-            </a>
           )}
         </div>
       </Card>

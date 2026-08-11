@@ -22,15 +22,22 @@ const movie: Movie = {
 };
 
 describe("movie details", () => {
-  it("shows confirmed catalog, rating, and TMDB details", () => {
+  it("aligns a recorded rating with the title and shows catalog details", () => {
     render(
       <MovieDetailPage movie={movie} onNavigate={vi.fn()} returnTo="library" />,
     );
 
-    expect(
-      screen.getByRole("heading", { level: 1, name: "Test Movie" }),
-    ).toBeVisible();
-    expect(screen.getByText("Watched")).toBeVisible();
+    const heading = screen.getByRole("heading", {
+      level: 1,
+      name: "Test Movie",
+    });
+    const rating = screen.getByLabelText("Rating: 5 There is no spoon");
+    expect(heading).toBeVisible();
+    expect(rating).toBeVisible();
+    expect(rating.parentElement).toBe(heading.parentElement);
+    expect(rating.parentElement).toHaveClass("sm:grid-cols-2");
+    expect(screen.queryByText("Watched")).toBeNull();
+    expect(screen.queryByText("Unwatched")).toBeNull();
     expect(screen.getByText("Mar 31, 1999")).toBeVisible();
     expect(screen.getByText("Release date")).toBeVisible();
     expect(screen.getByText("Date added")).toBeVisible();
@@ -40,7 +47,7 @@ describe("movie details", () => {
     expect(screen.getByText("2h 16m")).toBeVisible();
     expect(screen.getByText("Aug 7, 2026")).toBeVisible();
     expect(screen.getByText("5")).toBeVisible();
-    expect(screen.getByText("“There is no spoon”")).toBeVisible();
+    expect(screen.getByText("There is no spoon")).toBeVisible();
     expect(screen.getByRole("link", { name: "Test Saga" })).toHaveAttribute(
       "href",
       "/collections/collection-id",
@@ -133,7 +140,9 @@ describe("movie details", () => {
       />,
     );
 
-    expect(screen.getByText("Unwatched")).toBeVisible();
+    expect(screen.queryByText("Watched")).toBeNull();
+    expect(screen.queryByText("Unwatched")).toBeNull();
+    expect(screen.queryByLabelText(/^Rating:/)).toBeNull();
     expect(screen.queryByRole("link", { name: "View on TMDB" })).toBeNull();
     expect(screen.queryByText("Test Saga")).toBeNull();
     expect(screen.queryByText("Release date")).toBeNull();
