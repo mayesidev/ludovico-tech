@@ -28,6 +28,7 @@
     "import:reconcile": "tsx scripts/reconcile-tmdb.ts",
     "import:metadata": "tsx scripts/generate-tmdb-metadata.ts",
     "import:generate": "tsx scripts/generate-import.ts",
+    "import:apply": "tsx scripts/apply-import.ts",
     "release:gate": "node scripts/release-gates.ts"
   },
   "dependencies": {

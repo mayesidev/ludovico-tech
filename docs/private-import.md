@@ -52,8 +52,9 @@ pnpm import:generate -- \
   data/tmdb-reconciliation-v1.json
 ```
 
-The reconciliation argument is optional. Use the generated manifest as the
-complete ordered chunk list.
+The reconciliation argument is optional. The generator records the artifact
+type, ordered chunks, checksums, expected counts, and Now Showing state in the
+manifest.
 
 For an already-imported environment, generate an update-only metadata artifact
 instead of replaying the structural import:
@@ -69,18 +70,40 @@ pnpm import:metadata -- \
 Its manifest is labeled `tmdb_metadata`; its chunks update confirmed movie
 metadata without inserting or changing catalog structure, ratings, or queue state.
 
-## Apply locally
+## Preflight and apply
 
-Start with an isolated migrated development database:
+Preflight validates both artifacts without contacting a database:
+
+```sh
+pnpm import:apply -- \
+  --environment production \
+  --database ludovico-tech-production \
+  --catalog data/generated-import-v1 \
+  --metadata data/generated-tmdb-metadata-v1
+```
+
+Review that summary before adding `--execute`. Execution validates the checked-in
+environment configuration and applied migrations, requires an empty migrated
+target, applies catalog chunks before metadata chunks, and verifies generalized
+counts and Now Showing state afterward. The database confirmation must exactly
+match the selected environment.
+
+Exercise the command first against a newly migrated, isolated local database. Use
+the same persistence directory for migration and import:
 
 ```sh
 pnpm exec wrangler d1 migrations apply ludovico-tech-development \
-  --local --env development
-pnpm exec wrangler d1 execute ludovico-tech-development \
-  --local --env development \
-  --file=data/generated-import-v1/chunk-0001.sql
+  --local --env development --persist-to <isolated-directory>
+pnpm import:apply -- \
+  --environment development \
+  --database ludovico-tech-development \
+  --catalog data/generated-import-v1 \
+  --metadata data/generated-tmdb-metadata-v1 \
+  --persist-to <isolated-directory> \
+  --execute
 ```
 
-Execute every manifest chunk in order. Do not run private imports in CI or as part
-of application deployment. Any remote import requires a separate reviewed operator
-action against the explicitly selected environment.
+Do not run private imports in CI or as part of application deployment. Any remote
+import is a separate reviewed operator action. If a chunk or post-import check
+fails, stop: do not blindly replay the artifact. Review and reset or recreate the
+unreleased target before trying again.
