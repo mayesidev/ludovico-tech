@@ -53,11 +53,15 @@ if (!inputArgument || !outputArgument || !importedAt) {
                 severity: "error" as const,
               },
             ],
+            nowShowingStatus: null,
             statements: [],
           }
         : await buildImportPlan(document, importedAt, reconciliation);
     diagnostics = plan.diagnostics;
     if (!diagnostics.some((item) => item.severity === "error")) {
+      if (plan.nowShowingStatus === null) {
+        throw new Error("Valid import plan omitted Now Showing state");
+      }
       const chunks = renderSqlChunks(plan.statements);
       writeImportArtifacts(
         outputDirectory,
@@ -65,6 +69,10 @@ if (!inputArgument || !outputArgument || !importedAt) {
         plan.counts,
         importedAt,
         diagnostics,
+        {
+          artifactType: "catalog_import",
+          nowShowingStatus: plan.nowShowingStatus,
+        },
       );
       console.log(
         `Generated ${chunks.length} chunks for ${plan.counts.movies} movies and ${plan.counts.sources} source rows`,

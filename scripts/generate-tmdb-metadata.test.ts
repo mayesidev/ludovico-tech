@@ -77,9 +77,16 @@ describe("TMDB metadata artifact command", () => {
       const sql = readFileSync(join(output, "chunk-0001.sql"), "utf8");
 
       expect(manifest).toMatchObject({
+        artifactSchemaVersion: 1,
         artifactType: "tmdb_metadata",
-        chunks: ["chunk-0001.sql"],
+        chunks: [
+          {
+            filename: "chunk-0001.sql",
+            sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+          },
+        ],
         counts: { collections: 0, movies: 1, ratings: 0, sources: 0 },
+        nowShowingStatus: null,
       });
       expect(sql).toContain("UPDATE movies SET release_date");
       expect(sql).toContain("runtime_minutes = 123");

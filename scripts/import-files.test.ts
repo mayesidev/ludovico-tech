@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,6 +18,7 @@ describe("generated import files", () => {
       { collections: 0, movies: 1, ratings: 0, sources: 1 },
       "2026-08-06T20:00:00.000Z",
       [],
+      { artifactType: "catalog_import", nowShowingStatus: "empty" },
     );
 
     expect(readdirSync(directory).sort()).toEqual([
@@ -28,5 +30,18 @@ describe("generated import files", () => {
     expect(readFileSync(join(directory, "operator-notes.txt"), "utf8")).toBe(
       "keep",
     );
+    expect(
+      JSON.parse(readFileSync(join(directory, "manifest.json"), "utf8")),
+    ).toMatchObject({
+      artifactSchemaVersion: 1,
+      artifactType: "catalog_import",
+      chunks: [
+        {
+          filename: "chunk-0001.sql",
+          sha256: createHash("sha256").update("SELECT 1;\n").digest("hex"),
+        },
+      ],
+      nowShowingStatus: "empty",
+    });
   });
 });

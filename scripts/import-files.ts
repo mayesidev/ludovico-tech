@@ -5,6 +5,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import {
   INTERMEDIATE_SCHEMA_VERSION,
@@ -15,6 +16,18 @@ import {
 
 const generatedFilename =
   /^(?:chunk-\d{4}\.sql|manifest\.json|validation-report\.json)$/;
+
+export const IMPORT_ARTIFACT_SCHEMA_VERSION = 1 as const;
+
+type ImportArtifactOptions =
+  | {
+      artifactType: "catalog_import";
+      nowShowingStatus: "empty" | "pending_order" | "ready";
+    }
+  | {
+      artifactType: "tmdb_metadata";
+      nowShowingStatus: null;
+    };
 
 export const clearGeneratedImportFiles = (outputDirectory: string) => {
   if (!existsSync(outputDirectory)) return;
@@ -50,7 +63,7 @@ export const writeImportArtifacts = (
   counts: ImportCounts,
   importedAt: string,
   diagnostics: ImportDiagnostic[],
-  artifactType: "catalog_import" | "tmdb_metadata" = "catalog_import",
+  options: ImportArtifactOptions,
 ) => {
   mkdirSync(outputDirectory, { recursive: true });
   clearGeneratedImportFiles(outputDirectory);
@@ -65,10 +78,15 @@ export const writeImportArtifacts = (
     join(outputDirectory, "manifest.json"),
     `${JSON.stringify(
       {
-        artifactType,
-        chunks: chunks.map((chunk) => chunk.filename),
+        artifactSchemaVersion: IMPORT_ARTIFACT_SCHEMA_VERSION,
+        artifactType: options.artifactType,
+        chunks: chunks.map((chunk) => ({
+          filename: chunk.filename,
+          sha256: createHash("sha256").update(chunk.sql).digest("hex"),
+        })),
         counts,
         importedAt,
+        nowShowingStatus: options.nowShowingStatus,
         schemaVersion: INTERMEDIATE_SCHEMA_VERSION,
       },
       null,

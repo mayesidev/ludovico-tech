@@ -499,6 +499,7 @@ describe("deterministic import planning", () => {
     const sql = plan.statements.join("\n");
 
     expect(plan.diagnostics).toEqual([]);
+    expect(plan.nowShowingStatus).toBe("pending_order");
     expect(sql).toContain("status = 'pending_order'");
     expect(sql).toContain("rolled_movie_id = NULL");
     expect(sql).not.toContain("INSERT INTO rolls");
@@ -512,6 +513,7 @@ describe("deterministic import planning", () => {
     );
 
     expect(plan.diagnostics).toEqual([]);
+    expect(plan.nowShowingStatus).toBe("ready");
     expect(plan.statements.join("\n")).toContain(
       "collection_id = NULL, status = 'ready'",
     );

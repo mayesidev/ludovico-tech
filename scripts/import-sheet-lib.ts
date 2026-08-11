@@ -123,6 +123,7 @@ export interface ImportCounts {
 export interface ImportPlan {
   counts: ImportCounts;
   diagnostics: ImportDiagnostic[];
+  nowShowingStatus: "empty" | "pending_order" | "ready" | null;
   statements: string[];
 }
 
@@ -142,6 +143,7 @@ export const buildTmdbMetadataPlan = (
     return {
       counts: { collections: 0, movies: 0, ratings: 0, sources: 0 },
       diagnostics: [diagnostic("INTERMEDIATE_SCHEMA_INVALID", null)],
+      nowShowingStatus: null,
       statements: [],
     };
   }
@@ -183,6 +185,7 @@ export const buildTmdbMetadataPlan = (
     return {
       counts: { collections: 0, movies: 0, ratings: 0, sources: 0 },
       diagnostics,
+      nowShowingStatus: null,
       statements: [],
     };
   }
@@ -194,6 +197,7 @@ export const buildTmdbMetadataPlan = (
       sources: 0,
     },
     diagnostics,
+    nowShowingStatus: null,
     statements,
   };
 };
@@ -851,6 +855,7 @@ export const buildImportPlan = async (
     return {
       counts: { collections: 0, movies: 0, ratings: 0, sources: 0 },
       diagnostics: [diagnostic("INTERMEDIATE_SCHEMA_INVALID", null)],
+      nowShowingStatus: null,
       statements: [],
     };
   }
@@ -976,6 +981,7 @@ export const buildImportPlan = async (
     return {
       counts: { collections: 0, movies: 0, ratings: 0, sources: 0 },
       diagnostics,
+      nowShowingStatus: null,
       statements: [],
     };
   }
@@ -1063,6 +1069,11 @@ export const buildImportPlan = async (
       ),
     },
     diagnostics,
+    nowShowingStatus: nowShowing
+      ? nowShowing.collectionName
+        ? "pending_order"
+        : "ready"
+      : "empty",
     statements,
   };
 };
