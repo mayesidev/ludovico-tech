@@ -63,14 +63,14 @@ export function MovieDetailPage({
       <Card className="grid gap-8 p-6 sm:grid-cols-[220px_1fr] sm:p-8 lg:p-10">
         <Poster path={movie.poster_path} title={movie.title} large />
         <div className="min-w-0">
-          <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
             <h1 className="font-display text-4xl font-bold tracking-normal text-cream sm:text-5xl">
               {movie.title}
             </h1>
             {watched && movie.rating_phrase !== null && (
               <div
                 aria-label={`Rating: ${movie.rating_score} ${movie.rating_phrase}`}
-                className="flex min-w-0 items-baseline gap-3 border-marquee-gold/50 sm:border-l-2 sm:pl-5 sm:pt-1"
+                className="flex min-w-0 items-baseline gap-3 border-marquee-gold/50 sm:max-w-64 sm:justify-self-end sm:border-l-2 sm:pl-5 sm:pt-1"
               >
                 <span className="text-2xl font-semibold text-marquee-light">
                   {movie.rating_score}
