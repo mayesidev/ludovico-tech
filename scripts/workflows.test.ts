@@ -106,6 +106,30 @@ describe("complete CI and deployment gates", () => {
     expect(source).toContain(
       '"$PRODUCTION_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" production',
     );
+    expect(source).toContain("Required production secret %s is not configured");
+    expect(source).toContain("production-secrets.json");
+    expect(source).toContain('--secrets-file "$secrets_file"');
+    expect(source).toContain(
+      "TMDB_READ_ACCESS_TOKEN: ${{ secrets.TMDB_READ_ACCESS_TOKEN }}",
+    );
+    expect(source).toContain(
+      "GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}",
+    );
+    expect(source).toContain(
+      "GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}",
+    );
+    expect(source).toContain(
+      "GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}",
+    );
+    expect(source).toContain("ALLOWED_EMAILS: ${{ secrets.ALLOWED_EMAILS }}");
+    expect(source).not.toContain('--var "TMDB_READ_ACCESS_TOKEN:');
+    expect(source).not.toContain('--var "GOOGLE_CLIENT_SECRET:');
+    expect(source).not.toContain(
+      "CLOUDFLARE_API_TOKEN: env.CLOUDFLARE_API_TOKEN",
+    );
+    expect(source).not.toContain(
+      "CLOUDFLARE_ACCOUNT_ID: env.CLOUDFLARE_ACCOUNT_ID",
+    );
     expect(source).toContain(
       "wrangler d1 execute DB --remote --env production",
     );
