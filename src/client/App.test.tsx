@@ -134,6 +134,37 @@ describe("application authorization presentation", () => {
     expect(screen.queryByRole("button", { name: "Choose a movie" })).toBeNull();
   });
 
+  it("keeps add-movie failures visible and dismissible above the open dialog", async () => {
+    arrange(authenticated);
+    vi.spyOn(api, "addMovie").mockRejectedValue(
+      new ApiError("That TMDB movie is already in the catalog", 409),
+    );
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Add a movie" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Add a movie" });
+    const title = within(dialog).getByRole("textbox", { name: "Movie title" });
+    await user.type(title, "Existing TMDB Movie");
+    await user.click(within(dialog).getByRole("button", { name: "Add movie" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "That TMDB movie is already in the catalog",
+    );
+    expect(alert).toHaveClass("fixed", "z-[60]");
+    expect(alert.closest("[inert]")).toBeNull();
+    expect(dialog).toBeVisible();
+    expect(title).toHaveValue("Existing TMDB Movie");
+
+    await user.click(screen.getByRole("button", { name: "Dismiss error" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(dialog).toBeVisible();
+    expect(title).toHaveValue("Existing TMDB Movie");
+  });
+
   it("refreshes authentication and removes mutation controls after a 401", async () => {
     arrange(authenticated);
     vi.mocked(api.authMe)

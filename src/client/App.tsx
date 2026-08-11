@@ -193,9 +193,6 @@ export default function App() {
       />
 
       <main className="relative z-10 mx-auto max-w-7xl px-5 pb-20 pt-10 lg:px-8 lg:pt-16">
-        {error && (
-          <ErrorNotice message={error} onDismiss={() => setError(null)} />
-        )}
         {loading ? (
           <LoadingState />
         ) : route.page === "home" ? (
@@ -250,6 +247,9 @@ export default function App() {
       </main>
 
       <Footer />
+      {error && (
+        <ErrorNotice message={error} onDismiss={() => setError(null)} />
+      )}
       {rollReveal && (
         <RollReveal reel={rollReveal.reel} selected={rollReveal.selected} />
       )}
