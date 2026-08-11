@@ -171,7 +171,7 @@ export function ErrorNotice({
   return (
     <div
       aria-live="assertive"
-      className="mb-6 flex items-center justify-between rounded-2xl border border-red-300/20 bg-red-400/10 px-4 py-3 text-sm text-red-100"
+      className="fixed left-1/2 top-4 z-[60] flex w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 items-center justify-between gap-4 rounded-2xl border border-red-300/30 bg-[#2b0a11] px-4 py-3 text-sm text-red-100 shadow-2xl shadow-black/60"
       role="alert"
     >
       <span>{message}</span>
