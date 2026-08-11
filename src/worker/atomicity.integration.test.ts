@@ -325,6 +325,6 @@ describe("atomic catalog mutations", () => {
     ).first<{ status: string }>();
     expect(rollCount?.count).toBe(1);
     expect(auditCount?.count).toBe(1);
-    expect(["pending_order", "ready"]).toContain(state?.status);
+    expect(state?.status).toBe("ready");
   });
 });

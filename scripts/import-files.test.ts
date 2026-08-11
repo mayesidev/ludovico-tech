@@ -33,7 +33,7 @@ describe("generated import files", () => {
     expect(
       JSON.parse(readFileSync(join(directory, "manifest.json"), "utf8")),
     ).toMatchObject({
-      artifactSchemaVersion: 1,
+      artifactSchemaVersion: 2,
       artifactType: "catalog_import",
       chunks: [
         {

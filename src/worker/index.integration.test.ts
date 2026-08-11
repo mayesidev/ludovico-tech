@@ -89,7 +89,7 @@ describe("Ludovico Tech Worker routes", () => {
     expect(unwatched.body.movies).toEqual([]);
   });
 
-  it("persists a collection order and advances to the next movie", async () => {
+  it("uses date-added collection order until a custom order is saved", async () => {
     const first = await request<{ movie: { id: string } }>("/api/movies", {
       method: "POST",
       body: JSON.stringify({
@@ -105,15 +105,25 @@ describe("Ludovico Tech Worker routes", () => {
       }),
     });
 
+    await env.DB.batch([
+      env.DB.prepare("UPDATE movies SET added_at = ? WHERE id = ?").bind(
+        "2026-08-01T00:00:00.000Z",
+        first.body.movie.id,
+      ),
+      env.DB.prepare("UPDATE movies SET added_at = ? WHERE id = ?").bind(
+        "2026-08-02T00:00:00.000Z",
+        second.body.movie.id,
+      ),
+    ]);
+
     const rolled = await request<{
-      needsOrder: boolean;
-      collectionMovies: Array<{ id: string }>;
+      nowShowing: { movie_id: string; status: string };
     }>("/api/roll", { method: "POST" });
     expect(rolled.response.status).toBe(200);
-    expect(rolled.body.needsOrder).toBe(true);
-    expect(
-      rolled.body.collectionMovies.map((movie) => movie.id).sort(),
-    ).toEqual([first.body.movie.id, second.body.movie.id].sort());
+    expect(rolled.body.nowShowing).toMatchObject({
+      movie_id: first.body.movie.id,
+      status: "ready",
+    });
 
     const collectionId = (
       await request<{ movies: Array<{ id: string; collection_id: string }> }>(
@@ -167,6 +177,11 @@ describe("Ludovico Tech Worker routes", () => {
     });
     const originalCollectionId = added.body.movie.collection_id;
     await env.DB.prepare(
+      "UPDATE collections SET order_confirmed = 1 WHERE id = ?",
+    )
+      .bind(target.body.movie.collection_id)
+      .run();
+    await env.DB.prepare(
       `UPDATE now_showing
        SET movie_id = ?, rolled_movie_id = ?, collection_id = ?, status = 'pending_order'
        WHERE id = 1`,
@@ -192,11 +207,12 @@ describe("Ludovico Tech Worker routes", () => {
     ).toBeNull();
     expect(
       await env.DB.prepare(
-        "SELECT collection_id, status FROM now_showing WHERE id = 1",
+        "SELECT collection_id, movie_id, status FROM now_showing WHERE id = 1",
       ).first(),
     ).toEqual({
       collection_id: moved.body.movie.collection_id,
-      status: "pending_order",
+      movie_id: target.body.movie.id,
+      status: "ready",
     });
     expect(
       (
@@ -211,6 +227,13 @@ describe("Ludovico Tech Worker routes", () => {
       { movie_id: target.body.movie.id, position: 1 },
       { movie_id: added.body.movie.id, position: 2 },
     ]);
+    expect(
+      await env.DB.prepare(
+        "SELECT order_confirmed FROM collections WHERE id = ?",
+      )
+        .bind(target.body.movie.collection_id)
+        .first(),
+    ).toEqual({ order_confirmed: 1 });
 
     const removed = await request<{
       movie: { collection_id: null; collection_name: null };
@@ -225,9 +248,13 @@ describe("Ludovico Tech Worker routes", () => {
     });
     expect(
       await env.DB.prepare(
-        "SELECT collection_id, status FROM now_showing WHERE id = 1",
+        "SELECT collection_id, movie_id, status FROM now_showing WHERE id = 1",
       ).first(),
-    ).toEqual({ collection_id: null, status: "ready" });
+    ).toEqual({
+      collection_id: target.body.movie.collection_id,
+      movie_id: target.body.movie.id,
+      status: "ready",
+    });
     expect(
       await env.DB.prepare("SELECT id FROM collections WHERE id = ?")
         .bind(target.body.movie.collection_id)

@@ -123,7 +123,7 @@ export interface ImportCounts {
 export interface ImportPlan {
   counts: ImportCounts;
   diagnostics: ImportDiagnostic[];
-  nowShowingStatus: "empty" | "pending_order" | "ready" | null;
+  nowShowingStatus: "empty" | "ready" | null;
   statements: string[];
 }
 
@@ -1046,8 +1046,17 @@ export const buildImportPlan = async (
     const collection = nowShowing.collectionName
       ? collectionMap.get(normalize(nowShowing.collectionName))
       : null;
+    const defaultNowShowing = collection
+      ? ([...collection.movies]
+          .filter((movie) => !movie.rating)
+          .sort(
+            (left, right) =>
+              left.addedAt.localeCompare(right.addedAt) ||
+              left.id.localeCompare(right.id),
+          )[0] ?? nowShowing)
+      : nowShowing;
     statements.push(
-      `UPDATE now_showing SET rolled_movie_id = NULL, movie_id = ${sql(nowShowing.id)}, collection_id = ${sql(collection?.id ?? null)}, status = ${sql(collection ? "pending_order" : "ready")}, rolled_at = NULL, updated_at = ${sql(importedAt)} WHERE id = 1 AND status = 'empty';`,
+      `UPDATE now_showing SET rolled_movie_id = NULL, movie_id = ${sql(defaultNowShowing.id)}, collection_id = ${sql(collection?.id ?? null)}, status = 'ready', rolled_at = NULL, updated_at = ${sql(importedAt)} WHERE id = 1 AND status = 'empty';`,
     );
   }
 
@@ -1069,11 +1078,7 @@ export const buildImportPlan = async (
       ),
     },
     diagnostics,
-    nowShowingStatus: nowShowing
-      ? nowShowing.collectionName
-        ? "pending_order"
-        : "ready"
-      : "empty",
+    nowShowingStatus: nowShowing ? "ready" : "empty",
     statements,
   };
 };

@@ -39,7 +39,7 @@ const manifestBase = z
   .strict();
 const catalogManifestSchema = manifestBase.extend({
   artifactType: z.literal("catalog_import"),
-  nowShowingStatus: z.enum(["empty", "pending_order", "ready"]),
+  nowShowingStatus: z.enum(["empty", "ready"]),
 });
 const metadataManifestSchema = manifestBase.extend({
   artifactType: z.literal("tmdb_metadata"),
@@ -303,7 +303,7 @@ export type CommandRunner = (
 type DatabaseSummary = {
   collections: number;
   movies: number;
-  nowShowingStatus: "empty" | "pending_order" | "ready" | "watched";
+  nowShowingStatus: "empty" | "ready" | "watched";
   ratings: number;
   sources: number;
   tmdbMovies: number;
@@ -332,7 +332,7 @@ const summaryRowSchema = z
   .object({
     collections: countSchema,
     movies: countSchema,
-    now_showing_status: z.enum(["empty", "pending_order", "ready", "watched"]),
+    now_showing_status: z.enum(["empty", "ready", "watched"]),
     ratings: countSchema,
     sources: countSchema,
     tmdb_movies: countSchema,

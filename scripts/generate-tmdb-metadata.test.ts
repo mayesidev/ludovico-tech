@@ -77,7 +77,7 @@ describe("TMDB metadata artifact command", () => {
       const sql = readFileSync(join(output, "chunk-0001.sql"), "utf8");
 
       expect(manifest).toMatchObject({
-        artifactSchemaVersion: 1,
+        artifactSchemaVersion: 2,
         artifactType: "tmdb_metadata",
         chunks: [
           {

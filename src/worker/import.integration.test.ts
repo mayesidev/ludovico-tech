@@ -214,7 +214,7 @@ describe("generalized catalog import", () => {
     expect(linked).toEqual({ title: "Synthetic Movie Two", tmdb_id: 42 });
   });
 
-  it("restores the active collection selection without fabricated roll history", async () => {
+  it("restores the active collection selection ready to rate without fabricated roll history", async () => {
     await importSyntheticCatalog(2);
     const current = await env.DB.prepare(
       `SELECT now_showing.rolled_movie_id, now_showing.rolled_at,
@@ -235,7 +235,7 @@ describe("generalized catalog import", () => {
       collection_name: "Synthetic Saga",
       rolled_at: null,
       rolled_movie_id: null,
-      status: "pending_order",
+      status: "ready",
       title: "Synthetic Movie Two",
     });
     expect(rollCount?.count).toBe(0);

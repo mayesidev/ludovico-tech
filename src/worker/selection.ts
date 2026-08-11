@@ -5,9 +5,5 @@ type SelectableMovie = {
 
 export const selectQueuedMovie = <T extends SelectableMovie>(
   rolled: T,
-  orderConfirmed: boolean,
   remainingCollectionMovies: T[],
-) =>
-  rolled.collection_id && orderConfirmed
-    ? (remainingCollectionMovies[0] ?? rolled)
-    : rolled;
+) => (rolled.collection_id ? (remainingCollectionMovies[0] ?? rolled) : rolled);
