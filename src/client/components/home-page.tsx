@@ -108,21 +108,10 @@ export function HomePage({
               </div>
             )}
 
-            {canMutate &&
-            nowShowing?.movie_id &&
-            !isWatched &&
-            nowShowing.status !== "pending_order" ? (
+            {canMutate && nowShowing?.movie_id && !isWatched ? (
               <RatingForm busy={busy} movieId={nowShowing.movie_id} run={run} />
             ) : canMutate ? (
               <div className="mt-8 flex flex-wrap justify-center gap-3">
-                {nowShowing?.status === "pending_order" && collectionHref && (
-                  <Button
-                    disabled={busy}
-                    onClick={() => onNavigate(collectionHref)}
-                  >
-                    Confirm collection order
-                  </Button>
-                )}
                 {isWatched && collectionId && hasNext && (
                   <Button
                     onClick={() => void run(() => api.next())}
@@ -132,37 +121,26 @@ export function HomePage({
                     Continue collection
                   </Button>
                 )}
-                {nowShowing?.status !== "pending_order" && (
-                  <Button onClick={roll} disabled={busy}>
-                    {busy ? (
-                      <LoaderCircle className="animate-spin" size={16} />
-                    ) : (
-                      <RotateCw size={16} />
-                    )}
-                    {isWatched && collectionId && hasNext
-                      ? "Choose another movie"
-                      : hasSelection
-                        ? "Choose the next movie"
-                        : "Choose a movie"}
-                  </Button>
-                )}
+                <Button onClick={roll} disabled={busy}>
+                  {busy ? (
+                    <LoaderCircle className="animate-spin" size={16} />
+                  ) : (
+                    <RotateCw size={16} />
+                  )}
+                  {isWatched && collectionId && hasNext
+                    ? "Choose another movie"
+                    : hasSelection
+                      ? "Choose the next movie"
+                      : "Choose a movie"}
+                </Button>
               </div>
             ) : (
               <div className="mt-8 text-center">
-                {nowShowing?.status === "pending_order" && collectionHref ? (
-                  <Button
-                    onClick={() => onNavigate(collectionHref)}
-                    variant="secondary"
-                  >
-                    Review collection order
-                  </Button>
-                ) : (
-                  <Button onClick={onLogin} variant="secondary">
-                    {isWatched || !hasSelection
-                      ? "Sign in to choose what’s next"
-                      : "Sign in to rate this movie"}
-                  </Button>
-                )}
+                <Button onClick={onLogin} variant="secondary">
+                  {isWatched || !hasSelection
+                    ? "Sign in to choose what’s next"
+                    : "Sign in to rate this movie"}
+                </Button>
               </div>
             )}
           </div>

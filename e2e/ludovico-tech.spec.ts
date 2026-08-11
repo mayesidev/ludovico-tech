@@ -22,7 +22,9 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await page
       .getByRole("button", { name: "Choose a movie", exact: true })
       .click();
-    await expect(page.getByText("The roll is in")).toBeHidden({
+    const reveal = page.getByRole("status");
+    await expect(reveal).toContainText("Choosing a movie");
+    await expect(reveal).toBeHidden({
       timeout: 5_000,
     });
 
@@ -79,6 +81,11 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await expect(page.getByRole("status")).toBeHidden({
       timeout: 5_000,
     });
+    await expect(page).toHaveURL(/\/$/);
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Browser Chapter One" }),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "Browser Saga" }).click();
     await expect(page).toHaveURL(/\/collections\//);
     await expect(
       page.getByRole("heading", { level: 1, name: "Browser Saga" }),

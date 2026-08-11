@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Clapperboard,
   LoaderCircle,
@@ -13,6 +13,9 @@ import { Button } from "./ui";
 import { cn } from "../lib/utils";
 import tmdbLogo from "../assets/tmdb-logo.svg";
 import { AppLink } from "./app-link";
+import type { Movie } from "../api";
+import { POSTER_REEL_INTERVAL_MS } from "../lib/poster-reel";
+import { Poster } from "./poster";
 
 type AppHeaderProps = {
   action?: ReactNode;
@@ -179,22 +182,64 @@ export function ErrorNotice({
   );
 }
 
-export function RollReveal({ title }: { title: string }) {
+export function RollReveal({
+  reel,
+  selected,
+}: {
+  reel: Movie[];
+  selected: { posterPath: string | null; title: string } | null;
+}) {
+  const [reelIndex, setReelIndex] = useState(0);
+
+  useEffect(() => {
+    if (
+      selected ||
+      reel.length < 2 ||
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    )
+      return;
+    const interval = window.setInterval(
+      () => setReelIndex((index) => (index + 1) % reel.length),
+      POSTER_REEL_INTERVAL_MS,
+    );
+    return () => window.clearInterval(interval);
+  }, [reel, selected]);
+
+  const visibleMovie = selected
+    ? { poster_path: selected.posterPath, title: selected.title }
+    : reel[reelIndex];
+  const announcement = selected
+    ? `Now showing: ${selected.title}`
+    : "Choosing a movie";
+
   return (
     <div
+      aria-atomic="true"
       aria-live="polite"
       className="reveal fixed inset-0 z-50 grid place-items-center bg-ink/95 p-6 backdrop-blur-md"
       role="status"
     >
-      <div className="text-center">
-        <div className="mx-auto mb-6 grid size-24 place-items-center rounded-[2rem] border border-marquee-light/40 bg-curtain/35 text-marquee-light shadow-[0_0_48px_rgba(216,172,76,0.16)]">
-          <Ticket size={40} />
+      <span className="sr-only">{announcement}</span>
+      <div aria-hidden="true" className="w-full max-w-sm text-center">
+        <div className="mx-auto mb-6 w-full max-w-[220px]">
+          {visibleMovie ? (
+            <Poster
+              key={selected?.title ?? reel[reelIndex]?.id ?? "empty"}
+              large
+              path={visibleMovie.poster_path}
+              title={visibleMovie.title}
+            />
+          ) : (
+            <div className="mx-auto grid aspect-[2/3] w-full max-w-[220px] place-items-center rounded-2xl border border-marquee-light/40 bg-curtain/35 text-marquee-light shadow-[0_0_48px_rgba(216,172,76,0.16)]">
+              <Ticket size={40} />
+            </div>
+          )}
         </div>
         <p className="mb-3 text-xs font-bold uppercase tracking-[0.3em] text-marquee-gold">
-          The roll is in
+          {selected ? "Now showing" : "Choosing a movie"}
         </p>
         <h2 className="font-display text-4xl font-bold text-cream sm:text-6xl">
-          {title}
+          {visibleMovie?.title ?? "The posters are shuffling"}
         </h2>
       </div>
     </div>

@@ -9,6 +9,7 @@ const movie = (overrides: Partial<Movie>): Movie => ({
   added_at: "2026-08-07T00:00:00.000Z",
   collection_id: "collection-id",
   collection_name: "Test Saga",
+  collection_order_confirmed: 1,
   collection_position: 1,
   id: "first-id",
   poster_path: null,
@@ -41,6 +42,42 @@ const run: RunAction = async (action, after) => {
 };
 
 describe("collection details", () => {
+  it("uses date added before a custom order is saved", () => {
+    render(
+      <CollectionDetailPage
+        busy={false}
+        canMutate
+        collectionId="collection-id"
+        movies={[
+          movie({
+            added_at: "2026-08-02T00:00:00.000Z",
+            collection_order_confirmed: 0,
+            collection_position: 1,
+            id: "later-id",
+            title: "Added Later",
+          }),
+          movie({
+            added_at: "2026-08-01T00:00:00.000Z",
+            collection_order_confirmed: 0,
+            collection_position: 2,
+            id: "earlier-id",
+            title: "Added Earlier",
+          }),
+        ]}
+        onLogin={vi.fn()}
+        onNavigate={vi.fn()}
+        returnTo="library"
+        run={run}
+      />,
+    );
+
+    const links = screen.getAllByRole("link").map((link) => link.textContent);
+    expect(links).toEqual(["Library", "Added Earlier", "Added Later"]);
+    expect(
+      screen.getByText("Using date added until you save a custom order."),
+    ).toBeVisible();
+  });
+
   it("lists every member in saved order and persists a complete reorder", async () => {
     vi.spyOn(api, "order").mockResolvedValue({ nowShowing: {} as never });
     const user = userEvent.setup();
@@ -66,6 +103,7 @@ describe("collection details", () => {
     expect(screen.getByText("Unwatched")).toBeVisible();
     expect(screen.getByText("Watched")).toBeVisible();
     expect(screen.getByText("4 · A sequel phrase")).toBeVisible();
+    expect(screen.getByText("Using the saved collection order.")).toBeVisible();
     expect(screen.queryByText(/Related TMDB collection/)).toBeNull();
 
     await user.click(

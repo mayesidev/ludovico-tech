@@ -17,6 +17,12 @@ type CollectionDetailPageProps = {
 };
 
 const byCollectionOrder = (left: Movie, right: Movie) => {
+  if (!left.collection_order_confirmed) {
+    return (
+      left.added_at.localeCompare(right.added_at) ||
+      left.id.localeCompare(right.id)
+    );
+  }
   const leftPosition = left.collection_position ?? Number.MAX_SAFE_INTEGER;
   const rightPosition = right.collection_position ?? Number.MAX_SAFE_INTEGER;
   return leftPosition - rightPosition || left.title.localeCompare(right.title);
@@ -139,6 +145,11 @@ export function CollectionDetailPage({
       </div>
 
       <Card className="p-5 sm:p-7">
+        <p className="mb-5 text-sm text-zinc-500">
+          {members[0]?.collection_order_confirmed
+            ? "Using the saved collection order."
+            : "Using date added until you save a custom order."}
+        </p>
         <ol className="space-y-3">
           {draft.map((movie, index) => {
             const watched = movie.rating_score !== null;

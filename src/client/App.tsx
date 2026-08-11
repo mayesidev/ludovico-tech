@@ -24,6 +24,17 @@ import { MovieDetailPage } from "./components/movie-detail-page";
 import { Button } from "./components/ui";
 import { parseRoute } from "./route";
 import type { RunAction, Tab } from "./types";
+import {
+  POSTER_REEL_DURATION_MS,
+  POSTER_REVEAL_DURATION_MS,
+  selectPosterReel,
+  wait,
+} from "./lib/poster-reel";
+
+type RollRevealState = {
+  reel: Movie[];
+  selected: { posterPath: string | null; title: string } | null;
+};
 
 export default function App() {
   const [route, setRoute] = useState(() =>
@@ -35,7 +46,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [rolledTitle, setRolledTitle] = useState<string | null>(null);
+  const [rollReveal, setRollReveal] = useState<RollRevealState | null>(null);
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
   const [deletingMovie, setDeletingMovie] = useState<{
     movie: Movie;
@@ -119,23 +130,27 @@ export default function App() {
 
   const roll = useCallback(() => {
     void run(async () => {
-      const result = await api.roll();
-      setRolledTitle(result.rolledMovie.title);
-
-      if (result.needsOrder) {
-        const collectionId =
-          result.nowShowing.collection_id ??
-          result.collectionMovies[0]?.collection_id;
-        if (collectionId) {
-          navigate(
-            `/collections/${encodeURIComponent(collectionId)}?from=now-showing`,
-          );
-        }
+      setRollReveal({ reel: selectPosterReel(movies), selected: null });
+      try {
+        const [result] = await Promise.all([
+          api.roll(),
+          wait(POSTER_REEL_DURATION_MS),
+        ]);
+        const selected = {
+          posterPath: result.nowShowing.poster_path,
+          title: result.nowShowing.title ?? result.rolledMovie.title,
+        };
+        setNowShowing(result.nowShowing);
+        setRollReveal((current) => ({
+          reel: current?.reel ?? [],
+          selected,
+        }));
+        await wait(POSTER_REVEAL_DURATION_MS);
+      } finally {
+        setRollReveal(null);
       }
-
-      window.setTimeout(() => setRolledTitle(null), 1800);
     });
-  }, [navigate, run]);
+  }, [movies, run]);
 
   const canMutate = auth?.authenticated === true;
   const login = useCallback(() => {
@@ -235,7 +250,9 @@ export default function App() {
       </main>
 
       <Footer />
-      {rolledTitle && <RollReveal title={rolledTitle} />}
+      {rollReveal && (
+        <RollReveal reel={rollReveal.reel} selected={rollReveal.selected} />
+      )}
       {addingMovie && (
         <AddMovieDialog
           busy={busy}

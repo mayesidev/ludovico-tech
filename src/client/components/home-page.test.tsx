@@ -151,32 +151,26 @@ describe("home workflows", () => {
     expect(roll).toHaveBeenCalledOnce();
   });
 
-  it("requires collection order confirmation before rating", async () => {
+  it("allows rating before a custom collection order is saved", () => {
     const onNavigate = vi.fn();
-    const user = userEvent.setup();
     renderHome({
       nowShowing: nowShowing({
         collection_id: "collection-id",
         collection_name: "Test Saga",
-        status: "pending_order",
+        status: "ready",
       }),
       onNavigate,
     });
 
-    expect(screen.queryByRole("button", { name: "Rate it" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Rate it" })).toBeVisible();
     expect(
-      screen.queryByRole("button", { name: "Choose the next movie" }),
+      screen.queryByRole("button", { name: "Confirm collection order" }),
     ).toBeNull();
-    await user.click(
-      screen.getByRole("button", { name: "Confirm collection order" }),
-    );
-    expect(onNavigate).toHaveBeenCalledWith(
-      "/collections/collection-id?from=now-showing",
-    );
     expect(screen.getByRole("link", { name: "Test Saga" })).toHaveAttribute(
       "href",
       "/collections/collection-id?from=now-showing",
     );
+    expect(onNavigate).not.toHaveBeenCalled();
   });
 
   it("renders no mutation controls for browse-only visitors", () => {
