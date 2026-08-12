@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@hono/zod-validator": "^0.9.0",
-    "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-table": "^9.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "hono": "^4.12.34",
