@@ -13,7 +13,7 @@ import type { Movie } from "../api";
 import type { Navigate } from "../types";
 import { formatDate } from "../lib/utils";
 import { AppLink } from "./app-link";
-import { Badge, Card, Input } from "./ui";
+import { Card, Input } from "./ui";
 
 type LibraryPageProps = {
   canMutate: boolean;
@@ -81,16 +81,6 @@ export function LibraryPage({
               {row.original.rating_score} · {row.original.rating_phrase}
             </span>
           ) : null,
-      },
-      {
-        accessorKey: "watched_at",
-        header: "Status",
-        cell: ({ row }) =>
-          row.original.rating_score !== null ? (
-            <Badge>Watched</Badge>
-          ) : (
-            <Badge>Unwatched</Badge>
-          ),
       },
       {
         accessorKey: "tmdb_id",
@@ -169,7 +159,7 @@ export function LibraryPage({
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1200px] text-left text-sm">
+          <table className="w-full min-w-[1050px] text-left text-sm">
             <thead className="border-b border-curtain/35 bg-curtain/10 text-xs uppercase tracking-[0.14em] text-zinc-500">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
