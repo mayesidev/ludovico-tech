@@ -14,8 +14,7 @@
       "description": "Wait three days before proposing newly published npm versions",
       "matchDatasources": ["npm"],
       "minimumReleaseAge": "3 days",
-      "internalChecksFilter": "strict",
-      "prCreation": "not-pending"
+      "internalChecksFilter": "strict"
     },
     {
       "description": "Publish runtime dependency updates as patch releases",
