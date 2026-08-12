@@ -17,6 +17,8 @@ const SOURCE_COLUMN_COUNT = Object.keys(SOURCE_COLUMN_INDEX).length;
 export type DiagnosticSeverity = "error" | "warning";
 
 export type ImportDiagnosticCode =
+  | "COLLECTION_CORRECTION_UNUSED"
+  | "COLLECTION_ORDER_INVALID"
   | "CONFLICTING_RATING"
   | "DUPLICATE_EXTERNAL_ID"
   | "DUPLICATE_SOURCE_ROW"
@@ -39,7 +41,8 @@ export type ImportDiagnosticCode =
   | "SOURCE_CSV_INVALID"
   | "SOURCE_EMPTY"
   | "TMDB_MATCH_UNUSED"
-  | "TMDB_RECONCILIATION_INVALID";
+  | "TMDB_RECONCILIATION_INVALID"
+  | "TITLE_CORRECTION_UNUSED";
 
 export interface ImportDiagnostic {
   code: ImportDiagnosticCode;
@@ -58,18 +61,29 @@ export interface RatingCorrection {
 }
 
 export interface ImportCorrections {
+  collectionNames: ReadonlyMap<number, string>;
+  collectionOrders: GeneralizedCollectionOrder[];
   excludedSourceRows: ReadonlySet<number>;
   legacyImdbIds: ReadonlyMap<number, string>;
   nowShowingSourceRow: number | null;
   ratings: ReadonlyMap<number, RatingCorrection>;
+  titles: ReadonlyMap<number, string>;
 }
 
 const emptyImportCorrections = (): ImportCorrections => ({
+  collectionNames: new Map(),
+  collectionOrders: [],
   excludedSourceRows: new Set(),
   legacyImdbIds: new Map(),
   nowShowingSourceRow: null,
   ratings: new Map(),
+  titles: new Map(),
 });
+
+export interface GeneralizedCollectionOrder {
+  name: string;
+  sourceRows: number[];
+}
 
 export interface GeneralizedSubmission {
   collectionIndicated: boolean | null;
@@ -83,6 +97,7 @@ export interface GeneralizedSubmission {
 }
 
 export interface GeneralizedImportDocument {
+  collectionOrders: GeneralizedCollectionOrder[];
   nowShowingSourceRow: number | null;
   rows: GeneralizedSubmission[];
   schemaVersion: typeof INTERMEDIATE_SCHEMA_VERSION;
@@ -350,6 +365,7 @@ export const sanitizeSourceCsv = (
     return {
       diagnostics: [diagnostic("SOURCE_CSV_INVALID", null)],
       document: {
+        collectionOrders: corrections.collectionOrders,
         nowShowingSourceRow: corrections.nowShowingSourceRow,
         rows: [],
         schemaVersion: INTERMEDIATE_SCHEMA_VERSION,
@@ -362,6 +378,7 @@ export const sanitizeSourceCsv = (
     return {
       diagnostics: [diagnostic("SOURCE_EMPTY", null)],
       document: {
+        collectionOrders: corrections.collectionOrders,
         nowShowingSourceRow: corrections.nowShowingSourceRow,
         rows: [],
         schemaVersion: INTERMEDIATE_SCHEMA_VERSION,
@@ -373,8 +390,10 @@ export const sanitizeSourceCsv = (
   const diagnostics: ImportDiagnostic[] = [];
   const rows: GeneralizedSubmission[] = [];
   const appliedSourceRowExclusions = new Set<number>();
+  const appliedCollectionCorrections = new Set<number>();
   const appliedExternalIdCorrections = new Set<number>();
   const appliedRatingCorrections = new Set<number>();
+  const appliedTitleCorrections = new Set<number>();
 
   for (const [index, record] of records.slice(1).entries()) {
     const sourceRow = index + 2;
@@ -391,15 +410,25 @@ export const sanitizeSourceCsv = (
     const submittedAt = parseSubmissionTimestamp(
       record[SOURCE_COLUMN_INDEX.submittedAt] ?? "",
     );
-    const title = (record[SOURCE_COLUMN_INDEX.title] ?? "").trim();
+    const sourceTitle = (record[SOURCE_COLUMN_INDEX.title] ?? "").trim();
+    const titleCorrection = corrections.titles.get(sourceRow);
+    const title = titleCorrection ?? sourceTitle;
+    if (titleCorrection && titleCorrection !== sourceTitle) {
+      appliedTitleCorrections.add(sourceRow);
+    }
     const priorViewed = parseBoolean(
       record[SOURCE_COLUMN_INDEX.priorViewed] ?? "",
     );
     const collectionIndicated = parseCollectionIndicator(
       record[SOURCE_COLUMN_INDEX.collectionIndicated] ?? "",
     );
-    const collectionName =
+    const sourceCollectionName =
       (record[SOURCE_COLUMN_INDEX.collectionName] ?? "").trim() || null;
+    const collectionCorrection = corrections.collectionNames.get(sourceRow);
+    const collectionName = collectionCorrection ?? sourceCollectionName;
+    if (collectionCorrection && collectionCorrection !== sourceCollectionName) {
+      appliedCollectionCorrections.add(sourceRow);
+    }
     let imdb = parseImdbId(
       record[SOURCE_COLUMN_INDEX.legacyImdbReference] ?? "",
     );
@@ -502,6 +531,33 @@ export const sanitizeSourceCsv = (
     }
   }
 
+  for (const sourceRow of corrections.titles.keys()) {
+    if (!appliedTitleCorrections.has(sourceRow)) {
+      diagnostics.push(diagnostic("TITLE_CORRECTION_UNUSED", sourceRow));
+    }
+  }
+
+  for (const sourceRow of corrections.collectionNames.keys()) {
+    if (!appliedCollectionCorrections.has(sourceRow)) {
+      diagnostics.push(diagnostic("COLLECTION_CORRECTION_UNUSED", sourceRow));
+    }
+  }
+
+  for (const order of corrections.collectionOrders) {
+    const actualRows = rows
+      .filter(
+        (row) => normalize(row.collectionName ?? "") === normalize(order.name),
+      )
+      .map((row) => row.sourceRow)
+      .sort((left, right) => left - right);
+    const expectedRows = [...order.sourceRows].sort(
+      (left, right) => left - right,
+    );
+    if (JSON.stringify(actualRows) !== JSON.stringify(expectedRows)) {
+      diagnostics.push(diagnostic("COLLECTION_ORDER_INVALID", null));
+    }
+  }
+
   if (
     corrections.nowShowingSourceRow !== null &&
     !rows.some((row) => row.sourceRow === corrections.nowShowingSourceRow)
@@ -517,6 +573,7 @@ export const sanitizeSourceCsv = (
   return {
     diagnostics,
     document: {
+      collectionOrders: corrections.collectionOrders,
       nowShowingSourceRow: corrections.nowShowingSourceRow,
       rows,
       schemaVersion: INTERMEDIATE_SCHEMA_VERSION,
@@ -551,16 +608,22 @@ export const parseImportCorrectionsJson = (
       !value ||
       typeof value !== "object" ||
       !hasExactKeys(value, [
+        "collectionNames",
+        "collectionOrders",
         "excludedSourceRows",
         "legacyImdbIds",
         "nowShowingSourceRow",
         "ratings",
         "schemaVersion",
+        "titles",
       ]) ||
+      !Array.isArray(value.collectionNames) ||
+      !Array.isArray(value.collectionOrders) ||
       value.schemaVersion !== INTERMEDIATE_SCHEMA_VERSION ||
       !Array.isArray(value.excludedSourceRows) ||
       !Array.isArray(value.legacyImdbIds) ||
       !Array.isArray(value.ratings) ||
+      !Array.isArray(value.titles) ||
       !(
         value.nowShowingSourceRow === null ||
         (Number.isInteger(value.nowShowingSourceRow) &&
@@ -580,6 +643,59 @@ export const parseImportCorrectionsJson = (
         return null;
       }
       excludedSourceRows.add(Number(sourceRow));
+    }
+
+    const parseTextCorrections = (items: unknown[], key: "name" | "title") => {
+      const parsed = new Map<number, string>();
+      for (const item of items) {
+        if (!item || typeof item !== "object") return null;
+        const correction = item as Record<string, unknown>;
+        if (
+          !hasExactKeys(correction, [key, "sourceRow"]) ||
+          !Number.isInteger(correction.sourceRow) ||
+          Number(correction.sourceRow) < 2 ||
+          typeof correction[key] !== "string" ||
+          correction[key] !== String(correction[key]).trim() ||
+          String(correction[key]).length === 0 ||
+          String(correction[key]).length > 200 ||
+          parsed.has(Number(correction.sourceRow))
+        ) {
+          return null;
+        }
+        parsed.set(Number(correction.sourceRow), String(correction[key]));
+      }
+      return parsed;
+    };
+    const collectionNames = parseTextCorrections(value.collectionNames, "name");
+    const titles = parseTextCorrections(value.titles, "title");
+    if (!collectionNames || !titles) return null;
+
+    const collectionOrders: GeneralizedCollectionOrder[] = [];
+    const orderedCollectionNames = new Set<string>();
+    for (const item of value.collectionOrders) {
+      if (!item || typeof item !== "object") return null;
+      const order = item as Record<string, unknown>;
+      if (
+        !hasExactKeys(order, ["name", "sourceRows"]) ||
+        typeof order.name !== "string" ||
+        order.name !== order.name.trim() ||
+        !order.name ||
+        order.name.length > 200 ||
+        !Array.isArray(order.sourceRows) ||
+        order.sourceRows.length < 2 ||
+        order.sourceRows.some(
+          (sourceRow) => !Number.isInteger(sourceRow) || Number(sourceRow) < 2,
+        ) ||
+        new Set(order.sourceRows).size !== order.sourceRows.length ||
+        orderedCollectionNames.has(normalize(order.name))
+      ) {
+        return null;
+      }
+      orderedCollectionNames.add(normalize(order.name));
+      collectionOrders.push({
+        name: order.name,
+        sourceRows: order.sourceRows.map(Number),
+      });
     }
 
     const legacyImdbIds = new Map<number, string>();
@@ -628,6 +744,8 @@ export const parseImportCorrectionsJson = (
       });
     }
     return {
+      collectionNames,
+      collectionOrders,
       excludedSourceRows,
       legacyImdbIds,
       nowShowingSourceRow:
@@ -635,6 +753,7 @@ export const parseImportCorrectionsJson = (
           ? null
           : Number(value.nowShowingSourceRow),
       ratings: corrections,
+      titles,
     };
   } catch {
     return null;
@@ -696,6 +815,7 @@ export const parseIntermediateJson = (
       !value ||
       typeof value !== "object" ||
       !hasExactKeys(value, [
+        "collectionOrders",
         "nowShowingSourceRow",
         "rows",
         "schemaVersion",
@@ -704,6 +824,24 @@ export const parseIntermediateJson = (
       value.schemaVersion !== INTERMEDIATE_SCHEMA_VERSION ||
       value.validated !== true ||
       !Array.isArray(value.rows) ||
+      !Array.isArray(value.collectionOrders) ||
+      !value.collectionOrders.every((item) => {
+        if (!item || typeof item !== "object") return false;
+        const order = item as Record<string, unknown>;
+        return (
+          hasExactKeys(order, ["name", "sourceRows"]) &&
+          typeof order.name === "string" &&
+          order.name === order.name.trim() &&
+          order.name.length > 0 &&
+          order.name.length <= 200 &&
+          Array.isArray(order.sourceRows) &&
+          order.sourceRows.length >= 2 &&
+          order.sourceRows.every(
+            (row) => Number.isInteger(row) && Number(row) >= 2,
+          ) &&
+          new Set(order.sourceRows).size === order.sourceRows.length
+        );
+      }) ||
       !value.rows.every(isSubmission) ||
       !(
         value.nowShowingSourceRow === null ||
@@ -717,7 +855,26 @@ export const parseIntermediateJson = (
     ) {
       return null;
     }
-    return value as unknown as GeneralizedImportDocument;
+    const document = value as unknown as GeneralizedImportDocument;
+    const orderedNames = new Set<string>();
+    for (const order of document.collectionOrders) {
+      const normalizedName = normalize(order.name);
+      const actualRows = document.rows
+        .filter((row) => normalize(row.collectionName ?? "") === normalizedName)
+        .map((row) => row.sourceRow)
+        .sort((left, right) => left - right);
+      const expectedRows = [...order.sourceRows].sort(
+        (left, right) => left - right,
+      );
+      if (
+        orderedNames.has(normalizedName) ||
+        JSON.stringify(actualRows) !== JSON.stringify(expectedRows)
+      ) {
+        return null;
+      }
+      orderedNames.add(normalizedName);
+    }
+    return document;
   } catch {
     return null;
   }
@@ -993,7 +1150,12 @@ export const buildImportPlan = async (
   );
   const collectionMap = new Map<
     string,
-    { id: string; name: string; movies: AccumulatedMovie[] }
+    {
+      id: string;
+      name: string;
+      movies: AccumulatedMovie[];
+      orderConfirmed: boolean;
+    }
   >();
   for (const movie of orderedMovies) {
     if (!movie.collectionName) continue;
@@ -1002,9 +1164,39 @@ export const buildImportPlan = async (
       id: await stableId("collection", key),
       movies: [],
       name: movie.collectionName,
+      orderConfirmed: false,
     };
     collection.movies.push(movie);
     collectionMap.set(key, collection);
+  }
+
+  for (const order of document.collectionOrders) {
+    const collection = collectionMap.get(normalize(order.name));
+    const orderedMovies = order.sourceRows.map((sourceRow) =>
+      collection?.movies.find((movie) =>
+        movie.sources.some((source) => source.sourceRow === sourceRow),
+      ),
+    );
+    if (
+      !collection ||
+      orderedMovies.some((movie) => !movie) ||
+      orderedMovies.length !== collection.movies.length ||
+      new Set(orderedMovies).size !== collection.movies.length
+    ) {
+      diagnostics.push(diagnostic("COLLECTION_ORDER_INVALID", null));
+      continue;
+    }
+    collection.movies = orderedMovies as AccumulatedMovie[];
+    collection.orderConfirmed = true;
+  }
+
+  if (diagnostics.some((item) => item.severity === "error")) {
+    return {
+      counts: { collections: 0, movies: 0, ratings: 0, sources: 0 },
+      diagnostics,
+      nowShowingStatus: null,
+      statements: [],
+    };
   }
 
   const statements: string[] = [];
@@ -1012,7 +1204,7 @@ export const buildImportPlan = async (
     ...collectionMap.entries(),
   ].sort()) {
     statements.push(
-      `INSERT OR IGNORE INTO collections (id, name, name_normalized, order_confirmed, created_at, updated_at) VALUES (${sql(collection.id)}, ${sql(collection.name)}, ${sql(nameNormalized)}, 0, ${sql(importedAt)}, ${sql(importedAt)});`,
+      `INSERT OR IGNORE INTO collections (id, name, name_normalized, order_confirmed, created_at, updated_at) VALUES (${sql(collection.id)}, ${sql(collection.name)}, ${sql(nameNormalized)}, ${collection.orderConfirmed ? 1 : 0}, ${sql(importedAt)}, ${sql(importedAt)});`,
     );
   }
 
@@ -1047,13 +1239,14 @@ export const buildImportPlan = async (
       ? collectionMap.get(normalize(nowShowing.collectionName))
       : null;
     const defaultNowShowing = collection
-      ? ([...collection.movies]
-          .filter((movie) => !movie.rating)
-          .sort(
-            (left, right) =>
-              left.addedAt.localeCompare(right.addedAt) ||
-              left.id.localeCompare(right.id),
-          )[0] ?? nowShowing)
+      ? ((collection.orderConfirmed
+          ? collection.movies
+          : [...collection.movies].sort(
+              (left, right) =>
+                left.addedAt.localeCompare(right.addedAt) ||
+                left.id.localeCompare(right.id),
+            )
+        ).find((movie) => !movie.rating) ?? nowShowing)
       : nowShowing;
     statements.push(
       `UPDATE now_showing SET rolled_movie_id = NULL, movie_id = ${sql(defaultNowShowing.id)}, collection_id = ${sql(collection?.id ?? null)}, status = 'ready', rolled_at = NULL, updated_at = ${sql(importedAt)} WHERE id = 1 AND status = 'empty';`,

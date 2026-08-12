@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GeneralizedImportDocument } from "./import-sheet-lib";
 
 const source: GeneralizedImportDocument = {
+  collectionOrders: [],
   nowShowingSourceRow: null,
   rows: [
     {

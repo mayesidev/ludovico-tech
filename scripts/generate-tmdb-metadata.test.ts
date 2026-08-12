@@ -23,6 +23,7 @@ describe("TMDB metadata artifact command", () => {
     const reconciliationPath = join(directory, "reconciliation.json");
     const output = join(directory, "output");
     const document: GeneralizedImportDocument = {
+      collectionOrders: [],
       nowShowingSourceRow: null,
       rows: [
         {

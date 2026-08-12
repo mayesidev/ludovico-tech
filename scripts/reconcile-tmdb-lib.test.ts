@@ -24,6 +24,7 @@ const movie = (
 const document = (
   rows: GeneralizedImportDocument["rows"],
 ): GeneralizedImportDocument => ({
+  collectionOrders: [],
   nowShowingSourceRow: null,
   rows,
   schemaVersion: 3,

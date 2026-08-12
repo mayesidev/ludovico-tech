@@ -20,10 +20,13 @@ if (!inputArgument || !outputArgument || !reportArgument) {
         readFileSync(resolve(correctionsArgument), "utf8"),
       )
     : {
+        collectionNames: new Map(),
+        collectionOrders: [],
         excludedSourceRows: new Set(),
         legacyImdbIds: new Map(),
         nowShowingSourceRow: null,
         ratings: new Map(),
+        titles: new Map(),
       };
   if (!corrections) {
     console.error("Import corrections file is invalid");
