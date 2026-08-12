@@ -8,9 +8,6 @@ overrides:
   baseline-browser-mapping: 2.11.10
   undici: '>=7.29.0 <8'
 
-patchedDependencies:
-  miniflare@5.20260730.0-alpha: 71d5f2e5f317a2bd3da80d84b3792331badd2c914190d0fbb20573233668bc43
-
 importers:
 
   .:
@@ -3634,7 +3631,7 @@ snapshots:
       '@vitest/snapshot': 4.1.10
       cjs-module-lexer: 1.2.3
       esbuild: 0.28.1
-      miniflare: 5.20260730.0-alpha(patch_hash=71d5f2e5f317a2bd3da80d84b3792331badd2c914190d0fbb20573233668bc43)
+      miniflare: 5.20260730.0-alpha
       vitest: 4.1.10(@types/node@25.9.5)(@vitest/coverage-istanbul@4.1.10)(@vitest/coverage-v8@4.1.10)(jsdom@30.0.1)(vite@8.2.0(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
       wrangler: 4.118.0(@cloudflare/workers-types@5.20260801.1)
       zod: 4.4.3
@@ -5701,7 +5698,7 @@ snapshots:
 
   min-indent@1.0.1: {}
 
-  miniflare@5.20260730.0-alpha(patch_hash=71d5f2e5f317a2bd3da80d84b3792331badd2c914190d0fbb20573233668bc43):
+  miniflare@5.20260730.0-alpha:
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       sharp: 0.35.2
@@ -6463,7 +6460,7 @@ snapshots:
       '@cloudflare/unenv-preset': 2.16.1(unenv@2.0.0-rc.24)(workerd@1.20260730.1)
       blake3-wasm: 2.1.5
       esbuild: 0.28.1
-      miniflare: 5.20260730.0-alpha(patch_hash=71d5f2e5f317a2bd3da80d84b3792331badd2c914190d0fbb20573233668bc43)
+      miniflare: 5.20260730.0-alpha
       path-to-regexp: 6.3.0
       unenv: 2.0.0-rc.24
       workerd: 1.20260730.1

@@ -1,9 +1,6 @@
 allowBuilds:
   esbuild: true
-  sharp: false
   workerd: true
 overrides:
   baseline-browser-mapping: 2.11.10
   undici: ">=7.29.0 <8"
-patchedDependencies:
-  miniflare@5.20260730.0-alpha: patches/miniflare@5.20260730.0-alpha.patch
