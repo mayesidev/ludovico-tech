@@ -92,7 +92,7 @@
         {
           "binding": "DB",
           "database_name": "ludovico-tech-production",
-          "database_id": "11111111-1111-1111-1111-111111111111",
+          "database_id": "a93c4d94-63a6-48fd-8ce0-3e9cc8dd8987",
           "migrations_dir": "migrations",
         },
       ],
