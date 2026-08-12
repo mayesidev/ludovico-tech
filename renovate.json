@@ -3,7 +3,7 @@
   "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
   "enabledManagers": ["github-actions", "npm"],
   "timezone": "America/Chicago",
-  "schedule": ["* 0-5 * * 1"],
+  "schedule": ["* 0-5 * * *"],
   "prConcurrentLimit": 3,
   "prHourlyLimit": 2,
   "automerge": false,
