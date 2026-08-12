@@ -9,6 +9,7 @@ import {
 } from "../../scripts/import-sheet-lib";
 
 const syntheticCatalog: GeneralizedImportDocument = {
+  collectionOrders: [],
   nowShowingSourceRow: 3,
   rows: [
     {

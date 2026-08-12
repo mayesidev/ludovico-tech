@@ -8,6 +8,7 @@ import {
   renderSqlChunks,
   sanitizeSourceCsv,
   type GeneralizedImportDocument,
+  type GeneralizedCollectionOrder,
   type GeneralizedSubmission,
   type TmdbReconciliationDocument,
 } from "./import-sheet-lib";
@@ -31,7 +32,9 @@ const submission = (
 const document = (
   rows: GeneralizedSubmission[],
   nowShowingSourceRow: number | null = null,
+  collectionOrders: GeneralizedCollectionOrder[] = [],
 ): GeneralizedImportDocument => ({
+  collectionOrders,
   nowShowingSourceRow,
   rows,
   schemaVersion: 3,
@@ -67,6 +70,7 @@ describe("private Sheet sanitization", () => {
 
     expect(result.diagnostics).toEqual([]);
     expect(result.document).toEqual({
+      collectionOrders: [],
       nowShowingSourceRow: null,
       rows: [
         {
@@ -151,6 +155,8 @@ describe("private Sheet sanitization", () => {
   it("applies reviewed row-only corrections only to invalid ratings", () => {
     const corrections = parseImportCorrectionsJson(
       JSON.stringify({
+        collectionNames: [],
+        collectionOrders: [],
         excludedSourceRows: [],
         legacyImdbIds: [],
         nowShowingSourceRow: null,
@@ -163,6 +169,7 @@ describe("private Sheet sanitization", () => {
           },
         ],
         schemaVersion: 3,
+        titles: [],
       }),
     );
     const result = sanitizeSourceCsv(
@@ -181,6 +188,8 @@ describe("private Sheet sanitization", () => {
     expect(
       parseImportCorrectionsJson(
         JSON.stringify({
+          collectionNames: [],
+          collectionOrders: [],
           excludedSourceRows: [],
           legacyImdbIds: [],
           nowShowingSourceRow: null,
@@ -189,17 +198,21 @@ describe("private Sheet sanitization", () => {
             { score: 5, sourceRow: 2 },
           ],
           schemaVersion: 3,
+          titles: [],
         }),
       ),
     ).toBeNull();
     expect(
       parseImportCorrectionsJson(
         JSON.stringify({
+          collectionNames: [],
+          collectionOrders: [],
           excludedSourceRows: [],
           legacyImdbIds: [],
           nowShowingSourceRow: null,
           ratings: [{ score: 4.25, sourceRow: 2 }],
           schemaVersion: 3,
+          titles: [],
         }),
       ),
     ).toBeNull();
@@ -207,10 +220,13 @@ describe("private Sheet sanitization", () => {
     const result = sanitizeSourceCsv(
       `${header}\n8/1/2026 10:30:00,Synthetic Movie,No,No,,,4 Valid phrase\n`,
       {
+        collectionNames: new Map(),
+        collectionOrders: [],
         excludedSourceRows: new Set(),
         legacyImdbIds: new Map(),
         nowShowingSourceRow: null,
         ratings: new Map([[2, { score: 4 }]]),
+        titles: new Map(),
       },
     );
     expect(result.document.validated).toBe(false);
@@ -224,11 +240,14 @@ describe("private Sheet sanitization", () => {
   it("applies reviewed external-ID corrections without exposing source values", () => {
     const corrections = parseImportCorrectionsJson(
       JSON.stringify({
+        collectionNames: [],
+        collectionOrders: [],
         excludedSourceRows: [],
         legacyImdbIds: [{ id: "tt123456", sourceRow: 2 }],
         nowShowingSourceRow: null,
         ratings: [],
         schemaVersion: 3,
+        titles: [],
       }),
     );
     const result = sanitizeSourceCsv(
@@ -241,14 +260,96 @@ describe("private Sheet sanitization", () => {
     expect(JSON.stringify(result.diagnostics)).not.toContain("tt");
   });
 
+  it("applies reviewed title, collection, and collection-order corrections", () => {
+    const corrections = parseImportCorrectionsJson(
+      JSON.stringify({
+        collectionNames: [{ name: "Corrected Saga", sourceRow: 3 }],
+        collectionOrders: [{ name: "Corrected Saga", sourceRows: [3, 2] }],
+        excludedSourceRows: [],
+        legacyImdbIds: [],
+        nowShowingSourceRow: null,
+        ratings: [],
+        schemaVersion: 3,
+        titles: [{ sourceRow: 2, title: "Corrected First Movie" }],
+      }),
+    );
+    const result = sanitizeSourceCsv(
+      `${header}\n8/1/2026 10:30:00,First Movie,No,Yes,Corrected Saga,,\n8/2/2026 10:30:00,Second Movie,No,Yes,Old Saga,,\n`,
+      corrections!,
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.document.validated).toBe(true);
+    expect(result.document.rows).toEqual([
+      expect.objectContaining({
+        collectionName: "Corrected Saga",
+        sourceRow: 2,
+        title: "Corrected First Movie",
+      }),
+      expect.objectContaining({
+        collectionName: "Corrected Saga",
+        sourceRow: 3,
+        title: "Second Movie",
+      }),
+    ]);
+    expect(result.document.collectionOrders).toEqual([
+      { name: "Corrected Saga", sourceRows: [3, 2] },
+    ]);
+  });
+
+  it("rejects stale reviewed title, collection, and order corrections", () => {
+    const result = sanitizeSourceCsv(
+      `${header}\n8/1/2026 10:30:00,Synthetic Movie,No,Yes,Synthetic Saga,,\n`,
+      {
+        collectionNames: new Map([[2, "Synthetic Saga"]]),
+        collectionOrders: [{ name: "Synthetic Saga", sourceRows: [2, 3] }],
+        excludedSourceRows: new Set(),
+        legacyImdbIds: new Map(),
+        nowShowingSourceRow: null,
+        ratings: new Map(),
+        titles: new Map([[2, "Synthetic Movie"]]),
+      },
+    );
+
+    expect(result.document.validated).toBe(false);
+    expect(result.diagnostics).toEqual([
+      { code: "TITLE_CORRECTION_UNUSED", row: 2, severity: "error" },
+      { code: "COLLECTION_CORRECTION_UNUSED", row: 2, severity: "error" },
+      { code: "COLLECTION_ORDER_INVALID", row: null, severity: "error" },
+    ]);
+  });
+
+  it("rejects duplicate reviewed orders for one normalized collection", () => {
+    expect(
+      parseImportCorrectionsJson(
+        JSON.stringify({
+          collectionNames: [],
+          collectionOrders: [
+            { name: "Synthetic Saga", sourceRows: [2, 3] },
+            { name: "synthetic saga", sourceRows: [2, 3] },
+          ],
+          excludedSourceRows: [],
+          legacyImdbIds: [],
+          nowShowingSourceRow: null,
+          ratings: [],
+          schemaVersion: 3,
+          titles: [],
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it("applies an explicit reviewed source-row exclusion", () => {
     const corrections = parseImportCorrectionsJson(
       JSON.stringify({
+        collectionNames: [],
+        collectionOrders: [],
         excludedSourceRows: [3],
         legacyImdbIds: [],
         nowShowingSourceRow: null,
         ratings: [],
         schemaVersion: 3,
+        titles: [],
       }),
     );
     const result = sanitizeSourceCsv(
@@ -267,11 +368,14 @@ describe("private Sheet sanitization", () => {
     expect(
       parseImportCorrectionsJson(
         JSON.stringify({
+          collectionNames: [],
+          collectionOrders: [],
           excludedSourceRows: [3, 3],
           legacyImdbIds: [],
           nowShowingSourceRow: null,
           ratings: [],
           schemaVersion: 3,
+          titles: [],
         }),
       ),
     ).toBeNull();
@@ -279,10 +383,13 @@ describe("private Sheet sanitization", () => {
     const result = sanitizeSourceCsv(
       `${header}\n8/1/2026 10:30:00,Synthetic Movie,No,No,,,\n`,
       {
+        collectionNames: new Map(),
+        collectionOrders: [],
         excludedSourceRows: new Set([3]),
         legacyImdbIds: new Map(),
         nowShowingSourceRow: null,
         ratings: new Map(),
+        titles: new Map(),
       },
     );
     expect(result.document.validated).toBe(false);
@@ -304,11 +411,14 @@ describe("private Sheet sanitization", () => {
   it("carries one reviewed current selection without retaining source content", () => {
     const corrections = parseImportCorrectionsJson(
       JSON.stringify({
+        collectionNames: [],
+        collectionOrders: [],
         excludedSourceRows: [],
         legacyImdbIds: [],
         nowShowingSourceRow: 2,
         ratings: [],
         schemaVersion: 3,
+        titles: [],
       }),
     );
     const result = sanitizeSourceCsv(
@@ -324,10 +434,13 @@ describe("private Sheet sanitization", () => {
     const result = sanitizeSourceCsv(
       `${header}\n8/1/2026 10:30:00,Synthetic Movie,No,No,,,\n`,
       {
+        collectionNames: new Map(),
+        collectionOrders: [],
         excludedSourceRows: new Set(),
         legacyImdbIds: new Map(),
         nowShowingSourceRow: 3,
         ratings: new Map(),
+        titles: new Map(),
       },
     );
 
@@ -507,6 +620,55 @@ describe("deterministic import planning", () => {
     expect(sql).not.toContain("INSERT INTO audit_log");
   });
 
+  it("persists an explicitly reviewed collection order as authoritative", async () => {
+    const plan = await buildImportPlan(
+      document(
+        [
+          submission({
+            collectionIndicated: true,
+            collectionName: "Synthetic Saga",
+          }),
+          submission({
+            collectionIndicated: true,
+            collectionName: "Synthetic Saga",
+            sourceRow: 3,
+            submittedAt: "2026-08-02T10:30:00.000Z",
+            title: "Second Synthetic Movie",
+          }),
+        ],
+        2,
+        [{ name: "Synthetic Saga", sourceRows: [3, 2] }],
+      ),
+      "2026-08-06T20:00:00.000Z",
+    );
+    const sql = plan.statements.join("\n");
+
+    expect(plan.diagnostics).toEqual([]);
+    expect(sql).toMatch(
+      /INSERT OR IGNORE INTO collections .*'Synthetic Saga'.* 1,/,
+    );
+    const movieIds = new Map(
+      plan.statements
+        .filter((statement) =>
+          statement.startsWith("INSERT OR IGNORE INTO movies"),
+        )
+        .map((statement) => {
+          const match = statement.match(/VALUES \('([^']+)', '([^']+)'/);
+          return [match![2], match![1]];
+        }),
+    );
+    const memberships = plan.statements.filter((statement) =>
+      statement.startsWith("INSERT OR IGNORE INTO collection_movies"),
+    );
+    expect(memberships[0]).toContain(
+      `'${movieIds.get("Second Synthetic Movie")}', 1`,
+    );
+    expect(memberships[1]).toContain(`'${movieIds.get("Synthetic Movie")}', 2`);
+    expect(sql).toContain(
+      `movie_id = '${movieIds.get("Second Synthetic Movie")}'`,
+    );
+  });
+
   it("restores an unwatched standalone selection ready to rate", async () => {
     const plan = await buildImportPlan(
       document([submission()], 2),
@@ -561,6 +723,16 @@ describe("deterministic import planning", () => {
     expect(
       parseIntermediateJson(
         JSON.stringify({ ...valid, privateHeading: "must not propagate" }),
+      ),
+    ).toBeNull();
+    expect(
+      parseIntermediateJson(
+        JSON.stringify({
+          ...valid,
+          collectionOrders: [
+            { name: "Missing Synthetic Saga", sourceRows: [2, 3] },
+          ],
+        }),
       ),
     ).toBeNull();
   });
