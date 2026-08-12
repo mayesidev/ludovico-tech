@@ -9,6 +9,14 @@
   "automerge": false,
   "dependencyDashboard": true,
   "semanticCommits": "enabled",
+  "vulnerabilityAlerts": {
+    "groupName": null,
+    "schedule": [],
+    "dependencyDashboardApproval": false,
+    "minimumReleaseAge": null,
+    "prCreation": "immediate",
+    "labels": ["security"]
+  },
   "packageRules": [
     {
       "description": "Wait three days before proposing newly published npm versions",
