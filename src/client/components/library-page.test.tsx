@@ -76,7 +76,6 @@ describe("movie library", () => {
     await user.click(screen.getAllByRole("button", { name: "Edit" })[0]);
     expect(onEdit).toHaveBeenCalledWith(movies[1]);
     expect(screen.getByText("5 · A favorite")).toBeVisible();
-    expect(screen.getByText("Unwatched")).toBeVisible();
     expect(screen.getAllByText("Aug 7, 2026")).toHaveLength(2);
     expect(screen.queryByText("Standalone")).toBeNull();
     expect(screen.queryByText("In rotation")).toBeNull();
@@ -103,6 +102,23 @@ describe("movie library", () => {
     expect(
       screen.getByRole("columnheader", { name: /Date added/ }),
     ).toHaveAttribute("aria-sort", "ascending");
+  });
+
+  it("uses ratings as the only indication that a movie was watched", () => {
+    render(
+      <LibraryPage
+        canMutate
+        movies={movies}
+        onEdit={vi.fn()}
+        onNavigate={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("columnheader", { name: "Rating" })).toBeVisible();
+    expect(screen.queryByRole("columnheader", { name: "Status" })).toBeNull();
+    expect(screen.getByText("5 · A favorite")).toBeVisible();
+    expect(screen.queryByText("Watched")).toBeNull();
+    expect(screen.queryByText("Unwatched")).toBeNull();
   });
 
   it("keeps the public catalog browse-only", () => {
