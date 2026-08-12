@@ -22,7 +22,7 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [
     {
-      command: `CI=1 corepack pnpm exec wrangler d1 migrations apply ludovico-tech-development --local --env development --persist-to ${stateDirectory} && CI=1 corepack pnpm exec wrangler dev src/worker/index.ts --local --env development --persist-to ${stateDirectory} --port 8788 --show-interactive-dev-session=false`,
+      command: `CI=1 node node_modules/wrangler-e2e/bin/wrangler.js d1 migrations apply ludovico-tech-development --local --env development --persist-to ${stateDirectory} && CI=1 WRANGLER_LOG=${process.env.CI ? "debug" : "log"} node node_modules/wrangler-e2e/bin/wrangler.js dev src/worker/index.ts --local --env development --persist-to ${stateDirectory} --port 8788 --show-interactive-dev-session=false --compatibility-date 2026-07-21 --var TMDB_READ_ACCESS_TOKEN:`,
       url: "http://127.0.0.1:8788/api/health",
       reuseExistingServer: false,
       timeout: 120_000,

@@ -17,6 +17,11 @@
       "internalChecksFilter": "strict"
     },
     {
+      "description": "Hold the E2E Wrangler at the last version before cloudflare/workers-sdk#14916",
+      "matchDepNames": ["wrangler-e2e"],
+      "allowedVersions": "<=4.112.0"
+    },
+    {
       "description": "Publish runtime dependency updates as patch releases",
       "matchManagers": ["npm"],
       "matchDepTypes": ["dependencies"],
