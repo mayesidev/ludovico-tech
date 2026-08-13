@@ -13,6 +13,13 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await expect(
       page.getByRole("heading", { level: 1, name: "No movie selected" }),
     ).toBeVisible();
+    const tmdbResponse = await page.request.get(
+      "/api/tmdb/search?query=Browser%20Test%20Feature",
+    );
+    expect(tmdbResponse.status()).toBe(503);
+    await expect(tmdbResponse.json()).resolves.toEqual({
+      error: "TMDB is not configured",
+    });
     await page.getByRole("button", { name: "Add a movie" }).click();
     await page
       .getByRole("textbox", { name: "Movie title" })

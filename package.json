@@ -7,8 +7,10 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "concurrently --kill-others-on-fail \"wrangler dev src/worker/index.ts --local --env development\" \"vite --host 0.0.0.0\"",
-    "build": "vite build",
+    "dev": "CLOUDFLARE_ENV=development vite --host 0.0.0.0",
+    "build": "pnpm build:production",
+    "build:production": "CLOUDFLARE_ENV=production vite build",
+    "build:staging": "CLOUDFLARE_ENV=staging vite build",
     "preview": "vite preview",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -44,6 +46,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "1.51.3",
     "@cloudflare/vitest-pool-workers": "^0.20.3",
     "@cloudflare/workers-types": "^5.20260801.1",
     "@commitlint/cli": "^21.2.1",
@@ -62,7 +65,6 @@
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.0",
     "@vitest/coverage-istanbul": "4.1.10",
-    "concurrently": "^10.0.4",
     "csv-parse": "^7.0.2",
     "eslint": "^10.8.0",
     "eslint-plugin-react-hooks": "^7.1.1",

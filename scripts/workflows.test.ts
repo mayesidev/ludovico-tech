@@ -31,6 +31,8 @@ describe("complete CI and deployment gates", () => {
     expect(source).toContain("run: pnpm test:e2e");
     expect(source).toContain("run: pnpm audit:production");
     expect(source).toContain("run: pnpm licenses:check");
+    expect(source).toContain("run: pnpm build:staging");
+    expect(source).toContain("run: pnpm build:production");
     expect(source).toContain("actions/dependency-review-action@");
   });
 
@@ -52,10 +54,9 @@ describe("complete CI and deployment gates", () => {
     const nodeSetup = source.indexOf("Set up Node.js");
     const tagValidation = source.indexOf("validate-tag");
     const configGate = source.indexOf("pnpm config:check:staging");
-    const migration = source.indexOf(
-      "wrangler d1 migrations apply DB --remote --env staging",
-    );
-    const deploy = source.indexOf("wrangler deploy --env staging");
+    const build = source.indexOf("pnpm build:staging");
+    const migration = source.indexOf("wrangler d1 migrations apply DB");
+    const deploy = source.indexOf("wrangler deploy \\");
     const smoke = source.indexOf(
       '"$STAGING_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" staging',
       deploy,
@@ -67,6 +68,10 @@ describe("complete CI and deployment gates", () => {
     expect(source).toContain("environment: staging");
     expect(source).toContain("ref: main");
     expect(source).toContain("pnpm config:check:staging");
+    expect(source).toMatch(
+      /wrangler d1 migrations apply DB\s+--config wrangler\.jsonc --remote --env staging/,
+    );
+    expect(source).toContain("pnpm build:staging");
     expect(source).toContain(
       '"$STAGING_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" staging',
     );
@@ -85,7 +90,8 @@ describe("complete CI and deployment gates", () => {
     expect(nodeSetup).toBeGreaterThan(0);
     expect(tagValidation).toBeGreaterThan(nodeSetup);
     expect(configGate).toBeGreaterThan(tagValidation);
-    expect(migration).toBeGreaterThan(configGate);
+    expect(build).toBeGreaterThan(configGate);
+    expect(migration).toBeGreaterThan(build);
     expect(deploy).toBeGreaterThan(migration);
     expect(smoke).toBeGreaterThan(deploy);
   });
@@ -95,7 +101,8 @@ describe("complete CI and deployment gates", () => {
     const nodeSetup = source.indexOf("Set up Node.js");
     const tagValidation = source.indexOf("validate-tag");
     const migrationGate = source.indexOf("check-migrations");
-    const deploy = source.indexOf("wrangler deploy --env production");
+    const build = source.indexOf("pnpm build:production");
+    const deploy = source.indexOf("wrangler deploy \\");
     const smoke = source.indexOf("verify-deployment");
 
     expect(source).toContain("environment: production");
@@ -130,12 +137,14 @@ describe("complete CI and deployment gates", () => {
     expect(source).not.toContain(
       "CLOUDFLARE_ACCOUNT_ID: env.CLOUDFLARE_ACCOUNT_ID",
     );
-    expect(source).toContain(
-      "wrangler d1 execute DB --remote --env production",
+    expect(source).toContain("pnpm build:production");
+    expect(source).toMatch(
+      /wrangler d1 execute DB --config wrangler\.jsonc --remote --env production/,
     );
     expect(nodeSetup).toBeGreaterThan(0);
     expect(tagValidation).toBeGreaterThan(nodeSetup);
-    expect(migrationGate).toBeGreaterThan(tagValidation);
+    expect(build).toBeGreaterThan(tagValidation);
+    expect(migrationGate).toBeGreaterThan(build);
     expect(deploy).toBeGreaterThan(migrationGate);
     expect(smoke).toBeGreaterThan(deploy);
     expect(source).toContain(
@@ -155,8 +164,8 @@ describe("complete CI and deployment gates", () => {
     expect(source).toContain("validate-tag");
     expect(source).toContain("releases/tags/$RELEASE_TAG");
     expect(source).toContain("pnpm config:check:production");
-    expect(source).toContain(
-      "wrangler d1 migrations apply DB --remote --env production",
+    expect(source).toMatch(
+      /wrangler d1 migrations apply DB\s+--config wrangler\.jsonc --remote --env production/,
     );
     expect(source).toContain("check-migrations");
   });
