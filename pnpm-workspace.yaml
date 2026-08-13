@@ -3,4 +3,3 @@ allowBuilds:
   workerd: true
 overrides:
   baseline-browser-mapping: 2.11.13
-  undici: ">=7.29.0 <8"
