@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Movie } from "../api";
@@ -6,7 +6,7 @@ import { LibraryPage } from "./library-page";
 
 const movies: Movie[] = [
   {
-    added_at: "2026-08-07T00:00:00.000Z",
+    added_at: "2026-08-08T00:00:00.000Z",
     collection_id: "collection-id",
     collection_name: "Test Saga",
     collection_position: 2,
@@ -34,6 +34,13 @@ const movies: Movie[] = [
     watched_at: "2026-08-07T00:00:00.000Z",
   },
 ];
+
+function getRenderedMovieTitles() {
+  return screen
+    .getAllByRole("row")
+    .slice(1)
+    .map((row) => within(row).getAllByRole("cell")[0]?.textContent);
+}
 
 describe("movie library", () => {
   it("filters, sorts, and exposes actions only to contributors", async () => {
@@ -73,10 +80,18 @@ describe("movie library", () => {
       "aria-sort",
       "ascending",
     );
+    expect(getRenderedMovieTitles()).toEqual(["Alpha Movie", "Zulu Movie"]);
     await user.click(screen.getAllByRole("button", { name: "Edit" })[0]);
     expect(onEdit).toHaveBeenCalledWith(movies[1]);
+    await user.click(screen.getByRole("button", { name: /Title/ }));
+    expect(screen.getByRole("columnheader", { name: /Title/ })).toHaveAttribute(
+      "aria-sort",
+      "descending",
+    );
+    expect(getRenderedMovieTitles()).toEqual(["Zulu Movie", "Alpha Movie"]);
     expect(screen.getByText("5 · A favorite")).toBeVisible();
-    expect(screen.getAllByText("Aug 7, 2026")).toHaveLength(2);
+    expect(screen.getByText("Aug 7, 2026")).toBeVisible();
+    expect(screen.getByText("Aug 8, 2026")).toBeVisible();
     expect(screen.queryByText("Standalone")).toBeNull();
     expect(screen.queryByText("In rotation")).toBeNull();
     expect(screen.queryByText("5/5")).toBeNull();
@@ -102,6 +117,7 @@ describe("movie library", () => {
     expect(
       screen.getByRole("columnheader", { name: /Date added/ }),
     ).toHaveAttribute("aria-sort", "ascending");
+    expect(getRenderedMovieTitles()).toEqual(["Alpha Movie", "Zulu Movie"]);
   });
 
   it("uses ratings as the only indication that a movie was watched", () => {

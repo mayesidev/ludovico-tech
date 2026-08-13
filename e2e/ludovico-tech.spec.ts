@@ -256,6 +256,17 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "Edit" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Order" })).toHaveCount(0);
+    const titleSort = page.getByRole("button", { name: "Title" });
+    const renderedTitles = page.locator("tbody tr td:first-child a");
+    await titleSort.click();
+    const ascendingTitles = await renderedTitles.allTextContents();
+    expect(ascendingTitles).toEqual(
+      [...ascendingTitles].sort((left, right) => left.localeCompare(right)),
+    );
+    await titleSort.click();
+    expect(await renderedTitles.allTextContents()).toEqual(
+      [...ascendingTitles].reverse(),
+    );
     await page.getByRole("link", { name: "Browser Test Feature" }).click();
     await expect(page).toHaveURL(/\/movies\//);
     await expect(
