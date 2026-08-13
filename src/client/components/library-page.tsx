@@ -1,10 +1,15 @@
 import { useMemo, useState } from "react";
 import {
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
-  useReactTable,
+  columnFilteringFeature,
+  createFilteredRowModel,
+  createSortedRowModel,
+  filterFn_includesString,
+  globalFilteringFeature,
+  rowSortingFeature,
+  sortFn_alphanumeric,
+  sortFn_basic,
+  tableFeatures,
+  useTable,
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
@@ -22,6 +27,23 @@ type LibraryPageProps = {
   onNavigate: Navigate;
 };
 
+const libraryTableFeatures = tableFeatures({
+  columnFilteringFeature,
+  globalFilteringFeature,
+  rowSortingFeature,
+  filteredRowModel: createFilteredRowModel(),
+  sortedRowModel: createSortedRowModel(),
+  filterFns: {
+    includesString: filterFn_includesString,
+  },
+  sortFns: {
+    alphanumeric: sortFn_alphanumeric,
+    basic: sortFn_basic,
+  },
+});
+
+type LibraryColumnDef = ColumnDef<typeof libraryTableFeatures, Movie>;
+
 export function LibraryPage({
   canMutate,
   movies,
@@ -33,11 +55,12 @@ export function LibraryPage({
   const unwatchedCount = movies.filter(
     (movie) => movie.rating_score === null,
   ).length;
-  const columns = useMemo<ColumnDef<Movie>[]>(() => {
-    const definitions: ColumnDef<Movie>[] = [
+  const columns = useMemo<LibraryColumnDef[]>(() => {
+    const definitions: LibraryColumnDef[] = [
       {
         accessorKey: "title",
         header: "Title",
+        sortFn: "alphanumeric",
         cell: ({ row }) => (
           <AppLink
             className="font-semibold text-cream hover:text-marquee-light"
@@ -51,6 +74,7 @@ export function LibraryPage({
       {
         accessorKey: "collection_name",
         header: "Collection",
+        sortFn: "alphanumeric",
         cell: ({ row }) =>
           row.original.collection_id && row.original.collection_name ? (
             <AppLink
@@ -65,16 +89,19 @@ export function LibraryPage({
       {
         accessorKey: "release_date",
         header: "Release",
-        cell: ({ getValue }) => formatDate(getValue<string | null>()),
+        sortFn: "alphanumeric",
+        cell: ({ getValue }) => formatDate(getValue() as string | null),
       },
       {
         accessorKey: "added_at",
         header: "Date added",
-        cell: ({ getValue }) => formatDate(getValue<string>()),
+        sortFn: "alphanumeric",
+        cell: ({ getValue }) => formatDate(getValue() as string),
       },
       {
         accessorKey: "rating_score",
         header: "Rating",
+        sortFn: "basic",
         cell: ({ row }) =>
           row.original.rating_score !== null ? (
             <span className="text-marquee-light">
@@ -120,15 +147,14 @@ export function LibraryPage({
     }
     return definitions;
   }, [canMutate, onEdit, onNavigate]);
-  const table = useReactTable({
+  const table = useTable({
+    features: libraryTableFeatures,
     data: movies,
     columns,
     state: { globalFilter: filter, sorting },
     onGlobalFilterChange: setFilter,
     onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    globalFilterFn: "includesString",
   });
 
   return (
@@ -182,10 +208,7 @@ export function LibraryPage({
                           onClick={header.column.getToggleSortingHandler()}
                           className="hover:text-marquee-light"
                         >
-                          {flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
+                          <table.FlexRender header={header} />
                           {header.column.getIsSorted()
                             ? header.column.getIsSorted() === "asc"
                               ? " ↑"
@@ -193,10 +216,7 @@ export function LibraryPage({
                             : ""}
                         </button>
                       ) : (
-                        flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )
+                        <table.FlexRender header={header} />
                       )}
                     </th>
                   ))}
@@ -206,12 +226,9 @@ export function LibraryPage({
             <tbody className="divide-y divide-marquee-gold/8">
               {table.getRowModel().rows.map((row) => (
                 <tr key={row.id} className="transition hover:bg-curtain/15">
-                  {row.getVisibleCells().map((cell) => (
+                  {row.getAllCells().map((cell) => (
                     <td key={cell.id} className="px-5 py-4 text-zinc-400">
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
+                      <table.FlexRender cell={cell} />
                     </td>
                   ))}
                 </tr>
