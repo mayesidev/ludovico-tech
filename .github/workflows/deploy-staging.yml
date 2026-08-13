@@ -139,20 +139,22 @@ jobs:
         run: pnpm licenses:check
 
       - name: Build release assets
-        run: pnpm build
+        run: pnpm build:staging
 
       - name: Apply staging migrations
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm exec wrangler d1 migrations apply DB --remote --env staging
+        run: >-
+          pnpm exec wrangler d1 migrations apply DB
+          --config wrangler.jsonc --remote --env staging
 
       - name: Verify every release migration is applied
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          pnpm exec wrangler d1 execute DB --remote --env staging \
+          pnpm exec wrangler d1 execute DB --config wrangler.jsonc --remote --env staging \
             --command "SELECT name FROM d1_migrations ORDER BY id" --json \
             > "$RUNNER_TEMP/applied-migrations.json"
           node "$RUNNER_TEMP/release-gates.ts" check-migrations \
@@ -190,7 +192,7 @@ jobs:
             GOOGLE_REDIRECT_URI: env.GOOGLE_REDIRECT_URI,
             ALLOWED_EMAILS: env.ALLOWED_EMAILS
           }' > "$secrets_file"
-          pnpm exec wrangler deploy --env staging \
+          pnpm exec wrangler deploy \
             --secrets-file "$secrets_file" \
             --var "APP_VERSION:${RELEASE_TAG}" \
             --var "GIT_SHA:${RELEASE_SHA}"
