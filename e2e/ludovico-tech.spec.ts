@@ -1,6 +1,18 @@
 import { expect, test } from "@playwright/test";
 
 test.describe.serial("Ludovico Tech browser workflows", () => {
+  test("publishes a branded site favicon", async ({ page, request }) => {
+    await page.goto("/");
+
+    const favicon = page.locator('link[rel="icon"][type="image/svg+xml"]');
+    await expect(favicon).toHaveAttribute("href", "/favicon.svg");
+
+    const response = await request.get("/favicon.svg");
+    expect(response.ok()).toBe(true);
+    expect(response.headers()["content-type"]).toContain("image/svg+xml");
+    expect(await response.text()).toContain('viewBox="0 0 64 64"');
+  });
+
   test("presents the project credits and required attribution", async ({
     page,
   }) => {
