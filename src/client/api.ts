@@ -59,6 +59,12 @@ export type AuthState = {
   actor: { email: string; displayName: string } | null;
   local: boolean;
 };
+export type HealthState = {
+  ok: boolean;
+  environment: string;
+  version: string;
+  commit: string;
+};
 
 export class ApiError extends Error {
   readonly status: number;
@@ -94,6 +100,7 @@ const request = async <T>(path: string, options?: RequestInit): Promise<T> => {
 };
 
 export const api = {
+  health: () => request<HealthState>("/api/health"),
   authMe: () => request<AuthState>("/api/auth/me"),
   logout: () =>
     request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
