@@ -1,5 +1,6 @@
 import { ArrowLeft, ExternalLink, Pencil, Trash2 } from "lucide-react";
 import type { Movie } from "../api";
+import { imdbTitleUrl } from "../../shared/imdb";
 import { formatDate, formatMovieTitle, formatRuntime } from "../lib/utils";
 import { AppLink } from "./app-link";
 import { Poster } from "./poster";
@@ -158,18 +159,36 @@ export function MovieDetailPage({
               )}
           </dl>
 
-          {(movie.tmdb_id !== null || canEdit || canDelete) && (
+          {(movie.tmdb_id !== null ||
+            movie.imdb_id !== null ||
+            canEdit ||
+            canDelete) && (
             <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
-              {movie.tmdb_id !== null && (
-                <a
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-marquee-light hover:text-cream"
-                  href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  View on TMDB
-                  <ExternalLink size={15} />
-                </a>
+              {(movie.tmdb_id !== null || movie.imdb_id !== null) && (
+                <div className="flex flex-wrap items-center gap-4">
+                  {movie.tmdb_id !== null && (
+                    <a
+                      className="inline-flex items-center gap-2 text-sm font-semibold text-marquee-light hover:text-cream"
+                      href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      View on TMDB
+                      <ExternalLink size={15} />
+                    </a>
+                  )}
+                  {movie.imdb_id !== null && (
+                    <a
+                      className="inline-flex items-center gap-2 text-sm font-semibold text-marquee-light hover:text-cream"
+                      href={imdbTitleUrl(movie.imdb_id)}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      View on IMDb
+                      <ExternalLink size={15} />
+                    </a>
+                  )}
+                </div>
               )}
               <div className="ml-auto flex flex-wrap items-center gap-2">
                 {canEdit && (

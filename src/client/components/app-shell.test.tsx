@@ -8,6 +8,7 @@ const reelMovie = (id: string): Movie => ({
   added_at: "2026-08-07T00:00:00.000Z",
   collection_id: null,
   id,
+  imdb_id: null,
   poster_path: `/${id}.jpg`,
   rating_phrase: null,
   rating_score: null,

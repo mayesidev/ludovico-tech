@@ -6,8 +6,10 @@ import {
   parseVersionRuntime,
 } from "../lib/movie-version";
 import { parseTmdbId } from "../lib/tmdb-id";
+import { parseImdbId } from "../../shared/imdb";
 import type { RunAction } from "../types";
 import { Dialog } from "./dialog";
+import { ImdbMovieField } from "./imdb-movie-field";
 import { MovieVersionFields } from "./movie-version-fields";
 import { TmdbMovieFields } from "./tmdb-movie-fields";
 import { Button, Input } from "./ui";
@@ -25,6 +27,7 @@ export function AddMovieDialog({
 }) {
   const [title, setTitle] = useState("");
   const [collectionName, setCollectionName] = useState("");
+  const [imdbId, setImdbId] = useState("");
   const [tmdbId, setTmdbId] = useState("");
   const [versionSpecified, setVersionSpecified] = useState(false);
   const [version, setVersion] = useState("");
@@ -37,6 +40,7 @@ export function AddMovieDialog({
   const collectionId = useId();
   const titleErrorId = useId();
   const parsedTmdbId = parseTmdbId(tmdbId);
+  const parsedImdbId = parseImdbId(imdbId);
   const parsedVersionRuntime = parseVersionRuntime(versionRuntime);
   const parsedVersionReferenceUrl =
     parseVersionReferenceUrl(versionReferenceUrl);
@@ -98,6 +102,7 @@ export function AddMovieDialog({
             Enter a movie title.
           </p>
         )}
+        <ImdbMovieField onChange={setImdbId} value={imdbId} />
         <MovieVersionFields
           attempted={attempted}
           onSpecifiedChange={setVersionSpecified}
@@ -134,11 +139,14 @@ export function AddMovieDialog({
             movie is saved.
           </p>
           <Button
-            disabled={busy || parsedTmdbId === undefined}
+            disabled={
+              busy || parsedImdbId === undefined || parsedTmdbId === undefined
+            }
             onClick={() => {
               setAttempted(true);
               if (
                 !title.trim() ||
+                parsedImdbId === undefined ||
                 parsedTmdbId === undefined ||
                 (usingVersion &&
                   (!version.trim() ||
@@ -151,6 +159,7 @@ export function AddMovieDialog({
                   api.addMovie({
                     title,
                     collectionName,
+                    imdbId: parsedImdbId,
                     tmdbId: parsedTmdbId,
                     version: usingVersion ? version.trim() : null,
                     versionRuntime: usingVersion ? parsedVersionRuntime : null,

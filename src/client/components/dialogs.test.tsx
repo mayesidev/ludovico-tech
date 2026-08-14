@@ -12,6 +12,7 @@ const movie = (id: string, title: string): Movie => ({
   collection_name: "Test Saga",
   collection_position: 1,
   id,
+  imdb_id: null,
   poster_path: null,
   rating_phrase: null,
   rating_score: null,
@@ -70,6 +71,7 @@ describe("accessible dialogs", () => {
     await user.click(screen.getByRole("button", { name: "Save changes" }));
     expect(api.updateMovie).toHaveBeenCalledWith("movie-id", {
       collectionName: "Test Saga",
+      imdbId: null,
       title: "Updated Title",
       tmdbId: null,
       version: null,
@@ -124,6 +126,7 @@ describe("accessible dialogs", () => {
 
     expect(api.updateMovie).toHaveBeenCalledWith("movie-id", {
       collectionName: "New Saga",
+      imdbId: null,
       title: "Authoritative Title",
       tmdbId: 42,
       version: null,
@@ -177,7 +180,49 @@ describe("accessible dialogs", () => {
 
     expect(api.updateMovie).toHaveBeenCalledWith("versioned-id", {
       collectionName: "Test Saga",
+      imdbId: null,
       title: "Batman",
+      tmdbId: undefined,
+      version: null,
+      versionReferenceUrl: null,
+      versionRuntime: null,
+    });
+  });
+
+  it("loads and normalizes an edited IMDb reference", async () => {
+    const linkedMovie: Movie = {
+      ...movie("imdb-id", "The Rock"),
+      imdb_id: "tt0117500",
+    };
+    vi.spyOn(api, "updateMovie").mockResolvedValue({
+      movie: { ...linkedMovie, imdb_id: "tt0117509" },
+    });
+    const user = userEvent.setup();
+    render(
+      <EditMovieDialog
+        busy={false}
+        movie={linkedMovie}
+        onAuthExpired={vi.fn().mockResolvedValue(undefined)}
+        onClose={vi.fn()}
+        run={run}
+      />,
+    );
+
+    const imdbInput = screen.getByRole("textbox", {
+      name: "IMDb ID or URL (optional)",
+    });
+    expect(imdbInput).toHaveValue("tt0117500");
+    await user.clear(imdbInput);
+    await user.type(
+      imdbInput,
+      "https://m.imdb.com/title/TT0117509/?ref_=fn_all_ttl_1",
+    );
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    expect(api.updateMovie).toHaveBeenCalledWith("imdb-id", {
+      collectionName: "Test Saga",
+      imdbId: "tt0117509",
+      title: "The Rock",
       tmdbId: undefined,
       version: null,
       versionReferenceUrl: null,

@@ -15,6 +15,7 @@ import {
 } from "@tanstack/react-table";
 import { ExternalLink, Pencil, Search } from "lucide-react";
 import type { Movie } from "../api";
+import { imdbTitleUrl } from "../../shared/imdb";
 import type { Navigate } from "../types";
 import { formatDate, formatMovieTitle } from "../lib/utils";
 import { AppLink } from "./app-link";
@@ -112,21 +113,44 @@ export function LibraryPage({
           ) : null,
       },
       {
-        accessorKey: "tmdb_id",
-        header: "TMDB",
+        id: "links",
+        header: "Links",
         enableSorting: false,
-        cell: ({ row }) =>
-          row.original.tmdb_id !== null ? (
-            <a
-              className="inline-flex items-center gap-1.5 whitespace-nowrap font-semibold text-marquee-light hover:text-cream"
-              href={`https://www.themoviedb.org/movie/${row.original.tmdb_id}`}
-              rel="noreferrer"
-              target="_blank"
-            >
-              View on TMDB
-              <ExternalLink size={13} />
-            </a>
-          ) : null,
+        cell: ({ row }) => {
+          const { imdb_id: imdbId, tmdb_id: tmdbId } = row.original;
+          if (tmdbId === null && imdbId === null) return null;
+          return (
+            <span className="inline-flex items-center gap-2 whitespace-nowrap font-semibold text-marquee-light">
+              {tmdbId !== null && (
+                <a
+                  className="inline-flex items-center gap-1 hover:text-cream"
+                  href={`https://www.themoviedb.org/movie/${tmdbId}`}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  TMDB
+                  <ExternalLink size={13} />
+                </a>
+              )}
+              {tmdbId !== null && imdbId !== null && (
+                <span aria-hidden="true" className="text-zinc-700">
+                  ·
+                </span>
+              )}
+              {imdbId !== null && (
+                <a
+                  className="inline-flex items-center gap-1 hover:text-cream"
+                  href={imdbTitleUrl(imdbId)}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  IMDb
+                  <ExternalLink size={13} />
+                </a>
+              )}
+            </span>
+          );
+        },
       },
     ];
     if (canMutate) {

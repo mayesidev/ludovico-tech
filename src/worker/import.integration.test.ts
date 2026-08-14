@@ -156,7 +156,7 @@ describe("generalized catalog import", () => {
     const movie = await env.DB.prepare(
       `SELECT title, release_date, poster_path, runtime_minutes, tmdb_id,
         tmdb_collection_id, tmdb_collection_name, tmdb_fetched_at
-       FROM movies WHERE legacy_imdb_id = ?`,
+       FROM movies WHERE imdb_id = ?`,
     )
       .bind("tt1234568")
       .first();
@@ -200,7 +200,7 @@ describe("generalized catalog import", () => {
               (SELECT COUNT(*) FROM movie_import_sources) AS sources`,
     ).first();
     const linked = await env.DB.prepare(
-      "SELECT title, tmdb_id FROM movies WHERE legacy_imdb_id = ?",
+      "SELECT title, tmdb_id FROM movies WHERE imdb_id = ?",
     )
       .bind("tt1234568")
       .first();

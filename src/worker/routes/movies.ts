@@ -116,6 +116,19 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         400,
       );
     }
+    if (input.imdbId) {
+      const duplicate = await c.env.DB.prepare(
+        "SELECT id FROM movies WHERE imdb_id = ?",
+      )
+        .bind(input.imdbId)
+        .first();
+      if (duplicate) {
+        return c.json(
+          { error: "That IMDb movie is already in the catalog" },
+          409,
+        );
+      }
+    }
     const id = newId();
     const timestamp = now();
     let metadata = null;
@@ -176,10 +189,10 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     statements.push(
       c.env.DB.prepare(
         `INSERT INTO movies (id, title, title_normalized, added_at, added_by, updated_at, updated_by,
-        release_date, poster_path, runtime_minutes, tmdb_id, tmdb_fetched_at,
+        release_date, poster_path, runtime_minutes, imdb_id, tmdb_id, tmdb_fetched_at,
         tmdb_collection_id, tmdb_collection_name, version, version_runtime,
         version_reference_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         id,
         title,
@@ -191,6 +204,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         metadata?.releaseDate ?? null,
         metadata?.posterPath ?? null,
         metadata?.runtimeMinutes ?? null,
+        input.imdbId ?? null,
         input.tmdbId ?? null,
         input.tmdbId ? timestamp : null,
         metadata?.collection?.id ?? null,
@@ -240,6 +254,20 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       );
     }
 
+    if (input.imdbId) {
+      const duplicate = await c.env.DB.prepare(
+        "SELECT id FROM movies WHERE imdb_id = ? AND id <> ?",
+      )
+        .bind(input.imdbId, movieId)
+        .first();
+      if (duplicate) {
+        return c.json(
+          { error: "That IMDb movie is already in the catalog" },
+          409,
+        );
+      }
+    }
+
     let metadata = null;
     if (input.tmdbId) {
       try {
@@ -279,6 +307,8 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     const resolvedTmdbId = tmdbChangeRequested
       ? (input.tmdbId ?? null)
       : existing.tmdb_id;
+    const resolvedImdbId =
+      input.imdbId !== undefined ? input.imdbId : existing.imdb_id;
     const tmdbIdentityChanged =
       tmdbChangeRequested && resolvedTmdbId !== existing.tmdb_id;
     let version =
@@ -366,7 +396,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     const statements: D1PreparedStatement[] = [
       c.env.DB.prepare(
         `UPDATE movies SET title = ?, title_normalized = ?, updated_at = ?, updated_by = ?,
-        release_date = ?, poster_path = ?, runtime_minutes = ?, tmdb_id = ?,
+        release_date = ?, poster_path = ?, runtime_minutes = ?, imdb_id = ?, tmdb_id = ?,
         tmdb_collection_id = ?, tmdb_collection_name = ?, version = ?,
         version_runtime = ?, version_reference_url = ?,
         tmdb_fetched_at = CASE WHEN ? THEN ? ELSE tmdb_fetched_at END
@@ -379,6 +409,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         releaseDate,
         posterPath,
         runtimeMinutes,
+        resolvedImdbId,
         resolvedTmdbId,
         tmdbCollectionId,
         tmdbCollectionName,

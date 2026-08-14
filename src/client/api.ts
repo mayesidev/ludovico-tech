@@ -8,6 +8,7 @@ export type Movie = {
   version: string | null;
   version_runtime: number | null;
   version_reference_url: string | null;
+  imdb_id: string | null;
   tmdb_id: number | null;
   tmdb_collection_id?: number | null;
   tmdb_collection_name?: string | null;
@@ -133,6 +134,7 @@ export const api = {
   addMovie: (movie: {
     title: string;
     collectionName?: string;
+    imdbId?: string | null;
     tmdbId?: number | null;
     version?: string | null;
     versionRuntime?: number | null;
@@ -146,6 +148,7 @@ export const api = {
     id: string,
     movie: {
       collectionName?: string | null;
+      imdbId?: string | null;
       title?: string;
       tmdbId?: number | null;
       version?: string | null;

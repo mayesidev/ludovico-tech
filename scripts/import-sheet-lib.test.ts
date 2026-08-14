@@ -65,7 +65,7 @@ const reconciliation = (
 
 describe("private Sheet sanitization", () => {
   it("maps source columns by position without retaining headings", () => {
-    const source = `${header}\n8/1/2026 10:30:00,Synthetic Movie,No,Yes,Synthetic Saga,https://www.imdb.com/title/tt1234567/,4.5 A synthetic delight\n`;
+    const source = `${header}\n8/1/2026 10:30:00,Synthetic Movie,No,Yes,Synthetic Saga,https://m.imdb.com/title/TT1234567/?ref_=fn_all_ttl_1,4.5 A synthetic delight\n`;
     const result = sanitizeSourceCsv(source);
 
     expect(result.diagnostics).toEqual([]);
@@ -820,7 +820,7 @@ describe("update-only TMDB metadata planning", () => {
     expect(sql).toContain("tmdb_collection_id = 7");
     expect(sql).toContain("tmdb_collection_name = 'Synthetic Collection'");
     expect(sql).toContain(
-      "WHERE legacy_imdb_id = 'tt1234567' AND title_normalized = 'synthetic movie'",
+      "WHERE imdb_id = 'tt1234567' AND title_normalized = 'synthetic movie'",
     );
     expect(sql).not.toMatch(
       /INSERT|DELETE|collection_movies|now_showing|ratings/,

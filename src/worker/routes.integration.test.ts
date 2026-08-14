@@ -379,6 +379,84 @@ describe("Google authentication", () => {
   });
 });
 
+describe("IMDb references", () => {
+  it("normalizes a mobile title URL without requesting provider data", async () => {
+    const session = await authenticated();
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    const response = await request("/api/movies", session.bindings, {
+      method: "POST",
+      headers: { Cookie: session.cookie },
+      body: JSON.stringify({
+        imdbId: "https://m.imdb.com/title/TT0117509/?ref_=fn_all_ttl_1#reviews",
+        title: "IMDb-linked Movie",
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({
+      movie: {
+        imdb_id: "tt0117509",
+        poster_path: null,
+        release_date: null,
+        runtime_minutes: null,
+        title: "IMDb-linked Movie",
+        tmdb_id: null,
+      },
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("allows clearing an IMDb ID and rejects duplicates", async () => {
+    const session = await authenticated();
+    const create = (title: string, imdbId: string) =>
+      request("/api/movies", session.bindings, {
+        method: "POST",
+        headers: { Cookie: session.cookie },
+        body: JSON.stringify({ imdbId, title }),
+      });
+    const first = await create("First IMDb Movie", "tt0117509");
+    const firstMovie = (await first.json()) as {
+      movie: { id: string; imdb_id: string | null };
+    };
+    const duplicate = await create(
+      "Duplicate IMDb Movie",
+      "https://www.imdb.com/title/tt0117509/",
+    );
+
+    expect(duplicate.status).toBe(409);
+    expect(await duplicate.json()).toEqual({
+      error: "That IMDb movie is already in the catalog",
+    });
+
+    const cleared = await request(
+      `/api/movies/${firstMovie.movie.id}`,
+      session.bindings,
+      {
+        method: "PATCH",
+        headers: { Cookie: session.cookie },
+        body: JSON.stringify({ imdbId: null }),
+      },
+    );
+    expect(await cleared.json()).toMatchObject({ movie: { imdb_id: null } });
+    expect((await create("Reused IMDb Movie", "TT0117509")).status).toBe(201);
+  });
+
+  it("rejects non-IMDb hosts and non-title paths", async () => {
+    const session = await authenticated();
+    for (const imdbId of [
+      "https://example.com/title/tt0117509/",
+      "https://www.imdb.com/name/tt0117509/",
+    ]) {
+      const response = await request("/api/movies", session.bindings, {
+        method: "POST",
+        headers: { Cookie: session.cookie },
+        body: JSON.stringify({ imdbId, title: "Invalid IMDb Movie" }),
+      });
+      expect(response.status).toBe(400);
+    }
+  });
+});
+
 describe("TMDB routes and metadata attachment", () => {
   it("rejects anonymous production requests without calling TMDB", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch");

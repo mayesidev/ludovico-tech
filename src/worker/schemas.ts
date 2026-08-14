@@ -1,4 +1,22 @@
 import { z } from "zod";
+import { parseImdbId } from "../shared/imdb";
+
+const imdbId = z
+  .string()
+  .trim()
+  .transform((value, context) => {
+    const parsed = parseImdbId(value);
+    if (parsed === null || parsed === undefined) {
+      context.addIssue({
+        code: "custom",
+        message: "Use an IMDb ID or IMDb title URL",
+      });
+      return z.NEVER;
+    }
+    return parsed;
+  })
+  .optional()
+  .nullable();
 
 const version = z.string().trim().min(1).max(120).optional().nullable();
 const versionRuntime = z.number().int().positive().optional().nullable();
@@ -16,6 +34,7 @@ const versionReferenceUrl = z
 export const movieInput = z.object({
   title: z.string().trim().min(1).max(200),
   collectionName: z.string().trim().max(200).optional().default(""),
+  imdbId,
   tmdbId: z.number().int().positive().optional().nullable(),
   version,
   versionRuntime,
@@ -25,6 +44,7 @@ export const movieInput = z.object({
 export const movieEditInput = z
   .object({
     collectionName: z.string().trim().max(200).optional().nullable(),
+    imdbId,
     title: z.string().trim().min(1).max(200).optional(),
     tmdbId: z.number().int().positive().optional().nullable(),
     version,

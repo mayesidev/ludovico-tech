@@ -11,6 +11,7 @@ const movies: Movie[] = [
     collection_name: "Test Saga",
     collection_position: 2,
     id: "second-id",
+    imdb_id: null,
     poster_path: null,
     rating_phrase: null,
     rating_score: null,
@@ -27,6 +28,7 @@ const movies: Movie[] = [
     added_at: "2026-08-07T00:00:00.000Z",
     collection_id: null,
     id: "first-id",
+    imdb_id: "tt0133093",
     poster_path: null,
     rating_phrase: "A favorite",
     rating_score: 5,
@@ -91,7 +93,7 @@ describe("movie library", () => {
     expect(
       screen.getByRole("columnheader", { name: "Date added" }),
     ).toBeVisible();
-    expect(screen.getByRole("columnheader", { name: "TMDB" })).toBeVisible();
+    expect(screen.getByRole("columnheader", { name: "Links" })).toBeVisible();
 
     await user.clear(
       screen.getByRole("textbox", { name: "Search movie library" }),
@@ -125,14 +127,22 @@ describe("movie library", () => {
       "href",
       "/collections/collection-id",
     );
-    const tmdbLink = screen.getByRole("link", { name: "View on TMDB" });
+    const tmdbLink = screen.getByRole("link", { name: "TMDB" });
     expect(tmdbLink).toHaveAttribute(
       "href",
       "https://www.themoviedb.org/movie/603",
     );
     expect(tmdbLink).toHaveAttribute("target", "_blank");
-    expect(screen.getAllByRole("link", { name: "View on TMDB" })).toHaveLength(
-      1,
+    expect(screen.getAllByRole("link", { name: "TMDB" })).toHaveLength(1);
+    const imdbLink = screen.getByRole("link", { name: "IMDb" });
+    expect(imdbLink).toHaveAttribute(
+      "href",
+      "https://www.imdb.com/title/tt0133093/",
+    );
+    expect(imdbLink).toHaveAttribute("target", "_blank");
+    expect(within(imdbLink.closest("td")!).getByText("·")).toHaveAttribute(
+      "aria-hidden",
+      "true",
     );
     await user.click(screen.getByRole("button", { name: "Date added" }));
     expect(

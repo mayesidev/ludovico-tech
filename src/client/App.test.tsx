@@ -21,6 +21,7 @@ const movie: Movie = {
   collection_name: "Test Saga",
   collection_position: 1,
   id: "movie-id",
+  imdb_id: null,
   poster_path: null,
   rating_phrase: null,
   rating_score: null,

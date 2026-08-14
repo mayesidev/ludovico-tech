@@ -10,6 +10,7 @@ const movie = (
   added_at: "2026-01-01T00:00:00.000Z",
   collection_id: null,
   id,
+  imdb_id: null,
   poster_path: null,
   rating_phrase: ratingScore === null ? null : `${id} rating`,
   rating_score: ratingScore,

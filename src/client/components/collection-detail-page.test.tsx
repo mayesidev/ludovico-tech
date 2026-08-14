@@ -12,6 +12,7 @@ const movie = (overrides: Partial<Movie>): Movie => ({
   collection_order_confirmed: 1,
   collection_position: 1,
   id: "first-id",
+  imdb_id: null,
   poster_path: null,
   rating_phrase: null,
   rating_score: null,
