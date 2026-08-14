@@ -40,6 +40,9 @@ their tests—not this document—define the delivery mechanics.
 ## Safety
 
 Never commit credentials, private source data, generated imports, local databases,
-`.env`, `/data`, or `/.agents`. Applying remote migrations and private imports
-requires an explicitly reviewed operation; application deployment does not run
-them implicitly.
+`.env`, `/data`, or `/.agents`. Private imports require an explicitly reviewed
+operation. Protected deployments apply and verify the exact migration set from
+the published release before deploying its application code, so migrations must
+remain compatible with the prior deployed version if a later deployment step
+fails. Released migration files are immutable; add a new numbered migration to
+change an existing schema.

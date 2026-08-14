@@ -34,6 +34,9 @@ describe("complete CI and deployment gates", () => {
     expect(source).toContain("run: pnpm build:staging");
     expect(source).toContain("run: pnpm build:production");
     expect(source).toContain("actions/dependency-review-action@");
+    expect(source).toContain("Keep released migrations immutable");
+    expect(source).toContain("--diff-filter=MDR");
+    expect(source).toContain("add a new migration instead");
   });
 
   it("publishes versions after verified main without deploying them", () => {
@@ -53,9 +56,13 @@ describe("complete CI and deployment gates", () => {
     const source = workflow("deploy-staging.yml");
     const nodeSetup = source.indexOf("Set up Node.js");
     const tagValidation = source.indexOf("validate-tag");
+    const releaseCheckout = source.indexOf(
+      'git checkout --detach "$RELEASE_SHA"',
+    );
     const configGate = source.indexOf("pnpm config:check:staging");
     const build = source.indexOf("pnpm build:staging");
     const migration = source.indexOf("wrangler d1 migrations apply DB");
+    const migrationGate = source.indexOf("check-migrations");
     const deploy = source.indexOf("wrangler deploy \\");
     const smoke = source.indexOf(
       '"$STAGING_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" staging',
@@ -90,18 +97,25 @@ describe("complete CI and deployment gates", () => {
     expect(nodeSetup).toBeGreaterThan(0);
     expect(tagValidation).toBeGreaterThan(nodeSetup);
     expect(configGate).toBeGreaterThan(tagValidation);
+    expect(releaseCheckout).toBeGreaterThan(tagValidation);
     expect(build).toBeGreaterThan(configGate);
+    expect(migration).toBeGreaterThan(releaseCheckout);
     expect(migration).toBeGreaterThan(build);
-    expect(deploy).toBeGreaterThan(migration);
+    expect(migrationGate).toBeGreaterThan(migration);
+    expect(deploy).toBeGreaterThan(migrationGate);
     expect(smoke).toBeGreaterThan(deploy);
   });
 
-  it("validates an exact published tag and migrations before deploying", () => {
+  it("applies and validates an exact published tag's migrations before deploying", () => {
     const source = workflow("deploy.yml");
     const nodeSetup = source.indexOf("Set up Node.js");
     const tagValidation = source.indexOf("validate-tag");
-    const migrationGate = source.indexOf("check-migrations");
+    const releaseCheckout = source.indexOf(
+      'git checkout --detach "$release_sha"',
+    );
     const build = source.indexOf("pnpm build:production");
+    const migration = source.indexOf("wrangler d1 migrations apply DB");
+    const migrationGate = source.indexOf("check-migrations");
     const deploy = source.indexOf("wrangler deploy \\");
     const smoke = source.indexOf("verify-deployment");
 
@@ -139,12 +153,18 @@ describe("complete CI and deployment gates", () => {
     );
     expect(source).toContain("pnpm build:production");
     expect(source).toMatch(
+      /wrangler d1 migrations apply DB\s+--config wrangler\.jsonc --remote --env production/,
+    );
+    expect(source).toMatch(
       /wrangler d1 execute DB --config wrangler\.jsonc --remote --env production/,
     );
     expect(nodeSetup).toBeGreaterThan(0);
     expect(tagValidation).toBeGreaterThan(nodeSetup);
+    expect(releaseCheckout).toBeGreaterThan(tagValidation);
     expect(build).toBeGreaterThan(tagValidation);
-    expect(migrationGate).toBeGreaterThan(build);
+    expect(migration).toBeGreaterThan(releaseCheckout);
+    expect(migration).toBeGreaterThan(build);
+    expect(migrationGate).toBeGreaterThan(migration);
     expect(deploy).toBeGreaterThan(migrationGate);
     expect(smoke).toBeGreaterThan(deploy);
     expect(source).toContain(
@@ -152,21 +172,9 @@ describe("complete CI and deployment gates", () => {
     );
   });
 
-  it("applies migrations only through a confirmed protected production job", () => {
-    const source = workflow("migrate-production.yml");
-    expect(source.indexOf("validate-tag")).toBeGreaterThan(
-      source.indexOf("Set up Node.js"),
+  it("does not allow production migrations outside version deployment", () => {
+    expect(readdirSync(workflowDirectory)).not.toContain(
+      "migrate-production.yml",
     );
-    expect(source).toContain("environment: production");
-    expect(source).toContain(
-      'test "$DATABASE_CONFIRMATION" = "ludovico-tech-production"',
-    );
-    expect(source).toContain("validate-tag");
-    expect(source).toContain("releases/tags/$RELEASE_TAG");
-    expect(source).toContain("pnpm config:check:production");
-    expect(source).toMatch(
-      /wrangler d1 migrations apply DB\s+--config wrangler\.jsonc --remote --env production/,
-    );
-    expect(source).toContain("check-migrations");
   });
 });

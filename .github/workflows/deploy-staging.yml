@@ -149,7 +149,7 @@ jobs:
           pnpm exec wrangler d1 migrations apply DB
           --config wrangler.jsonc --remote --env staging
 
-      - name: Verify every release migration is applied
+      - name: Verify exact release migration set
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
