@@ -63,6 +63,18 @@ jobs:
             pnpm exec commitlint --from="$BEFORE_SHA" --to="$HEAD_SHA" --verbose
           fi
 
+      - name: Keep released migrations immutable
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed_migrations="$(git diff --name-only --diff-filter=MDR "$BASE_SHA" "$HEAD_SHA" -- migrations)"
+          if [ -n "$changed_migrations" ]; then
+            printf 'Released migrations are immutable; add a new migration instead:\n%s\n' "$changed_migrations" >&2
+            exit 1
+          fi
+
       - name: Install Playwright browser
         run: pnpm exec playwright install --with-deps chromium
 

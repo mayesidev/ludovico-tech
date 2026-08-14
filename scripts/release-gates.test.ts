@@ -87,7 +87,7 @@ describe("release input validation", () => {
   });
 });
 
-describe("production migration gate", () => {
+describe("release migration gate", () => {
   const response = (names: string[]) => [
     {
       results: names.map((name) => ({ name })),
@@ -104,7 +104,7 @@ describe("production migration gate", () => {
     ).not.toThrow();
   });
 
-  it("blocks pending or malformed migration state", () => {
+  it("blocks migration sets that are behind, ahead, or malformed", () => {
     expect(() =>
       assertReleaseMigrationsApplied(
         ["0001_initial.sql", "0002_next.sql"],
@@ -116,7 +116,7 @@ describe("production migration gate", () => {
         ["0001_initial.sql"],
         response(["0001_initial.sql", "0002_future.sql"]),
       ),
-    ).not.toThrow();
+    ).toThrow("1 migration not present in release");
     expect(() => assertReleaseMigrationsApplied([], {})).toThrow();
     expect(() => assertReleaseMigrationsApplied([], response([]))).toThrow(
       "Release migration set is invalid",

@@ -103,6 +103,12 @@ export const assertReleaseMigrationsApplied = (
       `Target database has ${pending.length} pending release migration${pending.length === 1 ? "" : "s"}`,
     );
   }
+  const unexpected = applied.filter((name) => !expected.includes(name));
+  if (unexpected.length) {
+    throw new Error(
+      `Target database has ${unexpected.length} migration${unexpected.length === 1 ? "" : "s"} not present in release`,
+    );
+  }
 };
 
 type Fetcher = (
