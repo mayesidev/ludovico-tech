@@ -158,7 +158,10 @@ export default function App() {
 
   const canMutate = auth?.authenticated === true;
   const login = useCallback(() => {
-    window.location.href = "/api/auth/google";
+    const params = new URLSearchParams({
+      returnTo: `${window.location.pathname}${window.location.search}`,
+    });
+    window.location.href = `/api/auth/google?${params.toString()}`;
   }, []);
   const tab: Tab =
     route.page === "home"

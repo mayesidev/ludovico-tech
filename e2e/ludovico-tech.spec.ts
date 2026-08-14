@@ -389,6 +389,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
   test("starts browser login through the Google authorization route", async ({
     page,
   }) => {
+    let returnTo: string | null = null;
     await page.route("**/api/auth/me", async (route) => {
       await route.fulfill({
         body: JSON.stringify({
@@ -400,7 +401,8 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
         status: 200,
       });
     });
-    await page.route("**/api/auth/google", async (route) => {
+    await page.route("**/api/auth/google**", async (route) => {
+      returnTo = new URL(route.request().url()).searchParams.get("returnTo");
       await route.fulfill({
         headers: {
           location: "http://127.0.0.1:5174/oauth-provider/google",
@@ -408,9 +410,10 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
         status: 302,
       });
     });
-    await page.goto("/");
+    await page.goto("/movies/movie-1?from=now-showing");
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
 
     await expect(page).toHaveURL("http://127.0.0.1:5174/oauth-provider/google");
+    expect(returnTo).toBe("/movies/movie-1?from=now-showing");
   });
 });

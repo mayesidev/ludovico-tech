@@ -1,0 +1,1 @@
+ALTER TABLE oauth_states ADD COLUMN return_to TEXT NOT NULL DEFAULT '/';

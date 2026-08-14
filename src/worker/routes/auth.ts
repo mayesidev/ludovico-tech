@@ -32,6 +32,19 @@ const googleJson = async (
   }
 };
 
+const normalizeReturnTo = (value: string | undefined): string => {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";
+
+  try {
+    const base = "https://ludovico-tech.invalid";
+    const url = new URL(value, base);
+    if (url.origin !== base) return "/";
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return "/";
+  }
+};
+
 export const registerAuthRoutes = (app: Hono<AppEnv>) => {
   app.get("/auth/me", async (c) => {
     c.header("Cache-Control", "no-store");
@@ -56,14 +69,15 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
     const challenge = await sha256Base64Url(verifier);
     const createdAt = now();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const returnTo = normalizeReturnTo(c.req.query("returnTo"));
 
     await c.env.DB.batch([
       c.env.DB.prepare("DELETE FROM oauth_states WHERE expires_at <= ?").bind(
         createdAt,
       ),
       c.env.DB.prepare(
-        "INSERT INTO oauth_states (state, code_verifier, created_at, expires_at) VALUES (?, ?, ?, ?)",
-      ).bind(state, verifier, createdAt, expiresAt),
+        "INSERT INTO oauth_states (state, code_verifier, created_at, expires_at, return_to) VALUES (?, ?, ?, ?, ?)",
+      ).bind(state, verifier, createdAt, expiresAt, returnTo),
     ]);
 
     const params = new URLSearchParams({
@@ -101,10 +115,10 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
     const oauthState = await c.env.DB.prepare(
       `DELETE FROM oauth_states
        WHERE state = ? AND expires_at > ?
-       RETURNING code_verifier`,
+       RETURNING code_verifier, return_to`,
     )
       .bind(state, now())
-      .first<{ code_verifier: string }>();
+      .first<{ code_verifier: string; return_to: string }>();
     if (!oauthState) {
       return c.text("OAuth state expired", 400);
     }
@@ -194,7 +208,7 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
       "Set-Cookie",
       sessionCookie(sessionId, isSecureEnvironment(config.environment)),
     );
-    return c.redirect("/");
+    return c.redirect(oauthState.return_to);
   });
 
   app.post("/auth/logout", async (c) => {
