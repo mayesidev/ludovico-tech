@@ -35,44 +35,54 @@ export function AppHeader({
 }: AppHeaderProps) {
   return (
     <header className="relative z-10 border-b border-curtain/50 bg-ink/85 shadow-[0_1px_24px_rgba(120,23,41,0.12)] backdrop-blur-xl">
-      <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 px-5 py-4 sm:flex sm:gap-2 lg:px-8">
-        <AppLink
-          aria-label="Ludovico Tech home"
-          className="flex min-w-0 items-center gap-2.5 text-left sm:gap-3"
-          href="/"
-          onNavigate={onNavigate}
-        >
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-marquee-light/40 bg-marquee-gold text-ink shadow-lg shadow-marquee-gold/15 sm:size-10 sm:rounded-2xl">
-            <Clapperboard size={20} strokeWidth={2.5} />
-          </span>
-          <span className="min-w-0">
-            <span className="block whitespace-nowrap font-display text-base font-bold tracking-normal text-cream sm:text-lg">
-              Ludovico Tech
+      <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 px-5 py-4 md:flex md:gap-2 lg:px-8">
+        <div className="contents md:mr-auto md:flex md:min-w-0 md:items-center md:gap-4">
+          <AppLink
+            aria-label="Ludovico Tech home"
+            className="flex min-w-0 items-center gap-2.5 text-left sm:gap-3"
+            href="/"
+            onNavigate={onNavigate}
+          >
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-marquee-light/40 bg-marquee-gold text-ink shadow-lg shadow-marquee-gold/15 sm:size-10 sm:rounded-2xl">
+              <Clapperboard size={20} strokeWidth={2.5} />
             </span>
-            <span className="hidden text-[10px] font-bold uppercase tracking-[0.2em] text-marquee-gold/55 sm:block">
-              A Pop Culture Re-education Program
+            <span className="w-min min-w-0">
+              <span className="block whitespace-nowrap font-display text-base font-bold tracking-normal text-cream sm:text-lg">
+                Ludovico Tech
+              </span>
+              <span
+                aria-label="A Pop Culture Re-education Program"
+                className="hidden text-[9px] font-bold uppercase leading-[1.45] tracking-[0.08em] text-marquee-gold/55 md:block"
+              >
+                <span aria-hidden="true" className="block whitespace-nowrap">
+                  A Pop Culture
+                </span>
+                <span aria-hidden="true" className="block whitespace-nowrap">
+                  Re-education Program
+                </span>
+              </span>
             </span>
-          </span>
-        </AppLink>
+          </AppLink>
 
-        <AppLink
-          aria-current={tab === "credits" ? "page" : undefined}
-          className={cn(
-            "col-start-1 row-start-2 justify-self-start text-xs font-semibold transition sm:col-auto sm:row-auto sm:ml-4 sm:mr-auto sm:text-sm",
-            tab === "credits"
-              ? "text-cream"
-              : "text-zinc-500 hover:text-marquee-light",
-          )}
-          href="/credits"
-          onNavigate={onNavigate}
-        >
-          Credits
-        </AppLink>
+          <AppLink
+            aria-current={tab === "credits" ? "page" : undefined}
+            className={cn(
+              "col-start-1 row-start-2 justify-self-start text-xs font-semibold transition sm:text-sm md:col-auto md:row-auto",
+              tab === "credits"
+                ? "text-cream"
+                : "text-zinc-500 hover:text-marquee-light",
+            )}
+            href="/credits"
+            onNavigate={onNavigate}
+          >
+            Credits
+          </AppLink>
+        </div>
 
-        <div className="contents sm:flex sm:items-center sm:gap-3">
+        <div className="contents md:flex md:items-center md:gap-3">
           <nav
             aria-label="Primary navigation"
-            className="col-start-2 row-start-2 flex items-center justify-self-end gap-1 rounded-full border border-marquee-gold/15 bg-black/25 p-1 sm:col-auto sm:row-auto sm:justify-self-auto"
+            className="col-start-2 row-start-2 flex items-center justify-self-end gap-1 rounded-full border border-marquee-gold/15 bg-black/25 p-1 md:col-auto md:row-auto md:justify-self-auto"
           >
             <NavButton
               active={tab === "home"}
@@ -91,7 +101,7 @@ export function AppHeader({
               Library
             </NavButton>
           </nav>
-          <div className="col-start-2 row-start-1 flex items-center gap-2 justify-self-end sm:col-auto sm:row-auto sm:justify-self-auto">
+          <div className="col-start-2 row-start-1 flex items-center gap-2 justify-self-end md:col-auto md:row-auto md:justify-self-auto">
             {action}
             <AuthControls auth={auth} onLogin={onLogin} onLogout={onLogout} />
           </div>
@@ -159,7 +169,7 @@ function AuthControls({
     <button
       aria-label={`Sign out${auth.actor?.displayName ? ` ${auth.actor.displayName}` : ""}`}
       onClick={onLogout}
-      className="max-w-[120px] truncate rounded-full border border-marquee-gold/15 px-3 py-2 text-xs text-zinc-400 hover:border-marquee-gold/35 hover:text-marquee-light sm:max-w-[180px]"
+      className="max-w-[120px] shrink-0 whitespace-nowrap rounded-full border border-marquee-gold/15 px-3 py-2 text-xs text-zinc-400 hover:border-marquee-gold/35 hover:text-marquee-light sm:max-w-[180px]"
     >
       Sign out
     </button>

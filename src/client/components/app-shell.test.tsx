@@ -37,7 +37,7 @@ describe("site identity", () => {
 
     expect(screen.getByText("Ludovico Tech")).toBeVisible();
     expect(
-      screen.getByText("A Pop Culture Re-education Program"),
+      screen.getByLabelText("A Pop Culture Re-education Program"),
     ).toBeVisible();
     expect(screen.queryByText("The watch club")).toBeNull();
   });
@@ -54,6 +54,7 @@ describe("site identity", () => {
     );
 
     const credits = screen.getByRole("link", { name: "Credits" });
+    const home = screen.getByRole("link", { name: "Ludovico Tech home" });
     const primaryNavigation = screen.getByRole("navigation", {
       name: "Primary navigation",
     });
@@ -61,6 +62,7 @@ describe("site identity", () => {
 
     expect(credits).toHaveAttribute("aria-current", "page");
     expect(credits.closest("nav")).toBeNull();
+    expect(credits.parentElement).toBe(home.parentElement);
     expect(
       credits.compareDocumentPosition(primaryNavigation) &
         Node.DOCUMENT_POSITION_FOLLOWING,
