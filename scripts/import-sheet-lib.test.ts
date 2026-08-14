@@ -152,6 +152,17 @@ describe("private Sheet sanitization", () => {
     });
   });
 
+  it("preserves a leading half-point score", () => {
+    const result = sanitizeSourceCsv(
+      `${header}\n8/1/2026 10:30:00,Synthetic Movie,No,No,,,0.5 Half-point phrase\n`,
+    );
+
+    expect(result.document.rows[0].rating).toEqual({
+      phrase: "Half-point phrase",
+      score: 0.5,
+    });
+  });
+
   it("applies reviewed row-only corrections only to invalid ratings", () => {
     const corrections = parseImportCorrectionsJson(
       JSON.stringify({
