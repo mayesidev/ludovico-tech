@@ -15,6 +15,10 @@ Tests should describe observable behavior and make the required functionality
 clear. Add or update the narrowest useful scenario when behavior changes; do not
 call live external services from automated tests.
 
+Schema changes must add a new numbered migration. Released migrations are
+immutable, and migrations must remain compatible with the currently deployed
+application until the new release finishes deploying.
+
 ## Checks
 
 ```sh
@@ -36,13 +40,3 @@ such as `docs`, `test`, `refactor`, and `chore` normally do not.
 `main` is protected by `CI / verify`. After merge, maintainers verify every
 applicable release or deployment workflow to a terminal state. The workflows and
 their tests—not this document—define the delivery mechanics.
-
-## Safety
-
-Never commit credentials, private source data, generated imports, local databases,
-`.env`, `/data`, or `/.agents`. Private imports require an explicitly reviewed
-operation. Protected deployments apply and verify the exact migration set from
-the published release before deploying its application code, so migrations must
-remain compatible with the prior deployed version if a later deployment step
-fails. Released migration files are immutable; add a new numbered migration to
-change an existing schema.
