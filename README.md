@@ -63,5 +63,5 @@ pnpm test:e2e
 See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a change. A selected legacy
 catalog can be loaded through the optional [private import runbook](docs/private-import.md).
 
-Never commit local secret files, `.env`, `/data`, `/.agents`, local databases,
-credentials, or generated private imports.
+Never commit credentials, private catalog source data, or generated private
+import artifacts.
