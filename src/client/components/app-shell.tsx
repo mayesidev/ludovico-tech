@@ -39,7 +39,7 @@ export function AppHeader({
         <div className="contents md:mr-auto md:flex md:min-w-0 md:items-center md:gap-4">
           <AppLink
             aria-label="Ludovico Tech home"
-            className="flex min-w-0 items-center gap-2.5 text-left sm:gap-3"
+            className="flex min-w-0 items-center gap-2.5 text-left sm:gap-3 md:px-5"
             href="/"
             onNavigate={onNavigate}
           >
@@ -47,12 +47,12 @@ export function AppHeader({
               <Clapperboard size={20} strokeWidth={2.5} />
             </span>
             <span className="w-min min-w-0">
-              <span className="block whitespace-nowrap font-display text-base font-bold tracking-normal text-cream sm:text-lg">
+              <span className="block whitespace-nowrap font-display text-base font-bold tracking-normal text-cream sm:text-lg md:text-[19px]">
                 Ludovico Tech
               </span>
               <span
                 aria-label="A Pop Culture Re-education Program"
-                className="hidden text-[9px] font-bold uppercase leading-[1.45] tracking-[0.08em] text-marquee-gold/55 md:block"
+                className="hidden text-[10px] font-bold uppercase leading-[1.4] tracking-[0.02em] text-marquee-gold/55 md:block"
               >
                 <span aria-hidden="true" className="block whitespace-nowrap">
                   A Pop Culture

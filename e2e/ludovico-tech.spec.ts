@@ -346,7 +346,12 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     expect(creditsBox).not.toBeNull();
     expect(nowShowingBox).not.toBeNull();
     expect(taglineBox!.width).toBeLessThanOrEqual(titleBox!.width + 1);
+    expect(
+      creditsBox!.x - (titleBox!.x + titleBox!.width),
+    ).toBeGreaterThanOrEqual(32);
     expect(creditsBox!.x).toBeLessThan(nowShowingBox!.x);
+    await expect(title).toHaveCSS("font-size", "19px");
+    await expect(tagline).toHaveCSS("font-size", "10px");
     await expect(signOut).toHaveText("Sign out");
     expect(
       await signOut.evaluate(
