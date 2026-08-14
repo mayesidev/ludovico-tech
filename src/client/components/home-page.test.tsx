@@ -14,6 +14,9 @@ const movie = (overrides: Partial<Movie> = {}): Movie => ({
   rating_score: null,
   release_date: "2020-01-02",
   runtime_minutes: null,
+  version: null,
+  version_runtime: null,
+  version_reference_url: null,
   title: "Test Movie",
   tmdb_id: null,
   watched_at: null,
@@ -32,6 +35,7 @@ const nowShowing = (overrides: Partial<NowShowing> = {}): NowShowing => ({
   rolled_movie_id: "movie-id",
   status: "ready",
   title: "Test Movie",
+  version: null,
   watched_at: null,
   ...overrides,
 });
@@ -60,6 +64,25 @@ const renderHome = (
 };
 
 describe("home workflows", () => {
+  it("appends a specified version to the current title", () => {
+    renderHome({
+      nowShowing: nowShowing({
+        title: "Batman",
+        version: "Director's Cut",
+      }),
+    });
+
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "Batman (Director's Cut) (2020)",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByLabelText("No poster available for Batman (Director's Cut)"),
+    ).toBeVisible();
+  });
+
   it("selects a half-point rating with a slider and requires the custom phrase", async () => {
     vi.spyOn(api, "rate").mockResolvedValue({ nowShowing: nowShowing() });
     const user = userEvent.setup();

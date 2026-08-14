@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowUp, ExternalLink } from "lucide-react";
 import { api, type Movie } from "../api";
 import type { Navigate, RunAction } from "../types";
+import { formatMovieTitle } from "../lib/utils";
 import { AppLink } from "./app-link";
 import { Badge, Button, Card } from "./ui";
 
@@ -153,6 +154,7 @@ export function CollectionDetailPage({
         <ol className="space-y-3">
           {draft.map((movie, index) => {
             const watched = movie.rating_score !== null;
+            const title = formatMovieTitle(movie.title, movie.version);
             return (
               <li
                 className="flex items-center gap-3 rounded-2xl border border-marquee-gold/10 bg-black/20 p-3 sm:gap-4"
@@ -167,7 +169,7 @@ export function CollectionDetailPage({
                     href={`/movies/${encodeURIComponent(movie.id)}`}
                     onNavigate={onNavigate}
                   >
-                    {movie.title}
+                    {title}
                   </AppLink>
                   {watched && movie.rating_phrase && (
                     <p className="mt-1 truncate text-xs text-zinc-500">
@@ -179,7 +181,7 @@ export function CollectionDetailPage({
                 {canMutate && (
                   <div className="flex shrink-0 gap-1">
                     <button
-                      aria-label={`Move ${movie.title} up`}
+                      aria-label={`Move ${title} up`}
                       className="rounded-lg p-2 text-zinc-500 hover:bg-curtain/30 hover:text-marquee-light disabled:opacity-30"
                       disabled={busy || index === 0}
                       onClick={() => move(index, -1)}
@@ -187,7 +189,7 @@ export function CollectionDetailPage({
                       <ArrowUp size={16} />
                     </button>
                     <button
-                      aria-label={`Move ${movie.title} down`}
+                      aria-label={`Move ${title} down`}
                       className="rounded-lg p-2 text-zinc-500 hover:bg-curtain/30 hover:text-marquee-light disabled:opacity-30"
                       disabled={busy || index === draft.length - 1}
                       onClick={() => move(index, 1)}

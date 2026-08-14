@@ -1,6 +1,7 @@
 import { useId, useRef } from "react";
 import { Trash2, X } from "lucide-react";
 import type { Movie } from "../api";
+import { formatMovieTitle } from "../lib/utils";
 import { Dialog } from "./dialog";
 import { Button } from "./ui";
 
@@ -18,6 +19,7 @@ export function DeleteMovieDialog({
   const cancelRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
   const descriptionId = useId();
+  const movieTitle = formatMovieTitle(movie.title, movie.version);
 
   return (
     <Dialog
@@ -35,7 +37,7 @@ export function DeleteMovieDialog({
             className="mt-2 font-display text-3xl font-bold text-cream"
             id={titleId}
           >
-            Delete {movie.title}?
+            Delete {movieTitle}?
           </h2>
           <p
             className="mt-3 text-sm leading-6 text-zinc-400"

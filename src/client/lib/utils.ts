@@ -25,5 +25,10 @@ export const formatRuntime = (minutes: number) => {
   return `${hours}h ${remainingMinutes}m`;
 };
 
+export const formatMovieTitle = (
+  title: string | null | undefined,
+  version: string | null | undefined,
+) => (title && version ? `${title} (${version})` : (title ?? ""));
+
 export const posterUrl = (path: string | null | undefined) =>
   path ? `https://image.tmdb.org/t/p/w500${path}` : null;

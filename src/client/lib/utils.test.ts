@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { formatDate, formatRuntime, posterUrl } from "./utils";
+import {
+  formatDate,
+  formatMovieTitle,
+  formatRuntime,
+  posterUrl,
+} from "./utils";
 
 describe("movie display helpers", () => {
   it("builds a TMDB poster URL from a path", () => {
@@ -20,5 +25,13 @@ describe("movie display helpers", () => {
     expect(formatRuntime(45)).toBe("45m");
     expect(formatRuntime(120)).toBe("2h");
     expect(formatRuntime(136)).toBe("2h 16m");
+  });
+
+  it("appends a specified version to a movie title", () => {
+    expect(formatMovieTitle("Batman", "Director's Cut")).toBe(
+      "Batman (Director's Cut)",
+    );
+    expect(formatMovieTitle("Batman", null)).toBe("Batman");
+    expect(formatMovieTitle(null, "Director's Cut")).toBe("");
   });
 });

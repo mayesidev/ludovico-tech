@@ -24,6 +24,7 @@ import { MovieDetailPage } from "./components/movie-detail-page";
 import { Button } from "./components/ui";
 import { parseRoute } from "./route";
 import type { RunAction, Tab } from "./types";
+import { formatMovieTitle } from "./lib/utils";
 import {
   POSTER_REEL_DURATION_MS,
   POSTER_REVEAL_DURATION_MS,
@@ -138,7 +139,10 @@ export default function App() {
         ]);
         const selected = {
           posterPath: result.nowShowing.poster_path,
-          title: result.nowShowing.title ?? result.rolledMovie.title,
+          title: formatMovieTitle(
+            result.nowShowing.title ?? result.rolledMovie.title,
+            result.nowShowing.version ?? result.rolledMovie.version,
+          ),
         };
         setNowShowing(result.nowShowing);
         setRollReveal((current) => ({

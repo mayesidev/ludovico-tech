@@ -10,7 +10,7 @@ import {
 import type { AuthState } from "../api";
 import type { Navigate, Tab } from "../types";
 import { Button } from "./ui";
-import { cn } from "../lib/utils";
+import { cn, formatMovieTitle } from "../lib/utils";
 import { AppLink } from "./app-link";
 import type { Movie } from "../api";
 import { POSTER_REEL_INTERVAL_MS } from "../lib/poster-reel";
@@ -231,6 +231,11 @@ export function RollReveal({
   const visibleMovie = selected
     ? { poster_path: selected.posterPath, title: selected.title }
     : reel[reelIndex];
+  const visibleTitle = selected
+    ? selected.title
+    : reel[reelIndex]
+      ? formatMovieTitle(reel[reelIndex].title, reel[reelIndex].version)
+      : null;
   const announcement = selected
     ? `Now showing: ${selected.title}`
     : "Choosing a movie";
@@ -250,7 +255,7 @@ export function RollReveal({
               key={selected?.title ?? reel[reelIndex]?.id ?? "empty"}
               large
               path={visibleMovie.poster_path}
-              title={visibleMovie.title}
+              title={visibleTitle ?? visibleMovie.title}
             />
           ) : (
             <div className="mx-auto grid aspect-[2/3] w-full max-w-[220px] place-items-center rounded-2xl border border-marquee-light/40 bg-curtain/35 text-marquee-light shadow-[0_0_48px_rgba(216,172,76,0.16)]">
@@ -262,7 +267,7 @@ export function RollReveal({
           {selected ? "Now showing" : "Choosing a movie"}
         </p>
         <h2 className="font-display text-4xl font-bold text-cream sm:text-6xl">
-          {visibleMovie?.title ?? "The posters are shuffling"}
+          {visibleTitle ?? "The posters are shuffling"}
         </h2>
       </div>
     </div>

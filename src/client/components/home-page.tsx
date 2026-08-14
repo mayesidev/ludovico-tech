@@ -3,6 +3,7 @@ import { ArrowDown, LoaderCircle, RotateCw, Star } from "lucide-react";
 import { api, type Movie, type NowShowing } from "../api";
 import type { Navigate, RunAction } from "../types";
 import { selectWatchedHistory } from "../lib/watched-history";
+import { formatMovieTitle } from "../lib/utils";
 import { AppLink } from "./app-link";
 import { Badge, Button, Card, Input } from "./ui";
 import { Poster } from "./poster";
@@ -41,6 +42,10 @@ export function HomePage({
     : null;
 
   const releaseYear = nowShowing?.release_date?.slice(0, 4) ?? null;
+  const nowShowingTitle = formatMovieTitle(
+    nowShowing?.title,
+    nowShowing?.version,
+  );
 
   return (
     <div className="space-y-14">
@@ -59,12 +64,12 @@ export function HomePage({
             >
               {nowShowing?.movie_id ? (
                 <AppLink
-                  aria-label={`${nowShowing.title}${releaseYear ? ` (${releaseYear})` : ""}`}
+                  aria-label={`${nowShowingTitle}${releaseYear ? ` (${releaseYear})` : ""}`}
                   className="transition hover:text-marquee-light"
                   href={`/movies/${encodeURIComponent(nowShowing.movie_id)}?from=now-showing`}
                   onNavigate={onNavigate}
                 >
-                  {nowShowing.title}
+                  {nowShowingTitle}
                   {releaseYear && (
                     <span className="ml-2 whitespace-nowrap font-sans text-2xl font-medium text-zinc-400 sm:text-3xl">
                       ({releaseYear})
@@ -88,7 +93,7 @@ export function HomePage({
             <div className="mx-auto mt-7 w-full max-w-[220px]">
               <Poster
                 path={nowShowing?.poster_path}
-                title={nowShowing?.title ?? "No movie selected"}
+                title={nowShowingTitle || "No movie selected"}
                 large
               />
             </div>
@@ -265,9 +270,10 @@ function HistoryCard({
   movie: Movie;
   onNavigate: Navigate;
 }) {
+  const title = formatMovieTitle(movie.title, movie.version);
   return (
     <AppLink
-      aria-label={`View details for ${movie.title}`}
+      aria-label={`View details for ${title}`}
       className="block h-full rounded-3xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-marquee-light"
       href={`/movies/${encodeURIComponent(movie.id)}?from=now-showing`}
       onNavigate={onNavigate}
@@ -275,11 +281,11 @@ function HistoryCard({
       <Card className="h-full overflow-hidden p-4 transition hover:border-marquee-gold/35 hover:bg-curtain/10">
         <div className="flex items-start gap-4">
           <div className="w-[72px] shrink-0">
-            <Poster path={movie.poster_path} title={movie.title} />
+            <Poster path={movie.poster_path} title={title} />
           </div>
           <div className="min-w-0 pt-1">
             <h3 className="font-display text-lg font-bold leading-tight text-cream">
-              {movie.title}
+              {title}
             </h3>
             {movie.rating_score !== null && (
               <p className="mt-3 text-sm leading-5 text-marquee-light">

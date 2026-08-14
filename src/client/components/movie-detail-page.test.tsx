@@ -14,6 +14,9 @@ const movie: Movie = {
   rating_score: 5,
   release_date: "1999-03-31",
   runtime_minutes: 136,
+  version: null,
+  version_runtime: null,
+  version_reference_url: null,
   title: "Test Movie",
   tmdb_collection_id: 2344,
   tmdb_collection_name: "Test Movie Collection",
@@ -22,6 +25,46 @@ const movie: Movie = {
 };
 
 describe("movie details", () => {
+  it("appends the version to the title and uses its runtime override", () => {
+    render(
+      <MovieDetailPage
+        movie={{
+          ...movie,
+          title: "Batman",
+          version: "Director's Cut",
+          version_reference_url: "https://example.com/batman-directors-cut",
+          version_runtime: 132,
+        }}
+        onNavigate={vi.fn()}
+        returnTo="library"
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "Batman (Director's Cut)",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: /Director's Cut/ }),
+    ).toHaveAttribute("href", "https://example.com/batman-directors-cut");
+    expect(screen.getByText("2h 12m")).toBeVisible();
+    expect(screen.queryByText("2h 16m")).toBeNull();
+  });
+
+  it("falls back to the TMDB runtime when a version has no override", () => {
+    render(
+      <MovieDetailPage
+        movie={{ ...movie, version: "International Release" }}
+        onNavigate={vi.fn()}
+        returnTo="library"
+      />,
+    );
+
+    expect(screen.getByText("2h 16m")).toBeVisible();
+  });
+
   it("gives the title the header width not needed by the rating", () => {
     render(
       <MovieDetailPage movie={movie} onNavigate={vi.fn()} returnTo="library" />,
@@ -133,6 +176,9 @@ describe("movie details", () => {
           rating_score: null,
           release_date: null,
           runtime_minutes: null,
+          version: null,
+          version_runtime: null,
+          version_reference_url: null,
           tmdb_collection_id: null,
           tmdb_collection_name: null,
           tmdb_id: null,

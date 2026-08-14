@@ -7,6 +7,9 @@ export type MovieRow = {
   release_date: string | null;
   poster_path: string | null;
   runtime_minutes: number | null;
+  version: string | null;
+  version_runtime: number | null;
+  version_reference_url: string | null;
   tmdb_id: number | null;
   tmdb_collection_id: number | null;
   tmdb_collection_name: string | null;
@@ -36,6 +39,7 @@ export type NowShowingRow = {
   rolled_at: string | null;
   updated_at: string;
   title: string | null;
+  version: string | null;
   release_date: string | null;
   poster_path: string | null;
   rating_score: number | null;
@@ -47,7 +51,8 @@ export type NowShowingRow = {
 
 export const movieSelect = `
   SELECT movies.id, movies.title, movies.added_at, movies.release_date,
-    movies.poster_path, movies.runtime_minutes, movies.tmdb_id,
+    movies.poster_path, movies.runtime_minutes, movies.version,
+    movies.version_runtime, movies.version_reference_url, movies.tmdb_id,
     movies.tmdb_collection_id, movies.tmdb_collection_name,
     collections.name AS collection_name,
     collections.order_confirmed AS collection_order_confirmed,
@@ -67,7 +72,7 @@ export const getMovie = async (env: AppEnv["Bindings"], id: string) =>
 
 export const getNowShowing = async (env: AppEnv["Bindings"]) =>
   env.DB.prepare(
-    `SELECT now_showing.*, movies.title, movies.release_date, movies.poster_path,
+    `SELECT now_showing.*, movies.title, movies.version, movies.release_date, movies.poster_path,
         ratings.score AS rating_score, ratings.phrase AS rating_phrase,
         ratings.watched_at, collection_movies.collection_id AS movie_collection_id,
         collections.name AS collection_name

@@ -14,6 +14,9 @@ const movie: Movie = {
   rating_score: null,
   release_date: "2021-03-04",
   runtime_minutes: null,
+  version: null,
+  version_runtime: null,
+  version_reference_url: null,
   title: "Matched Movie",
   tmdb_id: 42,
   watched_at: null,
@@ -50,6 +53,9 @@ describe("add movie dialog", () => {
 
     const title = screen.getByRole("textbox", { name: "Movie title" });
     await waitFor(() => expect(title).toHaveFocus());
+    expect(
+      screen.getByRole("checkbox", { name: /Specify a version/ }),
+    ).toBeDisabled();
     await user.type(title, "Candidate");
     await user.type(
       screen.getByRole("textbox", { name: "Collection (optional)" }),
@@ -59,12 +65,34 @@ describe("add movie dialog", () => {
     await user.click(
       await screen.findByRole("button", { name: /Matched Movie/ }),
     );
+    const versionToggle = screen.getByRole("checkbox", {
+      name: /Specify a version/,
+    });
+    expect(versionToggle).toBeEnabled();
+    await user.click(versionToggle);
+    const versionRuntime = screen.getByRole("spinbutton", {
+      name: "Version Runtime (minutes)",
+    });
+    const versionReferenceUrl = screen.getByRole("textbox", {
+      name: "Version Reference URL",
+    });
+    expect(versionRuntime).toBeDisabled();
+    expect(versionReferenceUrl).toBeDisabled();
+    await user.type(
+      screen.getByRole("textbox", { name: "Version" }),
+      "Director's Cut",
+    );
+    await user.type(versionRuntime, "112");
+    await user.type(versionReferenceUrl, "https://example.com/cuts/42");
     await user.click(screen.getByRole("button", { name: "Add movie" }));
 
     expect(api.addMovie).toHaveBeenCalledWith({
       collectionName: "A Saga",
       title: "Matched Movie",
       tmdbId: 42,
+      version: "Director's Cut",
+      versionReferenceUrl: "https://example.com/cuts/42",
+      versionRuntime: 112,
     });
     expect(onClose).toHaveBeenCalledOnce();
   });
@@ -138,6 +166,9 @@ describe("add movie dialog", () => {
       collectionName: "",
       title: "Matched Movie",
       tmdbId: 42,
+      version: null,
+      versionReferenceUrl: null,
+      versionRuntime: null,
     });
   });
 
