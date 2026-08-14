@@ -44,11 +44,12 @@ const request = async (
 const insertOauthState = async (
   state = "test-oauth-state",
   expiresAt = future,
+  returnTo = "/",
 ) => {
   await env.DB.prepare(
-    "INSERT INTO oauth_states (state, code_verifier, created_at, expires_at) VALUES (?, ?, ?, ?)",
+    "INSERT INTO oauth_states (state, code_verifier, created_at, expires_at, return_to) VALUES (?, ?, ?, ?, ?)",
   )
-    .bind(state, "test-code-verifier", past, expiresAt)
+    .bind(state, "test-code-verifier", past, expiresAt, returnTo)
     .run();
   return state;
 };
@@ -124,7 +125,7 @@ describe("production runtime configuration", () => {
 describe("Google authentication", () => {
   it("creates a short-lived state with an S256 PKCE challenge", async () => {
     const response = await request(
-      "/api/auth/google",
+      "/api/auth/google?returnTo=%2Fmovies%2Fmovie-1%3Ffrom%3Dnow-showing",
       productionEnv(googleConfiguration),
     );
 
@@ -137,16 +138,45 @@ describe("Google authentication", () => {
     expect(state).toBeTruthy();
 
     const stored = await env.DB.prepare(
-      "SELECT code_verifier, expires_at FROM oauth_states WHERE state = ?",
+      "SELECT code_verifier, expires_at, return_to FROM oauth_states WHERE state = ?",
     )
       .bind(state)
-      .first<{ code_verifier: string; expires_at: string }>();
+      .first<{
+        code_verifier: string;
+        expires_at: string;
+        return_to: string;
+      }>();
     expect(stored).toBeTruthy();
     expect(await sha256Base64Url(stored!.code_verifier)).toBe(
       location.searchParams.get("code_challenge"),
     );
     expect(stored!.expires_at > new Date().toISOString()).toBe(true);
+    expect(stored!.return_to).toBe("/movies/movie-1?from=now-showing");
   });
+
+  it.each([
+    "https://example.test/movies/movie-1",
+    "//example.test/movies/movie-1",
+    "/\\\\example.test/movies/movie-1",
+  ])(
+    "falls back to Now Showing for an unsafe return path: %s",
+    async (returnTo) => {
+      const response = await request(
+        `/api/auth/google?returnTo=${encodeURIComponent(returnTo)}`,
+        productionEnv(googleConfiguration),
+      );
+      const state = new URL(
+        response.headers.get("Location") ?? "",
+      ).searchParams.get("state");
+      const stored = await env.DB.prepare(
+        "SELECT return_to FROM oauth_states WHERE state = ?",
+      )
+        .bind(state)
+        .first<{ return_to: string }>();
+
+      expect(stored?.return_to).toBe("/");
+    },
+  );
 
   it("rejects callbacks without a valid unexpired state", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch");
@@ -255,7 +285,11 @@ describe("Google authentication", () => {
   });
 
   it("creates an allowlisted session and returns only the public actor", async () => {
-    const state = await insertOauthState();
+    const state = await insertOauthState(
+      "successful-state",
+      future,
+      "/movies/movie-1?from=now-showing",
+    );
     const fetchMock = vi.spyOn(globalThis, "fetch");
     fetchMock
       .mockResolvedValueOnce(
@@ -280,6 +314,9 @@ describe("Google authentication", () => {
       productionEnv(googleConfiguration),
     );
     expect(callback.status).toBe(302);
+    expect(callback.headers.get("Location")).toBe(
+      "/movies/movie-1?from=now-showing",
+    );
     const cookie = callback.headers.get("Set-Cookie") ?? "";
     expect(cookie).toContain("HttpOnly");
     expect(cookie).toContain("SameSite=Lax");
