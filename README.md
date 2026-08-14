@@ -60,8 +60,9 @@ pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a change. A selected legacy
-catalog can be loaded through the optional [private import runbook](docs/private-import.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the release compatibility contract and
+before opening a change. A selected legacy catalog can be loaded through the
+optional [private import runbook](docs/private-import.md).
 
 Never commit credentials, private catalog source data, or generated private
 import artifacts.

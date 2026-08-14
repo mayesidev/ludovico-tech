@@ -30,12 +30,27 @@ pnpm build
 Run `pnpm test:e2e` for browser workflows. Required CI remains the terminal
 integration gate.
 
+## Versions and compatibility
+
+Releases follow Semantic Versioning across both application behavior and the
+supported deployment contract. A change that makes a previously supported
+application integration, database migration history, or deployment invocation
+incompatible must be marked as breaking and produce a new major version.
+
+Deployments apply the selected release's numbered migrations in order, then
+require the D1 migration history to exactly match the files in that release.
+Missing release migrations are applied automatically. Renamed, reordered, or
+additional migration records are incompatible with that release, and the
+deployment stops before publishing its application code.
+
 ## Commits and delivery
 
 Use Conventional Commit messages. The pull-request title must also be valid
 because squash merge uses it as the default-branch commit. Choose the type by the
 effect of the change: `feat` and `fix` normally produce releases, while changes
-such as `docs`, `test`, `refactor`, and `chore` normally do not.
+such as `docs`, `test`, `refactor`, and `chore` normally do not. Mark breaking
+changes with `!` and a `BREAKING CHANGE:` footer so the release receives a new
+major version.
 
 `main` is protected by `CI / verify`. After merge, maintainers verify every
 applicable release or deployment workflow to a terminal state. The workflows and
