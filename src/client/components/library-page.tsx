@@ -99,9 +99,11 @@ export function LibraryPage({
         cell: ({ getValue }) => formatDate(getValue() as string),
       },
       {
-        accessorKey: "rating_score",
+        id: "rating_score",
+        accessorFn: (movie) => movie.rating_score ?? undefined,
         header: "Rating",
         sortFn: "basic",
+        sortUndefined: "last",
         cell: ({ row }) =>
           row.original.rating_score !== null ? (
             <span className="text-marquee-light">

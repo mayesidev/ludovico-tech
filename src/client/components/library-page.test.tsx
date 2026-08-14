@@ -158,6 +158,46 @@ describe("movie library", () => {
     expect(screen.queryByText("Unwatched")).toBeNull();
   });
 
+  it("keeps zero-rated movies ahead of unrated movies when sorting", async () => {
+    const user = userEvent.setup();
+    const zeroRatedMovie: Movie = {
+      ...movies[1],
+      id: "zero-id",
+      rating_phrase: "Zero elements",
+      rating_score: 0,
+      title: "Zero Movie",
+    };
+
+    render(
+      <LibraryPage
+        canMutate={false}
+        movies={[movies[0], movies[1], zeroRatedMovie]}
+        onEdit={vi.fn()}
+        onNavigate={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Rating" }));
+    expect(
+      screen.getByRole("columnheader", { name: /Rating/ }),
+    ).toHaveAttribute("aria-sort", "descending");
+    expect(getRenderedMovieTitles()).toEqual([
+      "Alpha Movie",
+      "Zero Movie",
+      "Zulu Movie",
+    ]);
+
+    await user.click(screen.getByRole("button", { name: /Rating/ }));
+    expect(
+      screen.getByRole("columnheader", { name: /Rating/ }),
+    ).toHaveAttribute("aria-sort", "ascending");
+    expect(getRenderedMovieTitles()).toEqual([
+      "Zero Movie",
+      "Alpha Movie",
+      "Zulu Movie",
+    ]);
+  });
+
   it("keeps the public catalog browse-only", () => {
     render(
       <LibraryPage
