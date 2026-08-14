@@ -318,7 +318,7 @@ const parseRating = (value: string): GeneralizedRating | null | undefined => {
   if (!trimmed) return null;
 
   const leading = trimmed.match(
-    /^(0(?:\.0)?|[1-4](?:\.0|\.5)?|5(?:\.0)?)\s*(?:[-–—:]\s*)?(.+)$/,
+    /^(0(?:\.0|\.5)?|[1-4](?:\.0|\.5)?|5(?:\.0)?)\s*(?:[-–—:]\s*)?(.+)$/,
   );
   const trailing = trimmed.match(
     /^(.+?)\s*(?:[-–—:]\s*)?(0(?:\.0)?|[1-4](?:\.0|\.5)?|5(?:\.0)?)$/,
