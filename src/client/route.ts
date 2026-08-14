@@ -1,6 +1,7 @@
 export type AppRoute =
   | { page: "home" }
   | { page: "library" }
+  | { page: "credits" }
   | {
       page: "movie";
       movieId: string;
@@ -19,6 +20,9 @@ export const parseRoute = (pathname: string, search = ""): AppRoute => {
   if (segments.length === 0) return { page: "home" };
   if (segments.length === 1 && segments[0] === "library") {
     return { page: "library" };
+  }
+  if (segments.length === 1 && segments[0] === "credits") {
+    return { page: "credits" };
   }
   if (segments.length === 2 && segments[0] === "movies") {
     try {

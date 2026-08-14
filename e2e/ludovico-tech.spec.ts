@@ -1,6 +1,26 @@
 import { expect, test } from "@playwright/test";
 
 test.describe.serial("Ludovico Tech browser workflows", () => {
+  test("presents the project credits and required attribution", async ({
+    page,
+  }) => {
+    await page.goto("/credits");
+
+    await expect(page).toHaveURL(/\/credits$/);
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Credits" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Ludovico Tech on GitHub" }),
+    ).toHaveAttribute("href", "https://github.com/mayesidev/ludovico-tech");
+    await expect(
+      page.getByText(
+        "This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.",
+      ),
+    ).toBeVisible();
+    await expect(page.locator("footer")).toHaveCount(0);
+  });
+
   test("adds a movie, rolls it, and records its required final rating", async ({
     page,
   }) => {

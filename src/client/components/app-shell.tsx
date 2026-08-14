@@ -11,7 +11,6 @@ import type { AuthState } from "../api";
 import type { Navigate, Tab } from "../types";
 import { Button } from "./ui";
 import { cn } from "../lib/utils";
-import tmdbLogo from "../assets/tmdb-logo.svg";
 import { AppLink } from "./app-link";
 import type { Movie } from "../api";
 import { POSTER_REEL_INTERVAL_MS } from "../lib/poster-reel";
@@ -36,7 +35,7 @@ export function AppHeader({
 }: AppHeaderProps) {
   return (
     <header className="relative z-10 border-b border-curtain/50 bg-ink/85 shadow-[0_1px_24px_rgba(120,23,41,0.12)] backdrop-blur-xl">
-      <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto] items-center gap-x-3 gap-y-3 px-5 py-4 sm:flex sm:justify-between sm:gap-2 lg:px-8">
+      <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 px-5 py-4 sm:flex sm:gap-2 lg:px-8">
         <AppLink
           aria-label="Ludovico Tech home"
           className="flex min-w-0 items-center gap-2.5 text-left sm:gap-3"
@@ -56,10 +55,24 @@ export function AppHeader({
           </span>
         </AppLink>
 
+        <AppLink
+          aria-current={tab === "credits" ? "page" : undefined}
+          className={cn(
+            "col-start-1 row-start-2 justify-self-start text-xs font-semibold transition sm:col-auto sm:row-auto sm:ml-4 sm:mr-auto sm:text-sm",
+            tab === "credits"
+              ? "text-cream"
+              : "text-zinc-500 hover:text-marquee-light",
+          )}
+          href="/credits"
+          onNavigate={onNavigate}
+        >
+          Credits
+        </AppLink>
+
         <div className="contents sm:flex sm:items-center sm:gap-3">
           <nav
             aria-label="Primary navigation"
-            className="col-span-2 row-start-2 flex items-center justify-self-center gap-1 rounded-full border border-marquee-gold/15 bg-black/25 p-1 sm:col-auto sm:row-auto sm:justify-self-auto"
+            className="col-start-2 row-start-2 flex items-center justify-self-end gap-1 rounded-full border border-marquee-gold/15 bg-black/25 p-1 sm:col-auto sm:row-auto sm:justify-self-auto"
           >
             <NavButton
               active={tab === "home"}
@@ -243,29 +256,5 @@ export function RollReveal({
         </h2>
       </div>
     </div>
-  );
-}
-
-export function Footer() {
-  return (
-    <footer className="relative z-10 mx-auto max-w-7xl border-t border-curtain/35 px-5 py-8 text-xs leading-5 text-zinc-600 lg:px-8">
-      <a
-        className="mb-3 inline-block"
-        href="https://www.themoviedb.org/"
-        target="_blank"
-        rel="noreferrer"
-        aria-label="The Movie Database"
-      >
-        <img
-          alt="TMDB"
-          className="h-3.5 w-auto"
-          loading="lazy"
-          src={tmdbLogo}
-        />
-      </a>
-      <p>
-        This product uses the TMDB API but is not endorsed or certified by TMDB.
-      </p>
-    </footer>
   );
 }

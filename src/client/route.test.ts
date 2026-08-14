@@ -5,6 +5,7 @@ describe("client routes", () => {
   it("recognizes catalog pages and encoded movie IDs", () => {
     expect(parseRoute("/")).toEqual({ page: "home" });
     expect(parseRoute("/library")).toEqual({ page: "library" });
+    expect(parseRoute("/credits")).toEqual({ page: "credits" });
     expect(parseRoute("/movies/movie%20id")).toEqual({
       page: "movie",
       movieId: "movie id",

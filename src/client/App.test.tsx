@@ -97,6 +97,15 @@ describe("application authorization presentation", () => {
       "aria-current",
       "page",
     );
+
+    const credits = screen.getByRole("link", { name: "Credits" });
+    await user.click(credits);
+    expect(window.location.pathname).toBe("/credits");
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Credits" }),
+    ).toBeVisible();
+    expect(credits).toHaveAttribute("aria-current", "page");
+    expect(document.querySelector("footer")).toBeNull();
   });
 
   it("shows contributor controls to an authenticated visitor and logs out safely", async () => {

@@ -2,7 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Movie } from "../api";
 import { POSTER_REEL_INTERVAL_MS } from "../lib/poster-reel";
-import { AppHeader, Footer, RollReveal } from "./app-shell";
+import { AppHeader, RollReveal } from "./app-shell";
 
 const reelMovie = (id: string): Movie => ({
   added_at: "2026-08-07T00:00:00.000Z",
@@ -41,23 +41,34 @@ describe("site identity", () => {
     ).toBeVisible();
     expect(screen.queryByText("The watch club")).toBeNull();
   });
-});
 
-describe("TMDB attribution", () => {
-  it("shows the approved provider identity and required notice", () => {
-    render(<Footer />);
-
-    const link = screen.getByRole("link", { name: "The Movie Database" });
-    expect(link).toHaveAttribute("href", "https://www.themoviedb.org/");
-    expect(screen.getByAltText("TMDB")).toHaveAttribute(
-      "src",
-      expect.stringMatching(/^data:image\/svg\+xml/),
+  it("keeps Credits with the site identity and outside primary actions", () => {
+    render(
+      <AppHeader
+        auth={{ actor: null, authenticated: false, local: false }}
+        onLogin={vi.fn()}
+        onLogout={vi.fn()}
+        onNavigate={vi.fn()}
+        tab="credits"
+      />,
     );
+
+    const credits = screen.getByRole("link", { name: "Credits" });
+    const primaryNavigation = screen.getByRole("navigation", {
+      name: "Primary navigation",
+    });
+    const signIn = screen.getByRole("button", { name: "Sign in" });
+
+    expect(credits).toHaveAttribute("aria-current", "page");
+    expect(credits.closest("nav")).toBeNull();
     expect(
-      screen.getByText(
-        "This product uses the TMDB API but is not endorsed or certified by TMDB.",
-      ),
-    ).toBeInTheDocument();
+      credits.compareDocumentPosition(primaryNavigation) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      primaryNavigation.compareDocumentPosition(signIn) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });
 
