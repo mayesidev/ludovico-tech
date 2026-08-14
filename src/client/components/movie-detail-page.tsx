@@ -163,7 +163,7 @@ export function MovieDetailPage({
             movie.imdb_id !== null ||
             canEdit ||
             canDelete) && (
-            <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
+            <div className="mt-8 space-y-4">
               {(movie.tmdb_id !== null || movie.imdb_id !== null) && (
                 <div className="flex flex-wrap items-center gap-4">
                   {movie.tmdb_id !== null && (
@@ -190,20 +190,22 @@ export function MovieDetailPage({
                   )}
                 </div>
               )}
-              <div className="ml-auto flex flex-wrap items-center gap-2">
-                {canEdit && (
-                  <Button onClick={() => onEdit(movie)} variant="secondary">
-                    <Pencil size={15} />
-                    Edit movie
-                  </Button>
-                )}
-                {canDelete && (
-                  <Button onClick={() => onDelete(movie)} variant="danger">
-                    <Trash2 size={15} />
-                    Delete movie
-                  </Button>
-                )}
-              </div>
+              {(canEdit || canDelete) && (
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {canEdit && (
+                    <Button onClick={() => onEdit(movie)} variant="secondary">
+                      <Pencil size={15} />
+                      Edit movie
+                    </Button>
+                  )}
+                  {canDelete && (
+                    <Button onClick={() => onDelete(movie)} variant="danger">
+                      <Trash2 size={15} />
+                      Delete movie
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

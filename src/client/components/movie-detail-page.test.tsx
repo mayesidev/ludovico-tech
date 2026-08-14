@@ -127,7 +127,15 @@ describe("movie details", () => {
       />,
     );
 
-    screen.getByRole("button", { name: "Edit movie" }).click();
+    const editButton = screen.getByRole("button", { name: "Edit movie" });
+    const providerLinks = screen.getByRole("link", {
+      name: "View on TMDB",
+    }).parentElement;
+    const actions = editButton.parentElement;
+    expect(actions).not.toBe(providerLinks);
+    expect(actions?.previousElementSibling).toBe(providerLinks);
+
+    editButton.click();
     expect(onEdit).toHaveBeenCalledWith(movie);
     expect(screen.queryByRole("button", { name: "Delete movie" })).toBeNull();
   });
