@@ -1,10 +1,27 @@
+import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
+import { api } from "../api";
 import tmdbLogo from "../assets/tmdb-logo.svg";
 
 const linkClassName =
   "inline-flex items-center justify-center gap-2 font-semibold text-marquee-light transition hover:text-cream";
 
 export function CreditsPage() {
+  const [version, setVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void api
+      .health()
+      .then((health) => {
+        if (active) setVersion(health.version);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <article className="mx-auto max-w-3xl py-6 text-center sm:py-10">
       <header>
@@ -47,7 +64,7 @@ export function CreditsPage() {
           >
             Production
           </h2>
-          <dl className="mx-auto mt-8 grid max-w-xl gap-10 sm:grid-cols-2">
+          <dl className="mx-auto mt-8 grid max-w-2xl gap-10 sm:grid-cols-3">
             <div>
               <dt className="text-xs uppercase tracking-[0.22em] text-zinc-500">
                 Source code
@@ -78,6 +95,14 @@ export function CreditsPage() {
                   MIT License
                   <ExternalLink size={15} />
                 </a>
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-[0.22em] text-zinc-500">
+                Version
+              </dt>
+              <dd className="mt-3 font-semibold text-cream">
+                {version ?? "Unavailable"}
               </dd>
             </div>
           </dl>

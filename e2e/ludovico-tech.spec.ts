@@ -25,6 +25,8 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await expect(
       page.getByRole("link", { name: "Ludovico Tech on GitHub" }),
     ).toHaveAttribute("href", "https://github.com/mayesidev/ludovico-tech");
+    await expect(page.getByText("Version", { exact: true })).toBeVisible();
+    await expect(page.getByText("unversioned", { exact: true })).toBeVisible();
     await expect(
       page.getByText(
         "This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.",

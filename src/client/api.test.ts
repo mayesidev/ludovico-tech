@@ -11,6 +11,7 @@ describe("client API", () => {
   it("uses the stable routes and request bodies", async () => {
     const fetchMock = vi.mocked(fetch).mockResolvedValue(jsonResponse());
 
+    await api.health();
     await api.authMe();
     await api.logout();
     await api.nowShowing();
@@ -31,6 +32,7 @@ describe("client API", () => {
     await api.tmdbMovie(42);
 
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
+      "/api/health",
       "/api/auth/me",
       "/api/auth/logout",
       "/api/now-showing",
@@ -46,16 +48,16 @@ describe("client API", () => {
       "/api/tmdb/search?query=A%20movie%20%26%20sequel",
       "/api/tmdb/movies/42",
     ]);
-    expect(fetchMock.mock.calls[7]?.[1]?.method).toBe("POST");
-    expect(JSON.parse(String(fetchMock.mock.calls[7]?.[1]?.body))).toEqual({
+    expect(fetchMock.mock.calls[8]?.[1]?.method).toBe("POST");
+    expect(JSON.parse(String(fetchMock.mock.calls[8]?.[1]?.body))).toEqual({
       phrase: "Custom phrase",
       score: 4.5,
     });
-    expect(fetchMock.mock.calls[8]?.[1]).toMatchObject({
+    expect(fetchMock.mock.calls[9]?.[1]).toMatchObject({
       body: JSON.stringify({ movieIds: ["first", "second"] }),
       method: "POST",
     });
-    expect(fetchMock.mock.calls[9]?.[1]).toMatchObject({
+    expect(fetchMock.mock.calls[10]?.[1]).toMatchObject({
       body: JSON.stringify({
         collectionName: "Saga",
         title: "Movie",
@@ -63,11 +65,11 @@ describe("client API", () => {
       }),
       method: "POST",
     });
-    expect(fetchMock.mock.calls[10]?.[1]).toMatchObject({
+    expect(fetchMock.mock.calls[11]?.[1]).toMatchObject({
       body: JSON.stringify({ title: "New title" }),
       method: "PATCH",
     });
-    expect(fetchMock.mock.calls[11]?.[1]).toMatchObject({ method: "DELETE" });
+    expect(fetchMock.mock.calls[12]?.[1]).toMatchObject({ method: "DELETE" });
   });
 
   it("returns parsed JSON and preserves a safe HTTP error status", async () => {

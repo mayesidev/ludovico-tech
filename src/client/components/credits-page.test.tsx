@@ -1,9 +1,16 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { api } from "../api";
 import { CreditsPage } from "./credits-page";
 
 describe("credits page", () => {
-  it("presents the project and provider credits", () => {
+  it("presents the project and provider credits", async () => {
+    vi.spyOn(api, "health").mockResolvedValue({
+      commit: "release-commit",
+      environment: "production",
+      ok: true,
+      version: "v1.4.1",
+    });
     render(<CreditsPage />);
 
     expect(
@@ -20,6 +27,7 @@ describe("credits page", () => {
       "href",
       "https://github.com/mayesidev/ludovico-tech/blob/main/LICENSE",
     );
+    expect(await screen.findByText("v1.4.1")).toBeVisible();
 
     expect(
       screen.getByRole("link", { name: "The Movie Database" }),
@@ -33,5 +41,14 @@ describe("credits page", () => {
         "This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.",
       ),
     ).toBeVisible();
+  });
+
+  it("remains available when release health cannot be loaded", () => {
+    vi.spyOn(api, "health").mockRejectedValue(new Error("Unavailable"));
+
+    render(<CreditsPage />);
+
+    expect(screen.getByText("Version")).toBeVisible();
+    expect(screen.getByText("Unavailable")).toBeVisible();
   });
 });
