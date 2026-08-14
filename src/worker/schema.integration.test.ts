@@ -104,6 +104,62 @@ describe("catalog schema", () => {
     ).rejects.toThrow();
   });
 
+  it("keeps version details attached to a TMDB movie and a named version", async () => {
+    await insertMovie("movie-valid-version");
+    await env.DB.prepare(
+      `UPDATE movies
+       SET tmdb_id = ?, version = ?, version_runtime = ?, version_reference_url = ?
+       WHERE id = ?`,
+    )
+      .bind(
+        42,
+        "Director's Cut",
+        112,
+        "https://example.com/cuts/42",
+        "movie-valid-version",
+      )
+      .run();
+
+    await insertMovie("movie-version-without-tmdb");
+    await expect(
+      env.DB.prepare("UPDATE movies SET version = ? WHERE id = ?")
+        .bind("Director's Cut", "movie-version-without-tmdb")
+        .run(),
+    ).rejects.toThrow();
+
+    await insertMovie("movie-details-without-version");
+    await expect(
+      env.DB.prepare(
+        "UPDATE movies SET tmdb_id = ?, version_runtime = ? WHERE id = ?",
+      )
+        .bind(43, 100, "movie-details-without-version")
+        .run(),
+    ).rejects.toThrow();
+
+    await insertMovie("movie-invalid-version-runtime");
+    await expect(
+      env.DB.prepare(
+        "UPDATE movies SET tmdb_id = ?, version = ?, version_runtime = ? WHERE id = ?",
+      )
+        .bind(44, "Extended Edition", 0, "movie-invalid-version-runtime")
+        .run(),
+    ).rejects.toThrow();
+
+    await insertMovie("movie-invalid-version-url");
+    await expect(
+      env.DB.prepare(
+        "UPDATE movies SET tmdb_id = ?, version = ?, version_reference_url = ? WHERE id = ?",
+      )
+        .bind(
+          45,
+          "Fan Edit",
+          "file:///private/edit.mkv",
+          "movie-invalid-version-url",
+        )
+        .run(),
+    ).rejects.toThrow();
+  });
+
   it("enforces positive unique collection positions and one membership per movie", async () => {
     await env.DB.prepare(
       `INSERT INTO collections

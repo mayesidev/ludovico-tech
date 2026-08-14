@@ -1,9 +1,14 @@
 import { useId, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { api } from "../api";
+import {
+  parseVersionReferenceUrl,
+  parseVersionRuntime,
+} from "../lib/movie-version";
 import { parseTmdbId } from "../lib/tmdb-id";
 import type { RunAction } from "../types";
 import { Dialog } from "./dialog";
+import { MovieVersionFields } from "./movie-version-fields";
 import { TmdbMovieFields } from "./tmdb-movie-fields";
 import { Button, Input } from "./ui";
 
@@ -21,6 +26,10 @@ export function AddMovieDialog({
   const [title, setTitle] = useState("");
   const [collectionName, setCollectionName] = useState("");
   const [tmdbId, setTmdbId] = useState("");
+  const [versionSpecified, setVersionSpecified] = useState(false);
+  const [version, setVersion] = useState("");
+  const [versionRuntime, setVersionRuntime] = useState("");
+  const [versionReferenceUrl, setVersionReferenceUrl] = useState("");
   const [attempted, setAttempted] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const dialogTitleId = useId();
@@ -28,7 +37,22 @@ export function AddMovieDialog({
   const collectionId = useId();
   const titleErrorId = useId();
   const parsedTmdbId = parseTmdbId(tmdbId);
+  const parsedVersionRuntime = parseVersionRuntime(versionRuntime);
+  const parsedVersionReferenceUrl =
+    parseVersionReferenceUrl(versionReferenceUrl);
+  const usingVersion =
+    parsedTmdbId !== null && parsedTmdbId !== undefined && versionSpecified;
   const invalidTitle = attempted && !title.trim();
+
+  const changeTmdbId = (value: string) => {
+    if (parseTmdbId(value) !== parsedTmdbId) {
+      setVersionSpecified(false);
+      setVersion("");
+      setVersionRuntime("");
+      setVersionReferenceUrl("");
+    }
+    setTmdbId(value);
+  };
 
   return (
     <Dialog
@@ -62,7 +86,7 @@ export function AddMovieDialog({
         <TmdbMovieFields
           onAuthExpired={onAuthExpired}
           onTitleChange={setTitle}
-          onTmdbIdChange={setTmdbId}
+          onTmdbIdChange={changeTmdbId}
           title={title}
           titleErrorId={titleErrorId}
           titleInputRef={titleInputRef}
@@ -74,6 +98,24 @@ export function AddMovieDialog({
             Enter a movie title.
           </p>
         )}
+        <MovieVersionFields
+          attempted={attempted}
+          onSpecifiedChange={setVersionSpecified}
+          onVersionChange={setVersion}
+          onVersionReferenceUrlChange={setVersionReferenceUrl}
+          onVersionRuntimeChange={setVersionRuntime}
+          specified={versionSpecified}
+          tmdbSelected={parsedTmdbId !== null && parsedTmdbId !== undefined}
+          version={version}
+          versionReferenceUrl={versionReferenceUrl}
+          versionReferenceUrlInvalid={
+            usingVersion && parsedVersionReferenceUrl === undefined
+          }
+          versionRuntime={versionRuntime}
+          versionRuntimeInvalid={
+            usingVersion && parsedVersionRuntime === undefined
+          }
+        />
         <label className="sr-only" htmlFor={collectionId}>
           Collection (optional)
         </label>
@@ -95,13 +137,26 @@ export function AddMovieDialog({
             disabled={busy || parsedTmdbId === undefined}
             onClick={() => {
               setAttempted(true);
-              if (!title.trim() || parsedTmdbId === undefined) return;
+              if (
+                !title.trim() ||
+                parsedTmdbId === undefined ||
+                (usingVersion &&
+                  (!version.trim() ||
+                    parsedVersionRuntime === undefined ||
+                    parsedVersionReferenceUrl === undefined))
+              )
+                return;
               void run(
                 () =>
                   api.addMovie({
                     title,
                     collectionName,
                     tmdbId: parsedTmdbId,
+                    version: usingVersion ? version.trim() : null,
+                    versionRuntime: usingVersion ? parsedVersionRuntime : null,
+                    versionReferenceUrl: usingVersion
+                      ? parsedVersionReferenceUrl
+                      : null,
                   }),
                 onClose,
               );

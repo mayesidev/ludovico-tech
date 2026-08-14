@@ -98,6 +98,24 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     if (!actor) return c.json({ error: "Authentication required" }, 401);
 
     const input = c.req.valid("json");
+    const version = input.version ?? null;
+    const versionRuntime = input.versionRuntime ?? null;
+    const versionReferenceUrl = input.versionReferenceUrl ?? null;
+    if (version !== null && !input.tmdbId) {
+      return c.json(
+        { error: "Select a TMDB movie before specifying a version" },
+        400,
+      );
+    }
+    if (
+      version === null &&
+      (versionRuntime !== null || versionReferenceUrl !== null)
+    ) {
+      return c.json(
+        { error: "Specify a version before adding version details" },
+        400,
+      );
+    }
     const id = newId();
     const timestamp = now();
     let metadata = null;
@@ -159,8 +177,9 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       c.env.DB.prepare(
         `INSERT INTO movies (id, title, title_normalized, added_at, added_by, updated_at, updated_by,
         release_date, poster_path, runtime_minutes, tmdb_id, tmdb_fetched_at,
-        tmdb_collection_id, tmdb_collection_name)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        tmdb_collection_id, tmdb_collection_name, version, version_runtime,
+        version_reference_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         id,
         title,
@@ -176,6 +195,9 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         input.tmdbId ? timestamp : null,
         metadata?.collection?.id ?? null,
         metadata?.collection?.name ?? null,
+        version,
+        versionRuntime,
+        versionReferenceUrl,
       ),
     );
 
@@ -254,6 +276,53 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     const tmdbCollectionName = tmdbChangeRequested
       ? (metadata?.collection?.name ?? null)
       : existing.tmdb_collection_name;
+    const resolvedTmdbId = tmdbChangeRequested
+      ? (input.tmdbId ?? null)
+      : existing.tmdb_id;
+    const tmdbIdentityChanged =
+      tmdbChangeRequested && resolvedTmdbId !== existing.tmdb_id;
+    let version =
+      input.version !== undefined
+        ? input.version
+        : tmdbIdentityChanged
+          ? null
+          : existing.version;
+    let versionRuntime =
+      input.versionRuntime !== undefined
+        ? input.versionRuntime
+        : input.version === null || tmdbIdentityChanged
+          ? null
+          : existing.version_runtime;
+    let versionReferenceUrl =
+      input.versionReferenceUrl !== undefined
+        ? input.versionReferenceUrl
+        : input.version === null || tmdbIdentityChanged
+          ? null
+          : existing.version_reference_url;
+    if (resolvedTmdbId === null) {
+      const versionDetailsRequested = [
+        input.version,
+        input.versionRuntime,
+        input.versionReferenceUrl,
+      ].some((value) => value !== null && value !== undefined);
+      if (versionDetailsRequested) {
+        return c.json(
+          { error: "Select a TMDB movie before specifying a version" },
+          400,
+        );
+      }
+      version = null;
+      versionRuntime = null;
+      versionReferenceUrl = null;
+    } else if (
+      version === null &&
+      (versionRuntime !== null || versionReferenceUrl !== null)
+    ) {
+      return c.json(
+        { error: "Specify a version before adding version details" },
+        400,
+      );
+    }
 
     let targetCollectionId = existing.collection_id;
     let targetCollectionName: string | null = null;
@@ -298,7 +367,8 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       c.env.DB.prepare(
         `UPDATE movies SET title = ?, title_normalized = ?, updated_at = ?, updated_by = ?,
         release_date = ?, poster_path = ?, runtime_minutes = ?, tmdb_id = ?,
-        tmdb_collection_id = ?, tmdb_collection_name = ?,
+        tmdb_collection_id = ?, tmdb_collection_name = ?, version = ?,
+        version_runtime = ?, version_reference_url = ?,
         tmdb_fetched_at = CASE WHEN ? THEN ? ELSE tmdb_fetched_at END
         WHERE id = ?`,
       ).bind(
@@ -309,9 +379,12 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         releaseDate,
         posterPath,
         runtimeMinutes,
-        input.tmdbId === undefined ? existing.tmdb_id : input.tmdbId,
+        resolvedTmdbId,
         tmdbCollectionId,
         tmdbCollectionName,
+        version,
+        versionRuntime,
+        versionReferenceUrl,
         tmdbChangeRequested ? 1 : 0,
         input.tmdbId ? timestamp : null,
         movieId,

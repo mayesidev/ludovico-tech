@@ -26,6 +26,9 @@ const movie: Movie = {
   rating_score: null,
   release_date: null,
   runtime_minutes: null,
+  version: null,
+  version_runtime: null,
+  version_reference_url: null,
   title: "Test Movie",
   tmdb_id: null,
   watched_at: null,
@@ -218,6 +221,7 @@ describe("application authorization presentation", () => {
         rolled_movie_id: "rolled-id",
         status: "ready",
         title: "Actual First Movie",
+        version: null,
         watched_at: null,
       },
     });

@@ -16,7 +16,7 @@ import {
 import { ExternalLink, Pencil, Search } from "lucide-react";
 import type { Movie } from "../api";
 import type { Navigate } from "../types";
-import { formatDate } from "../lib/utils";
+import { formatDate, formatMovieTitle } from "../lib/utils";
 import { AppLink } from "./app-link";
 import { Card, Input } from "./ui";
 
@@ -67,7 +67,7 @@ export function LibraryPage({
             href={`/movies/${encodeURIComponent(row.original.id)}?from=library`}
             onNavigate={onNavigate}
           >
-            {row.original.title}
+            {formatMovieTitle(row.original.title, row.original.version)}
           </AppLink>
         ),
       },

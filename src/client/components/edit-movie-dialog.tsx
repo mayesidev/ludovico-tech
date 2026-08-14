@@ -2,9 +2,14 @@ import { useId, useRef, useState } from "react";
 import { Pencil, X } from "lucide-react";
 import type { Movie } from "../api";
 import { api } from "../api";
+import {
+  parseVersionReferenceUrl,
+  parseVersionRuntime,
+} from "../lib/movie-version";
 import { parseTmdbId } from "../lib/tmdb-id";
 import type { RunAction } from "../types";
 import { Dialog } from "./dialog";
+import { MovieVersionFields } from "./movie-version-fields";
 import { TmdbMovieFields } from "./tmdb-movie-fields";
 import { Button, Input } from "./ui";
 
@@ -28,6 +33,16 @@ export function EditMovieDialog({
   const [tmdbId, setTmdbId] = useState(
     movie.tmdb_id === null ? "" : String(movie.tmdb_id),
   );
+  const [versionSpecified, setVersionSpecified] = useState(
+    movie.version !== null,
+  );
+  const [version, setVersion] = useState(movie.version ?? "");
+  const [versionRuntime, setVersionRuntime] = useState(
+    movie.version_runtime === null ? "" : String(movie.version_runtime),
+  );
+  const [versionReferenceUrl, setVersionReferenceUrl] = useState(
+    movie.version_reference_url ?? "",
+  );
   const [attempted, setAttempted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
@@ -35,7 +50,22 @@ export function EditMovieDialog({
   const errorId = useId();
   const collectionId = useId();
   const parsedTmdbId = parseTmdbId(tmdbId);
+  const parsedVersionRuntime = parseVersionRuntime(versionRuntime);
+  const parsedVersionReferenceUrl =
+    parseVersionReferenceUrl(versionReferenceUrl);
+  const usingVersion =
+    parsedTmdbId !== null && parsedTmdbId !== undefined && versionSpecified;
   const invalidTitle = attempted && !title.trim();
+
+  const changeTmdbId = (value: string) => {
+    if (parseTmdbId(value) !== parsedTmdbId) {
+      setVersionSpecified(false);
+      setVersion("");
+      setVersionRuntime("");
+      setVersionReferenceUrl("");
+    }
+    setTmdbId(value);
+  };
 
   return (
     <Dialog
@@ -49,7 +79,15 @@ export function EditMovieDialog({
         onSubmit={(event) => {
           event.preventDefault();
           setAttempted(true);
-          if (!title.trim() || parsedTmdbId === undefined) return;
+          if (
+            !title.trim() ||
+            parsedTmdbId === undefined ||
+            (usingVersion &&
+              (!version.trim() ||
+                parsedVersionRuntime === undefined ||
+                parsedVersionReferenceUrl === undefined))
+          )
+            return;
           const titleChanged = title.trim() !== movie.title;
           const tmdbChanged = parsedTmdbId !== movie.tmdb_id;
           void run(
@@ -58,6 +96,11 @@ export function EditMovieDialog({
                 collectionName,
                 title,
                 tmdbId: titleChanged || tmdbChanged ? parsedTmdbId : undefined,
+                version: usingVersion ? version.trim() : null,
+                versionRuntime: usingVersion ? parsedVersionRuntime : null,
+                versionReferenceUrl: usingVersion
+                  ? parsedVersionReferenceUrl
+                  : null,
               }),
             onClose,
           );
@@ -95,7 +138,7 @@ export function EditMovieDialog({
           <TmdbMovieFields
             onAuthExpired={onAuthExpired}
             onTitleChange={setTitle}
-            onTmdbIdChange={setTmdbId}
+            onTmdbIdChange={changeTmdbId}
             title={title}
             titleErrorId={errorId}
             titleInputRef={inputRef}
@@ -107,6 +150,24 @@ export function EditMovieDialog({
               Enter a movie title.
             </p>
           )}
+          <MovieVersionFields
+            attempted={attempted}
+            onSpecifiedChange={setVersionSpecified}
+            onVersionChange={setVersion}
+            onVersionReferenceUrlChange={setVersionReferenceUrl}
+            onVersionRuntimeChange={setVersionRuntime}
+            specified={versionSpecified}
+            tmdbSelected={parsedTmdbId !== null && parsedTmdbId !== undefined}
+            version={version}
+            versionReferenceUrl={versionReferenceUrl}
+            versionReferenceUrlInvalid={
+              usingVersion && parsedVersionReferenceUrl === undefined
+            }
+            versionRuntime={versionRuntime}
+            versionRuntimeInvalid={
+              usingVersion && parsedVersionRuntime === undefined
+            }
+          />
           <label className="block text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">
             Collection
             <Input

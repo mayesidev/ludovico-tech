@@ -17,6 +17,9 @@ const movie = (id: string, title: string): Movie => ({
   rating_score: null,
   release_date: null,
   runtime_minutes: null,
+  version: null,
+  version_runtime: null,
+  version_reference_url: null,
   title,
   tmdb_id: null,
   watched_at: null,
@@ -69,6 +72,9 @@ describe("accessible dialogs", () => {
       collectionName: "Test Saga",
       title: "Updated Title",
       tmdbId: null,
+      version: null,
+      versionReferenceUrl: null,
+      versionRuntime: null,
     });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(trigger).toHaveFocus();
@@ -120,6 +126,62 @@ describe("accessible dialogs", () => {
       collectionName: "New Saga",
       title: "Authoritative Title",
       tmdbId: 42,
+      version: null,
+      versionReferenceUrl: null,
+      versionRuntime: null,
+    });
+  });
+
+  it("loads an existing version and clears it when the toggle is unchecked", async () => {
+    const versionedMovie: Movie = {
+      ...movie("versioned-id", "Batman"),
+      tmdb_id: 268,
+      version: "Director's Cut",
+      version_reference_url: "https://example.com/batman-directors-cut",
+      version_runtime: 132,
+    };
+    vi.spyOn(api, "updateMovie").mockResolvedValue({
+      movie: {
+        ...versionedMovie,
+        version: null,
+        version_reference_url: null,
+        version_runtime: null,
+      },
+    });
+    const user = userEvent.setup();
+    render(
+      <EditMovieDialog
+        busy={false}
+        movie={versionedMovie}
+        onAuthExpired={vi.fn().mockResolvedValue(undefined)}
+        onClose={vi.fn()}
+        run={run}
+      />,
+    );
+
+    const toggle = screen.getByRole("checkbox", {
+      name: /Specify a version/,
+    });
+    expect(toggle).toBeChecked();
+    expect(screen.getByRole("textbox", { name: "Version" })).toHaveValue(
+      "Director's Cut",
+    );
+    expect(
+      screen.getByRole("spinbutton", {
+        name: "Version Runtime (minutes)",
+      }),
+    ).toHaveValue(132);
+
+    await user.click(toggle);
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    expect(api.updateMovie).toHaveBeenCalledWith("versioned-id", {
+      collectionName: "Test Saga",
+      title: "Batman",
+      tmdbId: undefined,
+      version: null,
+      versionReferenceUrl: null,
+      versionRuntime: null,
     });
   });
 });

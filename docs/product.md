@@ -18,6 +18,10 @@ one group viewing state.
   rating it, members may continue the collection or return to a fresh random roll.
 - TMDB supplies application metadata. Legacy IMDb identifiers are optional,
   fallible import references rather than application identity.
+- A confirmed TMDB movie may optionally specify a manually sourced version,
+  version runtime, and reference URL. The version is appended to displayed
+  movie titles in parentheses. Its runtime is displayed when present;
+  otherwise the TMDB runtime remains authoritative.
 - Submitted title and collection information outrank a conflicting legacy external
   identifier during import.
 - The application must run from empty migrations. Loading a legacy catalog is an

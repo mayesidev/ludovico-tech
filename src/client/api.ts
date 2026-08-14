@@ -5,6 +5,9 @@ export type Movie = {
   release_date: string | null;
   poster_path: string | null;
   runtime_minutes: number | null;
+  version: string | null;
+  version_runtime: number | null;
+  version_reference_url: string | null;
   tmdb_id: number | null;
   tmdb_collection_id?: number | null;
   tmdb_collection_name?: string | null;
@@ -24,6 +27,7 @@ export type NowShowing = {
   collection_id: string | null;
   status: "empty" | "ready" | "watched";
   title: string | null;
+  version: string | null;
   release_date: string | null;
   poster_path: string | null;
   rating_score: number | null;
@@ -123,6 +127,9 @@ export const api = {
     title: string;
     collectionName?: string;
     tmdbId?: number | null;
+    version?: string | null;
+    versionRuntime?: number | null;
+    versionReferenceUrl?: string | null;
   }) =>
     request<{ movie: Movie }>("/api/movies", {
       method: "POST",
@@ -134,6 +141,9 @@ export const api = {
       collectionName?: string | null;
       title?: string;
       tmdbId?: number | null;
+      version?: string | null;
+      versionRuntime?: number | null;
+      versionReferenceUrl?: string | null;
     },
   ) =>
     request<{ movie: Movie }>(`/api/movies/${id}`, {

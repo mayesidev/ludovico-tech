@@ -559,6 +559,18 @@ describe("TMDB routes and metadata attachment", () => {
           { status: 200 },
         ),
       );
+    const versionWithoutTmdb = await request("/api/movies", session.bindings, {
+      method: "POST",
+      headers: { Cookie: session.cookie },
+      body: JSON.stringify({
+        title: "Unlinked Version",
+        version: "Director's Cut",
+      }),
+    });
+    expect(versionWithoutTmdb.status).toBe(400);
+    expect(await versionWithoutTmdb.json()).toEqual({
+      error: "Select a TMDB movie before specifying a version",
+    });
     const init = {
       method: "POST",
       headers: { Cookie: session.cookie },
@@ -568,6 +580,9 @@ describe("TMDB routes and metadata attachment", () => {
         releaseDate: "1900-01-01",
         title: "Spoofed title",
         tmdbId: 301,
+        version: "Director's Cut",
+        versionReferenceUrl: "https://example.com/cuts/301",
+        versionRuntime: 139,
       }),
     };
 
@@ -585,6 +600,9 @@ describe("TMDB routes and metadata attachment", () => {
       tmdb_collection_id: 902,
       tmdb_collection_name: "Attached Collection",
       tmdb_id: 301,
+      version: "Director's Cut",
+      version_reference_url: "https://example.com/cuts/301",
+      version_runtime: 139,
     });
     expect(movie).not.toHaveProperty("tmdb_fetched_at");
     expect(movie).not.toHaveProperty("added_by");
@@ -638,6 +656,9 @@ describe("TMDB routes and metadata attachment", () => {
         tmdb_collection_id: null,
         tmdb_collection_name: null,
         tmdb_id: null,
+        version: null,
+        version_reference_url: null,
+        version_runtime: null,
       },
     });
     expect(duplicate.status).toBe(409);

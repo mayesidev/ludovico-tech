@@ -16,6 +16,9 @@ const movies: Movie[] = [
     rating_score: null,
     release_date: "2022-01-01",
     runtime_minutes: null,
+    version: null,
+    version_runtime: null,
+    version_reference_url: null,
     title: "Zulu Movie",
     tmdb_id: null,
     watched_at: null,
@@ -29,6 +32,9 @@ const movies: Movie[] = [
     rating_score: 5,
     release_date: "2020-01-01",
     runtime_minutes: null,
+    version: null,
+    version_runtime: null,
+    version_reference_url: null,
     title: "Alpha Movie",
     tmdb_id: 603,
     watched_at: "2026-08-07T00:00:00.000Z",
@@ -43,6 +49,21 @@ function getRenderedMovieTitles() {
 }
 
 describe("movie library", () => {
+  it("appends a specified version to the displayed title", () => {
+    render(
+      <LibraryPage
+        canMutate={false}
+        movies={[{ ...movies[1], title: "Batman", version: "Director's Cut" }]}
+        onEdit={vi.fn()}
+        onNavigate={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Batman (Director's Cut)" }),
+    ).toBeVisible();
+  });
+
   it("filters, sorts, and exposes actions only to contributors", async () => {
     const onEdit = vi.fn();
     const onNavigate = vi.fn();
