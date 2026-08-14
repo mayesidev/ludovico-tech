@@ -67,6 +67,14 @@ export function CreditsPage() {
           <dl className="mx-auto mt-8 grid max-w-2xl gap-10 sm:grid-cols-3">
             <div>
               <dt className="text-xs uppercase tracking-[0.22em] text-zinc-500">
+                Version
+              </dt>
+              <dd className="mt-3 font-semibold text-cream">
+                {version ?? "Unavailable"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-[0.22em] text-zinc-500">
                 Source code
               </dt>
               <dd className="mt-3">
@@ -95,14 +103,6 @@ export function CreditsPage() {
                   MIT License
                   <ExternalLink size={15} />
                 </a>
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-[0.22em] text-zinc-500">
-                Version
-              </dt>
-              <dd className="mt-3 font-semibold text-cream">
-                {version ?? "Unavailable"}
               </dd>
             </div>
           </dl>

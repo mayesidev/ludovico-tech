@@ -28,6 +28,9 @@ describe("credits page", () => {
       "https://github.com/mayesidev/ludovico-tech/blob/main/LICENSE",
     );
     expect(await screen.findByText("v1.4.1")).toBeVisible();
+    expect(screen.getAllByRole("term").map((term) => term.textContent)).toEqual(
+      ["Version", "Source code", "License"],
+    );
 
     expect(
       screen.getByRole("link", { name: "The Movie Database" }),
