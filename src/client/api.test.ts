@@ -23,10 +23,11 @@ describe("client API", () => {
     await api.order("collection-id", ["first", "second"]);
     await api.addMovie({
       collectionName: "Saga",
+      imdbId: "tt0117509",
       title: "Movie",
       tmdbId: 42,
     });
-    await api.updateMovie("movie-id", { title: "New title" });
+    await api.updateMovie("movie-id", { imdbId: null, title: "New title" });
     await api.deleteMovie("movie-id");
     await api.tmdbSearch("A movie & sequel");
     await api.tmdbMovie(42);
@@ -60,13 +61,14 @@ describe("client API", () => {
     expect(fetchMock.mock.calls[10]?.[1]).toMatchObject({
       body: JSON.stringify({
         collectionName: "Saga",
+        imdbId: "tt0117509",
         title: "Movie",
         tmdbId: 42,
       }),
       method: "POST",
     });
     expect(fetchMock.mock.calls[11]?.[1]).toMatchObject({
-      body: JSON.stringify({ title: "New title" }),
+      body: JSON.stringify({ imdbId: null, title: "New title" }),
       method: "PATCH",
     });
     expect(fetchMock.mock.calls[12]?.[1]).toMatchObject({ method: "DELETE" });

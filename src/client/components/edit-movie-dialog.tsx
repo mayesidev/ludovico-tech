@@ -7,8 +7,10 @@ import {
   parseVersionRuntime,
 } from "../lib/movie-version";
 import { parseTmdbId } from "../lib/tmdb-id";
+import { parseImdbId } from "../../shared/imdb";
 import type { RunAction } from "../types";
 import { Dialog } from "./dialog";
+import { ImdbMovieField } from "./imdb-movie-field";
 import { MovieVersionFields } from "./movie-version-fields";
 import { TmdbMovieFields } from "./tmdb-movie-fields";
 import { Button, Input } from "./ui";
@@ -30,6 +32,7 @@ export function EditMovieDialog({
   const [collectionName, setCollectionName] = useState(
     movie.collection_name ?? "",
   );
+  const [imdbId, setImdbId] = useState(movie.imdb_id ?? "");
   const [tmdbId, setTmdbId] = useState(
     movie.tmdb_id === null ? "" : String(movie.tmdb_id),
   );
@@ -50,6 +53,7 @@ export function EditMovieDialog({
   const errorId = useId();
   const collectionId = useId();
   const parsedTmdbId = parseTmdbId(tmdbId);
+  const parsedImdbId = parseImdbId(imdbId);
   const parsedVersionRuntime = parseVersionRuntime(versionRuntime);
   const parsedVersionReferenceUrl =
     parseVersionReferenceUrl(versionReferenceUrl);
@@ -81,6 +85,7 @@ export function EditMovieDialog({
           setAttempted(true);
           if (
             !title.trim() ||
+            parsedImdbId === undefined ||
             parsedTmdbId === undefined ||
             (usingVersion &&
               (!version.trim() ||
@@ -94,6 +99,7 @@ export function EditMovieDialog({
             () =>
               api.updateMovie(movie.id, {
                 collectionName,
+                imdbId: parsedImdbId,
                 title,
                 tmdbId: titleChanged || tmdbChanged ? parsedTmdbId : undefined,
                 version: usingVersion ? version.trim() : null,
@@ -121,7 +127,8 @@ export function EditMovieDialog({
               className="mt-2 text-sm leading-6 text-zinc-400"
               id={descriptionId}
             >
-              Update the catalog title, collection, or confirmed TMDB match.
+              Update the catalog title, collection, or external movie
+              references.
             </p>
           </div>
           <button
@@ -150,6 +157,7 @@ export function EditMovieDialog({
               Enter a movie title.
             </p>
           )}
+          <ImdbMovieField onChange={setImdbId} value={imdbId} />
           <MovieVersionFields
             attempted={attempted}
             onSpecifiedChange={setVersionSpecified}
@@ -184,7 +192,12 @@ export function EditMovieDialog({
           <Button type="button" variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button disabled={busy || parsedTmdbId === undefined} type="submit">
+          <Button
+            disabled={
+              busy || parsedImdbId === undefined || parsedTmdbId === undefined
+            }
+            type="submit"
+          >
             <Pencil size={16} />
             Save changes
           </Button>

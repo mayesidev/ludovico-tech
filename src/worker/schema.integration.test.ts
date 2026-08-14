@@ -277,6 +277,27 @@ describe("catalog schema", () => {
     ).rejects.toThrow();
   });
 
+  it("uses a unique first-class IMDb identity column", async () => {
+    const columns = await env.DB.prepare("PRAGMA table_info(movies)").all<{
+      name: string;
+    }>();
+    expect(columns.results.map(({ name }) => name)).toContain("imdb_id");
+    expect(columns.results.map(({ name }) => name)).not.toContain(
+      "legacy_imdb_id",
+    );
+
+    await insertMovie("movie-imdb-one");
+    await insertMovie("movie-imdb-two");
+    await env.DB.prepare("UPDATE movies SET imdb_id = ? WHERE id = ?")
+      .bind("tt0117509", "movie-imdb-one")
+      .run();
+    await expect(
+      env.DB.prepare("UPDATE movies SET imdb_id = ? WHERE id = ?")
+        .bind("tt0117509", "movie-imdb-two")
+        .run(),
+    ).rejects.toThrow();
+  });
+
   it("keeps TMDB collection identifiers and names paired", async () => {
     await insertMovie("movie-tmdb-collection");
     await expect(
@@ -304,6 +325,9 @@ describe("catalog schema", () => {
 
   it("keeps source provenance and actor identifiers out of public movie DTOs", async () => {
     await insertMovie("movie-public", "Public Movie");
+    await env.DB.prepare("UPDATE movies SET imdb_id = ? WHERE id = ?")
+      .bind("tt0117509", "movie-public")
+      .run();
     await env.DB.prepare(
       `INSERT INTO movie_import_sources
        (source_key, movie_id, source_row, submitted_at, prior_viewed, imported_at)
@@ -334,6 +358,7 @@ describe("catalog schema", () => {
     expect(movie).not.toHaveProperty("updated_by");
     expect(movie).not.toHaveProperty("title_normalized");
     expect(movie).not.toHaveProperty("legacy_imdb_id");
+    expect(movie).toHaveProperty("imdb_id", "tt0117509");
     expect(movie).not.toHaveProperty("tmdb_fetched_at");
     expect(movie).not.toHaveProperty("source_key");
     expect(movie).not.toHaveProperty("source_row");

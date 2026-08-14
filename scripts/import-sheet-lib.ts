@@ -1,4 +1,5 @@
 import { parse } from "csv-parse/sync";
+import { parseImdbId as parseImdbIdValue } from "../src/shared/imdb";
 
 export const INTERMEDIATE_SCHEMA_VERSION = 3 as const;
 export const TMDB_RECONCILIATION_SCHEMA_VERSION = 3 as const;
@@ -192,7 +193,7 @@ export const buildTmdbMetadataPlan = (
     }
 
     statements.push(
-      `UPDATE movies SET release_date = ${sql(match.releaseDate)}, poster_path = ${sql(match.posterPath)}, runtime_minutes = ${sql(match.runtimeMinutes)}, tmdb_id = ${match.tmdbId}, tmdb_collection_id = ${sql(match.tmdbCollectionId)}, tmdb_collection_name = ${sql(match.tmdbCollectionName)}, tmdb_fetched_at = ${sql(reconciliation.generatedAt)}, updated_at = ${sql(appliedAt)} WHERE legacy_imdb_id = ${sql(match.legacyImdbId)} AND title_normalized = ${sql(match.sourceTitleNormalized)} AND (tmdb_id IS NULL OR tmdb_id = ${match.tmdbId}) AND NOT EXISTS (SELECT 1 FROM movies AS linked WHERE linked.tmdb_id = ${match.tmdbId} AND linked.legacy_imdb_id <> ${sql(match.legacyImdbId)});`,
+      `UPDATE movies SET release_date = ${sql(match.releaseDate)}, poster_path = ${sql(match.posterPath)}, runtime_minutes = ${sql(match.runtimeMinutes)}, tmdb_id = ${match.tmdbId}, tmdb_collection_id = ${sql(match.tmdbCollectionId)}, tmdb_collection_name = ${sql(match.tmdbCollectionName)}, tmdb_fetched_at = ${sql(reconciliation.generatedAt)}, updated_at = ${sql(appliedAt)} WHERE imdb_id = ${sql(match.legacyImdbId)} AND title_normalized = ${sql(match.sourceTitleNormalized)} AND (tmdb_id IS NULL OR tmdb_id = ${match.tmdbId}) AND NOT EXISTS (SELECT 1 FROM movies AS linked WHERE linked.tmdb_id = ${match.tmdbId} AND linked.imdb_id <> ${sql(match.legacyImdbId)});`,
     );
   }
 
@@ -342,12 +343,11 @@ const validRatingPhrase = (value: string) =>
   value === value.trim() && value.length > 0 && value.length <= 120;
 
 const parseImdbId = (value: string) => {
-  const trimmed = value.trim();
-  if (!trimmed) return { id: null, valid: true };
-  const match = trimmed.match(/(?:^|\/title\/)(tt\d{6,9})(?:$|[/?#])/i);
-  return match
-    ? { id: match[1].toLowerCase(), valid: true }
-    : { id: null, valid: false };
+  const parsed = parseImdbIdValue(value);
+  return {
+    id: parsed === undefined ? null : parsed,
+    valid: parsed !== undefined,
+  };
 };
 
 export const sanitizeSourceCsv = (
@@ -1210,7 +1210,7 @@ export const buildImportPlan = async (
 
   for (const movie of orderedMovies) {
     statements.push(
-      `INSERT OR IGNORE INTO movies (id, title, title_normalized, added_at, updated_at, release_date, poster_path, runtime_minutes, tmdb_id, tmdb_collection_id, tmdb_collection_name, tmdb_fetched_at, legacy_imdb_id) VALUES (${sql(movie.id)}, ${sql(movie.title)}, ${sql(movie.titleNormalized)}, ${sql(movie.addedAt)}, ${sql(importedAt)}, ${sql(movie.tmdbMatch?.releaseDate ?? null)}, ${sql(movie.tmdbMatch?.posterPath ?? null)}, ${sql(movie.tmdbMatch?.runtimeMinutes ?? null)}, ${sql(movie.tmdbMatch?.tmdbId ?? null)}, ${sql(movie.tmdbMatch?.tmdbCollectionId ?? null)}, ${sql(movie.tmdbMatch?.tmdbCollectionName ?? null)}, ${sql(movie.tmdbMatch ? (reconciliation?.generatedAt ?? null) : null)}, ${sql(movie.legacyImdbId)});`,
+      `INSERT OR IGNORE INTO movies (id, title, title_normalized, added_at, updated_at, release_date, poster_path, runtime_minutes, tmdb_id, tmdb_collection_id, tmdb_collection_name, tmdb_fetched_at, imdb_id) VALUES (${sql(movie.id)}, ${sql(movie.title)}, ${sql(movie.titleNormalized)}, ${sql(movie.addedAt)}, ${sql(importedAt)}, ${sql(movie.tmdbMatch?.releaseDate ?? null)}, ${sql(movie.tmdbMatch?.posterPath ?? null)}, ${sql(movie.tmdbMatch?.runtimeMinutes ?? null)}, ${sql(movie.tmdbMatch?.tmdbId ?? null)}, ${sql(movie.tmdbMatch?.tmdbCollectionId ?? null)}, ${sql(movie.tmdbMatch?.tmdbCollectionName ?? null)}, ${sql(movie.tmdbMatch ? (reconciliation?.generatedAt ?? null) : null)}, ${sql(movie.legacyImdbId)});`,
     );
     if (movie.tmdbMatch && reconciliation) {
       statements.push(

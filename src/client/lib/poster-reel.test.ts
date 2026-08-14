@@ -6,6 +6,7 @@ const movie = (id: string, posterPath: string | null): Movie => ({
   added_at: "2026-08-07T00:00:00.000Z",
   collection_id: null,
   id,
+  imdb_id: null,
   poster_path: posterPath,
   rating_phrase: null,
   rating_score: null,

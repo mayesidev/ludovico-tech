@@ -10,6 +10,7 @@ export type MovieRow = {
   version: string | null;
   version_runtime: number | null;
   version_reference_url: string | null;
+  imdb_id: string | null;
   tmdb_id: number | null;
   tmdb_collection_id: number | null;
   tmdb_collection_name: string | null;
@@ -52,7 +53,8 @@ export type NowShowingRow = {
 export const movieSelect = `
   SELECT movies.id, movies.title, movies.added_at, movies.release_date,
     movies.poster_path, movies.runtime_minutes, movies.version,
-    movies.version_runtime, movies.version_reference_url, movies.tmdb_id,
+    movies.version_runtime, movies.version_reference_url, movies.imdb_id,
+    movies.tmdb_id,
     movies.tmdb_collection_id, movies.tmdb_collection_name,
     collections.name AS collection_name,
     collections.order_confirmed AS collection_order_confirmed,

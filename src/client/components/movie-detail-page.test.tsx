@@ -9,6 +9,7 @@ const movie: Movie = {
   collection_name: "Test Saga",
   collection_position: 1,
   id: "movie-id",
+  imdb_id: "tt0133093",
   poster_path: null,
   rating_phrase: "There is no spoon",
   rating_score: 5,
@@ -105,6 +106,10 @@ describe("movie details", () => {
       "href",
       "https://www.themoviedb.org/movie/603",
     );
+    expect(screen.getByRole("link", { name: "View on IMDb" })).toHaveAttribute(
+      "href",
+      "https://www.imdb.com/title/tt0133093/",
+    );
     expect(
       screen.getByRole("link", { name: "Test Movie Collection" }),
     ).toHaveAttribute("href", "https://www.themoviedb.org/collection/2344");
@@ -179,6 +184,7 @@ describe("movie details", () => {
           version: null,
           version_runtime: null,
           version_reference_url: null,
+          imdb_id: null,
           tmdb_collection_id: null,
           tmdb_collection_name: null,
           tmdb_id: null,
@@ -193,6 +199,7 @@ describe("movie details", () => {
     expect(screen.queryByText("Unwatched")).toBeNull();
     expect(screen.queryByLabelText(/^Rating:/)).toBeNull();
     expect(screen.queryByRole("link", { name: "View on TMDB" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "View on IMDb" })).toBeNull();
     expect(screen.queryByText("Test Saga")).toBeNull();
     expect(screen.queryByText("Release date")).toBeNull();
     expect(screen.queryByText("Runtime")).toBeNull();

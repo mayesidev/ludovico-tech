@@ -9,6 +9,7 @@ const movie: Movie = {
   added_at: "2026-08-07T00:00:00.000Z",
   collection_id: null,
   id: "added-id",
+  imdb_id: null,
   poster_path: null,
   rating_phrase: null,
   rating_score: null,
@@ -61,6 +62,10 @@ describe("add movie dialog", () => {
       screen.getByRole("textbox", { name: "Collection (optional)" }),
       "A Saga",
     );
+    await user.type(
+      screen.getByRole("textbox", { name: "IMDb ID or URL (optional)" }),
+      "https://m.imdb.com/title/TT0133093/?ref_=fn_all_ttl_1",
+    );
     await user.click(screen.getByRole("button", { name: "Search TMDB" }));
     await user.click(
       await screen.findByRole("button", { name: /Matched Movie/ }),
@@ -88,6 +93,7 @@ describe("add movie dialog", () => {
 
     expect(api.addMovie).toHaveBeenCalledWith({
       collectionName: "A Saga",
+      imdbId: "tt0133093",
       title: "Matched Movie",
       tmdbId: 42,
       version: "Director's Cut",
@@ -164,6 +170,7 @@ describe("add movie dialog", () => {
     await user.click(screen.getByRole("button", { name: "Add movie" }));
     expect(api.addMovie).toHaveBeenCalledWith({
       collectionName: "",
+      imdbId: null,
       title: "Matched Movie",
       tmdbId: 42,
       version: null,
