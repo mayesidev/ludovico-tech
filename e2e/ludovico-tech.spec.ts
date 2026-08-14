@@ -28,7 +28,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
 
     await expect(page).toHaveTitle("Ludovico Tech");
     await expect(
-      page.getByText("A Pop Culture Re-education Program", { exact: true }),
+      page.getByLabel("A Pop Culture Re-education Program"),
     ).toBeVisible();
     await expect(
       page.getByRole("heading", { level: 1, name: "No movie selected" }),
@@ -308,6 +308,65 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await expect(
       page.getByRole("heading", { level: 1, name: "Library" }),
     ).toBeVisible();
+  });
+
+  test("keeps header identity and actions intact at intermediate widths", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 800, height: 700 });
+    await page.route("**/api/auth/me", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({
+          actor: {
+            displayName: "Invited User",
+            email: "invited@example.test",
+          },
+          authenticated: true,
+          local: false,
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.goto("/credits");
+
+    const title = page.getByText("Ludovico Tech", { exact: true });
+    const tagline = page.getByLabel("A Pop Culture Re-education Program");
+    const credits = page.getByRole("link", { name: "Credits" });
+    const nowShowing = page.getByRole("link", { name: "Now showing" });
+    const signOut = page.getByRole("button", { name: "Sign out Invited User" });
+
+    await expect(tagline).toBeVisible();
+    const titleBox = await title.boundingBox();
+    const taglineBox = await tagline.boundingBox();
+    const creditsBox = await credits.boundingBox();
+    const nowShowingBox = await nowShowing.boundingBox();
+    expect(titleBox).not.toBeNull();
+    expect(taglineBox).not.toBeNull();
+    expect(creditsBox).not.toBeNull();
+    expect(nowShowingBox).not.toBeNull();
+    expect(taglineBox!.width).toBeLessThanOrEqual(titleBox!.width + 1);
+    expect(creditsBox!.x).toBeLessThan(nowShowingBox!.x);
+    await expect(signOut).toHaveText("Sign out");
+    expect(
+      await signOut.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth,
+      ),
+    ).toBe(true);
+
+    await page.setViewportSize({ width: 760, height: 700 });
+    await expect(tagline).toBeHidden();
+    const narrowCreditsBox = await credits.boundingBox();
+    const narrowNowShowingBox = await nowShowing.boundingBox();
+    const narrowSignOutBox = await signOut.boundingBox();
+    expect(narrowCreditsBox).not.toBeNull();
+    expect(narrowNowShowingBox).not.toBeNull();
+    expect(narrowSignOutBox).not.toBeNull();
+    expect(narrowCreditsBox!.x).toBeLessThan(narrowNowShowingBox!.x);
+    expect(narrowCreditsBox!.y).toBeGreaterThan(titleBox!.y);
+    expect(narrowSignOutBox!.x + narrowSignOutBox!.width).toBeLessThanOrEqual(
+      760,
+    );
   });
 
   test("starts browser login through the Google authorization route", async ({
