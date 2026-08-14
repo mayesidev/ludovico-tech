@@ -10,7 +10,6 @@ import {
 import {
   AppHeader,
   ErrorNotice,
-  Footer,
   LoadingState,
   RollReveal,
 } from "./components/app-shell";
@@ -18,6 +17,7 @@ import { AddMovieDialog } from "./components/add-movie-dialog";
 import { DeleteMovieDialog } from "./components/delete-movie-dialog";
 import { EditMovieDialog } from "./components/edit-movie-dialog";
 import { CollectionDetailPage } from "./components/collection-detail-page";
+import { CreditsPage } from "./components/credits-page";
 import { HomePage } from "./components/home-page";
 import { LibraryPage } from "./components/library-page";
 import { MovieDetailPage } from "./components/movie-detail-page";
@@ -156,7 +156,12 @@ export default function App() {
   const login = useCallback(() => {
     window.location.href = "/api/auth/google";
   }, []);
-  const tab: Tab = route.page === "home" ? "home" : "library";
+  const tab: Tab =
+    route.page === "home"
+      ? "home"
+      : route.page === "credits"
+        ? "credits"
+        : "library";
   const selectedMovie =
     route.page === "movie"
       ? (movies.find((movie) => movie.id === route.movieId) ?? null)
@@ -193,7 +198,9 @@ export default function App() {
       />
 
       <main className="relative z-10 mx-auto max-w-7xl px-5 pb-20 pt-10 lg:px-8 lg:pt-16">
-        {loading ? (
+        {route.page === "credits" ? (
+          <CreditsPage />
+        ) : loading ? (
           <LoadingState />
         ) : route.page === "home" ? (
           <HomePage
@@ -246,7 +253,6 @@ export default function App() {
         )}
       </main>
 
-      <Footer />
       {error && (
         <ErrorNotice message={error} onDismiss={() => setError(null)} />
       )}
