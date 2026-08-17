@@ -6,6 +6,19 @@
     "security:minimumReleaseAgeNpm"
   ],
   "prHourlyLimit": 0,
+  "packageRules": [
+    {
+      "description": "Keep the coupled Cloudflare development toolchain compatible",
+      "matchPackageNames": [
+        "@cloudflare/vite-plugin",
+        "@cloudflare/vitest-pool-workers",
+        "@cloudflare/workers-types",
+        "wrangler"
+      ],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "Cloudflare development toolchain"
+    }
+  ],
   "vulnerabilityAlerts": {
     "labels": ["security"]
   }
