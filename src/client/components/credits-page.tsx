@@ -23,7 +23,7 @@ export function CreditsPage() {
   }, []);
 
   return (
-    <article className="mx-auto max-w-4xl py-4 sm:py-8">
+    <article className="w-full py-4 sm:py-8">
       <header className="border-b border-border-subtle pb-8">
         <h1 className="font-heading text-5xl font-medium leading-none tracking-[-0.045em] text-text-primary sm:text-7xl">
           Credits
@@ -31,14 +31,17 @@ export function CreditsPage() {
       </header>
 
       <div className="mt-10 space-y-12 sm:mt-14 sm:space-y-16">
-        <section aria-labelledby="credits-background">
+        <section
+          aria-labelledby="credits-background"
+          className="grid gap-5 md:grid-cols-[minmax(180px,0.28fr)_minmax(0,1fr)] md:gap-10"
+        >
           <h2
             className="font-heading text-2xl font-medium tracking-tight text-text-primary"
             id="credits-background"
           >
             Background
           </h2>
-          <p className="mt-5 text-base leading-8 text-text-secondary sm:text-lg">
+          <p className="text-base leading-8 text-text-secondary sm:text-lg">
             Ludovico Tech is a shared movie watchlist for a group of friends
             with more recommendations than movie nights. It grew from the group
             repeatedly asking one friend, “You haven&apos;t seen that?!” into a
@@ -54,14 +57,17 @@ export function CreditsPage() {
           </p>
         </section>
 
-        <section aria-labelledby="credits-production">
+        <section
+          aria-labelledby="credits-production"
+          className="grid gap-5 md:grid-cols-[minmax(180px,0.28fr)_minmax(0,1fr)] md:gap-10"
+        >
           <h2
             className="font-heading text-2xl font-medium tracking-tight text-text-primary"
             id="credits-production"
           >
             Production
           </h2>
-          <dl className="surface-panel mt-5 grid overflow-hidden rounded-sm border sm:grid-cols-3">
+          <dl className="surface-panel grid overflow-hidden rounded-sm border sm:grid-cols-3">
             <div className="border-b border-border-subtle p-5 sm:border-b-0 sm:border-r">
               <dt className="ui-label text-text-muted">Version</dt>
               <dd className="mt-3 font-semibold text-text-primary">
@@ -99,26 +105,31 @@ export function CreditsPage() {
           </dl>
         </section>
 
-        <section aria-labelledby="credits-movie-data">
+        <section
+          aria-labelledby="credits-movie-data"
+          className="grid gap-5 md:grid-cols-[minmax(180px,0.28fr)_minmax(0,1fr)] md:gap-10"
+        >
           <h2
             className="font-heading text-2xl font-medium tracking-tight text-text-primary"
             id="credits-movie-data"
           >
             Movie Data
           </h2>
-          <a
-            aria-label="The Movie Database"
-            className="mt-8 inline-block"
-            href="https://www.themoviedb.org/"
-            rel="noreferrer"
-            target="_blank"
-          >
-            <img alt="TMDB" className="h-5 w-auto sm:h-6" src={tmdbLogo} />
-          </a>
-          <p className="mt-6 max-w-xl text-sm leading-6 text-text-muted">
-            This application uses TMDB and the TMDB APIs but is not endorsed,
-            certified, or otherwise approved by TMDB.
-          </p>
+          <div>
+            <a
+              aria-label="The Movie Database"
+              className="inline-block"
+              href="https://www.themoviedb.org/"
+              rel="noreferrer"
+              target="_blank"
+            >
+              <img alt="TMDB" className="h-5 w-auto sm:h-6" src={tmdbLogo} />
+            </a>
+            <p className="mt-6 max-w-xl text-sm leading-6 text-text-muted">
+              This application uses TMDB and the TMDB APIs but is not endorsed,
+              certified, or otherwise approved by TMDB.
+            </p>
+          </div>
         </section>
       </div>
     </article>

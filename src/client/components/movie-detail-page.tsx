@@ -55,7 +55,7 @@ export function MovieDetailPage({
   const title = formatMovieTitle(movie.title, movie.version);
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <AppLink
         className="ui-label mb-6 inline-flex items-center gap-2 text-text-muted hover:text-highlight-soft"
         href={returnHref}

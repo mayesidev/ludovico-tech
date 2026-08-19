@@ -67,7 +67,7 @@ export function HomePage({
           </div>
 
           <div className="min-w-0 pt-1 sm:pt-4 lg:pt-10">
-            <div className="feature-title-container max-w-3xl">
+            <div className="feature-title-container w-full">
               <h1
                 className="feature-title font-heading font-medium tracking-[-0.045em] text-text-primary"
                 id="now-showing-title"
@@ -123,7 +123,7 @@ export function HomePage({
             )}
 
             {hasSelection && (
-              <div className="flex max-w-[650px] flex-wrap items-baseline justify-between gap-4 pt-5">
+              <div className="flex w-full flex-wrap items-baseline justify-between gap-4 pt-5">
                 {nowShowing?.collection_name && collectionHref ? (
                   <AppLink href={collectionHref} onNavigate={onNavigate}>
                     <Badge>{nowShowing.collection_name}</Badge>
@@ -226,7 +226,7 @@ function RatingForm({
 
   return (
     <form
-      className="rating-surface mt-7 grid w-full max-w-[650px] border sm:grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(230px,1.2fr)_minmax(180px,0.9fr)_auto]"
+      className="rating-surface mt-7 grid w-full border sm:grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(230px,1.2fr)_minmax(180px,0.9fr)_auto]"
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
