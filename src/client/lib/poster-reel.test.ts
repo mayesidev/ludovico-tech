@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Movie } from "../api";
-import { selectPosterReel } from "./poster-reel";
+import {
+  POSTER_REEL_IMAGE_WIDTH,
+  preloadPosterPath,
+  preloadPosterReel,
+  selectPosterReel,
+} from "./poster-reel";
 
 const movie = (id: string, posterPath: string | null): Movie => ({
   added_at: "2026-08-07T00:00:00.000Z",
@@ -18,6 +23,11 @@ const movie = (id: string, posterPath: string | null): Movie => ({
   title: `Movie ${id}`,
   tmdb_id: null,
   watched_at: null,
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 describe("random poster reel", () => {
@@ -39,5 +49,66 @@ describe("random poster reel", () => {
     expect(selectPosterReel([movie("missing", null)])).toEqual([
       movie("missing", null),
     ]);
+  });
+
+  it("decodes only the bounded reel at its rendered image size", async () => {
+    const load = vi.fn().mockResolvedValue(true);
+    const reel = selectPosterReel(
+      Array.from({ length: 20 }, (_, index) =>
+        movie(String(index), `/${index}.jpg`),
+      ),
+      () => 0,
+    );
+
+    await expect(preloadPosterReel(reel, load)).resolves.toEqual(reel);
+    expect(load).toHaveBeenCalledTimes(12);
+    expect(load).toHaveBeenCalledWith(
+      `https://image.tmdb.org/t/p/w${POSTER_REEL_IMAGE_WIDTH}/1.jpg`,
+    );
+  });
+
+  it("turns failed and missing poster loads into intentional fallbacks", async () => {
+    const load = vi.fn().mockResolvedValue(false);
+
+    await expect(
+      preloadPosterReel(
+        [movie("failed", "/failed.jpg"), movie("missing", null)],
+        load,
+      ),
+    ).resolves.toEqual([movie("failed", null), movie("missing", null)]);
+    expect(load).toHaveBeenCalledOnce();
+    await expect(preloadPosterPath(null, load)).resolves.toBeNull();
+  });
+
+  it("uses the browser image decoder before making a poster eligible", async () => {
+    const decode = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal(
+      "Image",
+      class {
+        src = "";
+        decode = decode;
+      },
+    );
+
+    await expect(preloadPosterPath("/decoded.jpg")).resolves.toBe(
+      "/decoded.jpg",
+    );
+    expect(decode).toHaveBeenCalledOnce();
+  });
+
+  it("stops waiting for a stalled image and uses the fallback", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "Image",
+      class {
+        src = "";
+        decode = () => new Promise<void>(() => undefined);
+      },
+    );
+
+    const posterPath = preloadPosterPath("/stalled.jpg");
+    await vi.runAllTimersAsync();
+
+    await expect(posterPath).resolves.toBeNull();
   });
 });

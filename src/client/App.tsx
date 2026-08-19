@@ -27,7 +27,10 @@ import type { RunAction, Tab } from "./types";
 import { formatMovieTitle } from "./lib/utils";
 import {
   POSTER_REEL_DURATION_MS,
+  POSTER_REEL_LIMIT,
   POSTER_REVEAL_DURATION_MS,
+  preloadPosterPath,
+  preloadPosterReel,
   selectPosterReel,
   wait,
 } from "./lib/poster-reel";
@@ -56,6 +59,7 @@ export default function App() {
   const [auth, setAuth] = useState<AuthState | null>(null);
   const [addingMovie, setAddingMovie] = useState(false);
   const addMovieTriggerRef = useRef<HTMLButtonElement>(null);
+  const preparedPosterReelRef = useRef<Promise<Movie[]> | null>(null);
 
   const refreshAuth = useCallback(async () => {
     try {
@@ -92,6 +96,23 @@ export default function App() {
   useEffect(() => {
     void Promise.resolve().then(refreshAuth);
   }, [refreshAuth]);
+
+  useEffect(() => {
+    if (auth?.authenticated !== true || movies.length === 0) {
+      preparedPosterReelRef.current = null;
+      return;
+    }
+
+    const reducedMotion = window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const reel = selectPosterReel(
+      movies,
+      Math.random,
+      reducedMotion ? 1 : POSTER_REEL_LIMIT,
+    );
+    preparedPosterReelRef.current = preloadPosterReel(reel);
+  }, [auth?.authenticated, movies]);
 
   useEffect(() => {
     const handlePopState = () =>
@@ -131,14 +152,29 @@ export default function App() {
 
   const roll = useCallback(() => {
     void run(async () => {
-      setRollReveal({ reel: selectPosterReel(movies), selected: null });
+      const reducedMotion = window.matchMedia?.(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      const preparedReel =
+        preparedPosterReelRef.current ??
+        preloadPosterReel(
+          selectPosterReel(
+            movies,
+            Math.random,
+            reducedMotion ? 1 : POSTER_REEL_LIMIT,
+          ),
+        );
+      preparedPosterReelRef.current = null;
+      setRollReveal({ reel: [], selected: null });
       try {
-        const [result] = await Promise.all([
-          api.roll(),
+        const [reel, result] = await Promise.all([preparedReel, api.roll()]);
+        setRollReveal((current) => (current ? { ...current, reel } : current));
+        const [posterPath] = await Promise.all([
+          preloadPosterPath(result.nowShowing.poster_path),
           wait(POSTER_REEL_DURATION_MS),
         ]);
         const selected = {
-          posterPath: result.nowShowing.poster_path,
+          posterPath,
           title: formatMovieTitle(
             result.nowShowing.title ?? result.rolledMovie.title,
             result.nowShowing.version ?? result.rolledMovie.version,

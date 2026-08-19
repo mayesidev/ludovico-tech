@@ -1,16 +1,18 @@
 import { Ticket } from "lucide-react";
-import { cn, posterUrl } from "../lib/utils";
+import { cn, posterUrl, type PosterImageWidth } from "../lib/utils";
 
 export function Poster({
   path,
   title,
   large = false,
+  imageWidth = 500,
 }: {
   path: string | null | undefined;
   title: string;
   large?: boolean;
+  imageWidth?: PosterImageWidth;
 }) {
-  const src = posterUrl(path);
+  const src = posterUrl(path, imageWidth);
   const sizeClass = large ? "max-w-[340px]" : "max-w-[90px]";
   const posterClassName = cn(
     "aspect-[2/3] w-full object-cover",

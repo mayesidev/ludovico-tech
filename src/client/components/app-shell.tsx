@@ -6,7 +6,10 @@ import { Button } from "./ui";
 import { cn, formatMovieTitle } from "../lib/utils";
 import { AppLink } from "./app-link";
 import type { Movie } from "../api";
-import { POSTER_REEL_INTERVAL_MS } from "../lib/poster-reel";
+import {
+  POSTER_REEL_IMAGE_WIDTH,
+  POSTER_REEL_INTERVAL_MS,
+} from "../lib/poster-reel";
 import { Poster } from "./poster";
 
 type AppHeaderProps = {
@@ -226,6 +229,7 @@ export function RollReveal({
         <div className="mx-auto mb-6 w-full max-w-[220px]">
           {visibleMovie ? (
             <Poster
+              imageWidth={POSTER_REEL_IMAGE_WIDTH}
               key={selected?.title ?? reel[reelIndex]?.id ?? "empty"}
               large
               path={visibleMovie.poster_path}
