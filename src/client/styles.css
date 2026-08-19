@@ -84,6 +84,16 @@ button {
   font-weight: 500;
 }
 
+.feature-title-container {
+  container-type: inline-size;
+}
+
+.feature-title {
+  font-size: clamp(1.75rem, var(--movie-title-size), 3rem);
+  line-height: 0.96;
+  text-wrap: balance;
+}
+
 .feature-metadata {
   display: grid;
   max-width: 40.625rem;
@@ -113,6 +123,10 @@ button {
 }
 
 @media (min-width: 640px) {
+  .feature-title {
+    font-size: clamp(2.25rem, var(--movie-title-size), 4.5rem);
+  }
+
   .feature-metadata {
     grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
   }
@@ -137,6 +151,12 @@ button {
   .movie-metadata {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: 2rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .feature-title {
+    font-size: clamp(2.5rem, var(--movie-title-size), 5.5rem);
   }
 }
 

@@ -73,6 +73,13 @@ describe("site identity", () => {
 });
 
 describe("random selection reveal", () => {
+  it("uses an intentional ticket placeholder before a reel is available", () => {
+    const { container } = render(<RollReveal reel={[]} selected={null} />);
+
+    expect(container.querySelector(".lucide-ticket")).not.toBeNull();
+    expect(container.querySelector(".lucide-clapperboard")).toBeNull();
+  });
+
   it("cycles through the prepared poster reel without repeatedly announcing titles", () => {
     vi.useFakeTimers();
     render(

@@ -85,8 +85,18 @@ describe("home workflows", () => {
     expect(
       screen
         .getByLabelText("No poster available for Batman (Director's Cut)")
-        .querySelector(".lucide-image-off"),
+        .querySelector(".lucide-ticket"),
     ).not.toBeNull();
+  });
+
+  it("exposes title length for responsive feature-title scaling", () => {
+    const title =
+      "Dr. Strangelove or: How I Learned to Stop Worrying and Love the Bomb";
+    renderHome({ nowShowing: nowShowing({ title }) });
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveStyle({
+      "--movie-title-length": String(title.length),
+    });
   });
 
   it("selects a half-point rating with a slider and requires the custom phrase", async () => {

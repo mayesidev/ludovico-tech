@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Clapperboard, LoaderCircle, X } from "lucide-react";
+import { Clapperboard, LoaderCircle, Ticket, X } from "lucide-react";
 import type { AuthState } from "../api";
 import type { Navigate, Tab } from "../types";
 import { Button } from "./ui";
@@ -233,7 +233,7 @@ export function RollReveal({
             />
           ) : (
             <div className="poster-frame mx-auto grid aspect-[2/3] w-full max-w-[220px] place-items-center text-highlight">
-              <Clapperboard size={40} />
+              <Ticket size={40} />
             </div>
           )}
         </div>

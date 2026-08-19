@@ -1,4 +1,4 @@
-import { ImageOff } from "lucide-react";
+import { Ticket } from "lucide-react";
 import { cn, posterUrl } from "../lib/utils";
 
 export function Poster({
@@ -39,7 +39,7 @@ export function Poster({
       )}
       role="img"
     >
-      <ImageOff className="text-highlight/70" size={large ? 34 : 20} />
+      <Ticket className="text-highlight/70" size={large ? 34 : 20} />
     </div>
   );
 

@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useState, type CSSProperties } from "react";
 import { ArrowDown, LoaderCircle, RotateCw } from "lucide-react";
 import { api, type Movie, type NowShowing } from "../api";
 import type { Navigate, RunAction } from "../types";
@@ -52,6 +52,7 @@ export function HomePage({
     nowShowing?.title,
     nowShowing?.version,
   );
+  const titleLength = Math.max(nowShowingTitle.length, 12);
 
   return (
     <div className="space-y-14">
@@ -66,23 +67,31 @@ export function HomePage({
           </div>
 
           <div className="min-w-0 pt-1 sm:pt-4 lg:pt-10">
-            <h1
-              className="max-w-3xl font-heading text-5xl font-medium leading-[0.96] tracking-[-0.045em] text-text-primary sm:text-7xl lg:text-[clamp(4.5rem,6.2vw,5.5rem)]"
-              id="now-showing-title"
-            >
-              {nowShowing?.movie_id ? (
-                <AppLink
-                  aria-label={`${nowShowingTitle}${releaseYear ? ` (${releaseYear})` : ""}`}
-                  className="transition hover:text-highlight-soft"
-                  href={`/movies/${encodeURIComponent(nowShowing.movie_id)}?from=now-showing`}
-                  onNavigate={onNavigate}
-                >
-                  {nowShowingTitle}
-                </AppLink>
-              ) : (
-                "No Movie Selected"
-              )}
-            </h1>
+            <div className="feature-title-container max-w-3xl">
+              <h1
+                className="feature-title font-heading font-medium tracking-[-0.045em] text-text-primary"
+                id="now-showing-title"
+                style={
+                  {
+                    "--movie-title-length": titleLength,
+                    "--movie-title-size": `${360 / titleLength}cqi`,
+                  } as CSSProperties
+                }
+              >
+                {nowShowing?.movie_id ? (
+                  <AppLink
+                    aria-label={`${nowShowingTitle}${releaseYear ? ` (${releaseYear})` : ""}`}
+                    className="transition hover:text-highlight-soft"
+                    href={`/movies/${encodeURIComponent(nowShowing.movie_id)}?from=now-showing`}
+                    onNavigate={onNavigate}
+                  >
+                    {nowShowingTitle}
+                  </AppLink>
+                ) : (
+                  "No Movie Selected"
+                )}
+              </h1>
+            </div>
 
             {hasSelection && (
               <dl className="feature-metadata">
