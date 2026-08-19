@@ -69,7 +69,7 @@ export function HomePage({
           <div className="min-w-0 pt-1 sm:pt-4 lg:pt-10">
             <div className="feature-title-container w-full">
               <h1
-                className="feature-title font-heading font-medium tracking-[-0.045em] text-text-primary"
+                className="feature-title font-heading font-medium tracking-[0.01em] text-text-primary"
                 id="now-showing-title"
                 style={
                   {

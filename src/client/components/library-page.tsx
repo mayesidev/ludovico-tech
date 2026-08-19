@@ -187,7 +187,7 @@ export function LibraryPage({
     <div>
       <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <h1 className="font-heading text-5xl font-medium leading-none tracking-[-0.045em] text-text-primary sm:text-7xl">
+          <h1 className="font-heading text-5xl font-medium leading-none tracking-[0.01em] text-text-primary sm:text-7xl">
             Library
           </h1>
           <p className="mt-3 text-sm text-text-muted">
