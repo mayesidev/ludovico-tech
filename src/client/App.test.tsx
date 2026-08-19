@@ -61,7 +61,10 @@ describe("application authorization presentation", () => {
     window.history.replaceState(null, "", "/");
   });
 
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 
   it("lets anonymous visitors browse without rendering mutation controls", async () => {
     arrange(anonymous);
@@ -204,6 +207,13 @@ describe("application authorization presentation", () => {
   });
 
   it("runs the poster reel before revealing the actual Now Showing movie", async () => {
+    vi.stubGlobal(
+      "Image",
+      class {
+        src = "";
+        decode = vi.fn().mockResolvedValue(undefined);
+      },
+    );
     arrange(authenticated);
     vi.mocked(api.movies).mockResolvedValue({
       movies: [{ ...movie, poster_path: "/reel.jpg" }],
@@ -236,6 +246,14 @@ describe("application authorization presentation", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("Choosing a movie");
     await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.getByAltText("Poster for Test Movie")).toHaveAttribute(
+      "src",
+      "https://image.tmdb.org/t/p/w342/reel.jpg",
+    );
+    await act(async () => {
       vi.advanceTimersByTime(POSTER_REEL_DURATION_MS);
       await Promise.resolve();
     });
@@ -243,7 +261,7 @@ describe("application authorization presentation", () => {
     expect(reveal).toHaveTextContent("Now showing: Actual First Movie");
     expect(
       within(reveal).getByAltText("Poster for Actual First Movie"),
-    ).toBeVisible();
+    ).toHaveAttribute("src", "https://image.tmdb.org/t/p/w342/actual.jpg");
 
     await act(async () => {
       vi.advanceTimersByTime(POSTER_REVEAL_DURATION_MS);

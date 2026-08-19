@@ -11,6 +11,9 @@ describe("movie display helpers", () => {
     expect(posterUrl("/poster.jpg")).toBe(
       "https://image.tmdb.org/t/p/w500/poster.jpg",
     );
+    expect(posterUrl("/poster.jpg", 342)).toBe(
+      "https://image.tmdb.org/t/p/w342/poster.jpg",
+    );
   });
 
   it("handles missing poster paths", () => {

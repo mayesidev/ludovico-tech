@@ -30,5 +30,9 @@ export const formatMovieTitle = (
   version: string | null | undefined,
 ) => (title && version ? `${title} (${version})` : (title ?? ""));
 
-export const posterUrl = (path: string | null | undefined) =>
-  path ? `https://image.tmdb.org/t/p/w500${path}` : null;
+export type PosterImageWidth = 342 | 500;
+
+export const posterUrl = (
+  path: string | null | undefined,
+  width: PosterImageWidth = 500,
+) => (path ? `https://image.tmdb.org/t/p/w${width}${path}` : null);
