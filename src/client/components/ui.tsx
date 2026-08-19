@@ -52,7 +52,7 @@ export const Badge = ({
 }) => (
   <span
     className={cn(
-      "ui-label inline-flex items-center border-l-2 border-highlight bg-surface-interactive px-3 py-1.5 text-highlight-soft",
+      "metadata-value inline-flex items-center border-l-2 border-highlight bg-surface-interactive px-3 py-2 text-highlight-soft",
       className,
     )}
   >

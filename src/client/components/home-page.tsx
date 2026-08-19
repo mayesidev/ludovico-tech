@@ -89,7 +89,7 @@ export function HomePage({
                 {releaseYear && (
                   <div>
                     <dt className="ui-label text-text-muted">Release</dt>
-                    <dd className="mt-2 text-base font-medium text-text-secondary">
+                    <dd className="metadata-value mt-2 text-text-secondary">
                       {releaseYear}
                     </dd>
                   </div>
@@ -97,7 +97,7 @@ export function HomePage({
                 {runtime !== null && (
                   <div>
                     <dt className="ui-label text-text-muted">Runtime</dt>
-                    <dd className="mt-2 text-base font-medium text-text-secondary">
+                    <dd className="metadata-value mt-2 text-text-secondary">
                       {formatRuntime(runtime)}
                     </dd>
                   </div>
@@ -105,7 +105,7 @@ export function HomePage({
                 {currentMovie && (
                   <div>
                     <dt className="ui-label text-text-muted">Added</dt>
-                    <dd className="mt-2 text-base font-medium text-text-secondary">
+                    <dd className="metadata-value mt-2 text-text-secondary">
                       {formatDate(currentMovie.added_at)}
                     </dd>
                   </div>

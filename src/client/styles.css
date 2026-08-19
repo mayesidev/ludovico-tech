@@ -70,6 +70,20 @@ button {
   letter-spacing: 0;
 }
 
+.nav-label {
+  font-size: 1.125rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.metadata-value,
+.movie-metadata dd {
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 500;
+}
+
 .feature-metadata {
   display: grid;
   max-width: 40.625rem;
@@ -96,9 +110,6 @@ button {
 
 .movie-metadata dd {
   margin-top: 0.5rem;
-  font-size: 1rem;
-  line-height: 1.5rem;
-  font-weight: 500;
 }
 
 @media (min-width: 640px) {

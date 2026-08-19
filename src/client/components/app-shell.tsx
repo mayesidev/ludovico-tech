@@ -105,7 +105,7 @@ function NavButton({
       href={href}
       onNavigate={onNavigate}
       className={cn(
-        "header-label relative grid min-w-0 place-items-center px-3 transition sm:min-w-28 sm:px-5",
+        "nav-label relative grid min-w-0 place-items-center px-3 transition sm:min-w-32 sm:px-6",
         active
           ? "text-text-primary after:absolute after:inset-x-5 after:bottom-[-1px] after:h-[3px] after:bg-action"
           : "text-text-muted hover:text-text-primary",
