@@ -30,17 +30,14 @@ export function DeleteMovieDialog({
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-red-200">
-            Remove from library
-          </p>
           <h2
-            className="mt-2 font-display text-3xl font-bold text-cream"
+            className="font-heading text-3xl font-medium tracking-tight text-text-primary"
             id={titleId}
           >
             Delete {movieTitle}?
           </h2>
           <p
-            className="mt-3 text-sm leading-6 text-zinc-400"
+            className="mt-3 text-sm leading-6 text-text-muted"
             id={descriptionId}
           >
             This removes the unwatched movie and its catalog references. This
@@ -48,7 +45,7 @@ export function DeleteMovieDialog({
           </p>
         </div>
         <Button
-          aria-label="Close delete dialog"
+          aria-label="Close Delete Dialog"
           onClick={onClose}
           variant="ghost"
         >
@@ -58,7 +55,7 @@ export function DeleteMovieDialog({
 
       <div className="mt-7 flex flex-wrap justify-end gap-3">
         <Button onClick={onClose} ref={cancelRef} type="button" variant="ghost">
-          Keep movie
+          Keep Movie
         </Button>
         <Button
           disabled={busy}
@@ -67,7 +64,7 @@ export function DeleteMovieDialog({
           variant="danger"
         >
           <Trash2 size={16} />
-          Delete movie
+          Delete Movie
         </Button>
       </div>
     </Dialog>

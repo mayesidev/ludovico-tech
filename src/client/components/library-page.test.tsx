@@ -91,7 +91,7 @@ describe("movie library", () => {
       screen.getByRole("columnheader", { name: "Collection" }),
     ).toBeVisible();
     expect(
-      screen.getByRole("columnheader", { name: "Date added" }),
+      screen.getByRole("columnheader", { name: "Date Added" }),
     ).toBeVisible();
     expect(screen.getByRole("columnheader", { name: "Links" })).toBeVisible();
 
@@ -144,9 +144,9 @@ describe("movie library", () => {
       "aria-hidden",
       "true",
     );
-    await user.click(screen.getByRole("button", { name: "Date added" }));
+    await user.click(screen.getByRole("button", { name: "Date Added" }));
     expect(
-      screen.getByRole("columnheader", { name: /Date added/ }),
+      screen.getByRole("columnheader", { name: /Date Added/ }),
     ).toHaveAttribute("aria-sort", "ascending");
     expect(getRenderedMovieTitles()).toEqual(["Alpha Movie", "Zulu Movie"]);
   });

@@ -175,20 +175,19 @@ export default function App() {
       : null;
 
   return (
-    <div className="theater-background min-h-screen overflow-x-hidden text-zinc-100">
-      <div className="grain" />
+    <div className="app-background min-h-screen overflow-x-hidden text-text-primary">
       <AppHeader
         action={
           canMutate ? (
             <Button
-              aria-label="Add a movie"
-              className="shrink-0 px-3 sm:px-4"
+              aria-label="Add a Movie"
+              className="header-label shrink-0 px-3 sm:px-4"
               disabled={busy}
               onClick={() => setAddingMovie(true)}
               ref={addMovieTriggerRef}
             >
               <Plus size={16} />
-              <span className="hidden sm:inline">Add a movie</span>
+              <span className="hidden sm:inline">Add a Movie</span>
             </Button>
           ) : undefined
         }
@@ -204,7 +203,7 @@ export default function App() {
         }
       />
 
-      <main className="relative z-10 mx-auto max-w-7xl px-5 pb-20 pt-10 lg:px-8 lg:pt-16">
+      <main className="relative z-10 mx-auto max-w-7xl px-5 pb-20 pt-9 lg:px-8 lg:pt-12">
         {route.page === "credits" ? (
           <CreditsPage />
         ) : loading ? (

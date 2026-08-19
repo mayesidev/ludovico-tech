@@ -14,15 +14,15 @@ export const Button = forwardRef<
 >(({ className, variant = "primary", ...props }, ref) => (
   <button
     className={cn(
-      "inline-flex min-h-10 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-marquee-light focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-45",
+      "ui-label inline-flex min-h-11 items-center justify-center gap-2 rounded-sm px-4 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:cursor-not-allowed disabled:opacity-45",
       variant === "primary" &&
-        "bg-marquee-gold text-ink shadow-lg shadow-marquee-gold/10 hover:bg-marquee-light",
+        "border border-action bg-action text-text-primary shadow-lg shadow-black/15 hover:border-action-hover hover:bg-action-hover",
       variant === "secondary" &&
-        "border border-marquee-gold/25 bg-curtain/20 text-cream hover:border-marquee-gold/45 hover:bg-curtain/35",
+        "border border-border-primary bg-surface/75 text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary",
       variant === "ghost" &&
-        "text-zinc-300 hover:bg-curtain/25 hover:text-cream",
+        "text-text-secondary hover:bg-surface-interactive hover:text-text-primary",
       variant === "danger" &&
-        "border border-red-300/20 bg-red-500/20 text-red-100 hover:bg-red-500/30",
+        "border border-danger/45 bg-danger-surface/35 text-danger hover:border-danger hover:bg-danger-surface",
       className,
     )}
     ref={ref}
@@ -38,12 +38,7 @@ export const Card = ({
   className?: string;
   children: ReactNode;
 }) => (
-  <section
-    className={cn(
-      "theater-card rounded-3xl border shadow-2xl shadow-black/30",
-      className,
-    )}
-  >
+  <section className={cn("surface-panel rounded-sm border", className)}>
     {children}
   </section>
 );
@@ -57,7 +52,7 @@ export const Badge = ({
 }) => (
   <span
     className={cn(
-      "inline-flex items-center rounded-full border border-marquee-gold/20 bg-curtain/25 px-2.5 py-1 text-xs font-medium text-marquee-light",
+      "metadata-value inline-flex items-center border-l-2 border-highlight bg-surface-interactive px-3 py-2 text-highlight-soft",
       className,
     )}
   >
@@ -71,7 +66,7 @@ export const Input = forwardRef<
 >(({ className, ...props }, ref) => (
   <input
     className={cn(
-      "h-11 w-full rounded-2xl border border-marquee-gold/15 bg-black/25 px-3.5 text-sm text-cream outline-none placeholder:text-zinc-600 focus:border-marquee-gold/70 focus:ring-2 focus:ring-marquee-gold/15",
+      "h-11 w-full rounded-sm border border-border-subtle bg-canvas/75 px-3.5 text-sm text-text-primary outline-none placeholder:text-text-muted/65 focus:border-highlight focus:ring-2 focus:ring-highlight/15 aria-invalid:border-danger/70 aria-invalid:focus:border-danger",
       className,
     )}
     ref={ref}
@@ -90,14 +85,12 @@ export const SectionHeading = ({
   description?: string;
 }) => (
   <div className="mb-5">
-    <p className="mb-2 text-xs font-bold uppercase tracking-[0.22em] text-marquee-gold">
-      {eyebrow}
-    </p>
-    <h2 className="font-display text-2xl font-bold tracking-normal text-cream sm:text-3xl">
+    <p className="ui-label mb-2 text-highlight">{eyebrow}</p>
+    <h2 className="font-heading text-2xl font-medium tracking-tight text-text-primary sm:text-3xl">
       {title}
     </h2>
     {description && (
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-text-muted">
         {description}
       </p>
     )}

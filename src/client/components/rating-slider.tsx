@@ -14,22 +14,19 @@ export function RatingSlider({
   return (
     <div>
       <div className="flex items-center justify-between gap-4">
-        <label
-          className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500"
-          htmlFor={id}
-        >
-          Final rating
+        <label className="ui-label text-text-secondary" htmlFor={id}>
+          Rating
         </label>
         <span
           aria-label="Selected rating"
-          className="min-w-12 rounded-full border border-marquee-gold/25 bg-curtain/20 px-3 py-1 text-center font-semibold text-marquee-light"
+          className="min-w-10 text-right text-sm font-bold text-highlight-soft"
         >
           {value}
         </span>
       </div>
       <input
         aria-valuetext={`${value}`}
-        className="mt-4 h-8 w-full cursor-pointer accent-marquee-gold disabled:cursor-not-allowed"
+        className="mt-2 h-8 w-full cursor-pointer accent-highlight disabled:cursor-not-allowed"
         disabled={disabled}
         id={id}
         max="5"
@@ -41,7 +38,7 @@ export function RatingSlider({
       />
       <div
         aria-hidden="true"
-        className="flex justify-between text-xs font-semibold text-zinc-500"
+        className="flex justify-between text-xs font-medium text-text-muted"
       >
         <span>0</span>
         <span>1</span>

@@ -159,7 +159,7 @@ export function TmdbMovieFields({
       </div>
       {parsedTmdbId === undefined && (
         <p
-          className="text-sm text-red-200"
+          className="text-sm text-danger"
           id={`${tmdbIdId}-error`}
           role="alert"
         >
@@ -168,7 +168,7 @@ export function TmdbMovieFields({
       )}
 
       {error && (
-        <p className="text-sm text-red-200" role="alert">
+        <p className="text-sm text-danger" role="alert">
           {error}
         </p>
       )}
@@ -185,19 +185,19 @@ export function TmdbMovieFields({
                 onTmdbIdChange(String(result.id));
               }}
               className={cn(
-                "flex items-center gap-3 rounded-2xl border p-3 text-left transition",
+                "flex items-center gap-3 rounded-sm border p-3 text-left transition",
                 selected?.id === result.id
-                  ? "border-marquee-gold bg-curtain/30"
-                  : "border-marquee-gold/10 bg-black/15 hover:border-marquee-gold/30",
+                  ? "border-highlight bg-action/20"
+                  : "border-border-subtle bg-canvas/25 hover:border-highlight/45",
               )}
               type="button"
             >
               <Poster path={result.posterPath} title={result.title} />
               <span>
-                <span className="block font-semibold text-cream">
+                <span className="block font-semibold text-text-primary">
                   {result.title}
                 </span>
-                <span className="mt-1 block text-xs text-zinc-500">
+                <span className="mt-1 block text-xs text-text-muted">
                   {result.releaseDate
                     ? formatDate(result.releaseDate)
                     : "Release date unknown"}
@@ -209,7 +209,7 @@ export function TmdbMovieFields({
       )}
 
       {parsedTmdbId !== null && parsedTmdbId !== undefined && (
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-zinc-400">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-text-muted">
           <span>
             {selected
               ? `Confirmed: ${selected.title} (TMDB #${selected.id})`
@@ -224,7 +224,7 @@ export function TmdbMovieFields({
             variant="ghost"
           >
             <Unlink size={15} />
-            Remove match
+            Remove Match
           </Button>
         </div>
       )}

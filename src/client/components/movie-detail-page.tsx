@@ -4,7 +4,7 @@ import { imdbTitleUrl } from "../../shared/imdb";
 import { formatDate, formatMovieTitle, formatRuntime } from "../lib/utils";
 import { AppLink } from "./app-link";
 import { Poster } from "./poster";
-import { Button, Card } from "./ui";
+import { Button } from "./ui";
 
 type MovieDetailPageProps = {
   canMutate?: boolean;
@@ -30,12 +30,14 @@ export function MovieDetailPage({
   if (!movie) {
     return (
       <div className="mx-auto max-w-3xl py-12 text-center">
-        <h1 className="font-display text-4xl font-bold text-cream">
-          Movie not found
+        <h1 className="font-heading text-4xl font-medium tracking-tight text-text-primary">
+          Movie Not Found
         </h1>
-        <p className="mt-3 text-zinc-400">This movie is not in the catalog.</p>
+        <p className="mt-3 text-text-muted">
+          This movie is not in the catalog.
+        </p>
         <AppLink
-          className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-marquee-light hover:text-cream"
+          className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-highlight-soft hover:text-text-primary"
           href={returnHref}
           onNavigate={onNavigate}
         >
@@ -53,9 +55,9 @@ export function MovieDetailPage({
   const title = formatMovieTitle(movie.title, movie.version);
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="w-full">
       <AppLink
-        className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-zinc-400 hover:text-marquee-light"
+        className="ui-label mb-6 inline-flex items-center gap-2 text-text-muted hover:text-highlight-soft"
         href={returnHref}
         onNavigate={onNavigate}
       >
@@ -63,44 +65,46 @@ export function MovieDetailPage({
         {returnLabel}
       </AppLink>
 
-      <Card className="grid gap-8 p-6 sm:grid-cols-[220px_1fr] sm:p-8 lg:p-10">
-        <Poster path={movie.poster_path} title={title} large />
-        <div className="min-w-0">
-          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-            <h1 className="font-display text-4xl font-bold tracking-normal text-cream sm:text-5xl">
+      <article className="mt-5 grid items-start gap-10 sm:grid-cols-[minmax(220px,286px)_minmax(0,1fr)] lg:gap-[clamp(44px,6vw,88px)]">
+        <div className="mx-auto w-full max-w-[286px]">
+          <Poster path={movie.poster_path} title={title} large />
+        </div>
+        <div className="min-w-0 pt-2">
+          <div className="grid gap-5 border-b border-border-subtle pb-7 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+            <h1 className="font-heading text-5xl font-medium leading-[0.95] tracking-[-0.045em] text-text-primary sm:text-6xl">
               {title}
             </h1>
             {watched && movie.rating_phrase !== null && (
               <div
                 aria-label={`Rating: ${movie.rating_score} ${movie.rating_phrase}`}
-                className="flex min-w-0 items-baseline gap-3 border-marquee-gold/50 sm:max-w-64 sm:justify-self-end sm:border-l-2 sm:pl-5 sm:pt-1"
+                className="rating-surface flex min-w-0 items-baseline gap-3 border px-4 py-3 sm:max-w-64 sm:justify-self-end"
               >
-                <span className="text-2xl font-semibold text-marquee-light">
+                <span className="text-2xl font-semibold text-highlight-soft">
                   {movie.rating_score}
                 </span>
-                <span className="min-w-0 text-lg italic text-cream">
+                <span className="min-w-0 text-sm italic text-text-primary">
                   {movie.rating_phrase}
                 </span>
               </div>
             )}
           </div>
 
-          <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2">
+          <dl className="movie-metadata">
             {movie.release_date && (
               <div>
-                <dt className="text-zinc-500">Release date</dt>
-                <dd className="mt-1 text-zinc-300">
+                <dt className="ui-label text-text-muted">Release date</dt>
+                <dd className="text-text-secondary">
                   {formatDate(movie.release_date)}
                 </dd>
               </div>
             )}
             {movie.version && (
               <div>
-                <dt className="text-zinc-500">Version</dt>
-                <dd className="mt-1 text-zinc-300">
+                <dt className="ui-label text-text-muted">Version</dt>
+                <dd className="text-text-secondary">
                   {movie.version_reference_url ? (
                     <a
-                      className="inline-flex items-center gap-1.5 font-semibold text-marquee-light hover:text-cream"
+                      className="inline-flex items-center gap-1.5 font-semibold text-highlight-soft hover:text-text-primary"
                       href={movie.version_reference_url}
                       rel="noreferrer"
                       target="_blank"
@@ -116,22 +120,24 @@ export function MovieDetailPage({
             )}
             {runtime !== null && (
               <div>
-                <dt className="text-zinc-500">Runtime</dt>
-                <dd className="mt-1 text-zinc-300">{formatRuntime(runtime)}</dd>
+                <dt className="ui-label text-text-muted">Runtime</dt>
+                <dd className="text-text-secondary">
+                  {formatRuntime(runtime)}
+                </dd>
               </div>
             )}
             <div>
-              <dt className="text-zinc-500">Date added</dt>
-              <dd className="mt-1 text-zinc-300">
+              <dt className="ui-label text-text-muted">Date added</dt>
+              <dd className="text-text-secondary">
                 {formatDate(movie.added_at)}
               </dd>
             </div>
             {movie.collection_name && movie.collection_id && (
               <div>
-                <dt className="text-zinc-500">Collection</dt>
-                <dd className="mt-1">
+                <dt className="ui-label text-text-muted">Collection</dt>
+                <dd>
                   <AppLink
-                    className="font-semibold text-marquee-light hover:text-cream"
+                    className="font-semibold text-highlight-soft hover:text-text-primary"
                     href={`/collections/${encodeURIComponent(movie.collection_id)}${returnTo === "now-showing" ? "?from=now-showing" : ""}`}
                     onNavigate={onNavigate}
                   >
@@ -143,10 +149,10 @@ export function MovieDetailPage({
             {movie.tmdb_collection_id != null &&
               movie.tmdb_collection_name != null && (
                 <div>
-                  <dt className="text-zinc-500">TMDB collection</dt>
-                  <dd className="mt-1">
+                  <dt className="ui-label text-text-muted">TMDB collection</dt>
+                  <dd>
                     <a
-                      className="inline-flex items-center gap-1.5 font-semibold text-marquee-light hover:text-cream"
+                      className="inline-flex items-center gap-1.5 font-semibold text-highlight-soft hover:text-text-primary"
                       href={`https://www.themoviedb.org/collection/${movie.tmdb_collection_id}`}
                       rel="noreferrer"
                       target="_blank"
@@ -163,12 +169,12 @@ export function MovieDetailPage({
             movie.imdb_id !== null ||
             canEdit ||
             canDelete) && (
-            <div className="mt-8 space-y-4">
+            <div className="mt-6 space-y-4">
               {(movie.tmdb_id !== null || movie.imdb_id !== null) && (
                 <div className="flex flex-wrap items-center gap-4">
                   {movie.tmdb_id !== null && (
                     <a
-                      className="inline-flex items-center gap-2 text-sm font-semibold text-marquee-light hover:text-cream"
+                      className="inline-flex items-center gap-2 text-sm font-semibold text-highlight-soft hover:text-text-primary"
                       href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
                       rel="noreferrer"
                       target="_blank"
@@ -179,7 +185,7 @@ export function MovieDetailPage({
                   )}
                   {movie.imdb_id !== null && (
                     <a
-                      className="inline-flex items-center gap-2 text-sm font-semibold text-marquee-light hover:text-cream"
+                      className="inline-flex items-center gap-2 text-sm font-semibold text-highlight-soft hover:text-text-primary"
                       href={imdbTitleUrl(movie.imdb_id)}
                       rel="noreferrer"
                       target="_blank"
@@ -195,13 +201,13 @@ export function MovieDetailPage({
                   {canEdit && (
                     <Button onClick={() => onEdit(movie)} variant="secondary">
                       <Pencil size={15} />
-                      Edit movie
+                      Edit Movie
                     </Button>
                   )}
                   {canDelete && (
                     <Button onClick={() => onDelete(movie)} variant="danger">
                       <Trash2 size={15} />
-                      Delete movie
+                      Delete Movie
                     </Button>
                   )}
                 </div>
@@ -209,7 +215,7 @@ export function MovieDetailPage({
             </div>
           )}
         </div>
-      </Card>
+      </article>
     </div>
   );
 }

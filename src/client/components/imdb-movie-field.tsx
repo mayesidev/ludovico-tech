@@ -16,10 +16,7 @@ export function ImdbMovieField({
 
   return (
     <div>
-      <label
-        className="block text-xs font-bold uppercase tracking-[0.14em] text-zinc-500"
-        htmlFor={inputId}
-      >
+      <label className="ui-label block text-text-muted" htmlFor={inputId}>
         IMDb ID or URL (optional)
       </label>
       <Input
@@ -33,7 +30,7 @@ export function ImdbMovieField({
       />
       {parsedImdbId === undefined ? (
         <span
-          className="mt-2 block text-sm font-normal normal-case tracking-normal text-red-200"
+          className="mt-2 block text-sm font-normal normal-case tracking-normal text-danger"
           id={errorId}
           role="alert"
         >
@@ -41,7 +38,7 @@ export function ImdbMovieField({
         </span>
       ) : (
         <span
-          className="mt-2 block text-xs font-normal normal-case tracking-normal text-zinc-500"
+          className="mt-2 block text-xs font-normal normal-case tracking-normal text-text-muted"
           id={helpId}
         >
           Used only for an external link. TMDB remains the source for movie

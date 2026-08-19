@@ -59,16 +59,16 @@ describe("accessible dialogs", () => {
 
     const trigger = screen.getByRole("button", { name: "Open edit" });
     await user.click(trigger);
-    expect(screen.getByRole("dialog", { name: "Edit movie" })).toBeVisible();
+    expect(screen.getByRole("dialog", { name: "Edit Movie" })).toBeVisible();
     const input = screen.getByRole("textbox", { name: "Movie title" });
     expect(input).toHaveFocus();
     await user.clear(input);
-    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
     expect(screen.getByText("Enter a movie title.")).toHaveRole("alert");
     expect(api.updateMovie).not.toHaveBeenCalled();
 
     await user.type(input, "Updated Title");
-    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
     expect(api.updateMovie).toHaveBeenCalledWith("movie-id", {
       collectionName: "Test Saga",
       imdbId: null,
@@ -122,7 +122,7 @@ describe("accessible dialogs", () => {
     });
     await user.clear(collection);
     await user.type(collection, "New Saga");
-    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
 
     expect(api.updateMovie).toHaveBeenCalledWith("movie-id", {
       collectionName: "New Saga",
@@ -163,7 +163,7 @@ describe("accessible dialogs", () => {
     );
 
     const toggle = screen.getByRole("checkbox", {
-      name: /Specify a version/,
+      name: /Specify a Version/,
     });
     expect(toggle).toBeChecked();
     expect(screen.getByRole("textbox", { name: "Version" })).toHaveValue(
@@ -176,7 +176,7 @@ describe("accessible dialogs", () => {
     ).toHaveValue(132);
 
     await user.click(toggle);
-    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
 
     expect(api.updateMovie).toHaveBeenCalledWith("versioned-id", {
       collectionName: "Test Saga",
@@ -217,7 +217,7 @@ describe("accessible dialogs", () => {
       imdbInput,
       "https://m.imdb.com/title/TT0117509/?ref_=fn_all_ttl_1",
     );
-    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
 
     expect(api.updateMovie).toHaveBeenCalledWith("imdb-id", {
       collectionName: "Test Saga",

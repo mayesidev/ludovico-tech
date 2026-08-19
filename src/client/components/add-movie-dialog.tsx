@@ -68,20 +68,20 @@ export function AddMovieDialog({
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2
-            className="font-display text-2xl font-bold text-cream"
+            className="font-heading text-3xl font-medium tracking-tight text-text-primary"
             id={dialogTitleId}
           >
-            Add a movie
+            Add a Movie
           </h2>
           <p
-            className="mt-2 text-sm leading-6 text-zinc-400"
+            className="mt-2 text-sm leading-6 text-text-muted"
             id={dialogDescriptionId}
           >
             Search TMDB, enter an exact TMDB ID, or add the title without a
             match.
           </p>
         </div>
-        <Button aria-label="Close add movie" onClick={onClose} variant="ghost">
+        <Button aria-label="Close Add Movie" onClick={onClose} variant="ghost">
           <X size={18} />
         </Button>
       </div>
@@ -98,7 +98,7 @@ export function AddMovieDialog({
           tmdbId={tmdbId}
         />
         {invalidTitle && (
-          <p className="text-sm text-red-200" id={titleErrorId} role="alert">
+          <p className="text-sm text-danger" id={titleErrorId} role="alert">
             Enter a movie title.
           </p>
         )}
@@ -133,8 +133,8 @@ export function AddMovieDialog({
       </div>
 
       {title && (
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-curtain/35 pt-5">
-          <p className="text-sm text-zinc-400">
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-border-subtle pt-5">
+          <p className="text-sm text-text-muted">
             A TMDB match is optional. Any supplied ID is validated before the
             movie is saved.
           </p>
@@ -172,7 +172,7 @@ export function AddMovieDialog({
             }}
           >
             <Plus size={16} />
-            Add movie
+            Add Movie
           </Button>
         </div>
       )}

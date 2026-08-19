@@ -71,14 +71,14 @@ describe("application authorization presentation", () => {
     expect(
       await screen.findByRole("heading", {
         level: 1,
-        name: "No movie selected",
+        name: "No Movie Selected",
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /^Sign in$/ }),
+      screen.getByRole("button", { name: /^Sign In$/ }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Choose a movie" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Add a movie" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Choose a Movie" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a Movie" })).toBeNull();
 
     const library = screen.getByRole("link", { name: "Library" });
     await user.click(library);
@@ -97,7 +97,7 @@ describe("application authorization presentation", () => {
     ).toHaveAttribute("href", "/library");
 
     await user.click(screen.getByRole("link", { name: "Ludovico Tech home" }));
-    expect(screen.getByRole("link", { name: "Now showing" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Now Showing" })).toHaveAttribute(
       "aria-current",
       "page",
     );
@@ -119,32 +119,32 @@ describe("application authorization presentation", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("button", { name: "Choose a movie" }),
+      await screen.findByRole("button", { name: "Choose a Movie" }),
     ).toBeVisible();
-    const addMovie = screen.getByRole("button", { name: "Add a movie" });
+    const addMovie = screen.getByRole("button", { name: "Add a Movie" });
     expect(addMovie).toBeVisible();
     await user.click(addMovie);
-    expect(screen.getByRole("dialog", { name: "Add a movie" })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Close add movie" }));
+    expect(screen.getByRole("dialog", { name: "Add a Movie" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Close Add Movie" }));
     expect(addMovie).toHaveFocus();
 
     await user.click(screen.getByRole("link", { name: "Library" }));
     expect(window.location.pathname).toBe("/library");
-    expect(screen.getByRole("button", { name: "Add a movie" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Add a Movie" })).toBeVisible();
     await user.click(screen.getByRole("link", { name: "Test Movie" }));
-    await user.click(screen.getByRole("button", { name: "Edit movie" }));
-    expect(screen.getByRole("dialog", { name: "Edit movie" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Edit Movie" }));
+    expect(screen.getByRole("dialog", { name: "Edit Movie" })).toBeVisible();
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("link", { name: "Return to Library" }));
     await user.click(
-      screen.getByRole("button", { name: "Sign out Invited User" }),
+      screen.getByRole("button", { name: "Sign Out Invited User" }),
     );
 
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /^Sign in$/ })).toBeVisible(),
+      expect(screen.getByRole("button", { name: /^Sign In$/ })).toBeVisible(),
     );
     expect(api.logout).toHaveBeenCalledOnce();
-    expect(screen.queryByRole("button", { name: "Choose a movie" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Choose a Movie" })).toBeNull();
   });
 
   it("keeps add-movie failures visible and dismissible above the open dialog", async () => {
@@ -156,12 +156,12 @@ describe("application authorization presentation", () => {
     render(<App />);
 
     await user.click(
-      await screen.findByRole("button", { name: "Add a movie" }),
+      await screen.findByRole("button", { name: "Add a Movie" }),
     );
-    const dialog = screen.getByRole("dialog", { name: "Add a movie" });
+    const dialog = screen.getByRole("dialog", { name: "Add a Movie" });
     const title = within(dialog).getByRole("textbox", { name: "Movie title" });
     await user.type(title, "Existing TMDB Movie");
-    await user.click(within(dialog).getByRole("button", { name: "Add movie" }));
+    await user.click(within(dialog).getByRole("button", { name: "Add Movie" }));
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(
@@ -172,7 +172,7 @@ describe("application authorization presentation", () => {
     expect(dialog).toBeVisible();
     expect(title).toHaveValue("Existing TMDB Movie");
 
-    await user.click(screen.getByRole("button", { name: "Dismiss error" }));
+    await user.click(screen.getByRole("button", { name: "Dismiss Error" }));
     expect(screen.queryByRole("alert")).toBeNull();
     expect(dialog).toBeVisible();
     expect(title).toHaveValue("Existing TMDB Movie");
@@ -190,7 +190,7 @@ describe("application authorization presentation", () => {
     render(<App />);
 
     await user.click(
-      await screen.findByRole("button", { name: "Choose a movie" }),
+      await screen.findByRole("button", { name: "Choose a Movie" }),
     );
 
     expect(
@@ -198,8 +198,8 @@ describe("application authorization presentation", () => {
         name: "",
       }),
     ).toHaveTextContent("Your session ended. Sign in again to make changes.");
-    expect(screen.getByRole("button", { name: /^Sign in$/ })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Choose a movie" })).toBeNull();
+    expect(screen.getByRole("button", { name: /^Sign In$/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Choose a Movie" })).toBeNull();
     expect(api.authMe).toHaveBeenCalledTimes(2);
   });
 
@@ -229,7 +229,7 @@ describe("application authorization presentation", () => {
     render(<App />);
 
     const choose = await screen.findByRole("button", {
-      name: "Choose a movie",
+      name: "Choose a Movie",
     });
     vi.useFakeTimers();
     fireEvent.click(choose);
@@ -273,7 +273,7 @@ describe("application authorization presentation", () => {
     expect(
       await screen.findByRole("heading", {
         level: 1,
-        name: "Movie not found",
+        name: "Movie Not Found",
       }),
     ).toBeVisible();
 
@@ -295,17 +295,17 @@ describe("application authorization presentation", () => {
     render(<App />);
 
     await user.click(
-      await screen.findByRole("button", { name: "Delete movie" }),
+      await screen.findByRole("button", { name: "Delete Movie" }),
     );
     const confirmation = screen.getByRole("dialog", {
       name: "Delete Test Movie?",
     });
     expect(confirmation).toBeVisible();
     expect(
-      screen.getAllByRole("button", { name: "Delete movie" }),
+      screen.getAllByRole("button", { name: "Delete Movie" }),
     ).toHaveLength(1);
     await user.click(
-      within(confirmation).getByRole("button", { name: "Delete movie" }),
+      within(confirmation).getByRole("button", { name: "Delete Movie" }),
     );
 
     await waitFor(() => expect(window.location.pathname).toBe("/library"));
@@ -323,13 +323,13 @@ describe("application authorization presentation", () => {
     render(<App />);
 
     await user.click(
-      await screen.findByRole("button", { name: "Delete movie" }),
+      await screen.findByRole("button", { name: "Delete Movie" }),
     );
     const confirmation = screen.getByRole("dialog", {
       name: "Delete Test Movie?",
     });
     await user.click(
-      within(confirmation).getByRole("button", { name: "Delete movie" }),
+      within(confirmation).getByRole("button", { name: "Delete Movie" }),
     );
 
     await waitFor(() => expect(window.location.pathname).toBe("/"));
@@ -350,13 +350,13 @@ describe("application authorization presentation", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "Test Saga" }),
     ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Save order" }));
+    await user.click(screen.getByRole("button", { name: "Save Order" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Your session ended. Sign in again to make changes.",
     );
     expect(
-      screen.getByRole("button", { name: "Sign in to set the order" }),
+      screen.getByRole("button", { name: "Sign In to Set the Order" }),
     ).toBeVisible();
     expect(api.order).toHaveBeenCalledWith("collection-id", ["movie-id"]);
   });

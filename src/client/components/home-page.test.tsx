@@ -82,6 +82,21 @@ describe("home workflows", () => {
     expect(
       screen.getByLabelText("No poster available for Batman (Director's Cut)"),
     ).toBeVisible();
+    expect(
+      screen
+        .getByLabelText("No poster available for Batman (Director's Cut)")
+        .querySelector(".lucide-ticket"),
+    ).not.toBeNull();
+  });
+
+  it("exposes title length for responsive feature-title scaling", () => {
+    const title =
+      "Dr. Strangelove or: How I Learned to Stop Worrying and Love the Bomb";
+    renderHome({ nowShowing: nowShowing({ title }) });
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveStyle({
+      "--movie-title-length": String(title.length),
+    });
   });
 
   it("selects a half-point rating with a slider and requires the custom phrase", async () => {
@@ -89,12 +104,12 @@ describe("home workflows", () => {
     const user = userEvent.setup();
     renderHome();
 
-    const slider = screen.getByRole("slider", { name: "Final rating" });
+    const slider = screen.getByRole("slider", { name: "Rating" });
     expect(slider).toHaveAttribute("min", "0");
     expect(slider).toHaveAttribute("max", "5");
     expect(slider).toHaveAttribute("step", "0.5");
     expect(slider).toHaveValue("2.5");
-    await user.click(screen.getByRole("button", { name: "Rate it" }));
+    await user.click(screen.getByRole("button", { name: "Rate It" }));
     expect(screen.getByText("Add the custom rating phrase.")).toHaveRole(
       "alert",
     );
@@ -107,7 +122,7 @@ describe("home workflows", () => {
       screen.getByRole("textbox", { name: "Custom rating phrase (required)" }),
       "  A custom classic  ",
     );
-    await user.click(screen.getByRole("button", { name: "Rate it" }));
+    await user.click(screen.getByRole("button", { name: "Rate It" }));
 
     expect(api.rate).toHaveBeenCalledWith("movie-id", 4.5, "A custom classic");
     expect(screen.queryByText("4.5/5")).toBeNull();
@@ -131,10 +146,10 @@ describe("home workflows", () => {
       screen.getByRole("link", { name: "Test Movie (2020)" }),
     ).toHaveAttribute("href", "/movies/movie-id?from=now-showing");
     expect(
-      title.compareDocumentPosition(poster) & Node.DOCUMENT_POSITION_FOLLOWING,
+      poster.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      poster.compareDocumentPosition(phrase) & Node.DOCUMENT_POSITION_FOLLOWING,
+      title.compareDocumentPosition(phrase) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(phrase).toHaveAttribute("placeholder", "whats?");
   });
@@ -157,18 +172,14 @@ describe("home workflows", () => {
       roll,
     });
 
-    expect(
-      screen.getByText(
-        (_, element) => element?.textContent === "“Worth continuing”",
-      ),
-    ).toBeVisible();
+    expect(screen.getByText("Worth continuing")).toBeVisible();
     expect(screen.queryByText("4/5")).toBeNull();
 
     await user.click(
-      screen.getByRole("button", { name: "Continue collection" }),
+      screen.getByRole("button", { name: "Continue Collection" }),
     );
     await user.click(
-      screen.getByRole("button", { name: "Choose another movie" }),
+      screen.getByRole("button", { name: "Choose Another Movie" }),
     );
 
     expect(api.next).toHaveBeenCalledOnce();
@@ -186,7 +197,7 @@ describe("home workflows", () => {
       onNavigate,
     });
 
-    expect(screen.getByRole("button", { name: "Rate it" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Rate It" })).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "Confirm collection order" }),
     ).toBeNull();
@@ -200,10 +211,10 @@ describe("home workflows", () => {
   it("renders no mutation controls for browse-only visitors", () => {
     renderHome({ canMutate: false });
 
-    expect(screen.queryByRole("button", { name: "Rate it" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Add a movie" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Rate It" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a Movie" })).toBeNull();
     expect(
-      screen.queryByRole("button", { name: "Choose the next movie" }),
+      screen.queryByRole("button", { name: "Choose the Next Movie" }),
     ).toBeNull();
     expect(
       screen.getByRole("heading", { level: 1, name: "Test Movie (2020)" }),
@@ -228,7 +239,7 @@ describe("home workflows", () => {
     renderHome({ canMutate: false, onLogin });
 
     await user.click(
-      screen.getByRole("button", { name: "Sign in to rate this movie" }),
+      screen.getByRole("button", { name: "Sign In to Rate This Movie" }),
     );
 
     expect(onLogin).toHaveBeenCalledOnce();
@@ -238,7 +249,7 @@ describe("home workflows", () => {
     renderHome({ movies: [] });
 
     expect(
-      screen.getByRole("heading", { level: 2, name: "Watched movies" }),
+      screen.getByRole("heading", { level: 2, name: "Watched Movies" }),
     ).toBeVisible();
     expect(screen.getByText("No movies have been rated yet.")).toBeVisible();
     expect(screen.queryByText("Coming soon")).toBeNull();
@@ -286,7 +297,7 @@ describe("home workflows", () => {
     );
   });
 
-  it("keeps the catalog summary out of the Now Showing card", () => {
+  it("keeps the catalog summary and decorative status labels out of the feature", () => {
     renderHome({
       movies: [
         movie({ id: "rated-id", rating_phrase: "Seen", rating_score: 3 }),
@@ -295,12 +306,10 @@ describe("home workflows", () => {
     });
 
     expect(screen.queryByText("1 unwatched out of 2 movies")).toBeNull();
-    expect(screen.getByText("Now showing", { selector: "p" })).toHaveClass(
-      "text-lg",
-    );
+    expect(screen.queryByText("Now Showing", { selector: "p" })).toBeNull();
   });
 
-  it("centers the current poster below its title", () => {
+  it("places the framed poster before the title", () => {
     renderHome();
 
     const title = screen.getByRole("heading", {
@@ -311,11 +320,10 @@ describe("home workflows", () => {
       name: "No poster available for Test Movie",
     });
 
-    expect(title.compareDocumentPosition(poster)).toBe(
+    expect(poster.compareDocumentPosition(title)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
-    expect(poster.parentElement).toHaveClass("mx-auto");
-    expect(title.parentElement).toHaveClass("text-center");
+    expect(poster.closest(".poster-frame")).not.toBeNull();
   });
 
   it("places the collection below the linked title", () => {

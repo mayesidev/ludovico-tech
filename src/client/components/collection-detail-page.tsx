@@ -2,9 +2,9 @@ import { useMemo, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowUp, ExternalLink } from "lucide-react";
 import { api, type Movie } from "../api";
 import type { Navigate, RunAction } from "../types";
-import { formatMovieTitle } from "../lib/utils";
+import { cn, formatMovieTitle } from "../lib/utils";
 import { AppLink } from "./app-link";
-import { Badge, Button, Card } from "./ui";
+import { Button } from "./ui";
 
 type CollectionDetailPageProps = {
   busy: boolean;
@@ -68,19 +68,19 @@ export function CollectionDetailPage({
   const notFoundReturnLabel =
     returnTo === "now-showing"
       ? "Return to Now Showing"
-      : "Return to the library";
+      : "Return to the Library";
 
   if (members.length === 0) {
     return (
       <div className="mx-auto max-w-3xl py-12 text-center">
-        <h1 className="font-display text-4xl font-bold text-cream">
-          Collection not found
+        <h1 className="font-heading text-4xl font-medium tracking-tight text-text-primary">
+          Collection Not Found
         </h1>
-        <p className="mt-3 text-zinc-400">
+        <p className="mt-3 text-text-muted">
           This collection is not in the catalog.
         </p>
         <AppLink
-          className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-marquee-light hover:text-cream"
+          className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-highlight-soft hover:text-text-primary"
           href={returnHref}
           onNavigate={onNavigate}
         >
@@ -102,9 +102,9 @@ export function CollectionDetailPage({
   };
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="w-full">
       <AppLink
-        className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-zinc-400 hover:text-marquee-light"
+        className="ui-label mb-6 inline-flex items-center gap-2 text-text-muted hover:text-highlight-soft"
         href={returnHref}
         onNavigate={onNavigate}
       >
@@ -112,26 +112,25 @@ export function CollectionDetailPage({
         {returnLabel}
       </AppLink>
 
-      <div className="mb-8">
-        <p className="text-xs font-bold uppercase tracking-[0.22em] text-marquee-gold">
-          Collection
-        </p>
-        <h1 className="mt-2 font-display text-4xl font-bold tracking-normal text-cream sm:text-5xl">
-          {collectionName}
-        </h1>
-        <p className="mt-3 text-sm text-zinc-500">
-          {members.length} {members.length === 1 ? "movie" : "movies"}
-        </p>
+      <div className="mb-8 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
+        <div>
+          <h1 className="font-heading text-5xl font-medium leading-[0.95] tracking-[-0.045em] text-text-primary sm:text-7xl">
+            {collectionName}
+          </h1>
+          <p className="mt-4 text-sm text-text-muted">
+            {members.length} {members.length === 1 ? "movie" : "movies"}
+          </p>
+        </div>
         {tmdbCollections.length > 0 && (
-          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-            <span className="text-zinc-500">
+          <div className="grid max-w-sm gap-2 border-l border-border-subtle pl-5 text-sm">
+            <span className="ui-label text-text-muted">
               {tmdbCollections.length === 1
-                ? "Related TMDB collection"
-                : "Related TMDB collections"}
+                ? "Related TMDB Collection"
+                : "Related TMDB Collections"}
             </span>
             {tmdbCollections.map((tmdbCollection) => (
               <a
-                className="inline-flex items-center gap-1.5 font-semibold text-marquee-light hover:text-cream"
+                className="inline-flex items-center gap-1.5 font-semibold text-highlight-soft hover:text-text-primary"
                 href={`https://www.themoviedb.org/collection/${tmdbCollection.id}`}
                 key={tmdbCollection.id}
                 rel="noreferrer"
@@ -145,52 +144,70 @@ export function CollectionDetailPage({
         )}
       </div>
 
-      <Card className="p-5 sm:p-7">
-        <p className="mb-5 text-sm text-zinc-500">
-          {members[0]?.collection_order_confirmed
-            ? "Using the saved collection order."
-            : "Using date added until you save a custom order."}
-        </p>
-        <ol className="space-y-3">
+      <section
+        aria-labelledby="collection-order-title"
+        className="surface-panel overflow-hidden rounded-sm border"
+      >
+        <header className="border-b border-highlight/15 bg-action/10 px-5 py-4">
+          <h2
+            className="font-heading text-xl font-medium text-text-primary"
+            id="collection-order-title"
+          >
+            Collection Order
+          </h2>
+          {!members[0]?.collection_order_confirmed && (
+            <p className="mt-1.5 text-sm text-text-muted">
+              Using date added until you save a custom order.
+            </p>
+          )}
+        </header>
+        <ol className="data-surface">
           {draft.map((movie, index) => {
             const watched = movie.rating_score !== null;
             const title = formatMovieTitle(movie.title, movie.version);
             return (
               <li
-                className="flex items-center gap-3 rounded-2xl border border-marquee-gold/10 bg-black/20 p-3 sm:gap-4"
+                className="grid min-h-[78px] grid-cols-[52px_minmax(0,1fr)_auto] items-stretch border-b border-border-subtle bg-canvas/30 transition last:border-b-0 hover:bg-action/15 sm:grid-cols-[58px_minmax(0,1fr)_96px_92px]"
                 key={movie.id}
               >
-                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-curtain/30 text-xs font-bold text-marquee-light">
+                <span className="grid place-items-center border-r border-border-subtle text-sm font-medium tabular-nums text-highlight-soft">
                   {index + 1}
                 </span>
-                <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 flex-col justify-center px-4 py-3 sm:px-5">
                   <AppLink
-                    className="font-semibold text-cream hover:text-marquee-light"
+                    className="font-semibold text-text-primary hover:text-highlight-soft"
                     href={`/movies/${encodeURIComponent(movie.id)}`}
                     onNavigate={onNavigate}
                   >
                     {title}
                   </AppLink>
                   {watched && movie.rating_phrase && (
-                    <p className="mt-1 truncate text-xs text-zinc-500">
+                    <p className="mt-1 truncate text-xs text-text-muted">
                       {movie.rating_score} · {movie.rating_phrase}
                     </p>
                   )}
                 </div>
-                <Badge>{watched ? "Watched" : "Unwatched"}</Badge>
+                <span
+                  className={cn(
+                    "ui-label self-center text-text-muted max-sm:col-start-3 max-sm:row-start-1 max-sm:self-end max-sm:justify-self-end max-sm:pb-3 max-sm:pr-3",
+                    watched && "text-highlight-soft",
+                  )}
+                >
+                  {watched ? "Watched" : "Unwatched"}
+                </span>
                 {canMutate && (
-                  <div className="flex shrink-0 gap-1">
+                  <div className="flex shrink-0 items-center justify-end gap-1.5 pr-3 max-sm:col-start-3 max-sm:row-start-1 max-sm:self-start max-sm:pt-3">
                     <button
-                      aria-label={`Move ${title} up`}
-                      className="rounded-lg p-2 text-zinc-500 hover:bg-curtain/30 hover:text-marquee-light disabled:opacity-30"
+                      aria-label={`Move ${title} Up`}
+                      className="grid size-9 place-items-center rounded-sm border border-border-primary bg-surface/75 text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary disabled:cursor-default disabled:opacity-30"
                       disabled={busy || index === 0}
                       onClick={() => move(index, -1)}
                     >
                       <ArrowUp size={16} />
                     </button>
                     <button
-                      aria-label={`Move ${title} down`}
-                      className="rounded-lg p-2 text-zinc-500 hover:bg-curtain/30 hover:text-marquee-light disabled:opacity-30"
+                      aria-label={`Move ${title} Down`}
+                      className="grid size-9 place-items-center rounded-sm border border-border-primary bg-surface/75 text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary disabled:cursor-default disabled:opacity-30"
                       disabled={busy || index === draft.length - 1}
                       onClick={() => move(index, 1)}
                     >
@@ -203,9 +220,9 @@ export function CollectionDetailPage({
           })}
         </ol>
 
-        <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-curtain/35 pt-5">
+        <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-action/40 bg-action/10 px-5 py-4">
           {saved && (
-            <p className="mr-auto text-sm text-marquee-light" role="status">
+            <p className="mr-auto text-sm text-success" role="status">
               Order saved.
             </p>
           )}
@@ -223,15 +240,15 @@ export function CollectionDetailPage({
                 )
               }
             >
-              Save order
+              Save Order
             </Button>
           ) : (
             <Button onClick={onLogin} variant="secondary">
-              Sign in to set the order
+              Sign In to Set the Order
             </Button>
           )}
-        </div>
-      </Card>
+        </footer>
+      </section>
     </div>
   );
 }

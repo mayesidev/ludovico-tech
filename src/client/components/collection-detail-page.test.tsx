@@ -107,13 +107,16 @@ describe("collection details", () => {
     expect(screen.getByText("Unwatched")).toBeVisible();
     expect(screen.getByText("Watched")).toBeVisible();
     expect(screen.getByText("4 · A sequel phrase")).toBeVisible();
-    expect(screen.getByText("Using the saved collection order.")).toBeVisible();
-    expect(screen.queryByText(/Related TMDB collection/)).toBeNull();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Collection Order" }),
+    ).toBeVisible();
+    expect(screen.queryByText("Using the saved collection order.")).toBeNull();
+    expect(screen.queryByText(/Related TMDB Collection/)).toBeNull();
 
     await user.click(
-      screen.getByRole("button", { name: "Move Second Movie up" }),
+      screen.getByRole("button", { name: "Move Second Movie Up" }),
     );
-    await user.click(screen.getByRole("button", { name: "Save order" }));
+    await user.click(screen.getByRole("button", { name: "Save Order" }));
 
     await waitFor(() =>
       expect(api.order).toHaveBeenCalledWith("collection-id", [
@@ -149,7 +152,7 @@ describe("collection details", () => {
       />,
     );
 
-    expect(screen.getByText("Related TMDB collections")).toBeVisible();
+    expect(screen.getByText("Related TMDB Collections")).toBeVisible();
     expect(
       screen.getByRole("link", { name: "First Official Collection" }),
     ).toHaveAttribute("href", "https://www.themoviedb.org/collection/7");
@@ -178,9 +181,9 @@ describe("collection details", () => {
     );
 
     expect(screen.queryByRole("button", { name: /Move/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Save order" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save Order" })).toBeNull();
     await user.click(
-      screen.getByRole("button", { name: "Sign in to set the order" }),
+      screen.getByRole("button", { name: "Sign In to Set the Order" }),
     );
     expect(onLogin).toHaveBeenCalledOnce();
   });
@@ -200,10 +203,10 @@ describe("collection details", () => {
     );
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "Collection not found" }),
+      screen.getByRole("heading", { level: 1, name: "Collection Not Found" }),
     ).toBeVisible();
     expect(
-      screen.getByRole("link", { name: "Return to the library" }),
+      screen.getByRole("link", { name: "Return to the Library" }),
     ).toHaveAttribute("href", "/library");
   });
 
@@ -227,7 +230,7 @@ describe("collection details", () => {
       name: "Return to Now Showing",
     });
     expect(returnLink).toHaveAttribute("href", "/");
-    await user.click(screen.getByRole("button", { name: "Save order" }));
+    await user.click(screen.getByRole("button", { name: "Save Order" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Order saved.");
     expect(returnLink).toHaveAttribute("href", "/");
   });

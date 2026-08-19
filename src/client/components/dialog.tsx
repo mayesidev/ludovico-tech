@@ -106,7 +106,7 @@ export function Dialog({
 
   return (
     <div
-      className="fixed inset-0 z-40 grid place-items-center bg-black/65 p-5 backdrop-blur-sm"
+      className="fixed inset-0 z-40 grid place-items-center bg-black/75 p-5"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -116,7 +116,7 @@ export function Dialog({
         aria-labelledby={labelledBy}
         aria-modal="true"
         className={cn(
-          "theater-dialog max-h-[calc(100vh-2.5rem)] w-full max-w-lg overflow-y-auto rounded-3xl border p-6 shadow-2xl shadow-black/50 sm:p-8",
+          "surface-elevated max-h-[calc(100vh-2.5rem)] w-full max-w-lg overflow-y-auto rounded-sm border p-6 shadow-2xl shadow-black/50 sm:p-8",
           className,
         )}
         ref={dialogRef}
