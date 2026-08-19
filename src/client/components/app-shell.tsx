@@ -61,7 +61,7 @@ export function AppHeader({
           className="col-span-2 row-start-2 flex min-h-[50px] items-stretch justify-center border-t border-border-subtle md:col-span-1 md:col-start-2 md:row-start-1 md:min-h-[87px] md:border-t-0"
         >
           <NavButton active={tab === "home"} href="/" onNavigate={onNavigate}>
-            Now showing
+            Now Showing
           </NavButton>
           <NavButton
             active={tab === "library"}
@@ -134,18 +134,18 @@ function AuthControls({
         variant="secondary"
         onClick={onLogin}
       >
-        Sign in
+        Sign In
       </Button>
     );
   }
 
   return (
     <button
-      aria-label={`Sign out${auth.actor?.displayName ? ` ${auth.actor.displayName}` : ""}`}
+      aria-label={`Sign Out${auth.actor?.displayName ? ` ${auth.actor.displayName}` : ""}`}
       onClick={onLogout}
       className="header-label max-w-[120px] shrink-0 whitespace-nowrap rounded-sm border border-border-primary bg-surface/75 px-3 py-2 text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary sm:max-w-[180px]"
     >
-      Sign out
+      Sign Out
     </button>
   );
 }
@@ -172,7 +172,7 @@ export function ErrorNotice({
       role="alert"
     >
       <span>{message}</span>
-      <button onClick={onDismiss} aria-label="Dismiss error">
+      <button onClick={onDismiss} aria-label="Dismiss Error">
         <X size={16} />
       </button>
     </div>
@@ -238,10 +238,10 @@ export function RollReveal({
           )}
         </div>
         <p className="ui-label mb-3 text-highlight">
-          {selected ? "Now showing" : "Choosing a movie"}
+          {selected ? "Now Showing" : "Choosing a Movie"}
         </p>
         <h2 className="font-heading text-4xl font-medium tracking-tight text-text-primary sm:text-6xl">
-          {visibleTitle ?? "The posters are shuffling"}
+          {visibleTitle ?? "The Posters Are Shuffling"}
         </h2>
       </div>
     </div>

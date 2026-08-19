@@ -71,7 +71,7 @@ export function AddMovieDialog({
             className="font-heading text-3xl font-medium tracking-tight text-text-primary"
             id={dialogTitleId}
           >
-            Add a movie
+            Add a Movie
           </h2>
           <p
             className="mt-2 text-sm leading-6 text-text-muted"
@@ -81,7 +81,7 @@ export function AddMovieDialog({
             match.
           </p>
         </div>
-        <Button aria-label="Close add movie" onClick={onClose} variant="ghost">
+        <Button aria-label="Close Add Movie" onClick={onClose} variant="ghost">
           <X size={18} />
         </Button>
       </div>
@@ -172,7 +172,7 @@ export function AddMovieDialog({
             }}
           >
             <Plus size={16} />
-            Add movie
+            Add Movie
           </Button>
         </div>
       )}

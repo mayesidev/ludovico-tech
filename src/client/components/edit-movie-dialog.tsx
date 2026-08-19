@@ -118,7 +118,7 @@ export function EditMovieDialog({
               className="font-heading text-3xl font-medium tracking-tight text-text-primary"
               id={titleId}
             >
-              Edit movie
+              Edit Movie
             </h2>
             <p
               className="mt-2 text-sm leading-6 text-text-muted"
@@ -131,7 +131,7 @@ export function EditMovieDialog({
           <button
             className="text-text-muted hover:text-highlight-soft"
             onClick={onClose}
-            aria-label="Close edit dialog"
+            aria-label="Close Edit Dialog"
             type="button"
           >
             <X />
@@ -196,7 +196,7 @@ export function EditMovieDialog({
             type="submit"
           >
             <Pencil size={16} />
-            Save changes
+            Save Changes
           </Button>
         </div>
       </form>

@@ -56,7 +56,7 @@ export function MovieVersionFields({
           type="checkbox"
         />
         <span>
-          <span className="block font-semibold">Specify a version</span>
+          <span className="block font-semibold">Specify a Version</span>
           <span className="mt-1 block leading-5 text-text-muted">
             Optional. Select a TMDB movie first, then identify a particular cut,
             edition, release, or fan edit.

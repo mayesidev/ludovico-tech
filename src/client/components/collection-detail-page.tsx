@@ -68,13 +68,13 @@ export function CollectionDetailPage({
   const notFoundReturnLabel =
     returnTo === "now-showing"
       ? "Return to Now Showing"
-      : "Return to the library";
+      : "Return to the Library";
 
   if (members.length === 0) {
     return (
       <div className="mx-auto max-w-3xl py-12 text-center">
         <h1 className="font-heading text-4xl font-medium tracking-tight text-text-primary">
-          Collection not found
+          Collection Not Found
         </h1>
         <p className="mt-3 text-text-muted">
           This collection is not in the catalog.
@@ -125,8 +125,8 @@ export function CollectionDetailPage({
           <div className="grid max-w-sm gap-2 border-l border-border-subtle pl-5 text-sm">
             <span className="ui-label text-text-muted">
               {tmdbCollections.length === 1
-                ? "Related TMDB collection"
-                : "Related TMDB collections"}
+                ? "Related TMDB Collection"
+                : "Related TMDB Collections"}
             </span>
             {tmdbCollections.map((tmdbCollection) => (
               <a
@@ -153,7 +153,7 @@ export function CollectionDetailPage({
             className="font-heading text-xl font-medium text-text-primary"
             id="collection-order-title"
           >
-            Collection order
+            Collection Order
           </h2>
           {!members[0]?.collection_order_confirmed && (
             <p className="mt-1.5 text-sm text-text-muted">
@@ -198,7 +198,7 @@ export function CollectionDetailPage({
                 {canMutate && (
                   <div className="flex shrink-0 items-center justify-end gap-1.5 pr-3 max-sm:col-start-3 max-sm:row-start-1 max-sm:self-start max-sm:pt-3">
                     <button
-                      aria-label={`Move ${title} up`}
+                      aria-label={`Move ${title} Up`}
                       className="grid size-9 place-items-center rounded-sm border border-border-primary bg-surface/75 text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary disabled:cursor-default disabled:opacity-30"
                       disabled={busy || index === 0}
                       onClick={() => move(index, -1)}
@@ -206,7 +206,7 @@ export function CollectionDetailPage({
                       <ArrowUp size={16} />
                     </button>
                     <button
-                      aria-label={`Move ${title} down`}
+                      aria-label={`Move ${title} Down`}
                       className="grid size-9 place-items-center rounded-sm border border-border-primary bg-surface/75 text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary disabled:cursor-default disabled:opacity-30"
                       disabled={busy || index === draft.length - 1}
                       onClick={() => move(index, 1)}
@@ -240,11 +240,11 @@ export function CollectionDetailPage({
                 )
               }
             >
-              Save order
+              Save Order
             </Button>
           ) : (
             <Button onClick={onLogin} variant="secondary">
-              Sign in to set the order
+              Sign In to Set the Order
             </Button>
           )}
         </footer>

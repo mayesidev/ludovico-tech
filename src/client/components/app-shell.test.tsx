@@ -61,7 +61,7 @@ describe("site identity", () => {
     const primaryNavigation = screen.getByRole("navigation", {
       name: "Primary navigation",
     });
-    const signIn = screen.getByRole("button", { name: "Sign in" });
+    const signIn = screen.getByRole("button", { name: "Sign In" });
 
     expect(credits).toHaveAttribute("aria-current", "page");
     expect(credits.closest("nav")).toBe(primaryNavigation);

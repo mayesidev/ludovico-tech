@@ -224,7 +224,7 @@ export function TmdbMovieFields({
             variant="ghost"
           >
             <Unlink size={15} />
-            Remove match
+            Remove Match
           </Button>
         </div>
       )}

@@ -127,7 +127,7 @@ describe("movie details", () => {
       />,
     );
 
-    const editButton = screen.getByRole("button", { name: "Edit movie" });
+    const editButton = screen.getByRole("button", { name: "Edit Movie" });
     const providerLinks = screen.getByRole("link", {
       name: "View on TMDB",
     }).parentElement;
@@ -137,7 +137,7 @@ describe("movie details", () => {
 
     editButton.click();
     expect(onEdit).toHaveBeenCalledWith(movie);
-    expect(screen.queryByRole("button", { name: "Delete movie" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Delete Movie" })).toBeNull();
   });
 
   it("offers deletion only for an authenticated unwatched movie", () => {
@@ -158,7 +158,7 @@ describe("movie details", () => {
       />,
     );
 
-    screen.getByRole("button", { name: "Delete movie" }).click();
+    screen.getByRole("button", { name: "Delete Movie" }).click();
     expect(onDelete).toHaveBeenCalledWith(unwatched);
     const collectionLink = screen.getByRole("link", { name: "Test Saga" });
     expect(collectionLink.closest("dl")).not.toBeNull();
@@ -174,7 +174,7 @@ describe("movie details", () => {
         returnTo="library"
       />,
     );
-    expect(screen.queryByRole("button", { name: "Delete movie" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Delete Movie" })).toBeNull();
   });
 
   it("does not invent a TMDB link for an unconfirmed movie", () => {
@@ -221,7 +221,7 @@ describe("movie details", () => {
     );
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "Movie not found" }),
+      screen.getByRole("heading", { level: 1, name: "Movie Not Found" }),
     ).toBeVisible();
     expect(
       screen.getByRole("link", { name: "Return to Library" }),

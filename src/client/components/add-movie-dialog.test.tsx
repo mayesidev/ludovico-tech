@@ -55,7 +55,7 @@ describe("add movie dialog", () => {
     const title = screen.getByRole("textbox", { name: "Movie title" });
     await waitFor(() => expect(title).toHaveFocus());
     expect(
-      screen.getByRole("checkbox", { name: /Specify a version/ }),
+      screen.getByRole("checkbox", { name: /Specify a Version/ }),
     ).toBeDisabled();
     await user.type(title, "Candidate");
     await user.type(
@@ -71,7 +71,7 @@ describe("add movie dialog", () => {
       await screen.findByRole("button", { name: /Matched Movie/ }),
     );
     const versionToggle = screen.getByRole("checkbox", {
-      name: /Specify a version/,
+      name: /Specify a Version/,
     });
     expect(versionToggle).toBeEnabled();
     await user.click(versionToggle);
@@ -89,7 +89,7 @@ describe("add movie dialog", () => {
     );
     await user.type(versionRuntime, "112");
     await user.type(versionReferenceUrl, "https://example.com/cuts/42");
-    await user.click(screen.getByRole("button", { name: "Add movie" }));
+    await user.click(screen.getByRole("button", { name: "Add Movie" }));
 
     expect(api.addMovie).toHaveBeenCalledWith({
       collectionName: "A Saga",
@@ -167,7 +167,7 @@ describe("add movie dialog", () => {
     expect(
       await screen.findByText("Confirmed: Matched Movie (TMDB #42)"),
     ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Add movie" }));
+    await user.click(screen.getByRole("button", { name: "Add Movie" }));
     expect(api.addMovie).toHaveBeenCalledWith({
       collectionName: "",
       imdbId: null,

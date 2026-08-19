@@ -45,7 +45,7 @@ export function DeleteMovieDialog({
           </p>
         </div>
         <Button
-          aria-label="Close delete dialog"
+          aria-label="Close Delete Dialog"
           onClick={onClose}
           variant="ghost"
         >
@@ -55,7 +55,7 @@ export function DeleteMovieDialog({
 
       <div className="mt-7 flex flex-wrap justify-end gap-3">
         <Button onClick={onClose} ref={cancelRef} type="button" variant="ghost">
-          Keep movie
+          Keep Movie
         </Button>
         <Button
           disabled={busy}
@@ -64,7 +64,7 @@ export function DeleteMovieDialog({
           variant="danger"
         >
           <Trash2 size={16} />
-          Delete movie
+          Delete Movie
         </Button>
       </div>
     </Dialog>

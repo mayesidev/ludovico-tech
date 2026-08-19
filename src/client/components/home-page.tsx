@@ -80,7 +80,7 @@ export function HomePage({
                   {nowShowingTitle}
                 </AppLink>
               ) : (
-                "No movie selected"
+                "No Movie Selected"
               )}
             </h1>
 
@@ -127,7 +127,7 @@ export function HomePage({
                   href={`/movies/${encodeURIComponent(nowShowing!.movie_id!)}?from=now-showing`}
                   onNavigate={onNavigate}
                 >
-                  Movie details →
+                  Movie Details →
                 </AppLink>
               </div>
             )}
@@ -156,7 +156,7 @@ export function HomePage({
                     disabled={busy}
                   >
                     <ArrowDown size={16} />
-                    Continue collection
+                    Continue Collection
                   </Button>
                 )}
                 <Button
@@ -174,18 +174,18 @@ export function HomePage({
                     <RotateCw size={16} />
                   )}
                   {isWatched && collectionId && hasNext
-                    ? "Choose another movie"
+                    ? "Choose Another Movie"
                     : hasSelection
-                      ? "Choose the next movie"
-                      : "Choose a movie"}
+                      ? "Choose the Next Movie"
+                      : "Choose a Movie"}
                 </Button>
               </div>
             ) : (
               <div className="mt-7">
                 <Button onClick={onLogin} variant="secondary">
                   {isWatched || !hasSelection
-                    ? "Sign in to choose what’s next"
-                    : "Sign in to rate this movie"}
+                    ? "Sign In to Choose What’s Next"
+                    : "Sign In to Rate This Movie"}
                 </Button>
               </div>
             )}
@@ -266,7 +266,7 @@ function RatingForm({
         )}
       </div>
       <Button className="min-h-16 rounded-none" type="submit" disabled={busy}>
-        Rate it
+        Rate It
       </Button>
     </form>
   );
@@ -287,7 +287,7 @@ function HistorySection({
         className="mb-5 font-heading text-2xl font-medium tracking-tight text-text-primary sm:text-3xl"
         id="watched-movies-title"
       >
-        Watched movies
+        Watched Movies
       </h2>
       {watchedMovies.length > 0 ? (
         <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-4">

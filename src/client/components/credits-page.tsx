@@ -38,7 +38,7 @@ export function CreditsPage() {
           >
             Background
           </h2>
-          <p className="mt-5 max-w-3xl text-base leading-8 text-text-secondary sm:text-lg">
+          <p className="mt-5 text-base leading-8 text-text-secondary sm:text-lg">
             Ludovico Tech is a shared movie watchlist for a group of friends
             with more recommendations than movie nights. It grew from the group
             repeatedly asking one friend, “You haven&apos;t seen that?!” into a
@@ -69,7 +69,7 @@ export function CreditsPage() {
               </dd>
             </div>
             <div className="border-b border-border-subtle p-5 sm:border-b-0 sm:border-r">
-              <dt className="ui-label text-text-muted">Source code</dt>
+              <dt className="ui-label text-text-muted">Source Code</dt>
               <dd className="mt-3">
                 <a
                   className={linkClassName}
@@ -104,7 +104,7 @@ export function CreditsPage() {
             className="font-heading text-2xl font-medium tracking-tight text-text-primary"
             id="credits-movie-data"
           >
-            Movie data
+            Movie Data
           </h2>
           <a
             aria-label="The Movie Database"

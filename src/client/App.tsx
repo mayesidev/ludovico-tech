@@ -180,14 +180,14 @@ export default function App() {
         action={
           canMutate ? (
             <Button
-              aria-label="Add a movie"
+              aria-label="Add a Movie"
               className="header-label shrink-0 px-3 sm:px-4"
               disabled={busy}
               onClick={() => setAddingMovie(true)}
               ref={addMovieTriggerRef}
             >
               <Plus size={16} />
-              <span className="hidden sm:inline">Add a movie</span>
+              <span className="hidden sm:inline">Add a Movie</span>
             </Button>
           ) : undefined
         }

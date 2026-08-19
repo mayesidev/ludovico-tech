@@ -29,7 +29,7 @@ describe("credits page", () => {
     );
     expect(await screen.findByText("v1.4.1")).toBeVisible();
     expect(screen.getAllByRole("term").map((term) => term.textContent)).toEqual(
-      ["Version", "Source code", "License"],
+      ["Version", "Source Code", "License"],
     );
 
     expect(

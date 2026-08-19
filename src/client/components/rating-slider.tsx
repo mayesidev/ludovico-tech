@@ -15,7 +15,7 @@ export function RatingSlider({
     <div>
       <div className="flex items-center justify-between gap-4">
         <label className="ui-label text-text-secondary" htmlFor={id}>
-          Final rating
+          Rating
         </label>
         <span
           aria-label="Selected rating"

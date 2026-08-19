@@ -31,7 +31,7 @@ export function MovieDetailPage({
     return (
       <div className="mx-auto max-w-3xl py-12 text-center">
         <h1 className="font-heading text-4xl font-medium tracking-tight text-text-primary">
-          Movie not found
+          Movie Not Found
         </h1>
         <p className="mt-3 text-text-muted">
           This movie is not in the catalog.
@@ -201,13 +201,13 @@ export function MovieDetailPage({
                   {canEdit && (
                     <Button onClick={() => onEdit(movie)} variant="secondary">
                       <Pencil size={15} />
-                      Edit movie
+                      Edit Movie
                     </Button>
                   )}
                   {canDelete && (
                     <Button onClick={() => onDelete(movie)} variant="danger">
                       <Trash2 size={15} />
-                      Delete movie
+                      Delete Movie
                     </Button>
                   )}
                 </div>

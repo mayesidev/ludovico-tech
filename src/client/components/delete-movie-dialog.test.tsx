@@ -39,8 +39,8 @@ describe("delete movie confirmation", () => {
     expect(
       screen.getByRole("dialog", { name: "Delete Unwatched Movie?" }),
     ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Keep movie" })).toHaveFocus();
-    await user.click(screen.getByRole("button", { name: "Delete movie" }));
+    expect(screen.getByRole("button", { name: "Keep Movie" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Delete Movie" }));
     expect(onConfirm).toHaveBeenCalledOnce();
     expect(onClose).not.toHaveBeenCalled();
   });

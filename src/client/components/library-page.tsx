@@ -95,7 +95,7 @@ export function LibraryPage({
       },
       {
         accessorKey: "added_at",
-        header: "Date added",
+        header: "Date Added",
         sortFn: "alphanumeric",
         cell: ({ getValue }) => formatDate(getValue() as string),
       },

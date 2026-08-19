@@ -1,4 +1,4 @@
-import { Clapperboard } from "lucide-react";
+import { ImageOff } from "lucide-react";
 import { cn, posterUrl } from "../lib/utils";
 
 export function Poster({
@@ -39,7 +39,7 @@ export function Poster({
       )}
       role="img"
     >
-      <Clapperboard className="text-highlight/70" size={large ? 34 : 20} />
+      <ImageOff className="text-highlight/70" size={large ? 34 : 20} />
     </div>
   );
 
