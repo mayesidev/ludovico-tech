@@ -74,10 +74,42 @@ describe("site identity", () => {
 
 describe("random selection reveal", () => {
   it("uses an intentional ticket placeholder before a reel is available", () => {
-    const { container } = render(<RollReveal reel={[]} selected={null} />);
+    const { container } = render(
+      <RollReveal reel={[]} starting={null} selected={null} />,
+    );
 
     expect(container.querySelector(".lucide-ticket")).not.toBeNull();
     expect(container.querySelector(".lucide-clapperboard")).toBeNull();
+  });
+
+  it("shows the current movie until the decoded reel is available", () => {
+    const { rerender } = render(
+      <RollReveal
+        reel={[]}
+        starting={{ posterPath: "/current.jpg", title: "Current Movie" }}
+        selected={null}
+      />,
+    );
+
+    expect(screen.getByAltText("Poster for Current Movie")).toHaveAttribute(
+      "src",
+      "https://image.tmdb.org/t/p/w500/current.jpg",
+    );
+    expect(document.querySelector(".lucide-ticket")).toBeNull();
+
+    rerender(
+      <RollReveal
+        reel={[reelMovie("one")]}
+        starting={{ posterPath: "/current.jpg", title: "Current Movie" }}
+        selected={null}
+      />,
+    );
+
+    expect(screen.getByAltText("Poster for Movie one")).toHaveAttribute(
+      "src",
+      "https://image.tmdb.org/t/p/w342/one.jpg",
+    );
+    expect(screen.queryByAltText("Poster for Current Movie")).toBeNull();
   });
 
   it("cycles through the prepared poster reel without repeatedly announcing titles", () => {
@@ -85,6 +117,7 @@ describe("random selection reveal", () => {
     render(
       <RollReveal
         reel={[reelMovie("one"), reelMovie("two")]}
+        starting={null}
         selected={null}
       />,
     );
@@ -107,6 +140,7 @@ describe("random selection reveal", () => {
     render(
       <RollReveal
         reel={[reelMovie("rolled")]}
+        starting={null}
         selected={{ posterPath: "/actual.jpg", title: "Actual First Movie" }}
       />,
     );
@@ -128,6 +162,7 @@ describe("random selection reveal", () => {
     render(
       <RollReveal
         reel={[reelMovie("one"), reelMovie("two")]}
+        starting={null}
         selected={null}
       />,
     );

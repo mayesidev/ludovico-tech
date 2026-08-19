@@ -10,9 +10,16 @@ import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
-import { api, ApiError, type AuthState, type Movie } from "./api";
+import {
+  api,
+  ApiError,
+  type AuthState,
+  type Movie,
+  type NowShowing,
+} from "./api";
 import {
   POSTER_REEL_DURATION_MS,
+  POSTER_REEL_LEAD_IN_MS,
   POSTER_REVEAL_DURATION_MS,
 } from "./lib/poster-reel";
 
@@ -46,6 +53,22 @@ const authenticated: AuthState = {
   actor: { displayName: "Invited User", email: "invited@example.test" },
   authenticated: true,
   local: false,
+};
+
+const currentNowShowing: NowShowing = {
+  collection_id: null,
+  collection_name: null,
+  id: 1,
+  movie_id: "current-id",
+  poster_path: "/current.jpg",
+  rating_phrase: "Already watched",
+  rating_score: 4,
+  release_date: null,
+  rolled_movie_id: "current-id",
+  status: "watched",
+  title: "Current Movie",
+  version: null,
+  watched_at: "2026-08-19T00:00:00.000Z",
 };
 
 const arrange = (auth: AuthState) => {
@@ -216,6 +239,10 @@ describe("application authorization presentation", () => {
       },
     );
     arrange(authenticated);
+    vi.mocked(api.nowShowing).mockResolvedValue({
+      nowShowing: currentNowShowing,
+      remainingCollectionMovies: [],
+    });
     vi.mocked(api.movies).mockImplementation(async () => ({
       movies: [{ ...movie, poster_path: "/reel.jpg" }],
     }));
@@ -240,13 +267,18 @@ describe("application authorization presentation", () => {
     render(<App />);
 
     const choose = await screen.findByRole("button", {
-      name: "Choose a Movie",
+      name: "Choose the Next Movie",
     });
     vi.useFakeTimers();
     fireEvent.click(choose);
 
-    expect(screen.getByRole("status")).toHaveTextContent("Choosing a movie");
+    const openingReveal = screen.getByRole("status");
+    expect(openingReveal).toHaveTextContent("Choosing a movie");
+    expect(
+      within(openingReveal).getByAltText("Poster for Current Movie"),
+    ).toHaveAttribute("src", "https://image.tmdb.org/t/p/w500/current.jpg");
     await act(async () => {
+      vi.advanceTimersByTime(POSTER_REEL_LEAD_IN_MS);
       await Promise.resolve();
       await Promise.resolve();
     });

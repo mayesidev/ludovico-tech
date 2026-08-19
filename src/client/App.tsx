@@ -27,6 +27,7 @@ import type { RunAction, Tab } from "./types";
 import { formatMovieTitle } from "./lib/utils";
 import {
   POSTER_REEL_DURATION_MS,
+  POSTER_REEL_LEAD_IN_MS,
   POSTER_REEL_LIMIT,
   POSTER_REVEAL_DURATION_MS,
   preloadPosterPath,
@@ -37,6 +38,7 @@ import {
 
 type RollRevealState = {
   reel: Movie[];
+  starting: { posterPath: string | null; title: string } | null;
   selected: { posterPath: string | null; title: string } | null;
 };
 
@@ -176,9 +178,19 @@ export default function App() {
           ),
         );
       preparedPosterReelRef.current = null;
-      setRollReveal({ reel: [], selected: null });
+      const starting = nowShowing?.title
+        ? {
+            posterPath: nowShowing.poster_path,
+            title: formatMovieTitle(nowShowing.title, nowShowing.version),
+          }
+        : null;
+      setRollReveal({ reel: [], starting, selected: null });
       try {
-        const [reel, result] = await Promise.all([preparedReel, api.roll()]);
+        const [reel, result] = await Promise.all([
+          preparedReel,
+          api.roll(),
+          wait(POSTER_REEL_LEAD_IN_MS),
+        ]);
         setRollReveal((current) => (current ? { ...current, reel } : current));
         const [posterPath] = await Promise.all([
           preloadPosterPath(result.nowShowing.poster_path),
@@ -194,6 +206,7 @@ export default function App() {
         setNowShowing(result.nowShowing);
         setRollReveal((current) => ({
           reel: current?.reel ?? [],
+          starting: current?.starting ?? null,
           selected,
         }));
         await wait(POSTER_REVEAL_DURATION_MS);
@@ -201,7 +214,7 @@ export default function App() {
         setRollReveal(null);
       }
     });
-  }, [movies, run]);
+  }, [movies, nowShowing, run]);
 
   const canMutate = auth?.authenticated === true;
   const login = useCallback(() => {
@@ -310,7 +323,11 @@ export default function App() {
         <ErrorNotice message={error} onDismiss={() => setError(null)} />
       )}
       {rollReveal && (
-        <RollReveal reel={rollReveal.reel} selected={rollReveal.selected} />
+        <RollReveal
+          reel={rollReveal.reel}
+          starting={rollReveal.starting}
+          selected={rollReveal.selected}
+        />
       )}
       {addingMovie && (
         <AddMovieDialog

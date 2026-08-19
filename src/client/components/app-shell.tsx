@@ -184,9 +184,11 @@ export function ErrorNotice({
 
 export function RollReveal({
   reel,
+  starting,
   selected,
 }: {
   reel: Movie[];
+  starting: { posterPath: string | null; title: string } | null;
   selected: { posterPath: string | null; title: string } | null;
 }) {
   const [reelIndex, setReelIndex] = useState(0);
@@ -205,14 +207,18 @@ export function RollReveal({
     return () => window.clearInterval(interval);
   }, [reel, selected]);
 
+  const reelMovie = reel[reelIndex];
   const visibleMovie = selected
     ? { poster_path: selected.posterPath, title: selected.title }
-    : reel[reelIndex];
+    : (reelMovie ??
+      (starting
+        ? { poster_path: starting.posterPath, title: starting.title }
+        : null));
   const visibleTitle = selected
     ? selected.title
-    : reel[reelIndex]
-      ? formatMovieTitle(reel[reelIndex].title, reel[reelIndex].version)
-      : null;
+    : reelMovie
+      ? formatMovieTitle(reelMovie.title, reelMovie.version)
+      : starting?.title;
   const announcement = selected
     ? `Now showing: ${selected.title}`
     : "Choosing a movie";
@@ -229,8 +235,14 @@ export function RollReveal({
         <div className="mx-auto mb-6 w-full max-w-[220px]">
           {visibleMovie ? (
             <Poster
-              imageWidth={POSTER_REEL_IMAGE_WIDTH}
-              key={selected?.title ?? reel[reelIndex]?.id ?? "empty"}
+              imageWidth={
+                !selected && !reelMovie && starting
+                  ? 500
+                  : POSTER_REEL_IMAGE_WIDTH
+              }
+              key={
+                selected?.title ?? reelMovie?.id ?? starting?.title ?? "empty"
+              }
               large
               path={visibleMovie.poster_path}
               title={visibleTitle ?? visibleMovie.title}
