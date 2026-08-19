@@ -7,6 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { api, ApiError, type AuthState, type Movie } from "./api";
@@ -215,9 +216,9 @@ describe("application authorization presentation", () => {
       },
     );
     arrange(authenticated);
-    vi.mocked(api.movies).mockResolvedValue({
+    vi.mocked(api.movies).mockImplementation(async () => ({
       movies: [{ ...movie, poster_path: "/reel.jpg" }],
-    });
+    }));
     vi.spyOn(api, "roll").mockResolvedValue({
       rolledMovie: { ...movie, id: "rolled-id", title: "Rolled Later Movie" },
       nowShowing: {
@@ -268,6 +269,30 @@ describe("application authorization presentation", () => {
       await Promise.resolve();
     });
     expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("prepares one bounded reel when Strict Mode replays effects", async () => {
+    const decode = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal(
+      "Image",
+      class {
+        src = "";
+        decode = decode;
+      },
+    );
+    arrange(authenticated);
+    vi.mocked(api.movies).mockImplementation(async () => ({
+      movies: [{ ...movie, poster_path: "/reel.jpg" }],
+    }));
+
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+
+    await screen.findByRole("button", { name: "Choose a Movie" });
+    await waitFor(() => expect(decode).toHaveBeenCalledOnce());
   });
 
   it("loads movie URLs directly and follows browser history", async () => {

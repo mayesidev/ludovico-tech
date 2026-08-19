@@ -60,6 +60,7 @@ export default function App() {
   const [addingMovie, setAddingMovie] = useState(false);
   const addMovieTriggerRef = useRef<HTMLButtonElement>(null);
   const preparedPosterReelRef = useRef<Promise<Movie[]> | null>(null);
+  const preparedPosterReelSourceRef = useRef<string | null>(null);
 
   const refreshAuth = useCallback(async () => {
     try {
@@ -100,8 +101,17 @@ export default function App() {
   useEffect(() => {
     if (auth?.authenticated !== true || movies.length === 0) {
       preparedPosterReelRef.current = null;
+      preparedPosterReelSourceRef.current = null;
       return;
     }
+    const source = movies
+      .map((movie) => `${movie.id}:${movie.poster_path ?? ""}`)
+      .join("|");
+    if (
+      preparedPosterReelSourceRef.current === source &&
+      preparedPosterReelRef.current
+    )
+      return;
 
     const reducedMotion = window.matchMedia?.(
       "(prefers-reduced-motion: reduce)",
@@ -111,6 +121,7 @@ export default function App() {
       Math.random,
       reducedMotion ? 1 : POSTER_REEL_LIMIT,
     );
+    preparedPosterReelSourceRef.current = source;
     preparedPosterReelRef.current = preloadPosterReel(reel);
   }, [auth?.authenticated, movies]);
 
