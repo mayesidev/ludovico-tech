@@ -76,7 +76,7 @@ jobs:
           fi
 
       - name: Install Playwright browser
-        run: pnpm exec playwright install --with-deps --only-shell chromium
+        run: pnpm exec playwright install --only-shell chromium
 
       - name: Validate Cloudflare configuration isolation
         run: pnpm config:check
