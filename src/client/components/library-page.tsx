@@ -64,7 +64,7 @@ export function LibraryPage({
         sortFn: "alphanumeric",
         cell: ({ row }) => (
           <AppLink
-            className="font-semibold text-cream hover:text-marquee-light"
+            className="font-semibold text-text-primary hover:text-highlight-soft"
             href={`/movies/${encodeURIComponent(row.original.id)}?from=library`}
             onNavigate={onNavigate}
           >
@@ -79,7 +79,7 @@ export function LibraryPage({
         cell: ({ row }) =>
           row.original.collection_id && row.original.collection_name ? (
             <AppLink
-              className="hover:text-marquee-light"
+              className="hover:text-highlight-soft"
               href={`/collections/${encodeURIComponent(row.original.collection_id)}`}
               onNavigate={onNavigate}
             >
@@ -107,7 +107,7 @@ export function LibraryPage({
         sortUndefined: "last",
         cell: ({ row }) =>
           row.original.rating_score !== null ? (
-            <span className="text-marquee-light">
+            <span className="text-highlight-soft">
               {row.original.rating_score} · {row.original.rating_phrase}
             </span>
           ) : null,
@@ -120,10 +120,10 @@ export function LibraryPage({
           const { imdb_id: imdbId, tmdb_id: tmdbId } = row.original;
           if (tmdbId === null && imdbId === null) return null;
           return (
-            <span className="inline-flex items-center gap-2 whitespace-nowrap font-semibold text-marquee-light">
+            <span className="inline-flex items-center gap-2 whitespace-nowrap font-semibold text-highlight-soft">
               {tmdbId !== null && (
                 <a
-                  className="inline-flex items-center gap-1 hover:text-cream"
+                  className="inline-flex items-center gap-1 hover:text-text-primary"
                   href={`https://www.themoviedb.org/movie/${tmdbId}`}
                   rel="noreferrer"
                   target="_blank"
@@ -133,13 +133,13 @@ export function LibraryPage({
                 </a>
               )}
               {tmdbId !== null && imdbId !== null && (
-                <span aria-hidden="true" className="text-zinc-700">
+                <span aria-hidden="true" className="text-border-primary">
                   ·
                 </span>
               )}
               {imdbId !== null && (
                 <a
-                  className="inline-flex items-center gap-1 hover:text-cream"
+                  className="inline-flex items-center gap-1 hover:text-text-primary"
                   href={imdbTitleUrl(imdbId)}
                   rel="noreferrer"
                   target="_blank"
@@ -161,7 +161,7 @@ export function LibraryPage({
         cell: ({ row }) => (
           <div className="flex gap-2">
             <button
-              className="inline-flex items-center gap-1 rounded-lg border border-marquee-gold/15 px-2.5 py-1.5 text-xs text-zinc-400 hover:border-marquee-gold/35 hover:text-marquee-light"
+              className="ui-label inline-flex min-h-9 items-center gap-1 rounded-sm border border-border-primary bg-surface/75 px-2.5 py-1.5 text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary"
               onClick={() => onEdit(row.original)}
             >
               <Pencil size={13} />
@@ -187,15 +187,18 @@ export function LibraryPage({
     <div>
       <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <h1 className="font-display text-3xl font-bold tracking-normal text-cream sm:text-4xl">
+          <h1 className="font-heading text-5xl font-medium leading-none tracking-[-0.045em] text-text-primary sm:text-7xl">
             Library
           </h1>
-          <p className="mt-2 text-sm text-zinc-500">
+          <p className="mt-3 text-sm text-text-muted">
             {unwatchedCount} unwatched out of {movies.length} movies
           </p>
         </div>
         <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-3.5 text-zinc-600" size={16} />
+          <Search
+            className="absolute left-3 top-3.5 text-text-muted"
+            size={16}
+          />
           <label className="sr-only" htmlFor="library-search">
             Search movie library
           </label>
@@ -212,7 +215,7 @@ export function LibraryPage({
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1050px] text-left text-sm">
-            <thead className="border-b border-curtain/35 bg-curtain/10 text-xs uppercase tracking-[0.14em] text-zinc-500">
+            <thead className="ui-label border-b border-highlight/15 bg-[#7a1d30] text-text-primary/80">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
@@ -227,12 +230,12 @@ export function LibraryPage({
                               : undefined
                       }
                       key={header.id}
-                      className="px-5 py-4 font-bold"
+                      className="border-r border-highlight/10 px-5 py-4 font-semibold last:border-r-0"
                     >
                       {header.column.getCanSort() ? (
                         <button
                           onClick={header.column.getToggleSortingHandler()}
-                          className="hover:text-marquee-light"
+                          className="text-text-primary hover:text-highlight-soft"
                         >
                           <table.FlexRender header={header} />
                           {header.column.getIsSorted()
@@ -249,11 +252,14 @@ export function LibraryPage({
                 </tr>
               ))}
             </thead>
-            <tbody className="divide-y divide-marquee-gold/8">
+            <tbody className="data-surface divide-y divide-border-subtle">
               {table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="transition hover:bg-curtain/15">
+                <tr
+                  key={row.id}
+                  className="bg-canvas/35 transition hover:bg-action/15"
+                >
                   {row.getAllCells().map((cell) => (
-                    <td key={cell.id} className="px-5 py-4 text-zinc-400">
+                    <td key={cell.id} className="px-5 py-4 text-text-muted">
                       <table.FlexRender cell={cell} />
                     </td>
                   ))}
@@ -262,7 +268,7 @@ export function LibraryPage({
             </tbody>
           </table>
         </div>
-        <div className="border-t border-curtain/35 px-5 py-4 text-xs text-zinc-600">
+        <div className="border-t border-action/45 bg-action/10 px-5 py-4 text-xs text-text-muted">
           {table.getFilteredRowModel().rows.length} of {movies.length} movies
         </div>
       </Card>

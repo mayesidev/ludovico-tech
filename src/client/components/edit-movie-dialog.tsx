@@ -114,17 +114,14 @@ export function EditMovieDialog({
       >
         <div className="mb-6 flex items-start justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-marquee-gold">
-              Movie details
-            </p>
             <h2
-              className="mt-2 font-display text-3xl font-bold text-cream"
+              className="font-heading text-3xl font-medium tracking-tight text-text-primary"
               id={titleId}
             >
               Edit movie
             </h2>
             <p
-              className="mt-2 text-sm leading-6 text-zinc-400"
+              className="mt-2 text-sm leading-6 text-text-muted"
               id={descriptionId}
             >
               Update the catalog title, collection, or external movie
@@ -132,7 +129,7 @@ export function EditMovieDialog({
             </p>
           </div>
           <button
-            className="text-zinc-500 hover:text-marquee-light"
+            className="text-text-muted hover:text-highlight-soft"
             onClick={onClose}
             aria-label="Close edit dialog"
             type="button"
@@ -153,7 +150,7 @@ export function EditMovieDialog({
             tmdbId={tmdbId}
           />
           {invalidTitle && (
-            <p className="mt-2 text-sm text-red-200" id={errorId} role="alert">
+            <p className="mt-2 text-sm text-danger" id={errorId} role="alert">
               Enter a movie title.
             </p>
           )}
@@ -176,7 +173,7 @@ export function EditMovieDialog({
               usingVersion && parsedVersionRuntime === undefined
             }
           />
-          <label className="block text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">
+          <label className="ui-label block text-text-muted">
             Collection
             <Input
               className="mt-2"

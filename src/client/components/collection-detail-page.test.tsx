@@ -107,7 +107,10 @@ describe("collection details", () => {
     expect(screen.getByText("Unwatched")).toBeVisible();
     expect(screen.getByText("Watched")).toBeVisible();
     expect(screen.getByText("4 · A sequel phrase")).toBeVisible();
-    expect(screen.getByText("Using the saved collection order.")).toBeVisible();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Collection order" }),
+    ).toBeVisible();
+    expect(screen.queryByText("Using the saved collection order.")).toBeNull();
     expect(screen.queryByText(/Related TMDB collection/)).toBeNull();
 
     await user.click(

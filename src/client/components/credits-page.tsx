@@ -4,7 +4,7 @@ import { api } from "../api";
 import tmdbLogo from "../assets/tmdb-logo.svg";
 
 const linkClassName =
-  "inline-flex items-center justify-center gap-2 font-semibold text-marquee-light transition hover:text-cream";
+  "inline-flex items-center gap-2 font-semibold text-highlight-soft transition hover:text-text-primary";
 
 export function CreditsPage() {
   const [version, setVersion] = useState<string | null>(null);
@@ -23,25 +23,22 @@ export function CreditsPage() {
   }, []);
 
   return (
-    <article className="mx-auto max-w-3xl py-6 text-center sm:py-10">
-      <header>
-        <p className="text-xs font-bold uppercase tracking-[0.3em] text-marquee-gold">
-          A Ludovico Tech production
-        </p>
-        <h1 className="mt-5 font-display text-5xl font-bold uppercase tracking-[0.08em] text-cream sm:text-7xl">
+    <article className="mx-auto max-w-4xl py-4 sm:py-8">
+      <header className="border-b border-border-subtle pb-8">
+        <h1 className="font-heading text-5xl font-medium leading-none tracking-[-0.045em] text-text-primary sm:text-7xl">
           Credits
         </h1>
       </header>
 
-      <div className="mt-16 space-y-16 sm:mt-24 sm:space-y-24">
+      <div className="mt-10 space-y-12 sm:mt-14 sm:space-y-16">
         <section aria-labelledby="credits-background">
           <h2
-            className="text-xs font-bold uppercase tracking-[0.28em] text-marquee-gold"
+            className="font-heading text-2xl font-medium tracking-tight text-text-primary"
             id="credits-background"
           >
             Background
           </h2>
-          <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-zinc-300 sm:text-lg">
+          <p className="mt-5 max-w-3xl text-base leading-8 text-text-secondary sm:text-lg">
             Ludovico Tech is a shared movie watchlist for a group of friends
             with more recommendations than movie nights. It grew from the group
             repeatedly asking one friend, “You haven&apos;t seen that?!” into a
@@ -59,24 +56,20 @@ export function CreditsPage() {
 
         <section aria-labelledby="credits-production">
           <h2
-            className="text-xs font-bold uppercase tracking-[0.28em] text-marquee-gold"
+            className="font-heading text-2xl font-medium tracking-tight text-text-primary"
             id="credits-production"
           >
             Production
           </h2>
-          <dl className="mx-auto mt-8 grid max-w-2xl gap-10 sm:grid-cols-3">
-            <div>
-              <dt className="text-xs uppercase tracking-[0.22em] text-zinc-500">
-                Version
-              </dt>
-              <dd className="mt-3 font-semibold text-cream">
+          <dl className="surface-panel mt-5 grid overflow-hidden rounded-sm border sm:grid-cols-3">
+            <div className="border-b border-border-subtle p-5 sm:border-b-0 sm:border-r">
+              <dt className="ui-label text-text-muted">Version</dt>
+              <dd className="mt-3 font-semibold text-text-primary">
                 {version ?? "Unavailable"}
               </dd>
             </div>
-            <div>
-              <dt className="text-xs uppercase tracking-[0.22em] text-zinc-500">
-                Source code
-              </dt>
+            <div className="border-b border-border-subtle p-5 sm:border-b-0 sm:border-r">
+              <dt className="ui-label text-text-muted">Source code</dt>
               <dd className="mt-3">
                 <a
                   className={linkClassName}
@@ -89,10 +82,8 @@ export function CreditsPage() {
                 </a>
               </dd>
             </div>
-            <div>
-              <dt className="text-xs uppercase tracking-[0.22em] text-zinc-500">
-                License
-              </dt>
+            <div className="p-5">
+              <dt className="ui-label text-text-muted">License</dt>
               <dd className="mt-3">
                 <a
                   className={linkClassName}
@@ -110,7 +101,7 @@ export function CreditsPage() {
 
         <section aria-labelledby="credits-movie-data">
           <h2
-            className="text-xs font-bold uppercase tracking-[0.28em] text-marquee-gold"
+            className="font-heading text-2xl font-medium tracking-tight text-text-primary"
             id="credits-movie-data"
           >
             Movie data
@@ -124,7 +115,7 @@ export function CreditsPage() {
           >
             <img alt="TMDB" className="h-5 w-auto sm:h-6" src={tmdbLogo} />
           </a>
-          <p className="mx-auto mt-6 max-w-xl text-sm leading-6 text-zinc-400">
+          <p className="mt-6 max-w-xl text-sm leading-6 text-text-muted">
             This application uses TMDB and the TMDB APIs but is not endorsed,
             certified, or otherwise approved by TMDB.
           </p>

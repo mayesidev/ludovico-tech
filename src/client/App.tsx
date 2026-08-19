@@ -175,8 +175,7 @@ export default function App() {
       : null;
 
   return (
-    <div className="theater-background min-h-screen overflow-x-hidden text-zinc-100">
-      <div className="grain" />
+    <div className="app-background min-h-screen overflow-x-hidden text-text-primary">
       <AppHeader
         action={
           canMutate ? (
@@ -204,7 +203,7 @@ export default function App() {
         }
       />
 
-      <main className="relative z-10 mx-auto max-w-7xl px-5 pb-20 pt-10 lg:px-8 lg:pt-16">
+      <main className="relative z-10 mx-auto max-w-7xl px-5 pb-20 pt-9 lg:px-8 lg:pt-12">
         {route.page === "credits" ? (
           <CreditsPage />
         ) : loading ? (

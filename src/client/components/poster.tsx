@@ -11,31 +11,41 @@ export function Poster({
   large?: boolean;
 }) {
   const src = posterUrl(path);
-  const sizeClass = large ? "max-w-[220px]" : "max-w-[90px]";
+  const sizeClass = large ? "max-w-[340px]" : "max-w-[90px]";
+  const posterClassName = cn(
+    "aspect-[2/3] w-full object-cover",
+    large
+      ? "border border-canvas/80"
+      : "border border-highlight/20 shadow-lg shadow-black/35",
+  );
 
   if (src) {
-    return (
-      <img
-        src={src}
-        alt={`Poster for ${title}`}
-        className={cn(
-          "aspect-[2/3] w-full rounded-2xl object-cover shadow-2xl shadow-black/40",
-          sizeClass,
-        )}
-      />
+    const poster = (
+      <img src={src} alt={`Poster for ${title}`} className={posterClassName} />
+    );
+    return large ? (
+      <div className={cn("poster-frame w-full", sizeClass)}>{poster}</div>
+    ) : (
+      <div className={cn("w-full", sizeClass)}>{poster}</div>
     );
   }
 
-  return (
+  const fallback = (
     <div
       aria-label={`No poster available for ${title}`}
       className={cn(
-        "poster-fallback grid aspect-[2/3] w-full place-items-center rounded-2xl border border-marquee-gold/15 p-5 text-center",
-        sizeClass,
+        "poster-fallback grid aspect-[2/3] w-full place-items-center p-5 text-center",
+        !large && "border border-highlight/20",
       )}
       role="img"
     >
-      <Clapperboard className="text-marquee-gold/70" size={large ? 34 : 20} />
+      <Clapperboard className="text-highlight/70" size={large ? 34 : 20} />
     </div>
+  );
+
+  return large ? (
+    <div className={cn("poster-frame w-full", sizeClass)}>{fallback}</div>
+  ) : (
+    <div className={cn("w-full", sizeClass)}>{fallback}</div>
   );
 }

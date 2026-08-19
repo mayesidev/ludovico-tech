@@ -42,14 +42,14 @@ export function MovieVersionFields({
   const versionInvalid = attempted && versionEnabled && !version.trim();
 
   return (
-    <section className="rounded-2xl border border-marquee-gold/15 bg-black/15 p-4">
+    <section className="rounded-sm border border-border-subtle bg-canvas/35 p-4">
       <label
-        className="flex cursor-pointer items-start gap-3 text-sm text-cream has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50"
+        className="flex cursor-pointer items-start gap-3 text-sm text-text-primary has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50"
         htmlFor={toggleId}
       >
         <input
           checked={specified && tmdbSelected}
-          className="mt-0.5 size-4 accent-marquee-gold"
+          className="mt-0.5 size-4 accent-highlight"
           disabled={!tmdbSelected}
           id={toggleId}
           onChange={(event) => onSpecifiedChange(event.target.checked)}
@@ -57,7 +57,7 @@ export function MovieVersionFields({
         />
         <span>
           <span className="block font-semibold">Specify a version</span>
-          <span className="mt-1 block leading-5 text-zinc-500">
+          <span className="mt-1 block leading-5 text-text-muted">
             Optional. Select a TMDB movie first, then identify a particular cut,
             edition, release, or fan edit.
           </span>
@@ -65,11 +65,8 @@ export function MovieVersionFields({
       </label>
 
       {versionEnabled && (
-        <div className="mt-4 grid gap-4 border-t border-curtain/35 pt-4">
-          <label
-            className="block text-xs font-bold uppercase tracking-[0.14em] text-zinc-500"
-            htmlFor={versionId}
-          >
+        <div className="mt-4 grid gap-4 border-t border-border-subtle pt-4">
+          <label className="ui-label block text-text-muted" htmlFor={versionId}>
             Version
             <Input
               aria-describedby={versionInvalid ? versionErrorId : undefined}
@@ -83,19 +80,12 @@ export function MovieVersionFields({
             />
           </label>
           {versionInvalid && (
-            <p
-              className="text-sm text-red-200"
-              id={versionErrorId}
-              role="alert"
-            >
+            <p className="text-sm text-danger" id={versionErrorId} role="alert">
               Enter the version name.
             </p>
           )}
 
-          <label
-            className="block text-xs font-bold uppercase tracking-[0.14em] text-zinc-500"
-            htmlFor={runtimeId}
-          >
+          <label className="ui-label block text-text-muted" htmlFor={runtimeId}>
             Version Runtime (minutes)
             <Input
               aria-describedby={
@@ -115,17 +105,13 @@ export function MovieVersionFields({
             />
           </label>
           {attempted && versionRuntimeInvalid && (
-            <p
-              className="text-sm text-red-200"
-              id={runtimeErrorId}
-              role="alert"
-            >
+            <p className="text-sm text-danger" id={runtimeErrorId} role="alert">
               Enter a positive whole number of minutes.
             </p>
           )}
 
           <label
-            className="block text-xs font-bold uppercase tracking-[0.14em] text-zinc-500"
+            className="ui-label block text-text-muted"
             htmlFor={referenceId}
           >
             Version Reference URL
@@ -150,7 +136,7 @@ export function MovieVersionFields({
           </label>
           {attempted && versionReferenceUrlInvalid && (
             <p
-              className="text-sm text-red-200"
+              className="text-sm text-danger"
               id={referenceErrorId}
               role="alert"
             >

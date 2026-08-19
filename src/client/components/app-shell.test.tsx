@@ -46,7 +46,7 @@ describe("site identity", () => {
     expect(screen.queryByText("The watch club")).toBeNull();
   });
 
-  it("keeps Credits with the site identity and outside primary actions", () => {
+  it("keeps Credits in the primary navigation before authentication controls", () => {
     render(
       <AppHeader
         auth={{ actor: null, authenticated: false, local: false }}
@@ -58,19 +58,13 @@ describe("site identity", () => {
     );
 
     const credits = screen.getByRole("link", { name: "Credits" });
-    const home = screen.getByRole("link", { name: "Ludovico Tech home" });
     const primaryNavigation = screen.getByRole("navigation", {
       name: "Primary navigation",
     });
     const signIn = screen.getByRole("button", { name: "Sign in" });
 
     expect(credits).toHaveAttribute("aria-current", "page");
-    expect(credits.closest("nav")).toBeNull();
-    expect(credits.parentElement).toBe(home.parentElement);
-    expect(
-      credits.compareDocumentPosition(primaryNavigation) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(credits.closest("nav")).toBe(primaryNavigation);
     expect(
       primaryNavigation.compareDocumentPosition(signIn) &
         Node.DOCUMENT_POSITION_FOLLOWING,

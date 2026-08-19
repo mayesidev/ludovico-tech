@@ -131,10 +131,10 @@ describe("home workflows", () => {
       screen.getByRole("link", { name: "Test Movie (2020)" }),
     ).toHaveAttribute("href", "/movies/movie-id?from=now-showing");
     expect(
-      title.compareDocumentPosition(poster) & Node.DOCUMENT_POSITION_FOLLOWING,
+      poster.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      poster.compareDocumentPosition(phrase) & Node.DOCUMENT_POSITION_FOLLOWING,
+      title.compareDocumentPosition(phrase) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(phrase).toHaveAttribute("placeholder", "whats?");
   });
@@ -157,11 +157,7 @@ describe("home workflows", () => {
       roll,
     });
 
-    expect(
-      screen.getByText(
-        (_, element) => element?.textContent === "“Worth continuing”",
-      ),
-    ).toBeVisible();
+    expect(screen.getByText("Worth continuing")).toBeVisible();
     expect(screen.queryByText("4/5")).toBeNull();
 
     await user.click(
@@ -286,7 +282,7 @@ describe("home workflows", () => {
     );
   });
 
-  it("keeps the catalog summary out of the Now Showing card", () => {
+  it("keeps the catalog summary and decorative status labels out of the feature", () => {
     renderHome({
       movies: [
         movie({ id: "rated-id", rating_phrase: "Seen", rating_score: 3 }),
@@ -295,12 +291,10 @@ describe("home workflows", () => {
     });
 
     expect(screen.queryByText("1 unwatched out of 2 movies")).toBeNull();
-    expect(screen.getByText("Now showing", { selector: "p" })).toHaveClass(
-      "text-lg",
-    );
+    expect(screen.queryByText("Now showing", { selector: "p" })).toBeNull();
   });
 
-  it("centers the current poster below its title", () => {
+  it("places the framed poster before the title", () => {
     renderHome();
 
     const title = screen.getByRole("heading", {
@@ -311,11 +305,10 @@ describe("home workflows", () => {
       name: "No poster available for Test Movie",
     });
 
-    expect(title.compareDocumentPosition(poster)).toBe(
+    expect(poster.compareDocumentPosition(title)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
-    expect(poster.parentElement).toHaveClass("mx-auto");
-    expect(title.parentElement).toHaveClass("text-center");
+    expect(poster.closest(".poster-frame")).not.toBeNull();
   });
 
   it("places the collection below the linked title", () => {
