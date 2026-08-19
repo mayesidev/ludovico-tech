@@ -241,7 +241,7 @@ function RatingForm({
           value={score}
         />
       </div>
-      <div className="border-b border-highlight/15 p-4 sm:border-b-0 sm:border-r">
+      <div className="flex flex-col justify-center border-b border-highlight/15 p-4 sm:border-b-0 sm:border-r">
         <label className="sr-only" htmlFor={phraseId}>
           Custom rating phrase (required)
         </label>

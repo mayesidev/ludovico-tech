@@ -181,7 +181,7 @@ export default function App() {
           canMutate ? (
             <Button
               aria-label="Add a movie"
-              className="shrink-0 px-3 sm:px-4"
+              className="header-label shrink-0 px-3 sm:px-4"
               disabled={busy}
               onClick={() => setAddingMovie(true)}
               ref={addMovieTriggerRef}

@@ -39,12 +39,12 @@ export function AppHeader({
             <Clapperboard size={20} strokeWidth={2.25} />
           </span>
           <span className="w-min min-w-0">
-            <span className="block whitespace-nowrap font-heading text-base font-semibold tracking-tight text-text-primary sm:text-lg">
+            <span className="block whitespace-nowrap font-heading text-lg font-semibold tracking-tight text-text-primary sm:text-xl">
               Ludovico Tech
             </span>
             <span
               aria-label="A Pop Culture Re-education Program"
-              className="hidden text-xs font-medium leading-[1.35] tracking-normal text-text-muted md:block"
+              className="hidden text-sm font-normal leading-[1.3] tracking-normal text-text-muted md:block"
             >
               <span aria-hidden="true" className="block whitespace-nowrap">
                 A Pop Culture
@@ -105,7 +105,7 @@ function NavButton({
       href={href}
       onNavigate={onNavigate}
       className={cn(
-        "ui-label relative grid min-w-0 place-items-center px-3 transition sm:min-w-28 sm:px-5",
+        "header-label relative grid min-w-0 place-items-center px-3 transition sm:min-w-28 sm:px-5",
         active
           ? "text-text-primary after:absolute after:inset-x-5 after:bottom-[-1px] after:h-[3px] after:bg-action"
           : "text-text-muted hover:text-text-primary",
@@ -130,7 +130,7 @@ function AuthControls({
   if (!auth.authenticated) {
     return (
       <Button
-        className="shrink-0 whitespace-nowrap"
+        className="header-label shrink-0 whitespace-nowrap"
         variant="secondary"
         onClick={onLogin}
       >
@@ -143,7 +143,7 @@ function AuthControls({
     <button
       aria-label={`Sign out${auth.actor?.displayName ? ` ${auth.actor.displayName}` : ""}`}
       onClick={onLogout}
-      className="ui-label max-w-[120px] shrink-0 whitespace-nowrap rounded-sm border border-border-primary bg-surface/75 px-3 py-2 text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary sm:max-w-[180px]"
+      className="header-label max-w-[120px] shrink-0 whitespace-nowrap rounded-sm border border-border-primary bg-surface/75 px-3 py-2 text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary sm:max-w-[180px]"
     >
       Sign out
     </button>

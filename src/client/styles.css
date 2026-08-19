@@ -63,6 +63,13 @@ button {
   text-transform: none;
 }
 
+.header-label {
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
 .feature-metadata {
   display: grid;
   max-width: 40.625rem;
