@@ -29,7 +29,7 @@ afterEach(() => {
 
 describe("site identity", () => {
   it("shows the Ludovico Tech name and program subtitle", () => {
-    render(
+    const { container } = render(
       <AppHeader
         auth={null}
         onLogin={vi.fn()}
@@ -43,6 +43,11 @@ describe("site identity", () => {
     expect(
       screen.getByLabelText("A Pop Culture Re-education Program"),
     ).toBeVisible();
+    expect(container.querySelector('img[aria-hidden="true"]')).toHaveAttribute(
+      "src",
+      "/favicon.svg",
+    );
+    expect(container.querySelector(".lucide-clapperboard")).toBeNull();
     expect(screen.queryByText("The watch club")).toBeNull();
   });
 
