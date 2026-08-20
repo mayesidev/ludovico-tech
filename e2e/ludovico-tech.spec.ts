@@ -10,7 +10,9 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     const response = await request.get("/favicon.svg");
     expect(response.ok()).toBe(true);
     expect(response.headers()["content-type"]).toContain("image/svg+xml");
-    expect(await response.text()).toContain('viewBox="0 0 64 64"');
+    const artwork = await response.text();
+    expect(artwork).toContain('viewBox="0 0 64 64"');
+    expect(artwork).toContain("Ludovico Tech film projector");
   });
 
   test("presents the project credits and required attribution", async ({

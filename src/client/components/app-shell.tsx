@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Clapperboard, LoaderCircle, Ticket, X } from "lucide-react";
+import { LoaderCircle, Ticket, X } from "lucide-react";
 import type { AuthState } from "../api";
 import type { Navigate, Tab } from "../types";
 import { Button } from "./ui";
@@ -38,8 +38,13 @@ export function AppHeader({
           href="/"
           onNavigate={onNavigate}
         >
-          <span className="grid size-9 shrink-0 place-items-center border border-highlight text-highlight sm:size-10">
-            <Clapperboard size={20} strokeWidth={2.25} />
+          <span className="grid size-9 shrink-0 place-items-center sm:size-10">
+            <img
+              alt=""
+              aria-hidden="true"
+              className="size-full"
+              src="/favicon.svg"
+            />
           </span>
           <span className="w-min min-w-0">
             <span className="block whitespace-nowrap font-heading text-lg font-semibold tracking-tight text-text-primary sm:text-xl">
