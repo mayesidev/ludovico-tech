@@ -541,6 +541,25 @@ describe("TMDB routes and metadata attachment", () => {
               id: 901,
               name: "Authoritative Collection",
             },
+            credits: {
+              cast: [
+                { id: 4, name: "Fourth Actor", order: 3 },
+                { id: 1, name: "First Actor", order: 0 },
+                { id: 2, name: "Second Actor", order: 1 },
+                { id: 2, name: "Duplicate Actor", order: 2 },
+                { id: 3, name: "Third Actor", order: 2 },
+                { id: 5, name: "Fifth Actor", order: 4 },
+                { id: 6, name: "Sixth Actor", order: 5 },
+              ],
+              crew: [
+                { id: 21, job: "Director", name: "First Director" },
+                { id: 22, job: "Director", name: "Second Director" },
+                { id: 21, job: "Director", name: "Duplicate Director" },
+                { id: 23, job: "Director", name: "Third Director" },
+                { id: 24, job: "Director", name: "Fourth Director" },
+                { id: 25, job: "Producer", name: "Not a Director" },
+              ],
+            },
             id: 201,
             poster_path: "/authoritative.jpg",
             release_date: "2026-08-05",
@@ -561,7 +580,19 @@ describe("TMDB routes and metadata attachment", () => {
 
     expect(await first.json()).toEqual({
       movie: {
+        cast: [
+          { id: 1, name: "First Actor" },
+          { id: 2, name: "Second Actor" },
+          { id: 3, name: "Third Actor" },
+          { id: 4, name: "Fourth Actor" },
+          { id: 5, name: "Fifth Actor" },
+        ],
         collection: { id: 901, name: "Authoritative Collection" },
+        directors: [
+          { id: 21, name: "First Director" },
+          { id: 22, name: "Second Director" },
+          { id: 23, name: "Third Director" },
+        ],
         id: 201,
         posterPath: "/authoritative.jpg",
         releaseDate: "2026-08-05",
@@ -571,6 +602,8 @@ describe("TMDB routes and metadata attachment", () => {
     });
     expect(second.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    const upstream = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    expect(upstream.searchParams.get("append_to_response")).toBe("credits");
 
     const detailCache = await env.DB.prepare(
       "SELECT cache_key FROM tmdb_cache WHERE payload_json LIKE ?",
@@ -637,6 +670,25 @@ describe("TMDB routes and metadata attachment", () => {
     );
     expect(unavailable.status).toBe(502);
     expect(await unavailable.json()).toEqual({ error: "TMDB lookup failed" });
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          belongs_to_collection: null,
+          id: 401,
+          poster_path: null,
+          release_date: "2026-08-06",
+          runtime: 100,
+          title: "Missing Credits",
+        }),
+        { status: 200 },
+      ),
+    );
+    const malformed = await request("/api/tmdb/movies/401", session.bindings, {
+      headers: { Cookie: session.cookie },
+    });
+    expect(malformed.status).toBe(502);
+    expect(await malformed.json()).toEqual({ error: "TMDB lookup failed" });
   });
 
   it("uses authoritative details for attachment and rejects duplicates", async () => {
@@ -652,6 +704,13 @@ describe("TMDB routes and metadata attachment", () => {
               id: 902,
               name: "Attached Collection",
             },
+            credits: {
+              cast: [
+                { id: 31, name: "Lead Actor", order: 0 },
+                { id: 32, name: "Second Actor", order: 1 },
+              ],
+              crew: [{ id: 41, job: "Director", name: "Attached Director" }],
+            },
             id: 301,
             poster_path: "/authoritative.jpg",
             release_date: "2026-08-05",
@@ -665,6 +724,7 @@ describe("TMDB routes and metadata attachment", () => {
         new Response(
           JSON.stringify({
             belongs_to_collection: null,
+            credits: { cast: [], crew: [] },
             id: 302,
             poster_path: "/refreshed.jpg",
             release_date: "2026-08-06",
@@ -708,6 +768,11 @@ describe("TMDB routes and metadata attachment", () => {
 
     expect(created.status).toBe(201);
     expect(movie).toMatchObject({
+      cast: [
+        { name: "Lead Actor", tmdbId: 31 },
+        { name: "Second Actor", tmdbId: 32 },
+      ],
+      directors: [{ name: "Attached Director", tmdbId: 41 }],
       poster_path: "/authoritative.jpg",
       release_date: "2026-08-05",
       runtime_minutes: 126,
@@ -722,6 +787,67 @@ describe("TMDB routes and metadata attachment", () => {
     expect(movie).not.toHaveProperty("tmdb_fetched_at");
     expect(movie).not.toHaveProperty("added_by");
     expect(movie).not.toHaveProperty("updated_by");
+
+    const publicDetail = await request(
+      `/api/movies/${String(movie.id)}`,
+      session.bindings,
+    );
+    expect(publicDetail.status).toBe(200);
+    expect(await publicDetail.json()).toMatchObject({
+      movie: {
+        cast: [
+          { name: "Lead Actor", tmdbId: 31 },
+          { name: "Second Actor", tmdbId: 32 },
+        ],
+        directors: [{ name: "Attached Director", tmdbId: 41 }],
+      },
+    });
+
+    const compactList = (await (
+      await request("/api/movies", session.bindings)
+    ).json()) as { movies: Array<Record<string, unknown>> };
+    const compactMovie = compactList.movies.find(
+      (candidate) => candidate.id === movie.id,
+    );
+    expect(compactMovie).not.toHaveProperty("cast");
+    expect(compactMovie).not.toHaveProperty("directors");
+
+    await env.DB.prepare(
+      `UPDATE now_showing
+       SET movie_id = ?, rolled_movie_id = ?, status = 'ready'
+       WHERE id = 1`,
+    )
+      .bind(String(movie.id), String(movie.id))
+      .run();
+    const current = await request("/api/now-showing", session.bindings);
+    expect(await current.json()).toMatchObject({
+      nowShowing: {
+        cast: [
+          { name: "Lead Actor", tmdbId: 31 },
+          { name: "Second Actor", tmdbId: 32 },
+        ],
+        directors: [{ name: "Attached Director", tmdbId: 41 }],
+      },
+    });
+
+    const ordinaryEdit = await request(
+      `/api/movies/${String(movie.id)}`,
+      session.bindings,
+      {
+        method: "PATCH",
+        headers: { Cookie: session.cookie },
+        body: JSON.stringify({ versionRuntime: 140 }),
+      },
+    );
+    expect(await ordinaryEdit.json()).toMatchObject({
+      movie: {
+        cast: [
+          { name: "Lead Actor", tmdbId: 31 },
+          { name: "Second Actor", tmdbId: 32 },
+        ],
+        directors: [{ name: "Attached Director", tmdbId: 41 }],
+      },
+    });
 
     const collectionDetail = await request(
       `/api/collections/${String(movie.collection_id)}`,
@@ -764,6 +890,8 @@ describe("TMDB routes and metadata attachment", () => {
     );
     expect(await unlinked.json()).toMatchObject({
       movie: {
+        cast: [],
+        directors: [],
         poster_path: null,
         release_date: null,
         runtime_minutes: null,
@@ -776,6 +904,16 @@ describe("TMDB routes and metadata attachment", () => {
         version_runtime: null,
       },
     });
+    expect(
+      await env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM movie_credits WHERE movie_id = ?",
+      )
+        .bind(String(movie.id))
+        .first(),
+    ).toEqual({ count: 0 });
+    expect(
+      await env.DB.prepare("SELECT COUNT(*) AS count FROM tmdb_people").first(),
+    ).toEqual({ count: 0 });
     expect(duplicate.status).toBe(409);
 
     const refreshed = await request(
@@ -789,6 +927,8 @@ describe("TMDB routes and metadata attachment", () => {
     );
     expect(await refreshed.json()).toMatchObject({
       movie: {
+        cast: [],
+        directors: [],
         poster_path: "/refreshed.jpg",
         release_date: "2026-08-06",
         runtime_minutes: 144,

@@ -25,8 +25,10 @@ const movie = (overrides: Partial<Movie> = {}): Movie => ({
 });
 
 const nowShowing = (overrides: Partial<NowShowing> = {}): NowShowing => ({
+  cast: [],
   collection_id: null,
   collection_name: null,
+  directors: [],
   id: 1,
   movie_id: "movie-id",
   poster_path: null,
@@ -87,6 +89,43 @@ describe("home workflows", () => {
         .getByLabelText("No poster available for Batman (Director's Cut)")
         .querySelector(".lucide-ticket"),
     ).not.toBeNull();
+  });
+
+  it("shows the persisted top cast and directors for at-a-glance recognition", () => {
+    renderHome({
+      nowShowing: nowShowing({
+        cast: [
+          { tmdbId: 1, name: "First Actor" },
+          { tmdbId: 2, name: "Second Actor" },
+          { tmdbId: 3, name: "Third Actor" },
+          { tmdbId: 4, name: "Fourth Actor" },
+          { tmdbId: 5, name: "Fifth Actor" },
+        ],
+        directors: [
+          { tmdbId: 21, name: "First Director" },
+          { tmdbId: 22, name: "Second Director" },
+          { tmdbId: 23, name: "Third Director" },
+        ],
+      }),
+    });
+
+    expect(screen.getByText("Directed by")).toBeVisible();
+    expect(
+      screen.getByText("First Director, Second Director, Third Director"),
+    ).toBeVisible();
+    expect(screen.getByText("Starring")).toBeVisible();
+    expect(
+      screen.getByText(
+        "First Actor, Second Actor, Third Actor, Fourth Actor, Fifth Actor",
+      ),
+    ).toBeVisible();
+  });
+
+  it("omits empty cast and director fields", () => {
+    renderHome();
+
+    expect(screen.queryByText("Directed by")).toBeNull();
+    expect(screen.queryByText("Starring")).toBeNull();
   });
 
   it("exposes title length for responsive feature-title scaling", () => {

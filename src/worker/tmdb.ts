@@ -1,4 +1,10 @@
 import type { AppEnv } from "./env";
+import {
+  distinctTmdbPeople,
+  parseTmdbCredits,
+  parseTmdbPerson,
+  type TmdbPerson,
+} from "../shared/tmdb-credits";
 
 const TMDB_API_ORIGIN = "https://api.themoviedb.org";
 const SEARCH_TTL_MS = 6 * 60 * 60 * 1000;
@@ -17,7 +23,9 @@ export type TmdbCollection = {
 };
 
 export type TmdbMovieDetail = TmdbMovie & {
+  cast: TmdbPerson[];
   collection: TmdbCollection | null;
+  directors: TmdbPerson[];
   runtimeMinutes: number | null;
 };
 
@@ -162,14 +170,26 @@ const mapTmdbCollection = (
   };
 };
 
+const mapCachedPeople = (value: unknown, limit: number) => {
+  if (!Array.isArray(value) || value.length > limit) return null;
+  const people = value.map(parseTmdbPerson);
+  if (people.some((person) => person === null)) return null;
+  const distinct = distinctTmdbPeople(value, limit);
+  return distinct.length === value.length ? distinct : null;
+};
+
 const mapCachedMovieDetail = (value: unknown): TmdbMovieDetail | null => {
   const movie = mapCachedMovie(value);
   if (!movie || !value || typeof value !== "object") return null;
   const detail = value as Record<string, unknown>;
+  const cast = mapCachedPeople(detail.cast, 5);
   const collection = mapTmdbCollection(detail.collection);
+  const directors = mapCachedPeople(detail.directors, 3);
   const runtimeMinutes = detail.runtimeMinutes;
   if (
+    cast === null ||
     collection === undefined ||
+    directors === null ||
     (runtimeMinutes !== null &&
       (!Number.isSafeInteger(runtimeMinutes) || Number(runtimeMinutes) <= 0))
   ) {
@@ -177,7 +197,9 @@ const mapCachedMovieDetail = (value: unknown): TmdbMovieDetail | null => {
   }
   return {
     ...movie,
+    cast,
     collection,
+    directors,
     runtimeMinutes: runtimeMinutes as number | null,
   };
 };
@@ -214,6 +236,8 @@ const mapMovieDetail = (value: unknown): TmdbMovieDetail | null => {
   if (!movie || !value || typeof value !== "object") return null;
   const detail = value as Record<string, unknown>;
   const collection = mapTmdbCollection(detail.belongs_to_collection);
+  const credits = parseTmdbCredits(detail.credits);
+  if (!credits) return null;
   const runtime = detail.runtime;
   if (
     collection === undefined ||
@@ -225,7 +249,9 @@ const mapMovieDetail = (value: unknown): TmdbMovieDetail | null => {
   }
   return {
     ...movie,
+    cast: credits.cast,
     collection,
+    directors: credits.directors,
     runtimeMinutes: runtime === null || runtime === 0 ? null : Number(runtime),
   };
 };
@@ -279,7 +305,10 @@ export const getTmdbMovie = async (
   const value = await fetchTmdb(
     env,
     `/3/movie/${movieId}`,
-    new URLSearchParams({ language: "en-US" }),
+    new URLSearchParams({
+      append_to_response: "credits",
+      language: "en-US",
+    }),
   );
   const movie = mapMovieDetail(value);
   if (!movie || movie.id !== movieId) throw new TmdbServiceError(502);

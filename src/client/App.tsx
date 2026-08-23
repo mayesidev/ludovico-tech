@@ -5,6 +5,7 @@ import {
   ApiError,
   type AuthState,
   type Movie,
+  type MovieDetail,
   type NowShowing,
 } from "./api";
 import {
@@ -49,6 +50,10 @@ export default function App() {
   const [nowShowing, setNowShowing] = useState<NowShowing | null>(null);
   const [remaining, setRemaining] = useState<Movie[]>([]);
   const [movies, setMovies] = useState<Movie[]>([]);
+  const [movieDetail, setMovieDetail] = useState<MovieDetail | null>(null);
+  const [movieDetailLoading, setMovieDetailLoading] = useState(
+    route.page === "movie",
+  );
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +97,30 @@ export default function App() {
     }
   }, []);
 
+  const refreshMovieDetail = useCallback(
+    async (showLoading = true) => {
+      if (route.page !== "movie") {
+        setMovieDetail(null);
+        setMovieDetailLoading(false);
+        return;
+      }
+      if (showLoading) setMovieDetailLoading(true);
+      try {
+        setMovieDetail((await api.movie(route.movieId)).movie);
+      } catch (cause) {
+        setMovieDetail(null);
+        if (!(cause instanceof ApiError && cause.status === 404)) {
+          setError(
+            cause instanceof Error ? cause.message : "Unable to load the movie",
+          );
+        }
+      } finally {
+        if (showLoading) setMovieDetailLoading(false);
+      }
+    },
+    [route],
+  );
+
   useEffect(() => {
     void Promise.resolve().then(() => refresh());
   }, [refresh]);
@@ -99,6 +128,10 @@ export default function App() {
   useEffect(() => {
     void Promise.resolve().then(refreshAuth);
   }, [refreshAuth]);
+
+  useEffect(() => {
+    void Promise.resolve().then(() => refreshMovieDetail());
+  }, [refreshMovieDetail]);
 
   useEffect(() => {
     if (auth?.authenticated !== true || movies.length === 0) {
@@ -147,6 +180,7 @@ export default function App() {
         await action();
         after?.();
         await refresh(false);
+        await refreshMovieDetail(false);
       } catch (cause) {
         if (cause instanceof ApiError && cause.status === 401) {
           setEditingMovie(null);
@@ -160,7 +194,7 @@ export default function App() {
         setBusy(false);
       }
     },
-    [refresh, refreshAuth],
+    [refresh, refreshAuth, refreshMovieDetail],
   );
 
   const roll = useCallback(() => {
@@ -229,11 +263,6 @@ export default function App() {
       : route.page === "credits"
         ? "credits"
         : "library";
-  const selectedMovie =
-    route.page === "movie"
-      ? (movies.find((movie) => movie.id === route.movieId) ?? null)
-      : null;
-
   return (
     <div className="app-background min-h-screen overflow-x-hidden text-text-primary">
       <AppHeader
@@ -299,10 +328,12 @@ export default function App() {
             returnTo={route.returnTo}
             run={run}
           />
+        ) : route.page === "movie" && movieDetailLoading ? (
+          <LoadingState />
         ) : (
           <MovieDetailPage
             canMutate={canMutate}
-            movie={selectedMovie}
+            movie={movieDetail}
             onDelete={(movie) =>
               setDeletingMovie({
                 movie,

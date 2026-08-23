@@ -13,7 +13,7 @@ import {
 type ReconciliationCache = {
   findEntries: Record<string, TmdbFindMovie[]>;
   movieEntries: Record<string, TmdbMovieDetail>;
-  schemaVersion: 3;
+  schemaVersion: 4;
 };
 
 const [inputArgument, outputArgument, reportArgument, cacheArgument] =
@@ -45,9 +45,33 @@ const validCachedMovieDetail = (value: unknown): value is TmdbMovieDetail => {
   if (!value || typeof value !== "object") return false;
   const movie = value as Record<string, unknown>;
   const collection = movie.collection;
+  const peopleAreValid = (people: unknown, limit: number) =>
+    Array.isArray(people) &&
+    people.length <= limit &&
+    new Set(
+      people.map((person) =>
+        person && typeof person === "object"
+          ? (person as Record<string, unknown>).id
+          : null,
+      ),
+    ).size === people.length &&
+    people.every(
+      (person) =>
+        person !== null &&
+        typeof person === "object" &&
+        Number.isInteger((person as Record<string, unknown>).id) &&
+        Number((person as Record<string, unknown>).id) > 0 &&
+        typeof (person as Record<string, unknown>).name === "string" &&
+        String((person as Record<string, unknown>).name).trim() ===
+          (person as Record<string, unknown>).name &&
+        String((person as Record<string, unknown>).name).length >= 1 &&
+        String((person as Record<string, unknown>).name).length <= 200,
+    );
   return (
     Number.isInteger(movie.id) &&
     Number(movie.id) > 0 &&
+    peopleAreValid(movie.cast, 5) &&
+    peopleAreValid(movie.directors, 3) &&
     (movie.runtimeMinutes === null ||
       (Number.isSafeInteger(movie.runtimeMinutes) &&
         Number(movie.runtimeMinutes) > 0)) &&
@@ -65,7 +89,7 @@ const validCachedMovieDetail = (value: unknown): value is TmdbMovieDetail => {
 
 const readCache = (path: string): ReconciliationCache => {
   if (!existsSync(path)) {
-    return { findEntries: {}, movieEntries: {}, schemaVersion: 3 };
+    return { findEntries: {}, movieEntries: {}, schemaVersion: 4 };
   }
   try {
     const value = JSON.parse(readFileSync(path, "utf8")) as Record<
@@ -87,15 +111,19 @@ const readCache = (path: string): ReconciliationCache => {
     ) {
       throw new Error("invalid cache entry");
     }
-    if (value.schemaVersion === 1 || value.schemaVersion === 2) {
+    if (
+      value.schemaVersion === 1 ||
+      value.schemaVersion === 2 ||
+      value.schemaVersion === 3
+    ) {
       return {
         findEntries: findEntries as Record<string, TmdbFindMovie[]>,
         movieEntries: {},
-        schemaVersion: 3,
+        schemaVersion: 4,
       };
     }
     if (
-      value.schemaVersion !== 3 ||
+      value.schemaVersion !== 4 ||
       !value.movieEntries ||
       typeof value.movieEntries !== "object" ||
       Array.isArray(value.movieEntries) ||
@@ -192,7 +220,10 @@ if (!inputArgument || !outputArgument || !reportArgument || !cacheArgument) {
 
       const value = await fetchProvider(
         `/3/movie/${tmdbId}`,
-        new URLSearchParams({ language: "en-US" }),
+        new URLSearchParams({
+          append_to_response: "credits",
+          language: "en-US",
+        }),
       );
       const movie = parseTmdbMovieResponse(value);
       if (!movie || movie.id !== tmdbId) {

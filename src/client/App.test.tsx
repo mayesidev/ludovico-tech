@@ -56,8 +56,10 @@ const authenticated: AuthState = {
 };
 
 const currentNowShowing: NowShowing = {
+  cast: [],
   collection_id: null,
   collection_name: null,
+  directors: [],
   id: 1,
   movie_id: "current-id",
   poster_path: "/current.jpg",
@@ -73,6 +75,9 @@ const currentNowShowing: NowShowing = {
 
 const arrange = (auth: AuthState) => {
   vi.spyOn(api, "authMe").mockResolvedValue(auth);
+  vi.spyOn(api, "movie").mockResolvedValue({
+    movie: { ...movie, cast: [], directors: [] },
+  });
   vi.spyOn(api, "movies").mockResolvedValue({ movies: [movie] });
   vi.spyOn(api, "nowShowing").mockResolvedValue({
     nowShowing: null,
@@ -249,8 +254,10 @@ describe("application authorization presentation", () => {
     vi.spyOn(api, "roll").mockResolvedValue({
       rolledMovie: { ...movie, id: "rolled-id", title: "Rolled Later Movie" },
       nowShowing: {
+        cast: [],
         collection_id: "collection-id",
         collection_name: "Test Saga",
+        directors: [],
         id: 1,
         movie_id: "actual-id",
         poster_path: "/actual.jpg",
@@ -331,6 +338,12 @@ describe("application authorization presentation", () => {
     arrange(anonymous);
     vi.mocked(api.movies).mockResolvedValue({
       movies: [{ ...movie, tmdb_id: 603 }],
+    });
+    vi.mocked(api.movie).mockImplementation(async (id) => {
+      if (id === "missing-id") throw new ApiError("Movie not found", 404);
+      return {
+        movie: { ...movie, cast: [], directors: [], tmdb_id: 603 },
+      };
     });
     window.history.replaceState(null, "", "/movies/movie-id");
     render(<App />);

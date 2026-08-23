@@ -48,6 +48,8 @@ const reconciliation = (
   generatedAt: "2026-08-10T10:00:00.000Z",
   matches: [
     {
+      cast: [{ id: 101, name: "Synthetic Actor" }],
+      directors: [{ id: 201, name: "Synthetic Director" }],
       legacyImdbId: "tt1234567",
       posterPath: "/synthetic.jpg",
       providerTitleNormalized: "synthetic movie",
@@ -59,7 +61,7 @@ const reconciliation = (
       tmdbId: 42,
     },
   ],
-  schemaVersion: 3,
+  schemaVersion: 4,
   ...overrides,
 });
 
@@ -822,9 +824,9 @@ describe("update-only TMDB metadata planning", () => {
     expect(sql).toContain(
       "WHERE imdb_id = 'tt1234567' AND title_normalized = 'synthetic movie'",
     );
-    expect(sql).not.toMatch(
-      /INSERT|DELETE|collection_movies|now_showing|ratings/,
-    );
+    expect(sql).toContain("INSERT INTO tmdb_people");
+    expect(sql).toContain("INSERT OR REPLACE INTO movie_credits");
+    expect(sql).not.toMatch(/collection_movies|now_showing|ratings/);
   });
 
   it("rejects a match when one legacy ID represents conflicting source identities", () => {

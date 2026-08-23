@@ -1,5 +1,5 @@
 import { ArrowLeft, ExternalLink, Pencil, Trash2 } from "lucide-react";
-import type { Movie } from "../api";
+import type { Movie, MovieDetail } from "../api";
 import { imdbTitleUrl } from "../../shared/imdb";
 import { formatDate, formatMovieTitle, formatRuntime } from "../lib/utils";
 import { AppLink } from "./app-link";
@@ -8,7 +8,7 @@ import { Button } from "./ui";
 
 type MovieDetailPageProps = {
   canMutate?: boolean;
-  movie: Movie | null;
+  movie: MovieDetail | null;
   onDelete?: (movie: Movie) => void;
   onEdit?: (movie: Movie) => void;
   onNavigate: (path: string) => void;
@@ -123,6 +123,22 @@ export function MovieDetailPage({
                 <dt className="ui-label text-text-muted">Runtime</dt>
                 <dd className="text-text-secondary">
                   {formatRuntime(runtime)}
+                </dd>
+              </div>
+            )}
+            {movie.directors.length > 0 && (
+              <div>
+                <dt className="ui-label text-text-muted">Directed by</dt>
+                <dd className="text-text-secondary">
+                  {movie.directors.map((person) => person.name).join(", ")}
+                </dd>
+              </div>
+            )}
+            {movie.cast.length > 0 && (
+              <div>
+                <dt className="ui-label text-text-muted">Starring</dt>
+                <dd className="text-text-secondary">
+                  {movie.cast.map((person) => person.name).join(", ")}
                 </dd>
               </div>
             )}

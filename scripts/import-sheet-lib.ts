@@ -1,8 +1,9 @@
 import { parse } from "csv-parse/sync";
 import { parseImdbId as parseImdbIdValue } from "../src/shared/imdb";
+import type { TmdbPerson } from "../src/shared/tmdb-credits";
 
 export const INTERMEDIATE_SCHEMA_VERSION = 3 as const;
-export const TMDB_RECONCILIATION_SCHEMA_VERSION = 3 as const;
+export const TMDB_RECONCILIATION_SCHEMA_VERSION = 4 as const;
 
 const SOURCE_COLUMN_INDEX = {
   submittedAt: 0,
@@ -106,6 +107,8 @@ export interface GeneralizedImportDocument {
 }
 
 export interface ConfirmedTmdbMatch {
+  cast: TmdbPerson[];
+  directors: TmdbPerson[];
   legacyImdbId: string;
   posterPath: string | null;
   providerTitleNormalized: string;
@@ -174,6 +177,7 @@ export const buildTmdbMetadataPlan = (
 
   const diagnostics: ImportDiagnostic[] = [];
   const statements: string[] = [];
+  let matchedMovies = 0;
   for (const match of reconciliation.matches) {
     const sourceRows = rowsByLegacyId.get(match.legacyImdbId) ?? [];
     const identities = new Set(
@@ -195,6 +199,16 @@ export const buildTmdbMetadataPlan = (
     statements.push(
       `UPDATE movies SET release_date = ${sql(match.releaseDate)}, poster_path = ${sql(match.posterPath)}, runtime_minutes = ${sql(match.runtimeMinutes)}, tmdb_id = ${match.tmdbId}, tmdb_collection_id = ${sql(match.tmdbCollectionId)}, tmdb_collection_name = ${sql(match.tmdbCollectionName)}, tmdb_fetched_at = ${sql(reconciliation.generatedAt)}, updated_at = ${sql(appliedAt)} WHERE imdb_id = ${sql(match.legacyImdbId)} AND title_normalized = ${sql(match.sourceTitleNormalized)} AND (tmdb_id IS NULL OR tmdb_id = ${match.tmdbId}) AND NOT EXISTS (SELECT 1 FROM movies AS linked WHERE linked.tmdb_id = ${match.tmdbId} AND linked.imdb_id <> ${sql(match.legacyImdbId)});`,
     );
+    matchedMovies += 1;
+    const movieId = `(SELECT id FROM movies WHERE imdb_id = ${sql(match.legacyImdbId)} AND title_normalized = ${sql(match.sourceTitleNormalized)} AND tmdb_id = ${match.tmdbId} LIMIT 1)`;
+    statements.push(
+      ...tmdbCreditStatements(
+        movieId,
+        match,
+        reconciliation.generatedAt,
+        `${movieId} IS NOT NULL`,
+      ),
+    );
   }
 
   if (diagnostics.some((item) => item.severity === "error")) {
@@ -208,7 +222,7 @@ export const buildTmdbMetadataPlan = (
   return {
     counts: {
       collections: 0,
-      movies: statements.length,
+      movies: matchedMovies,
       ratings: 0,
       sources: 0,
     },
@@ -905,11 +919,35 @@ export const parseTmdbReconciliationJson = (
 
     const legacyIds = new Set<string>();
     const tmdbIds = new Set<number>();
+    const validPeople = (people: unknown, limit: number) => {
+      if (!Array.isArray(people) || people.length > limit) return false;
+      const ids = new Set<number>();
+      for (const item of people) {
+        if (!item || typeof item !== "object") return false;
+        const person = item as Record<string, unknown>;
+        if (
+          !hasExactKeys(person, ["id", "name"]) ||
+          !Number.isInteger(person.id) ||
+          Number(person.id) <= 0 ||
+          typeof person.name !== "string" ||
+          person.name.trim() !== person.name ||
+          person.name.length < 1 ||
+          person.name.length > 200 ||
+          ids.has(Number(person.id))
+        ) {
+          return false;
+        }
+        ids.add(Number(person.id));
+      }
+      return true;
+    };
     for (const item of value.matches) {
       if (!item || typeof item !== "object") return null;
       const match = item as Record<string, unknown>;
       if (
         !hasExactKeys(match, [
+          "cast",
+          "directors",
           "legacyImdbId",
           "posterPath",
           "providerTitleNormalized",
@@ -920,6 +958,8 @@ export const parseTmdbReconciliationJson = (
           "tmdbCollectionName",
           "tmdbId",
         ]) ||
+        !validPeople(match.cast, 5) ||
+        !validPeople(match.directors, 3) ||
         typeof match.legacyImdbId !== "string" ||
         !/^tt\d{6,9}$/.test(match.legacyImdbId) ||
         !Number.isInteger(match.tmdbId) ||
@@ -980,6 +1020,39 @@ const sql = (value: string | number | null) => {
     return String(value);
   }
   return `'${value.replaceAll("'", "''")}'`;
+};
+
+const tmdbCreditStatements = (
+  movieId: string,
+  match: ConfirmedTmdbMatch,
+  updatedAt: string,
+  condition: string,
+) => {
+  const statements = [
+    `DELETE FROM movie_credits WHERE movie_id = ${movieId} AND ${condition};`,
+  ];
+  const people = new Map(
+    [...match.cast, ...match.directors].map((person) => [person.id, person]),
+  );
+  for (const person of people.values()) {
+    statements.push(
+      `INSERT INTO tmdb_people (tmdb_id, name, updated_at) VALUES (${person.id}, ${sql(person.name)}, ${sql(updatedAt)}) ON CONFLICT(tmdb_id) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at;`,
+    );
+  }
+  for (const [index, person] of match.cast.entries()) {
+    statements.push(
+      `INSERT OR REPLACE INTO movie_credits (movie_id, tmdb_person_id, credit_type, position) SELECT ${movieId}, ${person.id}, 'cast', ${index + 1} WHERE ${condition};`,
+    );
+  }
+  for (const [index, person] of match.directors.entries()) {
+    statements.push(
+      `INSERT OR REPLACE INTO movie_credits (movie_id, tmdb_person_id, credit_type, position) SELECT ${movieId}, ${person.id}, 'director', ${index + 1} WHERE ${condition};`,
+    );
+  }
+  statements.push(
+    "DELETE FROM tmdb_people WHERE NOT EXISTS (SELECT 1 FROM movie_credits WHERE movie_credits.tmdb_person_id = tmdb_people.tmdb_id);",
+  );
+  return statements;
 };
 
 interface AccumulatedMovie {
@@ -1215,6 +1288,14 @@ export const buildImportPlan = async (
     if (movie.tmdbMatch && reconciliation) {
       statements.push(
         `UPDATE movies SET release_date = ${sql(movie.tmdbMatch.releaseDate)}, poster_path = ${sql(movie.tmdbMatch.posterPath)}, runtime_minutes = ${sql(movie.tmdbMatch.runtimeMinutes)}, tmdb_id = ${movie.tmdbMatch.tmdbId}, tmdb_collection_id = ${sql(movie.tmdbMatch.tmdbCollectionId)}, tmdb_collection_name = ${sql(movie.tmdbMatch.tmdbCollectionName)}, tmdb_fetched_at = ${sql(reconciliation.generatedAt)}, updated_at = ${sql(importedAt)} WHERE id = ${sql(movie.id)} AND (tmdb_id IS NULL OR tmdb_id = ${movie.tmdbMatch.tmdbId}) AND NOT EXISTS (SELECT 1 FROM movies AS linked WHERE linked.tmdb_id = ${movie.tmdbMatch.tmdbId} AND linked.id <> ${sql(movie.id)});`,
+      );
+      statements.push(
+        ...tmdbCreditStatements(
+          sql(movie.id),
+          movie.tmdbMatch,
+          reconciliation.generatedAt,
+          `EXISTS (SELECT 1 FROM movies WHERE id = ${sql(movie.id)} AND tmdb_id = ${movie.tmdbMatch.tmdbId})`,
+        ),
       );
     }
     for (const source of movie.sources.sort(
