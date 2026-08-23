@@ -75,6 +75,10 @@ describe("TMDB reconciliation command", () => {
               id: 7,
               name: "Synthetic Collection",
             },
+            credits: {
+              cast: [{ id: 101, name: "Synthetic Actor", order: 0 }],
+              crew: [{ id: 201, job: "Director", name: "Synthetic Director" }],
+            },
             id: 42,
             runtime: 123,
           }),
@@ -121,7 +125,7 @@ describe("TMDB reconciliation command", () => {
             tmdbCollectionName: "Synthetic Collection",
           },
         ],
-        schemaVersion: 3,
+        schemaVersion: 4,
       });
       expect(
         JSON.parse(readFileSync(report, "utf8")) as Record<string, unknown>,
@@ -182,6 +186,7 @@ describe("TMDB reconciliation command", () => {
       new Response(
         JSON.stringify({
           belongs_to_collection: null,
+          credits: { cast: [], crew: [] },
           id: 42,
           runtime: 123,
         }),
@@ -206,7 +211,7 @@ describe("TMDB reconciliation command", () => {
         movieEntries: {
           "42": { collection: null, id: 42, runtimeMinutes: 123 },
         },
-        schemaVersion: 3,
+        schemaVersion: 4,
       });
       expect(
         JSON.parse(readFileSync(report, "utf8")) as Record<string, unknown>,

@@ -21,7 +21,18 @@ export type Movie = {
   watched_at: string | null;
 };
 
+export type TmdbPersonReference = {
+  tmdbId: number;
+  name: string;
+};
+
+export type MovieDetail = Movie & {
+  cast: TmdbPersonReference[];
+  directors: TmdbPersonReference[];
+};
+
 export type NowShowing = {
+  cast: TmdbPersonReference[];
   id: number;
   rolled_movie_id: string | null;
   movie_id: string | null;
@@ -35,6 +46,7 @@ export type NowShowing = {
   rating_phrase: string | null;
   watched_at: string | null;
   collection_name: string | null;
+  directors: TmdbPersonReference[];
 };
 
 export type NowShowingResponse = {
@@ -108,6 +120,8 @@ export const api = {
   nowShowing: () => request<NowShowingResponse>("/api/now-showing"),
   movies: (status = "all") =>
     request<{ movies: Movie[] }>(`/api/movies?status=${status}`),
+  movie: (id: string) =>
+    request<{ movie: MovieDetail }>(`/api/movies/${encodeURIComponent(id)}`),
   collection: (id: string) =>
     request<{
       collection: { id: string; name: string };

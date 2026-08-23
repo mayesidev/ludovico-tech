@@ -18,6 +18,9 @@ one group viewing state.
   rating it, members may continue the collection or return to a fresh random roll.
 - TMDB supplies application metadata. Legacy IMDb identifiers are optional,
   fallible import references rather than application identity.
+- A confirmed TMDB movie stores up to five top-billed cast members and up to
+  three directors by TMDB person ID and name. Their names appear on Now Showing
+  and Movie Details; missing credits are omitted.
 - A confirmed TMDB movie may optionally specify a manually sourced version,
   version runtime, and reference URL. The version is appended to displayed
   movie titles in parentheses. Its runtime is displayed when present;

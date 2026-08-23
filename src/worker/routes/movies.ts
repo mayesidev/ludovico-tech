@@ -3,7 +3,8 @@ import { type Hono } from "hono";
 import type { AppEnv } from "../env";
 import {
   getMovie,
-  getNowShowing,
+  getMovieDetail,
+  getNowShowingDetail,
   getRemainingCollectionMovies,
   movieSelect,
   type MovieRow,
@@ -11,8 +12,68 @@ import {
 import { auditStatement, mutationActor } from "../middleware";
 import { movieEditInput, movieInput, ratingInput } from "../schemas";
 import { newId, normalizeTitle, now } from "../env";
-import { getTmdbMovie } from "../tmdb";
+import { getTmdbMovie, type TmdbMovieDetail } from "../tmdb";
 import { tmdbErrorResponse } from "./tmdb";
+
+const replaceMovieCreditStatements = (
+  env: AppEnv["Bindings"],
+  movieId: string,
+  metadata: TmdbMovieDetail | null,
+  timestamp: string,
+) => {
+  const statements: D1PreparedStatement[] = [
+    env.DB.prepare("DELETE FROM movie_credits WHERE movie_id = ?").bind(
+      movieId,
+    ),
+  ];
+  if (metadata) {
+    const people = new Map(
+      [...metadata.cast, ...metadata.directors].map((person) => [
+        person.id,
+        person,
+      ]),
+    );
+    for (const person of people.values()) {
+      statements.push(
+        env.DB.prepare(
+          `INSERT INTO tmdb_people (tmdb_id, name, updated_at)
+           VALUES (?, ?, ?)
+           ON CONFLICT(tmdb_id) DO UPDATE SET
+             name = excluded.name,
+             updated_at = excluded.updated_at`,
+        ).bind(person.id, person.name, timestamp),
+      );
+    }
+    for (const [index, person] of metadata.cast.entries()) {
+      statements.push(
+        env.DB.prepare(
+          `INSERT INTO movie_credits
+           (movie_id, tmdb_person_id, credit_type, position)
+           VALUES (?, ?, 'cast', ?)`,
+        ).bind(movieId, person.id, index + 1),
+      );
+    }
+    for (const [index, person] of metadata.directors.entries()) {
+      statements.push(
+        env.DB.prepare(
+          `INSERT INTO movie_credits
+           (movie_id, tmdb_person_id, credit_type, position)
+           VALUES (?, ?, 'director', ?)`,
+        ).bind(movieId, person.id, index + 1),
+      );
+    }
+  }
+  statements.push(
+    env.DB.prepare(
+      `DELETE FROM tmdb_people
+       WHERE NOT EXISTS (
+         SELECT 1 FROM movie_credits
+         WHERE movie_credits.tmdb_person_id = tmdb_people.tmdb_id
+       )`,
+    ),
+  );
+  return statements;
+};
 
 export const registerMovieRoutes = (app: Hono<AppEnv>) => {
   app.get("/movies", async (c) => {
@@ -82,7 +143,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
   });
 
   app.get("/now-showing", async (c) => {
-    const current = await getNowShowing(c.env);
+    const current = await getNowShowingDetail(c.env);
     if (!current) return c.json({ nowShowing: null });
     const remaining = current.collection_id
       ? await getRemainingCollectionMovies(c.env, current.collection_id)
@@ -91,6 +152,13 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       nowShowing: current,
       remainingCollectionMovies: remaining,
     });
+  });
+
+  app.get("/movies/:id", async (c) => {
+    const movie = await getMovieDetail(c.env, c.req.param("id"));
+    return movie
+      ? c.json({ movie })
+      : c.json({ error: "Movie not found" }, 404);
   });
 
   app.post("/movies", zValidator("json", movieInput), async (c) => {
@@ -215,6 +283,12 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       ),
     );
 
+    if (metadata) {
+      statements.push(
+        ...replaceMovieCreditStatements(c.env, id, metadata, timestamp),
+      );
+    }
+
     if (collectionId && position !== null) {
       statements.push(
         c.env.DB.prepare(
@@ -228,7 +302,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       }),
     );
     await c.env.DB.batch(statements);
-    return c.json({ movie: await getMovie(c.env, id) }, 201);
+    return c.json({ movie: await getMovieDetail(c.env, id) }, 201);
   });
 
   app.patch("/movies/:id", zValidator("json", movieEditInput), async (c) => {
@@ -422,6 +496,12 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       ),
     ];
 
+    if (tmdbChangeRequested) {
+      statements.push(
+        ...replaceMovieCreditStatements(c.env, movieId, metadata, timestamp),
+      );
+    }
+
     if (membershipChanged) {
       if (createCollection && targetCollectionId && targetCollectionName) {
         statements.push(
@@ -509,7 +589,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       }),
     );
     await c.env.DB.batch(statements);
-    return c.json({ movie: await getMovie(c.env, movieId) });
+    return c.json({ movie: await getMovieDetail(c.env, movieId) });
   });
 
   app.delete("/movies/:id", async (c) => {
@@ -559,6 +639,13 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         `DELETE FROM movies WHERE id = ?
          AND EXISTS (SELECT 1 FROM audit_log WHERE id = ?)`,
       ).bind(movieId, auditId),
+      c.env.DB.prepare(
+        `DELETE FROM tmdb_people
+         WHERE NOT EXISTS (
+           SELECT 1 FROM movie_credits
+           WHERE movie_credits.tmdb_person_id = tmdb_people.tmdb_id
+         )`,
+      ),
     ];
     if (existing.collection_id) {
       statements.push(
@@ -614,7 +701,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     ]);
     return c.json({
       movie: await getMovie(c.env, movieId),
-      nowShowing: await getNowShowing(c.env),
+      nowShowing: await getNowShowingDetail(c.env),
     });
   });
 };

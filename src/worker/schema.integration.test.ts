@@ -198,6 +198,70 @@ describe("catalog schema", () => {
     ).rejects.toThrow();
   });
 
+  it("enforces reusable TMDB people and bounded ordered movie credits", async () => {
+    await insertMovie("movie-credits-one");
+    await insertMovie("movie-credits-two");
+    await env.DB.prepare(
+      "INSERT INTO tmdb_people (tmdb_id, name, updated_at) VALUES (?, ?, ?)",
+    )
+      .bind(101, "Shared Person", "2026-08-06T00:00:00.000Z")
+      .run();
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO movie_credits
+         (movie_id, tmdb_person_id, credit_type, position)
+         VALUES (?, ?, 'cast', 1)`,
+      ).bind("movie-credits-one", 101),
+      env.DB.prepare(
+        `INSERT INTO movie_credits
+         (movie_id, tmdb_person_id, credit_type, position)
+         VALUES (?, ?, 'director', 1)`,
+      ).bind("movie-credits-two", 101),
+    ]);
+
+    await expect(
+      env.DB.prepare(
+        "INSERT INTO tmdb_people (tmdb_id, name, updated_at) VALUES (?, ?, ?)",
+      )
+        .bind(102, "   ", "2026-08-06T00:00:00.000Z")
+        .run(),
+    ).rejects.toThrow();
+    await expect(
+      env.DB.prepare(
+        `INSERT INTO movie_credits
+         (movie_id, tmdb_person_id, credit_type, position)
+         VALUES (?, ?, 'cast', 6)`,
+      )
+        .bind("movie-credits-one", 101)
+        .run(),
+    ).rejects.toThrow();
+    await expect(
+      env.DB.prepare(
+        `INSERT INTO movie_credits
+         (movie_id, tmdb_person_id, credit_type, position)
+         VALUES (?, ?, 'director', 4)`,
+      )
+        .bind("movie-credits-one", 101)
+        .run(),
+    ).rejects.toThrow();
+
+    await env.DB.prepare("DELETE FROM movies WHERE id = ?")
+      .bind("movie-credits-one")
+      .run();
+    expect(
+      await env.DB.prepare(
+        "SELECT movie_id FROM movie_credits WHERE movie_id = ?",
+      )
+        .bind("movie-credits-one")
+        .first(),
+    ).toBeNull();
+    expect(
+      await env.DB.prepare(
+        "SELECT name FROM tmdb_people WHERE tmdb_id = 101",
+      ).first(),
+    ).toEqual({ name: "Shared Person" });
+  });
+
   it("migrates a pending collection selection to the earliest-added unwatched movie", async () => {
     await env.DB.prepare(
       `INSERT INTO collections

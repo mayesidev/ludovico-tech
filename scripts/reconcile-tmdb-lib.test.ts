@@ -42,7 +42,9 @@ const match = (overrides: Partial<TmdbFindMovie> = {}): TmdbFindMovie => ({
 const generatedAt = "2026-08-10T10:00:00.000Z";
 const getMovie = () =>
   vi.fn().mockResolvedValue({
+    cast: [{ id: 101, name: "Synthetic Actor" }],
     collection: { id: 7, name: "Synthetic Collection" },
+    directors: [{ id: 201, name: "Synthetic Director" }],
     id: 42,
     runtimeMinutes: 123,
   });
@@ -70,28 +72,38 @@ describe("TMDB import reconciliation", () => {
           name: "Synthetic Collection",
           poster_path: "/ignored.jpg",
         },
+        credits: {
+          cast: [{ id: 101, name: "Synthetic Actor", order: 0 }],
+          crew: [{ id: 201, job: "Director", name: "Synthetic Director" }],
+        },
         id: 42,
         runtime: 123,
       }),
     ).toEqual({
+      cast: [{ id: 101, name: "Synthetic Actor" }],
       collection: { id: 7, name: "Synthetic Collection" },
+      directors: [{ id: 201, name: "Synthetic Director" }],
       id: 42,
       runtimeMinutes: 123,
     });
     expect(
       parseTmdbMovieResponse({
         belongs_to_collection: null,
+        credits: { cast: [], crew: [] },
         id: 42,
         runtime: 0,
       }),
     ).toEqual({
+      cast: [],
       collection: null,
+      directors: [],
       id: 42,
       runtimeMinutes: null,
     });
     expect(
       parseTmdbMovieResponse({
         belongs_to_collection: null,
+        credits: { cast: [], crew: [] },
         id: 42,
         runtime: "123",
       }),
@@ -117,6 +129,8 @@ describe("TMDB import reconciliation", () => {
       generatedAt,
       matches: [
         {
+          cast: [{ id: 101, name: "Synthetic Actor" }],
+          directors: [{ id: 201, name: "Synthetic Director" }],
           legacyImdbId: "tt1234567",
           posterPath: "/synthetic.jpg",
           providerTitleNormalized: "synthetic movie",
@@ -128,7 +142,7 @@ describe("TMDB import reconciliation", () => {
           tmdbId: 42,
         },
       ],
-      schemaVersion: 3,
+      schemaVersion: 4,
     });
   });
 

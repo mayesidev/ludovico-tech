@@ -50,6 +50,16 @@ export type NowShowingRow = {
   collection_name: string | null;
 };
 
+export type TmdbPersonReference = {
+  tmdbId: number;
+  name: string;
+};
+
+export type MovieCredits = {
+  cast: TmdbPersonReference[];
+  directors: TmdbPersonReference[];
+};
+
 export const movieSelect = `
   SELECT movies.id, movies.title, movies.added_at, movies.release_date,
     movies.poster_path, movies.runtime_minutes, movies.version,
@@ -72,6 +82,35 @@ export const getMovie = async (env: AppEnv["Bindings"], id: string) =>
     .bind(id)
     .first<MovieRow>();
 
+export const getMovieCredits = async (
+  env: AppEnv["Bindings"],
+  movieId: string,
+): Promise<MovieCredits> => {
+  const result = await env.DB.prepare(
+    `SELECT movie_credits.credit_type, tmdb_people.tmdb_id, tmdb_people.name
+     FROM movie_credits
+     JOIN tmdb_people ON tmdb_people.tmdb_id = movie_credits.tmdb_person_id
+     WHERE movie_credits.movie_id = ?
+     ORDER BY movie_credits.credit_type, movie_credits.position`,
+  )
+    .bind(movieId)
+    .all<{ credit_type: "cast" | "director"; tmdb_id: number; name: string }>();
+  const credits: MovieCredits = { cast: [], directors: [] };
+  for (const row of result.results) {
+    credits[row.credit_type === "cast" ? "cast" : "directors"].push({
+      tmdbId: row.tmdb_id,
+      name: row.name,
+    });
+  }
+  return credits;
+};
+
+export const getMovieDetail = async (env: AppEnv["Bindings"], id: string) => {
+  const movie = await getMovie(env, id);
+  if (!movie) return null;
+  return { ...movie, ...(await getMovieCredits(env, id)) };
+};
+
 export const getNowShowing = async (env: AppEnv["Bindings"]) =>
   env.DB.prepare(
     `SELECT now_showing.*, movies.title, movies.version, movies.release_date, movies.poster_path,
@@ -85,6 +124,17 @@ export const getNowShowing = async (env: AppEnv["Bindings"]) =>
        LEFT JOIN collections ON collections.id = now_showing.collection_id
        WHERE now_showing.id = 1`,
   ).first<NowShowingRow>();
+
+export const getNowShowingDetail = async (env: AppEnv["Bindings"]) => {
+  const current = await getNowShowing(env);
+  if (!current) return null;
+  return {
+    ...current,
+    ...(current.movie_id
+      ? await getMovieCredits(env, current.movie_id)
+      : { cast: [], directors: [] }),
+  };
+};
 
 export const getRemainingCollectionMovies = async (
   env: AppEnv["Bindings"],

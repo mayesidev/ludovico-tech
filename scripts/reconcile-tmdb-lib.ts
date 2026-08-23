@@ -4,6 +4,7 @@ import {
   type ConfirmedTmdbMatch,
   type GeneralizedImportDocument,
 } from "./import-sheet-lib";
+import { parseTmdbCredits, type TmdbPerson } from "../src/shared/tmdb-credits";
 
 export type TmdbFindMovie = {
   id: number;
@@ -13,7 +14,9 @@ export type TmdbFindMovie = {
 };
 
 export type TmdbMovieDetail = {
+  cast: TmdbPerson[];
   collection: { id: number; name: string } | null;
+  directors: TmdbPerson[];
   id: number;
   runtimeMinutes: number | null;
 };
@@ -89,6 +92,8 @@ export const parseTmdbMovieResponse = (
   if (!value || typeof value !== "object") return null;
   const movie = value as Record<string, unknown>;
   if (!Number.isInteger(movie.id) || Number(movie.id) <= 0) return null;
+  const credits = parseTmdbCredits(movie.credits);
+  if (!credits) return null;
   const collectionValue = movie.belongs_to_collection;
   let collection: TmdbMovieDetail["collection"];
   if (collectionValue === null) {
@@ -118,7 +123,9 @@ export const parseTmdbMovieResponse = (
     return null;
   }
   return {
+    cast: credits.cast,
     collection,
+    directors: credits.directors,
     id: Number(movie.id),
     runtimeMinutes:
       movie.runtime === null || movie.runtime === 0
@@ -205,6 +212,8 @@ export const reconcileTmdb = async (
     }
 
     matches.push({
+      cast: providerDetail.cast,
+      directors: providerDetail.directors,
       legacyImdbId: rows[0].legacyImdbId!,
       posterPath: providerMovies[0].posterPath,
       providerTitleNormalized,

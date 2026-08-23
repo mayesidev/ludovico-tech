@@ -1,13 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { Movie } from "../api";
+import type { MovieDetail } from "../api";
 import { MovieDetailPage } from "./movie-detail-page";
 
-const movie: Movie = {
+const movie: MovieDetail = {
   added_at: "2026-08-07T00:00:00.000Z",
+  cast: [],
   collection_id: "collection-id",
   collection_name: "Test Saga",
   collection_position: 1,
+  directors: [],
   id: "movie-id",
   imdb_id: "tt0133093",
   poster_path: null,
@@ -26,6 +28,50 @@ const movie: Movie = {
 };
 
 describe("movie details", () => {
+  it("shows the persisted top cast and directors", () => {
+    render(
+      <MovieDetailPage
+        movie={{
+          ...movie,
+          cast: [
+            { tmdbId: 1, name: "First Actor" },
+            { tmdbId: 2, name: "Second Actor" },
+            { tmdbId: 3, name: "Third Actor" },
+            { tmdbId: 4, name: "Fourth Actor" },
+            { tmdbId: 5, name: "Fifth Actor" },
+          ],
+          directors: [
+            { tmdbId: 21, name: "First Director" },
+            { tmdbId: 22, name: "Second Director" },
+            { tmdbId: 23, name: "Third Director" },
+          ],
+        }}
+        onNavigate={vi.fn()}
+        returnTo="library"
+      />,
+    );
+
+    expect(screen.getByText("Directed by")).toBeVisible();
+    expect(
+      screen.getByText("First Director, Second Director, Third Director"),
+    ).toBeVisible();
+    expect(screen.getByText("Starring")).toBeVisible();
+    expect(
+      screen.getByText(
+        "First Actor, Second Actor, Third Actor, Fourth Actor, Fifth Actor",
+      ),
+    ).toBeVisible();
+  });
+
+  it("omits empty cast and director fields", () => {
+    render(
+      <MovieDetailPage movie={movie} onNavigate={vi.fn()} returnTo="library" />,
+    );
+
+    expect(screen.queryByText("Directed by")).toBeNull();
+    expect(screen.queryByText("Starring")).toBeNull();
+  });
+
   it("appends the version to the title and uses its runtime override", () => {
     render(
       <MovieDetailPage

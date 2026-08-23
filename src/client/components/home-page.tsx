@@ -48,6 +48,8 @@ export function HomePage({
   const runtime = currentMovie
     ? (currentMovie.version_runtime ?? currentMovie.runtime_minutes)
     : null;
+  const cast = nowShowing?.cast ?? [];
+  const directors = nowShowing?.directors ?? [];
   const nowShowingTitle = formatMovieTitle(
     nowShowing?.title,
     nowShowing?.version,
@@ -116,6 +118,27 @@ export function HomePage({
                     <dt className="ui-label text-text-muted">Added</dt>
                     <dd className="metadata-value mt-2 text-text-secondary">
                       {formatDate(currentMovie.added_at)}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            )}
+
+            {hasSelection && (directors.length > 0 || cast.length > 0) && (
+              <dl className="mt-5 grid gap-5 border-b border-border-subtle pb-5 sm:grid-cols-2">
+                {directors.length > 0 && (
+                  <div>
+                    <dt className="ui-label text-text-muted">Directed by</dt>
+                    <dd className="metadata-value mt-2 text-text-secondary">
+                      {directors.map((person) => person.name).join(", ")}
+                    </dd>
+                  </div>
+                )}
+                {cast.length > 0 && (
+                  <div>
+                    <dt className="ui-label text-text-muted">Starring</dt>
+                    <dd className="metadata-value mt-2 text-text-secondary">
+                      {cast.map((person) => person.name).join(", ")}
                     </dd>
                   </div>
                 )}

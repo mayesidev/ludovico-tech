@@ -1,6 +1,11 @@
 import { zValidator } from "@hono/zod-validator";
 import { type Hono } from "hono";
-import { getMovie, getNowShowing, getRemainingCollectionMovies } from "../db";
+import {
+  getMovie,
+  getNowShowing,
+  getNowShowingDetail,
+  getRemainingCollectionMovies,
+} from "../db";
 import { type AppEnv, newId, now } from "../env";
 import { auditStatement, mutationActor } from "../middleware";
 import { orderInput } from "../schemas";
@@ -92,7 +97,7 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
     }
     return c.json({
       rolledMovie: await getMovie(c.env, rolled.id),
-      nowShowing: await getNowShowing(c.env),
+      nowShowing: await getNowShowingDetail(c.env),
     });
   });
 
@@ -180,7 +185,7 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
         ),
       );
       await c.env.DB.batch(statements);
-      return c.json({ nowShowing: await getNowShowing(c.env) });
+      return c.json({ nowShowing: await getNowShowingDetail(c.env) });
     },
   );
 
@@ -238,6 +243,6 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
         409,
       );
     }
-    return c.json({ nowShowing: await getNowShowing(c.env) });
+    return c.json({ nowShowing: await getNowShowingDetail(c.env) });
   });
 };

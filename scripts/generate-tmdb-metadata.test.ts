@@ -45,6 +45,8 @@ describe("TMDB metadata artifact command", () => {
       generatedAt: "2026-08-10T10:00:00.000Z",
       matches: [
         {
+          cast: [{ id: 101, name: "Synthetic Actor" }],
+          directors: [{ id: 201, name: "Synthetic Director" }],
           legacyImdbId: "tt1234567",
           posterPath: "/synthetic.jpg",
           providerTitleNormalized: "synthetic movie",
@@ -56,7 +58,7 @@ describe("TMDB metadata artifact command", () => {
           tmdbId: 42,
         },
       ],
-      schemaVersion: 3,
+      schemaVersion: 4,
     };
     writeFileSync(input, JSON.stringify(document));
     writeFileSync(reconciliationPath, JSON.stringify(reconciliation));
@@ -93,7 +95,9 @@ describe("TMDB metadata artifact command", () => {
       expect(sql).toContain("runtime_minutes = 123");
       expect(sql).toContain("tmdb_collection_id = 7");
       expect(sql).toContain("tmdb_collection_name = 'Synthetic Collection'");
-      expect(sql).not.toMatch(/INSERT|DELETE/);
+      expect(sql).toContain("INSERT INTO tmdb_people");
+      expect(sql).toContain("INSERT OR REPLACE INTO movie_credits");
+      expect(sql).not.toMatch(/collection_movies|now_showing|ratings/);
     } finally {
       rmSync(directory, { force: true, recursive: true });
     }

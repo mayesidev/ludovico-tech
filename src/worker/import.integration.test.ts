@@ -44,6 +44,8 @@ const syntheticReconciliation: TmdbReconciliationDocument = {
   generatedAt: "2026-08-10T10:00:00.000Z",
   matches: [
     {
+      cast: [{ id: 101, name: "Synthetic Actor" }],
+      directors: [{ id: 201, name: "Synthetic Director" }],
       legacyImdbId: "tt1234568",
       posterPath: "/synthetic-two.jpg",
       providerTitleNormalized: "synthetic movie two",
@@ -55,7 +57,7 @@ const syntheticReconciliation: TmdbReconciliationDocument = {
       tmdbId: 42,
     },
   ],
-  schemaVersion: 3,
+  schemaVersion: 4,
 };
 
 const request = async <T>(path: string, init?: RequestInit) => {
@@ -205,7 +207,7 @@ describe("generalized catalog import", () => {
       .bind("tt1234568")
       .first();
 
-    expect(plan.statements).toHaveLength(1);
+    expect(plan.statements.join("\n")).toContain("movie_credits");
     expect(counts).toEqual({
       collections: 1,
       movies: 2,
