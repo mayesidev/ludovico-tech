@@ -40,14 +40,27 @@ export type NowShowingRow = {
   rolled_at: string | null;
   updated_at: string;
   title: string | null;
+  added_at: string | null;
   version: string | null;
+  version_runtime: number | null;
   release_date: string | null;
   poster_path: string | null;
+  runtime_minutes: number | null;
   rating_score: number | null;
   rating_phrase: string | null;
   watched_at: string | null;
   movie_collection_id: string | null;
   collection_name: string | null;
+};
+
+export type HomeMovieRow = {
+  id: string;
+  title: string;
+  poster_path: string | null;
+  version: string | null;
+  rating_score: number | null;
+  rating_phrase: string | null;
+  watched_at: string | null;
 };
 
 export type TmdbPersonReference = {
@@ -59,6 +72,15 @@ export type MovieCredits = {
   cast: TmdbPersonReference[];
   directors: TmdbPersonReference[];
 };
+
+export const movieFrom = `
+  FROM movies
+  LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
+  LEFT JOIN tmdb_collections ON tmdb_collections.tmdb_id = movie_tmdb_data.tmdb_collection_id
+  LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
+  LEFT JOIN collections ON collections.id = collection_movies.collection_id
+  LEFT JOIN ratings ON ratings.movie_id = movies.id
+`;
 
 export const movieSelect = `
   SELECT movies.id, movies.title, movies.added_at,
@@ -75,12 +97,7 @@ export const movieSelect = `
     collection_movies.collection_id, collection_movies.position AS collection_position,
     ratings.score AS rating_score, ratings.phrase AS rating_phrase,
     ratings.watched_at
-  FROM movies
-  LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
-  LEFT JOIN tmdb_collections ON tmdb_collections.tmdb_id = movie_tmdb_data.tmdb_collection_id
-  LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
-  LEFT JOIN collections ON collections.id = collection_movies.collection_id
-  LEFT JOIN ratings ON ratings.movie_id = movies.id
+  ${movieFrom}
 `;
 
 export const getMovie = async (env: AppEnv["Bindings"], id: string) =>
@@ -119,9 +136,11 @@ export const getMovieDetail = async (env: AppEnv["Bindings"], id: string) => {
 
 export const getNowShowing = async (env: AppEnv["Bindings"]) =>
   env.DB.prepare(
-    `SELECT now_showing.*, movies.title, movies.version,
+    `SELECT now_showing.*, movies.title, movies.added_at, movies.version,
+        movies.version_runtime,
         COALESCE(movie_tmdb_data.release_date, movies.release_date) AS release_date,
         COALESCE(movie_tmdb_data.poster_path, movies.poster_path) AS poster_path,
+        COALESCE(movie_tmdb_data.runtime_minutes, movies.runtime_minutes) AS runtime_minutes,
         ratings.score AS rating_score, ratings.phrase AS rating_phrase,
         ratings.watched_at, collection_movies.collection_id AS movie_collection_id,
         collections.name AS collection_name
@@ -162,6 +181,64 @@ export const getRemainingCollectionMovies = async (
     .all<MovieRow>();
   return result.results;
 };
+
+const homeMovieSelect = `
+  SELECT movies.id, movies.title, movies.version,
+    COALESCE(movie_tmdb_data.poster_path, movies.poster_path) AS poster_path,
+    ratings.score AS rating_score, ratings.phrase AS rating_phrase,
+    ratings.watched_at
+  FROM movies
+  LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
+  LEFT JOIN ratings ON ratings.movie_id = movies.id
+`;
+
+export const getWatchedHistory = async (env: AppEnv["Bindings"]) => {
+  const latest = await env.DB.prepare(
+    `${homeMovieSelect}
+     WHERE ratings.id IS NOT NULL AND ratings.watched_at IS NOT NULL
+     ORDER BY ratings.watched_at DESC, movies.id ASC
+     LIMIT 1`,
+  ).first<HomeMovieRow>();
+  const previous = await env.DB.prepare(
+    `${homeMovieSelect}
+     WHERE ratings.id IS NOT NULL${latest ? " AND movies.id <> ?" : ""}
+     ORDER BY RANDOM()
+     LIMIT ?`,
+  )
+    .bind(...(latest ? [latest.id, 3] : [4]))
+    .all<HomeMovieRow>();
+  return latest ? [latest, ...previous.results] : previous.results;
+};
+
+export const getPosterReelMovies = async (env: AppEnv["Bindings"]) => {
+  const withPosters = await env.DB.prepare(
+    `${homeMovieSelect}
+     WHERE COALESCE(movie_tmdb_data.poster_path, movies.poster_path) IS NOT NULL
+     ORDER BY RANDOM()
+     LIMIT 12`,
+  ).all<HomeMovieRow>();
+  if (withPosters.results.length > 0) return withPosters.results;
+  const fallback = await env.DB.prepare(
+    `${homeMovieSelect} ORDER BY RANDOM() LIMIT 12`,
+  ).all<HomeMovieRow>();
+  return fallback.results;
+};
+
+export const hasRemainingCollectionMovie = async (
+  env: AppEnv["Bindings"],
+  collectionId: string,
+) =>
+  Boolean(
+    await env.DB.prepare(
+      `SELECT 1
+       FROM collection_movies
+       LEFT JOIN ratings ON ratings.movie_id = collection_movies.movie_id
+       WHERE collection_movies.collection_id = ? AND ratings.id IS NULL
+       LIMIT 1`,
+    )
+      .bind(collectionId)
+      .first(),
+  );
 
 export const getCollectionMovies = async (
   env: AppEnv["Bindings"],

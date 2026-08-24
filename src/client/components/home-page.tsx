@@ -1,8 +1,7 @@
-import { useId, useMemo, useState, type CSSProperties } from "react";
+import { useId, useState, type CSSProperties } from "react";
 import { ArrowDown, LoaderCircle, RotateCw } from "lucide-react";
-import { api, type Movie, type NowShowing } from "../api";
+import { api, type HomeMovie, type NowShowing } from "../api";
 import type { Navigate, RunAction } from "../types";
-import { selectWatchedHistory } from "../lib/watched-history";
 import { cn, formatDate, formatMovieTitle, formatRuntime } from "../lib/utils";
 import { AppLink } from "./app-link";
 import { Badge, Button, Card, Input } from "./ui";
@@ -11,8 +10,8 @@ import { RatingSlider } from "./rating-slider";
 
 type HomePageProps = {
   nowShowing: NowShowing | null;
-  remaining: Movie[];
-  movies: Movie[];
+  hasNextCollectionMovie: boolean;
+  watchedMovies: HomeMovie[];
   busy: boolean;
   canMutate: boolean;
   onLogin: () => void;
@@ -23,8 +22,8 @@ type HomePageProps = {
 
 export function HomePage({
   nowShowing,
-  remaining,
-  movies,
+  hasNextCollectionMovie,
+  watchedMovies,
   busy,
   canMutate,
   onLogin,
@@ -34,7 +33,6 @@ export function HomePage({
 }: HomePageProps) {
   const isWatched =
     nowShowing?.rating_score !== null && nowShowing?.rating_score !== undefined;
-  const hasNext = remaining.some((movie) => movie.rating_score === null);
   const hasSelection = Boolean(nowShowing?.movie_id);
   const collectionId = nowShowing?.collection_id;
   const collectionHref = collectionId
@@ -42,11 +40,8 @@ export function HomePage({
     : null;
 
   const releaseYear = nowShowing?.release_date?.slice(0, 4) ?? null;
-  const currentMovie = nowShowing?.movie_id
-    ? movies.find((movie) => movie.id === nowShowing.movie_id)
-    : null;
-  const runtime = currentMovie
-    ? (currentMovie.version_runtime ?? currentMovie.runtime_minutes)
+  const runtime = nowShowing
+    ? (nowShowing.version_runtime ?? nowShowing.runtime_minutes ?? null)
     : null;
   const cast = nowShowing?.cast ?? [];
   const directors = nowShowing?.directors ?? [];
@@ -113,11 +108,11 @@ export function HomePage({
                     </dd>
                   </div>
                 )}
-                {currentMovie && (
+                {nowShowing?.added_at && (
                   <div>
                     <dt className="ui-label text-text-muted">Added</dt>
                     <dd className="metadata-value mt-2 text-text-secondary">
-                      {formatDate(currentMovie.added_at)}
+                      {formatDate(nowShowing.added_at)}
                     </dd>
                   </div>
                 )}
@@ -188,7 +183,7 @@ export function HomePage({
               <RatingForm busy={busy} movieId={nowShowing.movie_id} run={run} />
             ) : canMutate ? (
               <div className="mt-7 flex flex-wrap gap-3">
-                {isWatched && collectionId && hasNext && (
+                {isWatched && collectionId && hasNextCollectionMovie && (
                   <Button
                     onClick={() => void run(() => api.next())}
                     disabled={busy}
@@ -201,7 +196,7 @@ export function HomePage({
                   onClick={roll}
                   disabled={busy}
                   variant={
-                    isWatched && collectionId && hasNext
+                    isWatched && collectionId && hasNextCollectionMovie
                       ? "secondary"
                       : "primary"
                   }
@@ -211,7 +206,7 @@ export function HomePage({
                   ) : (
                     <RotateCw size={16} />
                   )}
-                  {isWatched && collectionId && hasNext
+                  {isWatched && collectionId && hasNextCollectionMovie
                     ? "Choose Another Movie"
                     : hasSelection
                       ? "Choose the Next Movie"
@@ -231,7 +226,7 @@ export function HomePage({
         </div>
       </section>
 
-      <HistorySection movies={movies} onNavigate={onNavigate} />
+      <HistorySection movies={watchedMovies} onNavigate={onNavigate} />
     </div>
   );
 }
@@ -314,11 +309,9 @@ function HistorySection({
   movies,
   onNavigate,
 }: {
-  movies: Movie[];
+  movies: HomeMovie[];
   onNavigate: Navigate;
 }) {
-  const watchedMovies = useMemo(() => selectWatchedHistory(movies), [movies]);
-
   return (
     <section aria-labelledby="watched-movies-title">
       <h2
@@ -327,9 +320,9 @@ function HistorySection({
       >
         Watched Movies
       </h2>
-      {watchedMovies.length > 0 ? (
+      {movies.length > 0 ? (
         <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {watchedMovies.map((movie) => (
+          {movies.map((movie) => (
             <HistoryCard key={movie.id} movie={movie} onNavigate={onNavigate} />
           ))}
         </div>
@@ -346,7 +339,7 @@ function HistoryCard({
   movie,
   onNavigate,
 }: {
-  movie: Movie;
+  movie: HomeMovie;
   onNavigate: Navigate;
 }) {
   const title = formatMovieTitle(movie.title, movie.version);

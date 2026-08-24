@@ -4,6 +4,7 @@ import {
   api,
   ApiError,
   type AuthState,
+  type HomeMovie,
   type Movie,
   type MovieDetail,
   type NowShowing,
@@ -39,7 +40,7 @@ import {
 } from "./lib/poster-reel";
 
 type RollRevealState = {
-  reel: Movie[];
+  reel: HomeMovie[];
   starting: { posterPath: string | null; title: string } | null;
   selected: { posterPath: string | null; title: string } | null;
 };
@@ -49,8 +50,11 @@ export default function App() {
     parseRoute(window.location.pathname, window.location.search),
   );
   const [nowShowing, setNowShowing] = useState<NowShowing | null>(null);
-  const [remaining, setRemaining] = useState<Movie[]>([]);
-  const [movies, setMovies] = useState<Movie[]>([]);
+  const [hasNextCollectionMovie, setHasNextCollectionMovie] = useState(false);
+  const [watchedMovies, setWatchedMovies] = useState<HomeMovie[]>([]);
+  const [posterReelMovies, setPosterReelMovies] = useState<HomeMovie[]>([]);
+  const [collectionMovies, setCollectionMovies] = useState<Movie[]>([]);
+  const [catalogRevision, setCatalogRevision] = useState(0);
   const [movieDetail, setMovieDetail] = useState<MovieDetail | null>(null);
   const [movieDetailLoading, setMovieDetailLoading] = useState(
     route.page === "movie",
@@ -67,7 +71,7 @@ export default function App() {
   const [auth, setAuth] = useState<AuthState | null>(null);
   const [addingMovie, setAddingMovie] = useState(false);
   const addMovieTriggerRef = useRef<HTMLButtonElement>(null);
-  const preparedPosterReelRef = useRef<Promise<Movie[]> | null>(null);
+  const preparedPosterReelRef = useRef<Promise<HomeMovie[]> | null>(null);
   const preparedPosterReelSourceRef = useRef<string | null>(null);
 
   const refreshAuth = useCallback(async () => {
@@ -78,25 +82,49 @@ export default function App() {
     }
   }, []);
 
-  const refresh = useCallback(async (showLoading = true) => {
-    if (showLoading) setLoading(true);
-    try {
-      const [current, list] = await Promise.all([
-        api.nowShowing(),
-        api.movies(),
-      ]);
-      setNowShowing(current.nowShowing);
-      setRemaining(current.remainingCollectionMovies);
-      setMovies(list.movies);
-      setError(null);
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Unable to load the catalog",
-      );
-    } finally {
-      if (showLoading) setLoading(false);
-    }
-  }, []);
+  const refresh = useCallback(
+    async (showLoading = true) => {
+      if (
+        route.page !== "home" &&
+        route.page !== "library" &&
+        route.page !== "collection"
+      ) {
+        if (showLoading) setLoading(false);
+        return;
+      }
+      if (showLoading) setLoading(true);
+      try {
+        if (route.page === "home") {
+          const home = await api.home();
+          setNowShowing(home.nowShowing);
+          setHasNextCollectionMovie(home.hasNextCollectionMovie);
+          setWatchedMovies(home.watchedMovies);
+          setPosterReelMovies(home.posterReelMovies);
+        } else if (route.page === "collection") {
+          setCollectionMovies(
+            (await api.collection(route.collectionId)).movies,
+          );
+        }
+        setError(null);
+      } catch (cause) {
+        if (
+          route.page === "collection" &&
+          cause instanceof ApiError &&
+          cause.status === 404
+        ) {
+          setCollectionMovies([]);
+          setError(null);
+        } else {
+          setError(
+            cause instanceof Error ? cause.message : "Unable to load this page",
+          );
+        }
+      } finally {
+        if (showLoading) setLoading(false);
+      }
+    },
+    [route],
+  );
 
   const refreshMovieDetail = useCallback(
     async (showLoading = true) => {
@@ -135,12 +163,16 @@ export default function App() {
   }, [refreshMovieDetail]);
 
   useEffect(() => {
-    if (auth?.authenticated !== true || movies.length === 0) {
+    if (
+      route.page !== "home" ||
+      auth?.authenticated !== true ||
+      posterReelMovies.length === 0
+    ) {
       preparedPosterReelRef.current = null;
       preparedPosterReelSourceRef.current = null;
       return;
     }
-    const source = movies
+    const source = posterReelMovies
       .map((movie) => `${movie.id}:${movie.poster_path ?? ""}`)
       .join("|");
     if (
@@ -153,13 +185,13 @@ export default function App() {
       "(prefers-reduced-motion: reduce)",
     ).matches;
     const reel = selectPosterReel(
-      movies,
+      posterReelMovies,
       Math.random,
       reducedMotion ? 1 : POSTER_REEL_LIMIT,
     );
     preparedPosterReelSourceRef.current = source;
     preparedPosterReelRef.current = preloadPosterReel(reel);
-  }, [auth?.authenticated, movies]);
+  }, [auth?.authenticated, posterReelMovies, route.page]);
 
   useEffect(() => {
     const handlePopState = () =>
@@ -180,6 +212,7 @@ export default function App() {
       try {
         await action();
         after?.();
+        setCatalogRevision((current) => current + 1);
         await refresh(false);
         await refreshMovieDetail(false);
       } catch (cause) {
@@ -207,7 +240,7 @@ export default function App() {
         preparedPosterReelRef.current ??
         preloadPosterReel(
           selectPosterReel(
-            movies,
+            posterReelMovies,
             Math.random,
             reducedMotion ? 1 : POSTER_REEL_LIMIT,
           ),
@@ -249,7 +282,20 @@ export default function App() {
         setRollReveal(null);
       }
     });
-  }, [movies, nowShowing, run]);
+  }, [nowShowing, posterReelMovies, run]);
+
+  const logout = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.logout();
+      setAuth({ authenticated: false, actor: null, local: false });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to sign out");
+    } finally {
+      setBusy(false);
+    }
+  }, []);
 
   const canMutate = auth?.authenticated === true;
   const login = useCallback(() => {
@@ -287,12 +333,7 @@ export default function App() {
         auth={auth}
         onLogin={login}
         onNavigate={navigate}
-        onLogout={() =>
-          void run(
-            () => api.logout(),
-            () => setAuth({ authenticated: false, actor: null, local: false }),
-          )
-        }
+        onLogout={() => void logout()}
         showTmdbStatus={canMutate}
       />
 
@@ -310,8 +351,8 @@ export default function App() {
         ) : route.page === "home" ? (
           <HomePage
             nowShowing={nowShowing}
-            remaining={remaining}
-            movies={movies}
+            hasNextCollectionMovie={hasNextCollectionMovie}
+            watchedMovies={watchedMovies}
             busy={busy}
             canMutate={canMutate}
             onLogin={login}
@@ -321,10 +362,10 @@ export default function App() {
           />
         ) : route.page === "library" ? (
           <LibraryPage
-            movies={movies}
             canMutate={canMutate}
             onEdit={setEditingMovie}
             onNavigate={navigate}
+            reloadToken={catalogRevision}
           />
         ) : route.page === "collection" ? (
           <CollectionDetailPage
@@ -332,7 +373,7 @@ export default function App() {
             canMutate={canMutate}
             collectionId={route.collectionId}
             key={route.collectionId}
-            movies={movies}
+            movies={collectionMovies}
             onLogin={login}
             onNavigate={navigate}
             returnTo={route.returnTo}

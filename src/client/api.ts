@@ -32,6 +32,7 @@ export type MovieDetail = Movie & {
 };
 
 export type NowShowing = {
+  added_at?: string | null;
   cast: TmdbPersonReference[];
   id: number;
   rolled_movie_id: string | null;
@@ -40,13 +41,53 @@ export type NowShowing = {
   status: "empty" | "ready" | "watched";
   title: string | null;
   version: string | null;
+  version_runtime?: number | null;
   release_date: string | null;
   poster_path: string | null;
+  runtime_minutes?: number | null;
   rating_score: number | null;
   rating_phrase: string | null;
   watched_at: string | null;
   collection_name: string | null;
   directors: TmdbPersonReference[];
+};
+
+export type HomeMovie = Pick<
+  Movie,
+  | "id"
+  | "title"
+  | "poster_path"
+  | "version"
+  | "rating_score"
+  | "rating_phrase"
+  | "watched_at"
+>;
+
+export type HomeResponse = {
+  hasNextCollectionMovie: boolean;
+  nowShowing: NowShowing | null;
+  posterReelMovies: HomeMovie[];
+  watchedMovies: HomeMovie[];
+};
+
+export type LibraryQuery = {
+  direction: "asc" | "desc";
+  page: number;
+  pageSize: 25 | 50 | 100;
+  search: string;
+  sort: "title" | "collection" | "releaseDate" | "addedAt" | "rating";
+  status: "all" | "watched" | "unwatched";
+};
+
+export type LibraryResponse = {
+  counts: { total: number; unwatched: number };
+  movies: Movie[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
 };
 
 export type NowShowingResponse = {
@@ -79,7 +120,26 @@ export type HealthState = {
   commit: string;
 };
 
-export type TmdbRefreshStatus = {
+export type TmdbRefreshItem = {
+  dataVersion: number | null;
+  fetchedAt: string | null;
+  lastAttemptAt: string | null;
+  lastError: string | null;
+  lastResult: "failed" | "running" | "succeeded" | null;
+  movieId: string;
+  refreshAfter: string | null;
+  state:
+    | "current"
+    | "due"
+    | "failed"
+    | "never_fetched"
+    | "unlinked"
+    | "version_stale";
+  title: string;
+  tmdbId: number | null;
+};
+
+export type TmdbRefreshSummary = {
   currentDataVersion: number;
   counts: {
     current: number;
@@ -89,24 +149,6 @@ export type TmdbRefreshStatus = {
     total: number;
     unlinked: number;
   };
-  items: Array<{
-    dataVersion: number | null;
-    fetchedAt: string | null;
-    lastAttemptAt: string | null;
-    lastError: string | null;
-    lastResult: "failed" | "running" | "succeeded" | null;
-    movieId: string;
-    refreshAfter: string | null;
-    state:
-      | "current"
-      | "due"
-      | "failed"
-      | "never_fetched"
-      | "unlinked"
-      | "version_stale";
-    title: string;
-    tmdbId: number | null;
-  }>;
   schedule: {
     batchSize: number;
     enabled: boolean;
@@ -122,6 +164,37 @@ export type TmdbRefreshStatus = {
     leaseExpiresAt: string | null;
     nextRunAt: string;
     running: boolean;
+  };
+};
+
+export type TmdbRefreshStatus = TmdbRefreshSummary & {
+  items: TmdbRefreshItem[];
+};
+
+export type TmdbRefreshQueueQuery = {
+  dateSearch: string;
+  direction: "asc" | "desc";
+  page: number;
+  pageSize: 25 | 50 | 100;
+  search: string;
+  sort:
+    | "title"
+    | "tmdbId"
+    | "state"
+    | "fetchedAt"
+    | "lastAttemptAt"
+    | "refreshAfter"
+    | "dataVersion";
+  state: TmdbRefreshItem["state"] | "all";
+};
+
+export type TmdbRefreshQueueResponse = {
+  items: TmdbRefreshItem[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
   };
 };
 
@@ -164,8 +237,20 @@ export const api = {
   logout: () =>
     request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
   nowShowing: () => request<NowShowingResponse>("/api/now-showing"),
+  home: () => request<HomeResponse>("/api/home"),
   movies: (status = "all") =>
     request<{ movies: Movie[] }>(`/api/movies?status=${status}`),
+  library: (query: LibraryQuery) => {
+    const parameters = new URLSearchParams({
+      direction: query.direction,
+      page: String(query.page),
+      pageSize: String(query.pageSize),
+      search: query.search,
+      sort: query.sort,
+      status: query.status,
+    });
+    return request<LibraryResponse>(`/api/library?${parameters.toString()}`);
+  },
   movie: (id: string) =>
     request<{ movie: MovieDetail }>(`/api/movies/${encodeURIComponent(id)}`),
   collection: (id: string) =>
@@ -231,6 +316,22 @@ export const api = {
   tmdbMovie: (id: number) =>
     request<{ movie: TmdbMovieDetail }>(`/api/tmdb/movies/${id}`),
   tmdbRefreshStatus: () => request<TmdbRefreshStatus>("/api/tmdb-refresh"),
+  tmdbRefreshSummary: () =>
+    request<TmdbRefreshSummary>("/api/tmdb-refresh/summary"),
+  tmdbRefreshQueue: (query: TmdbRefreshQueueQuery) => {
+    const parameters = new URLSearchParams({
+      dateSearch: query.dateSearch,
+      direction: query.direction,
+      page: String(query.page),
+      pageSize: String(query.pageSize),
+      search: query.search,
+      sort: query.sort,
+      state: query.state,
+    });
+    return request<TmdbRefreshQueueResponse>(
+      `/api/tmdb-refresh/items?${parameters.toString()}`,
+    );
+  },
   updateTmdbRefreshSchedule: (schedule: {
     batchSize?: number;
     enabled?: boolean;

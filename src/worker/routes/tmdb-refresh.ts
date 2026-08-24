@@ -6,7 +6,9 @@ import { auditStatement, mutationActor } from "../middleware";
 import {
   claimTmdbRefresh,
   executeTmdbRefreshClaim,
+  getTmdbRefreshQueue,
   getTmdbRefreshStatus,
+  getTmdbRefreshSummary,
 } from "../tmdb-refresh";
 
 const scheduleInput = z
@@ -30,11 +32,65 @@ const scheduleInput = z
     { message: "Provide at least one schedule setting" },
   );
 
+const queueInput = z.object({
+  dateSearch: z
+    .string()
+    .max(40)
+    .refine((value) => value === "" || Number.isFinite(Date.parse(value)), {
+      message: "Date search must be an ISO timestamp",
+    })
+    .default(""),
+  direction: z.enum(["asc", "desc"]).default("asc"),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .refine((value) => [25, 50, 100].includes(value), {
+      message: "Page size must be 25, 50, or 100",
+    })
+    .default(50),
+  search: z.string().trim().max(200).default(""),
+  sort: z
+    .enum([
+      "title",
+      "tmdbId",
+      "state",
+      "fetchedAt",
+      "lastAttemptAt",
+      "refreshAfter",
+      "dataVersion",
+    ])
+    .default("state"),
+  state: z
+    .enum([
+      "all",
+      "current",
+      "due",
+      "failed",
+      "never_fetched",
+      "unlinked",
+      "version_stale",
+    ])
+    .default("all"),
+});
+
 export const registerTmdbRefreshRoutes = (app: Hono<AppEnv>) => {
   app.get("/tmdb-refresh", async (c) => {
     const actor = await mutationActor(c);
     if (!actor) return c.json({ error: "Authentication required" }, 401);
     return c.json(await getTmdbRefreshStatus(c.env));
+  });
+
+  app.get("/tmdb-refresh/summary", async (c) => {
+    const actor = await mutationActor(c);
+    if (!actor) return c.json({ error: "Authentication required" }, 401);
+    return c.json(await getTmdbRefreshSummary(c.env));
+  });
+
+  app.get("/tmdb-refresh/items", zValidator("query", queueInput), async (c) => {
+    const actor = await mutationActor(c);
+    if (!actor) return c.json({ error: "Authentication required" }, 401);
+    return c.json(await getTmdbRefreshQueue(c.env, c.req.valid("query")));
   });
 
   app.patch(

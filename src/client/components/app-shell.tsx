@@ -1,11 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { LoaderCircle, Ticket, X } from "lucide-react";
-import type { AuthState } from "../api";
+import type { AuthState, HomeMovie } from "../api";
 import type { Navigate, Tab } from "../types";
 import { Button } from "./ui";
 import { cn, formatMovieTitle } from "../lib/utils";
 import { AppLink } from "./app-link";
-import type { Movie } from "../api";
 import {
   POSTER_REEL_IMAGE_WIDTH,
   POSTER_REEL_INTERVAL_MS,
@@ -203,7 +202,7 @@ export function RollReveal({
   starting,
   selected,
 }: {
-  reel: Movie[];
+  reel: HomeMovie[];
   starting: { posterPath: string | null; title: string } | null;
   selected: { posterPath: string | null; title: string } | null;
 }) {

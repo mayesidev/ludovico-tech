@@ -35,6 +35,140 @@ describe("Ludovico Tech Worker routes", () => {
     expect(catalog.body.movies).toEqual([]);
   });
 
+  it("serves bounded Home data independently of catalog size", async () => {
+    const movies = Array.from({ length: 16 }, (_, index) => ({
+      id: `home-movie-${String(index).padStart(2, "0")}`,
+      title: `Home Movie ${index}`,
+    }));
+    await env.DB.batch([
+      ...movies.map((movie, index) =>
+        env.DB.prepare(
+          `INSERT INTO movies
+           (id, title, title_normalized, added_at, updated_at, poster_path, runtime_minutes)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(
+          movie.id,
+          movie.title,
+          movie.title.toLowerCase(),
+          `2026-08-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
+          "2026-08-24T00:00:00.000Z",
+          `/home-${index}.jpg`,
+          100 + index,
+        ),
+      ),
+      ...movies.slice(0, 6).map((movie, index) =>
+        env.DB.prepare(
+          `INSERT INTO ratings
+           (id, movie_id, recorded_at, watched_at, score, phrase, source)
+           VALUES (?, ?, ?, ?, ?, ?, 'application')`,
+        ).bind(
+          `home-rating-${index}`,
+          movie.id,
+          `2026-08-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
+          `2026-08-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
+          index / 2,
+          `History ${index}`,
+        ),
+      ),
+      env.DB.prepare(
+        `UPDATE now_showing
+         SET movie_id = ?, rolled_movie_id = ?, status = 'ready'
+         WHERE id = 1`,
+      ).bind(movies[15].id, movies[15].id),
+    ]);
+
+    const home = await request<{
+      hasNextCollectionMovie: boolean;
+      nowShowing: {
+        added_at: string;
+        movie_id: string;
+        runtime_minutes: number;
+      };
+      posterReelMovies: Array<{ id: string }>;
+      watchedMovies: Array<{ id: string }>;
+    }>("/api/home");
+
+    expect(home.response.status).toBe(200);
+    expect(home.body.nowShowing).toMatchObject({
+      added_at: "2026-08-16T00:00:00.000Z",
+      movie_id: movies[15].id,
+      runtime_minutes: 115,
+    });
+    expect(home.body.hasNextCollectionMovie).toBe(false);
+    expect(home.body.watchedMovies).toHaveLength(4);
+    expect(home.body.watchedMovies[0].id).toBe(movies[5].id);
+    expect(home.body.posterReelMovies).toHaveLength(12);
+  });
+
+  it("paginates Library search and sorting before returning bounded rows", async () => {
+    const movies = Array.from({ length: 30 }, (_, index) => ({
+      id: `library-movie-${String(index).padStart(2, "0")}`,
+      title: `Paged Movie ${String(index).padStart(2, "0")}`,
+    }));
+    await env.DB.batch([
+      ...movies.map((movie, index) =>
+        env.DB.prepare(
+          `INSERT INTO movies
+           (id, title, title_normalized, added_at, updated_at)
+           VALUES (?, ?, ?, ?, ?)`,
+        ).bind(
+          movie.id,
+          movie.title,
+          movie.title.toLowerCase(),
+          `2026-07-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
+          "2026-08-24T00:00:00.000Z",
+        ),
+      ),
+      env.DB.prepare(
+        `INSERT INTO ratings
+         (id, movie_id, recorded_at, watched_at, score, phrase, source)
+         VALUES ('library-zero-rating', ?, ?, ?, 0, 'Zero elements', 'application')`,
+      ).bind(
+        movies[29].id,
+        "2026-08-24T00:00:00.000Z",
+        "2026-08-24T00:00:00.000Z",
+      ),
+    ]);
+
+    const secondPage = await request<{
+      counts: { total: number; unwatched: number };
+      movies: Array<{ id: string }>;
+      pagination: {
+        page: number;
+        pageSize: number;
+        total: number;
+        totalPages: number;
+      };
+    }>("/api/library?page=2&pageSize=25&sort=title&direction=asc");
+    expect(secondPage.body.counts).toEqual({ total: 30, unwatched: 29 });
+    expect(secondPage.body.pagination).toEqual({
+      page: 2,
+      pageSize: 25,
+      total: 30,
+      totalPages: 2,
+    });
+    expect(secondPage.body.movies.map((movie) => movie.id)).toEqual(
+      movies.slice(25).map((movie) => movie.id),
+    );
+
+    const searched = await request<{
+      movies: Array<{ id: string }>;
+      pagination: { page: number; total: number };
+    }>("/api/library?page=2&pageSize=25&search=Paged%20Movie%2029");
+    expect(searched.body.pagination).toMatchObject({ page: 1, total: 1 });
+    expect(searched.body.movies.map((movie) => movie.id)).toEqual([
+      movies[29].id,
+    ]);
+
+    const ratingOrder = await request<{ movies: Array<{ id: string }> }>(
+      "/api/library?pageSize=25&sort=rating&direction=asc",
+    );
+    expect(ratingOrder.body.movies[0].id).toBe(movies[29].id);
+
+    const invalid = await request("/api/library?pageSize=10");
+    expect(invalid.response.status).toBe(400);
+  });
+
   it("supports adding, rolling, rating, and watched-state filtering", async () => {
     const added = await request<{ movie: { id: string; title: string } }>(
       "/api/movies",

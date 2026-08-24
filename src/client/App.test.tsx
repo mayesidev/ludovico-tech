@@ -79,9 +79,21 @@ const arrange = (auth: AuthState) => {
     movie: { ...movie, cast: [], directors: [] },
   });
   vi.spyOn(api, "movies").mockResolvedValue({ movies: [movie] });
-  vi.spyOn(api, "nowShowing").mockResolvedValue({
+  vi.spyOn(api, "library").mockResolvedValue({
+    counts: { total: 1, unwatched: 1 },
+    movies: [movie],
+    pagination: { page: 1, pageSize: 50, total: 1, totalPages: 1 },
+  });
+  vi.spyOn(api, "home").mockResolvedValue({
+    hasNextCollectionMovie: false,
     nowShowing: null,
-    remainingCollectionMovies: [],
+    posterReelMovies: [movie],
+    watchedMovies: [movie],
+  });
+  vi.spyOn(api, "collection").mockResolvedValue({
+    collection: { id: "collection-id", name: "Test Saga" },
+    movies: [movie],
+    tmdbCollections: [],
   });
 };
 
@@ -111,11 +123,15 @@ describe("application authorization presentation", () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Choose a Movie" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add a Movie" })).toBeNull();
+    expect(api.home).toHaveBeenCalledOnce();
+    expect(api.movies).not.toHaveBeenCalled();
 
     const library = screen.getByRole("link", { name: "Library" });
     await user.click(library);
     expect(window.location.pathname).toBe("/library");
     expect(library).toHaveAttribute("aria-current", "page");
+    expect(api.library).toHaveBeenCalledOnce();
+    expect(api.movies).not.toHaveBeenCalled();
     await user.click(screen.getByRole("link", { name: "Test Movie" }));
     expect(window.location.pathname).toBe("/movies/movie-id");
     expect(
@@ -244,13 +260,12 @@ describe("application authorization presentation", () => {
       },
     );
     arrange(authenticated);
-    vi.mocked(api.nowShowing).mockResolvedValue({
+    vi.mocked(api.home).mockResolvedValue({
+      hasNextCollectionMovie: false,
       nowShowing: currentNowShowing,
-      remainingCollectionMovies: [],
+      posterReelMovies: [{ ...movie, poster_path: "/reel.jpg" }],
+      watchedMovies: [movie],
     });
-    vi.mocked(api.movies).mockImplementation(async () => ({
-      movies: [{ ...movie, poster_path: "/reel.jpg" }],
-    }));
     vi.spyOn(api, "roll").mockResolvedValue({
       rolledMovie: { ...movie, id: "rolled-id", title: "Rolled Later Movie" },
       nowShowing: {
@@ -320,9 +335,12 @@ describe("application authorization presentation", () => {
       },
     );
     arrange(authenticated);
-    vi.mocked(api.movies).mockImplementation(async () => ({
-      movies: [{ ...movie, poster_path: "/reel.jpg" }],
-    }));
+    vi.mocked(api.home).mockResolvedValue({
+      hasNextCollectionMovie: false,
+      nowShowing: null,
+      posterReelMovies: [{ ...movie, poster_path: "/reel.jpg" }],
+      watchedMovies: [movie],
+    });
 
     render(
       <StrictMode>
@@ -336,9 +354,6 @@ describe("application authorization presentation", () => {
 
   it("loads movie URLs directly and follows browser history", async () => {
     arrange(anonymous);
-    vi.mocked(api.movies).mockResolvedValue({
-      movies: [{ ...movie, tmdb_id: 603 }],
-    });
     vi.mocked(api.movie).mockImplementation(async (id) => {
       if (id === "missing-id") throw new ApiError("Movie not found", 404);
       return {
@@ -355,6 +370,8 @@ describe("application authorization presentation", () => {
       "href",
       "https://www.themoviedb.org/movie/603",
     );
+    expect(api.movies).not.toHaveBeenCalled();
+    expect(api.home).not.toHaveBeenCalled();
 
     window.history.pushState(null, "", "/movies/missing-id");
     window.dispatchEvent(new PopStateEvent("popstate"));
@@ -467,6 +484,8 @@ describe("application authorization presentation", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "Test Saga" }),
     ).toBeVisible();
+    expect(api.collection).toHaveBeenCalledWith("collection-id");
+    expect(api.movies).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Save Order" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(

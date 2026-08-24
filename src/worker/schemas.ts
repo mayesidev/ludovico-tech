@@ -68,3 +68,20 @@ export const ratingInput = z.object({
 export const orderInput = z.object({
   movieIds: z.array(z.string().trim().min(1).max(200)).min(1),
 });
+
+export const libraryQueryInput = z.object({
+  direction: z.enum(["asc", "desc"]).default("asc"),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .refine((value) => [25, 50, 100].includes(value), {
+      message: "Page size must be 25, 50, or 100",
+    })
+    .default(50),
+  search: z.string().trim().max(200).default(""),
+  sort: z
+    .enum(["title", "collection", "releaseDate", "addedAt", "rating"])
+    .default("title"),
+  status: z.enum(["all", "watched", "unwatched"]).default("all"),
+});

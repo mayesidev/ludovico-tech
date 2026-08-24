@@ -991,14 +991,22 @@ describe("production authorization boundary", () => {
     const bindings = productionEnv({ ALLOWED_EMAILS: invitedEmail });
     const publicReads = [
       "/api/movies",
+      "/api/library",
       "/api/collections",
       "/api/now-showing",
+      "/api/home",
       "/api/auth/me",
     ];
     for (const path of publicReads) {
       expect((await request(path, bindings)).status).toBe(200);
     }
     expect((await request("/api/tmdb-refresh", bindings)).status).toBe(401);
+    expect((await request("/api/tmdb-refresh/summary", bindings)).status).toBe(
+      401,
+    );
+    expect((await request("/api/tmdb-refresh/items", bindings)).status).toBe(
+      401,
+    );
 
     const mutations: Array<[string, string, unknown?]> = [
       ["/api/movies", "POST", { title: "Unauthorized Movie" }],
