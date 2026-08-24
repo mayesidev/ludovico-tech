@@ -1,5 +1,13 @@
 import type { AppEnv } from "./env";
-import { getTmdbMovie, TmdbServiceError, type TmdbMovieResult } from "./tmdb";
+import {
+  fetchTmdbMovie,
+  getTmdbMovieCacheKey,
+  readTmdbMovieCacheBatch,
+  tmdbMovieCachePersistenceStatements,
+  TmdbServiceError,
+  type TmdbMovieCacheLookup,
+  type TmdbMovieResult,
+} from "./tmdb";
 import {
   getTmdbMetadataContractId,
   tmdbMovieDetailSchema,
@@ -8,6 +16,7 @@ import {
 const REFRESH_AFTER_MS = 150 * 24 * 60 * 60 * 1000;
 const EXPIRES_AFTER_MS = 175 * 24 * 60 * 60 * 1000;
 export const DEFAULT_TMDB_REFRESH_BATCH_SIZE = 25;
+const TMDB_FETCH_CONCURRENCY = 6;
 
 const addMilliseconds = (timestamp: string, milliseconds: number) =>
   new Date(new Date(timestamp).getTime() + milliseconds).toISOString();
@@ -162,6 +171,10 @@ export type TmdbRefreshReport = {
   rateLimited: boolean;
 };
 
+type TmdbFetchOutcome =
+  | { lookup: TmdbMovieCacheLookup; result: TmdbMovieResult }
+  | { error: TmdbServiceError; lookup: TmdbMovieCacheLookup };
+
 const refreshErrorMessage = (error: TmdbServiceError) =>
   error.status === 429
     ? "TMDB rate limited the refresh"
@@ -191,14 +204,21 @@ export const refreshDueTmdbData = async (
 ): Promise<TmdbRefreshReport> => {
   const contractId = await getTmdbMetadataContractId();
   const due = await env.DB.prepare(
-    `SELECT movie_id, tmdb_id
+    `SELECT movie_id, tmdb_id, last_refresh_attempt_at,
+            last_refresh_status, last_refresh_error
      FROM movie_tmdb_data
      WHERE refresh_after <= ? OR contract_id IS NULL OR contract_id <> ?
      ORDER BY refresh_after, movie_id
      LIMIT ?`,
   )
     .bind(timestamp, contractId, batchSize)
-    .all<{ movie_id: string; tmdb_id: number }>();
+    .all<{
+      last_refresh_attempt_at: string | null;
+      last_refresh_error: string | null;
+      last_refresh_status: "failed" | "running" | "succeeded" | null;
+      movie_id: string;
+      tmdb_id: number;
+    }>();
   const report: TmdbRefreshReport = {
     attempted: 0,
     failed: 0,
@@ -206,20 +226,76 @@ export const refreshDueTmdbData = async (
     rateLimited: false,
   };
 
+  const tmdbIds = [...new Set(due.results.map((row) => row.tmdb_id))];
+  const lookups: TmdbMovieCacheLookup[] = await Promise.all(
+    tmdbIds.map(async (tmdbId) => ({
+      cacheKey: await getTmdbMovieCacheKey(contractId, tmdbId),
+      tmdbId,
+    })),
+  );
+  const cached = await readTmdbMovieCacheBatch(env, lookups, timestamp);
+
+  if (due.results.length > 0) {
+    await env.DB.batch([
+      env.DB.prepare(
+        `UPDATE movie_tmdb_data SET
+           last_refresh_attempt_at = ?,
+           last_refresh_status = 'running',
+           last_refresh_error = NULL
+         WHERE movie_id IN (${due.results.map(() => "?").join(", ")})`,
+      ).bind(timestamp, ...due.results.map((row) => row.movie_id)),
+    ]);
+  }
+
+  const fetched = new Map<number, TmdbMovieResult>();
+  const failures = new Map<number, TmdbServiceError>();
+  const misses = lookups.filter((lookup) => !cached.results.has(lookup.tmdbId));
+  for (
+    let offset = 0;
+    offset < misses.length && !report.rateLimited;
+    offset += TMDB_FETCH_CONCURRENCY
+  ) {
+    const chunk = misses.slice(offset, offset + TMDB_FETCH_CONCURRENCY);
+    const outcomes: TmdbFetchOutcome[] = await Promise.all(
+      chunk.map(async (lookup) => {
+        try {
+          return {
+            lookup,
+            result: await fetchTmdbMovie(env, lookup.tmdbId),
+          };
+        } catch (error) {
+          if (!(error instanceof TmdbServiceError)) throw error;
+          return { error, lookup };
+        }
+      }),
+    );
+    for (const outcome of outcomes) {
+      if ("result" in outcome) {
+        fetched.set(outcome.lookup.tmdbId, outcome.result);
+      } else {
+        failures.set(outcome.lookup.tmdbId, outcome.error);
+        if (outcome.error.status === 429) report.rateLimited = true;
+      }
+    }
+  }
+
+  const persistenceStatements = tmdbMovieCachePersistenceStatements(
+    env,
+    lookups.flatMap((lookup) => {
+      const result = fetched.get(lookup.tmdbId);
+      return result ? [{ ...lookup, result }] : [];
+    }),
+    cached.invalidKeys,
+    timestamp,
+  );
+
   for (const row of due.results) {
-    report.attempted += 1;
-    await env.DB.prepare(
-      `UPDATE movie_tmdb_data SET
-         last_refresh_attempt_at = ?,
-         last_refresh_status = 'running',
-         last_refresh_error = NULL
-       WHERE movie_id = ?`,
-    )
-      .bind(timestamp, row.movie_id)
-      .run();
-    try {
-      const result = await getTmdbMovie(env, row.tmdb_id);
-      await env.DB.batch([
+    const result = cached.results.get(row.tmdb_id) ?? fetched.get(row.tmdb_id);
+    const failure = failures.get(row.tmdb_id);
+    if (result) {
+      report.attempted += 1;
+      report.refreshed += 1;
+      persistenceStatements.push(
         ...(await replaceTmdbDataStatements(env, row.movie_id, result, {
           includeOrphanCleanup: false,
         })),
@@ -230,27 +306,38 @@ export const refreshDueTmdbData = async (
              last_refresh_error = NULL
            WHERE movie_id = ?`,
         ).bind(timestamp, row.movie_id),
-      ]);
-      report.refreshed += 1;
-    } catch (error) {
-      if (!(error instanceof TmdbServiceError)) throw error;
-      await env.DB.prepare(
-        `UPDATE movie_tmdb_data SET
-           last_refresh_attempt_at = ?,
-           last_refresh_status = 'failed',
-           last_refresh_error = ?
-         WHERE movie_id = ?`,
-      )
-        .bind(timestamp, refreshErrorMessage(error), row.movie_id)
-        .run();
+      );
+    } else if (failure) {
+      report.attempted += 1;
       report.failed += 1;
-      if (error.status === 429) {
-        report.rateLimited = true;
-        break;
-      }
+      persistenceStatements.push(
+        env.DB.prepare(
+          `UPDATE movie_tmdb_data SET
+             last_refresh_attempt_at = ?,
+             last_refresh_status = 'failed',
+             last_refresh_error = ?
+           WHERE movie_id = ?`,
+        ).bind(timestamp, refreshErrorMessage(failure), row.movie_id),
+      );
+    } else {
+      persistenceStatements.push(
+        env.DB.prepare(
+          `UPDATE movie_tmdb_data SET
+             last_refresh_attempt_at = ?,
+             last_refresh_status = ?,
+             last_refresh_error = ?
+           WHERE movie_id = ?`,
+        ).bind(
+          row.last_refresh_attempt_at,
+          row.last_refresh_status,
+          row.last_refresh_error,
+          row.movie_id,
+        ),
+      );
     }
   }
 
-  await env.DB.batch(tmdbOrphanCleanupStatements(env));
+  persistenceStatements.push(...tmdbOrphanCleanupStatements(env));
+  await env.DB.batch(persistenceStatements);
   return report;
 };

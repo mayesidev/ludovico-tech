@@ -56,6 +56,9 @@ const cacheKey = async (scope: string, value: string) => {
   return `tmdb:${scope}:${hash}`;
 };
 
+export const getTmdbMovieCacheKey = (contractId: string, movieId: number) =>
+  cacheKey(`movie:${contractId}`, String(movieId));
+
 const readCache = async <T>(env: AppEnv["Bindings"], key: string) => {
   const cached = await env.DB.prepare(
     "SELECT payload_json, fetched_at FROM tmdb_cache WHERE cache_key = ? AND expires_at > ?",
@@ -100,6 +103,97 @@ const writeCache = async (
   return fetchedAt;
 };
 
+export type TmdbMovieCacheLookup = {
+  cacheKey: string;
+  tmdbId: number;
+};
+
+export const readTmdbMovieCacheBatch = async (
+  env: AppEnv["Bindings"],
+  lookups: TmdbMovieCacheLookup[],
+  timestamp = new Date().toISOString(),
+) => {
+  const results = new Map<number, TmdbMovieResult>();
+  const invalidKeys: string[] = [];
+  if (lookups.length === 0) return { invalidKeys, results };
+
+  const lookupByKey = new Map(
+    lookups.map((lookup) => [lookup.cacheKey, lookup]),
+  );
+  const placeholders = lookups.map(() => "?").join(", ");
+  const cached = await env.DB.prepare(
+    `SELECT cache_key, payload_json, fetched_at
+     FROM tmdb_cache
+     WHERE cache_key IN (${placeholders}) AND expires_at > ?`,
+  )
+    .bind(...lookups.map((lookup) => lookup.cacheKey), timestamp)
+    .all<{
+      cache_key: string;
+      fetched_at: string;
+      payload_json: string;
+    }>();
+
+  for (const row of cached.results) {
+    const lookup = lookupByKey.get(row.cache_key);
+    if (!lookup) continue;
+    let movie: TmdbMovieDetail | null = null;
+    try {
+      movie = mapCachedMovieDetail(JSON.parse(row.payload_json));
+    } catch {
+      // The invalid row is removed with the claim's other cache maintenance.
+    }
+    if (!movie || movie.id !== lookup.tmdbId) {
+      invalidKeys.push(row.cache_key);
+      continue;
+    }
+    results.set(lookup.tmdbId, { data: movie, fetchedAt: row.fetched_at });
+  }
+  return { invalidKeys, results };
+};
+
+export const tmdbMovieCachePersistenceStatements = (
+  env: AppEnv["Bindings"],
+  fetched: Array<TmdbMovieCacheLookup & { result: TmdbMovieResult }>,
+  invalidKeys: string[],
+  timestamp = new Date().toISOString(),
+) => {
+  const statements: D1PreparedStatement[] = [
+    env.DB.prepare("DELETE FROM tmdb_cache WHERE expires_at <= ?").bind(
+      timestamp,
+    ),
+  ];
+  if (invalidKeys.length > 0) {
+    statements.push(
+      env.DB.prepare(
+        `DELETE FROM tmdb_cache
+         WHERE cache_key IN (${invalidKeys.map(() => "?").join(", ")})`,
+      ).bind(...invalidKeys),
+    );
+  }
+  for (const item of fetched) {
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO tmdb_cache
+         (cache_key, payload_json, fetched_at, expires_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(cache_key) DO UPDATE SET
+           payload_json = excluded.payload_json,
+           fetched_at = excluded.fetched_at,
+           expires_at = excluded.expires_at
+         WHERE excluded.fetched_at >= tmdb_cache.fetched_at`,
+      ).bind(
+        item.cacheKey,
+        JSON.stringify(item.result.data),
+        item.result.fetchedAt,
+        new Date(
+          new Date(item.result.fetchedAt).getTime() + DETAIL_TTL_MS,
+        ).toISOString(),
+      ),
+    );
+  }
+  return statements;
+};
+
 const safeRetryAfter = (value: string | null) =>
   value && /^\d{1,4}$/.test(value) ? value : null;
 
@@ -119,6 +213,7 @@ const fetchTmdb = async (
         Accept: "application/json",
         Authorization: `Bearer ${env.TMDB_READ_ACCESS_TOKEN}`,
       },
+      redirect: "error",
     });
   } catch {
     throw new TmdbServiceError(502);
@@ -319,13 +414,28 @@ export const getTmdbMovie = async (
   movieId: number,
 ): Promise<TmdbMovieResult> => {
   const contractId = await getTmdbMetadataContractId();
-  const key = await cacheKey(`movie:${contractId}`, String(movieId));
+  const key = await getTmdbMovieCacheKey(contractId, movieId);
   const cached = await readCache<unknown>(env, key);
   const cachedMovie = mapCachedMovieDetail(cached?.value);
   if (cached && cachedMovie) {
     return { data: cachedMovie, fetchedAt: cached.fetchedAt };
   }
 
+  const result = await fetchTmdbMovie(env, movieId);
+  await env.DB.batch(
+    tmdbMovieCachePersistenceStatements(
+      env,
+      [{ cacheKey: key, result, tmdbId: movieId }],
+      [],
+    ),
+  );
+  return result;
+};
+
+export const fetchTmdbMovie = async (
+  env: AppEnv["Bindings"],
+  movieId: number,
+): Promise<TmdbMovieResult> => {
   const value = await fetchTmdb(
     env,
     `/3/movie/${movieId}`,
@@ -336,6 +446,5 @@ export const getTmdbMovie = async (
   );
   const movie = mapMovieDetail(value);
   if (!movie || movie.id !== movieId) throw new TmdbServiceError(502);
-  const fetchedAt = await writeCache(env, key, movie, DETAIL_TTL_MS);
-  return { data: movie, fetchedAt };
+  return { data: movie, fetchedAt: new Date().toISOString() };
 };

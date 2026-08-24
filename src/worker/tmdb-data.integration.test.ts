@@ -36,6 +36,29 @@ const trackOrphanCleanup = () => {
   };
 };
 
+const trackDatabaseCalls = () => {
+  let batches = 0;
+  const preparedQueries: string[] = [];
+  const bindings = tmdbEnv();
+  return {
+    batches: () => batches,
+    bindings: {
+      ...bindings,
+      DB: {
+        batch: (statements: D1PreparedStatement[]) => {
+          batches += 1;
+          return bindings.DB.batch(statements);
+        },
+        prepare: (query: string) => {
+          preparedQueries.push(query);
+          return bindings.DB.prepare(query);
+        },
+      } as D1Database,
+    } as AppEnv["Bindings"],
+    preparedQueries,
+  };
+};
+
 const insertLinkedMovie = async (id: string, tmdbId: number) => {
   await env.DB.prepare(
     `INSERT INTO movies
@@ -188,26 +211,173 @@ describe("scheduled TMDB enrichment refresh", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("stops a batch on rate limiting without advancing pending rows", async () => {
-    await insertLinkedMovie("rate-limited-one", 51);
-    await insertLinkedMovie("rate-limited-two", 52);
+  it("stops launching fetches after a rate-limited concurrency window", async () => {
+    for (let index = 1; index <= 7; index += 1) {
+      await insertLinkedMovie(`rate-limited-${index}`, 50 + index);
+    }
     const fetchMock = vi
       .fn()
       .mockResolvedValue(new Response(null, { status: 429 }));
     vi.stubGlobal("fetch", fetchMock);
 
     expect(await refreshDueTmdbData(tmdbEnv(), timestamp)).toEqual({
-      attempted: 1,
-      failed: 1,
+      attempted: 6,
+      failed: 6,
       rateLimited: true,
       refreshed: 0,
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
     expect(
       await env.DB.prepare(
         "SELECT COUNT(*) AS count FROM movie_tmdb_data WHERE contract_id IS NULL",
       ).first(),
-    ).toEqual({ count: 2 });
+    ).toEqual({ count: 7 });
+    expect(
+      await env.DB.prepare(
+        `SELECT last_refresh_attempt_at, last_refresh_status
+         FROM movie_tmdb_data WHERE movie_id = 'rate-limited-7'`,
+      ).first(),
+    ).toEqual({ last_refresh_attempt_at: null, last_refresh_status: null });
+  });
+
+  it("bulk reads mixed cache hits and commits the claim in two batches", async () => {
+    await insertLinkedMovie("cached-title", 71);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(responseFor(71))
+      .mockResolvedValueOnce(responseFor(72));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await refreshDueTmdbData(tmdbEnv(), timestamp);
+    await env.DB.prepare(
+      "UPDATE movie_tmdb_data SET refresh_after = ? WHERE movie_id = ?",
+    )
+      .bind("1970-01-01T00:00:00.000Z", "cached-title")
+      .run();
+    await insertLinkedMovie("cache-miss-title", 72);
+    const tracked = trackDatabaseCalls();
+
+    expect(await refreshDueTmdbData(tracked.bindings, timestamp, 2)).toEqual({
+      attempted: 2,
+      failed: 0,
+      rateLimited: false,
+      refreshed: 2,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(tracked.batches()).toBe(2);
+    expect(
+      tracked.preparedQueries.filter((query) =>
+        query.includes("SELECT cache_key, payload_json, fetched_at"),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("records provider failures without discarding successful titles", async () => {
+    await insertLinkedMovie("partial-a-success", 73);
+    await insertLinkedMovie("partial-b-failure", 74);
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(responseFor(73))
+        .mockResolvedValueOnce(new Response(null, { status: 502 })),
+    );
+
+    expect(await refreshDueTmdbData(tmdbEnv(), timestamp, 2)).toEqual({
+      attempted: 2,
+      failed: 1,
+      rateLimited: false,
+      refreshed: 1,
+    });
+    expect(
+      await env.DB.prepare(
+        `SELECT movie_id, title, last_refresh_status
+         FROM movie_tmdb_data
+         WHERE movie_id IN ('partial-a-success', 'partial-b-failure')
+         ORDER BY movie_id`,
+      ).all(),
+    ).toMatchObject({
+      results: [
+        {
+          last_refresh_status: "succeeded",
+          movie_id: "partial-a-success",
+          title: "Current TMDB Title",
+        },
+        {
+          last_refresh_status: "failed",
+          movie_id: "partial-b-failure",
+          title: null,
+        },
+      ],
+    });
+  });
+
+  it("never exceeds six simultaneous TMDB requests", async () => {
+    for (let index = 1; index <= 7; index += 1) {
+      await insertLinkedMovie(`concurrent-${index}`, 80 + index);
+    }
+    let activeRequests = 0;
+    let maximumActiveRequests = 0;
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      activeRequests += 1;
+      maximumActiveRequests = Math.max(maximumActiveRequests, activeRequests);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      activeRequests -= 1;
+      const tmdbId = Number(new URL(String(input)).pathname.split("/").at(-1));
+      return responseFor(tmdbId);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await refreshDueTmdbData(tmdbEnv(), timestamp, 7)).toMatchObject({
+      attempted: 7,
+      failed: 0,
+      refreshed: 7,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(7);
+    expect(maximumActiveRequests).toBe(6);
+  });
+
+  it("rolls back every validated snapshot when batch persistence fails", async () => {
+    await insertLinkedMovie("atomic-title", 75);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(responseFor(75)));
+    const bindings = tmdbEnv();
+    let batchCall = 0;
+    const failingBindings = {
+      ...bindings,
+      DB: {
+        batch: (statements: D1PreparedStatement[]) => {
+          batchCall += 1;
+          return bindings.DB.batch(
+            batchCall === 2
+              ? [
+                  ...statements,
+                  bindings.DB.prepare(
+                    `INSERT INTO tmdb_people (tmdb_id, name, fetched_at)
+                       VALUES (-1, 'Invalid person', ?)`,
+                  ).bind(timestamp),
+                ]
+              : statements,
+          );
+        },
+        prepare: (query: string) => bindings.DB.prepare(query),
+      } as D1Database,
+    } as AppEnv["Bindings"];
+
+    await expect(
+      refreshDueTmdbData(failingBindings, timestamp),
+    ).rejects.toThrow();
+    expect(
+      await env.DB.prepare(
+        `SELECT title, fetched_at FROM movie_tmdb_data
+         WHERE movie_id = 'atomic-title'`,
+      ).first(),
+    ).toEqual({ fetched_at: null, title: null });
+    expect(
+      await env.DB.prepare("SELECT COUNT(*) AS count FROM tmdb_cache").first(),
+    ).toEqual({ count: 0 });
+    expect(
+      await env.DB.prepare("SELECT COUNT(*) AS count FROM tmdb_people").first(),
+    ).toEqual({ count: 0 });
   });
 
   it("runs orphan cleanup once per batch instead of once per title", async () => {
