@@ -14,9 +14,8 @@ const tmdbEnv = () =>
 const insertLinkedMovie = async (id: string, tmdbId: number) => {
   await env.DB.prepare(
     `INSERT INTO movies
-     (id, title, title_normalized, added_at, updated_at, imdb_id, tmdb_id,
-      tmdb_fetched_at, version, version_runtime)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     (id, title, title_normalized, added_at, updated_at, imdb_id)
+     VALUES (?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -25,12 +24,20 @@ const insertLinkedMovie = async (id: string, tmdbId: number) => {
       "2026-01-01T00:00:00.000Z",
       "2026-01-01T00:00:00.000Z",
       `tt${String(tmdbId).padStart(7, "0")}`,
-      tmdbId,
-      "2026-01-01T00:00:00.000Z",
-      "Library Cut",
-      130,
     )
     .run();
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO movie_tmdb_data
+       (movie_id, tmdb_id, refresh_after, data_version)
+       VALUES (?, ?, '1970-01-01T00:00:00.000Z', 0)`,
+    ).bind(id, tmdbId),
+    env.DB.prepare(
+      `UPDATE movies
+       SET version = 'Library Cut', version_runtime = 130
+       WHERE id = ?`,
+    ).bind(id),
+  ]);
 };
 
 const responseFor = (tmdbId: number) =>
@@ -178,68 +185,29 @@ describe("scheduled TMDB enrichment refresh", () => {
     ).toEqual({ count: 2 });
   });
 
-  it("adopts a relink made by the rollback-compatible application", async () => {
-    await insertLinkedMovie("rollback-relink", 53);
-    await env.DB.batch(
-      replaceTmdbDataStatements(env, "rollback-relink", {
-        data: {
-          cast: [{ id: 303, name: "Earlier Actor" }],
-          collection: null,
-          directors: [],
-          id: 53,
-          posterPath: null,
-          releaseDate: null,
-          runtimeMinutes: null,
-          title: "Earlier TMDB Title",
-        },
-        fetchedAt: "2026-08-20T00:00:00.000Z",
-      }),
-    );
-    await env.DB.batch([
-      env.DB.prepare(
-        `UPDATE movies
-         SET tmdb_id = 54, tmdb_fetched_at = ?
-         WHERE id = 'rollback-relink'`,
-      ).bind("2026-08-22T00:00:00.000Z"),
-      env.DB.prepare(
-        `INSERT INTO tmdb_people (tmdb_id, name, updated_at, fetched_at)
-         VALUES (304, 'Relinked Actor', ?, ?)`,
-      ).bind(timestamp, timestamp),
-      env.DB.prepare("DELETE FROM movie_credits WHERE movie_id = ?").bind(
-        "rollback-relink",
-      ),
-      env.DB.prepare(
-        `INSERT INTO movie_credits
-         (movie_id, tmdb_person_id, credit_type, position)
-         VALUES ('rollback-relink', 304, 'cast', 1)`,
-      ),
-    ]);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(new Response(null, { status: 429 })),
-    );
+  it("does not synthesize TMDB links from Library records", async () => {
+    await env.DB.prepare(
+      `INSERT INTO movies
+       (id, title, title_normalized, added_at, updated_at)
+       VALUES ('library-only', 'Library Only', 'library only', ?, ?)`,
+    )
+      .bind(timestamp, timestamp)
+      .run();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
 
-    expect(await refreshDueTmdbData(tmdbEnv(), timestamp)).toMatchObject({
-      attempted: 1,
-      rateLimited: true,
+    expect(await refreshDueTmdbData(tmdbEnv(), timestamp)).toEqual({
+      attempted: 0,
+      failed: 0,
+      rateLimited: false,
       refreshed: 0,
     });
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(
       await env.DB.prepare(
-        `SELECT movie_tmdb_data.tmdb_id, movie_tmdb_data.data_version,
-                tmdb_people.name
-         FROM movie_tmdb_data
-         JOIN movie_credits
-           ON movie_credits.movie_id = movie_tmdb_data.movie_id
-         JOIN tmdb_people
-           ON tmdb_people.tmdb_id = movie_credits.tmdb_person_id
-         WHERE movie_tmdb_data.movie_id = 'rollback-relink'`,
+        "SELECT COUNT(*) AS count FROM movie_tmdb_data",
       ).first(),
-    ).toEqual({
-      data_version: 0,
-      name: "Relinked Actor",
-      tmdb_id: 54,
-    });
+    ).toEqual({ count: 0 });
   });
 
   it("does not let an older response regress shared names or credits", async () => {
@@ -302,9 +270,9 @@ describe("scheduled TMDB enrichment refresh", () => {
   it("deletes only unreferenced shared TMDB entities", async () => {
     await env.DB.batch([
       env.DB.prepare(
-        `INSERT INTO tmdb_people (tmdb_id, name, updated_at, fetched_at)
-         VALUES (401, 'Orphan Person', ?, ?)`,
-      ).bind(timestamp, timestamp),
+        `INSERT INTO tmdb_people (tmdb_id, name, fetched_at)
+         VALUES (401, 'Orphan Person', ?)`,
+      ).bind(timestamp),
       env.DB.prepare(
         `INSERT INTO tmdb_collections (tmdb_id, name, fetched_at)
          VALUES (90, 'Orphan Collection', ?)`,

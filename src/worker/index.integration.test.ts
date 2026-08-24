@@ -44,17 +44,23 @@ describe("Ludovico Tech Worker routes", () => {
       ...movies.map((movie, index) =>
         env.DB.prepare(
           `INSERT INTO movies
-           (id, title, title_normalized, added_at, updated_at, poster_path, runtime_minutes)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+           (id, title, title_normalized, added_at, updated_at)
+           VALUES (?, ?, ?, ?, ?)`,
         ).bind(
           movie.id,
           movie.title,
           movie.title.toLowerCase(),
           `2026-08-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
           "2026-08-24T00:00:00.000Z",
-          `/home-${index}.jpg`,
-          100 + index,
         ),
+      ),
+      ...movies.map((movie, index) =>
+        env.DB.prepare(
+          `INSERT INTO movie_tmdb_data
+           (movie_id, tmdb_id, poster_path, runtime_minutes, refresh_after,
+            data_version)
+           VALUES (?, ?, ?, ?, '1970-01-01T00:00:00.000Z', 0)`,
+        ).bind(movie.id, 10_000 + index, `/home-${index}.jpg`, 100 + index),
       ),
       ...movies.slice(0, 6).map((movie, index) =>
         env.DB.prepare(

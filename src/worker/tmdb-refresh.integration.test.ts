@@ -28,12 +28,16 @@ const bindings = () =>
 const insertLinkedMovie = async () => {
   await env.DB.prepare(
     `INSERT INTO movies
-     (id, title, title_normalized, added_at, updated_at, tmdb_id,
-      tmdb_fetched_at)
-     VALUES ('scheduled-status', 'Library Title', 'library title', ?, ?, 42, ?)`,
+     (id, title, title_normalized, added_at, updated_at)
+     VALUES ('scheduled-status', 'Library Title', 'library title', ?, ?)`,
   )
-    .bind(timestamp, timestamp, "2026-01-01T00:00:00.000Z")
+    .bind(timestamp, timestamp)
     .run();
+  await env.DB.prepare(
+    `INSERT INTO movie_tmdb_data
+     (movie_id, tmdb_id, refresh_after, data_version)
+     VALUES ('scheduled-status', 42, '1970-01-01T00:00:00.000Z', 0)`,
+  ).run();
 };
 
 const insertUnlinkedMovie = async () => {

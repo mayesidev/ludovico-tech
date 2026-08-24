@@ -312,7 +312,7 @@ const databaseSummaryQuery = `SELECT
   (SELECT COUNT(*) FROM collections) AS collections,
   (SELECT COUNT(*) FROM ratings) AS ratings,
   (SELECT COUNT(*) FROM movie_import_sources) AS sources,
-  (SELECT COUNT(*) FROM movies WHERE tmdb_id IS NOT NULL) AS tmdb_movies,
+  (SELECT COUNT(*) FROM movie_tmdb_data) AS tmdb_movies,
   (SELECT status FROM now_showing WHERE id = 1) AS now_showing_status`;
 const migrationsQuery = "SELECT name FROM d1_migrations ORDER BY id";
 

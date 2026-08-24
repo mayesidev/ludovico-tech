@@ -559,10 +559,13 @@ describe("deterministic import planning", () => {
     expect(plan.diagnostics).toEqual([]);
     expect(sql).toContain("'Synthetic Movie'");
     expect(sql).toContain("'/synthetic.jpg'");
-    expect(sql).toContain("tmdb_id = 42");
-    expect(sql).toContain("tmdb_collection_id = 7");
-    expect(sql).toContain("tmdb_collection_name = 'Synthetic Collection'");
-    expect(sql).toContain("NOT EXISTS (SELECT 1 FROM movies AS linked");
+    expect(sql).toContain(", 42, movies.title");
+    expect(sql).toContain("runtime_minutes, tmdb_collection_id");
+    expect(sql).toContain("VALUES (7, 'Synthetic Collection'");
+    expect(sql).toContain(
+      "NOT EXISTS (SELECT 1 FROM movie_tmdb_data AS linked",
+    );
+    expect(sql).not.toContain("UPDATE movies SET release_date");
   });
 
   it("rejects a reconciliation match that the import does not use", async () => {
@@ -817,15 +820,15 @@ describe("update-only TMDB metadata planning", () => {
       sources: 0,
     });
     expect(plan.diagnostics).toEqual([]);
-    expect(sql).toContain("UPDATE movies SET release_date");
-    expect(sql).toContain("runtime_minutes = 123");
-    expect(sql).toContain("tmdb_collection_id = 7");
-    expect(sql).toContain("tmdb_collection_name = 'Synthetic Collection'");
+    expect(sql).toContain("INSERT INTO movie_tmdb_data");
+    expect(sql).toContain("runtime_minutes, tmdb_collection_id");
+    expect(sql).toContain("VALUES (7, 'Synthetic Collection'");
     expect(sql).toContain(
       "WHERE imdb_id = 'tt1234567' AND title_normalized = 'synthetic movie'",
     );
     expect(sql).toContain("INSERT INTO tmdb_people");
     expect(sql).toContain("INSERT OR REPLACE INTO movie_credits");
+    expect(sql).not.toContain("UPDATE movies SET release_date");
     expect(sql).not.toMatch(/collection_movies|now_showing|ratings/);
   });
 

@@ -84,14 +84,14 @@ export const movieFrom = `
 
 export const movieSelect = `
   SELECT movies.id, movies.title, movies.added_at,
-    COALESCE(movie_tmdb_data.release_date, movies.release_date) AS release_date,
-    COALESCE(movie_tmdb_data.poster_path, movies.poster_path) AS poster_path,
-    COALESCE(movie_tmdb_data.runtime_minutes, movies.runtime_minutes) AS runtime_minutes,
+    movie_tmdb_data.release_date,
+    movie_tmdb_data.poster_path,
+    movie_tmdb_data.runtime_minutes,
     movies.version,
     movies.version_runtime, movies.version_reference_url, movies.imdb_id,
-    COALESCE(movie_tmdb_data.tmdb_id, movies.tmdb_id) AS tmdb_id,
-    COALESCE(movie_tmdb_data.tmdb_collection_id, movies.tmdb_collection_id) AS tmdb_collection_id,
-    COALESCE(tmdb_collections.name, movies.tmdb_collection_name) AS tmdb_collection_name,
+    movie_tmdb_data.tmdb_id,
+    movie_tmdb_data.tmdb_collection_id,
+    tmdb_collections.name AS tmdb_collection_name,
     collections.name AS collection_name,
     collections.order_confirmed AS collection_order_confirmed,
     collection_movies.collection_id, collection_movies.position AS collection_position,
@@ -138,9 +138,9 @@ export const getNowShowing = async (env: AppEnv["Bindings"]) =>
   env.DB.prepare(
     `SELECT now_showing.*, movies.title, movies.added_at, movies.version,
         movies.version_runtime,
-        COALESCE(movie_tmdb_data.release_date, movies.release_date) AS release_date,
-        COALESCE(movie_tmdb_data.poster_path, movies.poster_path) AS poster_path,
-        COALESCE(movie_tmdb_data.runtime_minutes, movies.runtime_minutes) AS runtime_minutes,
+        movie_tmdb_data.release_date,
+        movie_tmdb_data.poster_path,
+        movie_tmdb_data.runtime_minutes,
         ratings.score AS rating_score, ratings.phrase AS rating_phrase,
         ratings.watched_at, collection_movies.collection_id AS movie_collection_id,
         collections.name AS collection_name
@@ -184,7 +184,7 @@ export const getRemainingCollectionMovies = async (
 
 const homeMovieSelect = `
   SELECT movies.id, movies.title, movies.version,
-    COALESCE(movie_tmdb_data.poster_path, movies.poster_path) AS poster_path,
+    movie_tmdb_data.poster_path,
     ratings.score AS rating_score, ratings.phrase AS rating_phrase,
     ratings.watched_at
   FROM movies
@@ -213,7 +213,7 @@ export const getWatchedHistory = async (env: AppEnv["Bindings"]) => {
 export const getPosterReelMovies = async (env: AppEnv["Bindings"]) => {
   const withPosters = await env.DB.prepare(
     `${homeMovieSelect}
-     WHERE COALESCE(movie_tmdb_data.poster_path, movies.poster_path) IS NOT NULL
+     WHERE movie_tmdb_data.poster_path IS NOT NULL
      ORDER BY RANDOM()
      LIMIT 12`,
   ).all<HomeMovieRow>();

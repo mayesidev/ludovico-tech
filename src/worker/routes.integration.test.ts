@@ -965,21 +965,29 @@ describe("TMDB routes and metadata attachment", () => {
       },
     });
     const storedMetadata = await env.DB.prepare(
-      "SELECT runtime_minutes, tmdb_collection_id, tmdb_collection_name, tmdb_id, tmdb_fetched_at FROM movies WHERE id = ?",
+      `SELECT movie_tmdb_data.runtime_minutes,
+              movie_tmdb_data.tmdb_collection_id,
+              tmdb_collections.name AS tmdb_collection_name,
+              movie_tmdb_data.tmdb_id,
+              movie_tmdb_data.fetched_at
+       FROM movie_tmdb_data
+       LEFT JOIN tmdb_collections
+         ON tmdb_collections.tmdb_id = movie_tmdb_data.tmdb_collection_id
+       WHERE movie_tmdb_data.movie_id = ?`,
     )
       .bind(String(movie.id))
       .first<{
         runtime_minutes: number | null;
         tmdb_collection_id: number | null;
         tmdb_collection_name: string | null;
-        tmdb_fetched_at: string | null;
+        fetched_at: string | null;
         tmdb_id: number | null;
       }>();
     expect(storedMetadata).toEqual({
       runtime_minutes: 144,
       tmdb_collection_id: null,
       tmdb_collection_name: null,
-      tmdb_fetched_at: expect.any(String),
+      fetched_at: expect.any(String),
       tmdb_id: 302,
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
