@@ -6,6 +6,7 @@ import { auditStatement, mutationActor } from "../middleware";
 import {
   claimTmdbRefresh,
   executeTmdbRefreshClaim,
+  getTmdbRefreshOverview,
   getTmdbRefreshQueue,
   getTmdbRefreshRunStatus,
   getTmdbRefreshStatus,
@@ -93,6 +94,16 @@ export const registerTmdbRefreshRoutes = (app: Hono<AppEnv>) => {
     if (!actor) return c.json({ error: "Authentication required" }, 401);
     return c.json(await getTmdbRefreshRunStatus(c.env));
   });
+
+  app.get(
+    "/tmdb-refresh/overview",
+    zValidator("query", queueInput),
+    async (c) => {
+      const actor = await mutationActor(c);
+      if (!actor) return c.json({ error: "Authentication required" }, 401);
+      return c.json(await getTmdbRefreshOverview(c.env, c.req.valid("query")));
+    },
+  );
 
   app.get("/tmdb-refresh/items", zValidator("query", queueInput), async (c) => {
     const actor = await mutationActor(c);

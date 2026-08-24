@@ -11,6 +11,7 @@ import { refreshDueTmdbData } from "./tmdb-data";
 import {
   claimTmdbRefresh,
   executeTmdbRefreshClaim,
+  getTmdbRefreshOverview,
   getTmdbRefreshQueue,
   getTmdbRefreshRunStatus,
   getTmdbRefreshStatus,
@@ -302,6 +303,60 @@ describe("TMDB refresh operations", () => {
       timestamp,
     );
     expect(unlinkedPage.pagination.total).toBe(29);
+
+    const overview = await getTmdbRefreshOverview(
+      bindings(),
+      {
+        dateSearch: "",
+        direction: "asc",
+        page: 2,
+        pageSize: 25,
+        search: "",
+        sort: "state",
+        state: "all",
+      },
+      timestamp,
+    );
+    expect(overview.summary).toEqual(summary);
+    expect(overview.queue.pagination).toEqual({
+      page: 2,
+      pageSize: 25,
+      total: 30,
+      totalPages: 2,
+    });
+    expect(overview.queue.items).toHaveLength(5);
+    expect(
+      overview.queue.items
+        .slice(0, 4)
+        .every((item) => item.state === "unlinked"),
+    ).toBe(true);
+    expect(overview.queue.items[4]).toMatchObject({
+      movieId: movies[29].id,
+      state: "current",
+    });
+
+    const descendingOverview = await getTmdbRefreshOverview(
+      bindings(),
+      {
+        dateSearch: "",
+        direction: "desc",
+        page: 1,
+        pageSize: 25,
+        search: "",
+        sort: "state",
+        state: "all",
+      },
+      timestamp,
+    );
+    expect(descendingOverview.queue.items[0]).toMatchObject({
+      movieId: movies[29].id,
+      state: "current",
+    });
+    expect(
+      descendingOverview.queue.items
+        .slice(1)
+        .every((item) => item.state === "unlinked"),
+    ).toBe(true);
 
     const dateResult = await getTmdbRefreshQueue(
       bindings(),

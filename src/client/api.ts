@@ -202,6 +202,11 @@ export type TmdbRefreshQueueResponse = {
   };
 };
 
+export type TmdbRefreshOverview = {
+  queue: TmdbRefreshQueueResponse;
+  summary: TmdbRefreshSummary;
+};
+
 export class ApiError extends Error {
   readonly status: number;
 
@@ -234,6 +239,17 @@ const request = async <T>(path: string, options?: RequestInit): Promise<T> => {
   }
   return body as T;
 };
+
+const tmdbRefreshQueueParameters = (query: TmdbRefreshQueueQuery) =>
+  new URLSearchParams({
+    dateSearch: query.dateSearch,
+    direction: query.direction,
+    page: String(query.page),
+    pageSize: String(query.pageSize),
+    search: query.search,
+    sort: query.sort,
+    state: query.state,
+  });
 
 export const api = {
   health: () => request<HealthState>("/api/health"),
@@ -324,16 +340,14 @@ export const api = {
     request<TmdbRefreshSummary>("/api/tmdb-refresh/summary"),
   tmdbRefreshRunStatus: () =>
     request<TmdbRefreshRunStatus>("/api/tmdb-refresh/run-status"),
+  tmdbRefreshOverview: (query: TmdbRefreshQueueQuery) => {
+    const parameters = tmdbRefreshQueueParameters(query);
+    return request<TmdbRefreshOverview>(
+      `/api/tmdb-refresh/overview?${parameters.toString()}`,
+    );
+  },
   tmdbRefreshQueue: (query: TmdbRefreshQueueQuery) => {
-    const parameters = new URLSearchParams({
-      dateSearch: query.dateSearch,
-      direction: query.direction,
-      page: String(query.page),
-      pageSize: String(query.pageSize),
-      search: query.search,
-      sort: query.sort,
-      state: query.state,
-    });
+    const parameters = tmdbRefreshQueueParameters(query);
     return request<TmdbRefreshQueueResponse>(
       `/api/tmdb-refresh/items?${parameters.toString()}`,
     );

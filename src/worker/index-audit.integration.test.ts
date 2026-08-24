@@ -206,6 +206,27 @@ describe("D1 index alignment", () => {
     expect(plan.some((detail) => detail.includes("TEMP B-TREE"))).toBe(false);
   });
 
+  it("uses title-ordered keyed lookups for bounded refresh-status pages", async () => {
+    const plan = await queryPlan(
+      `SELECT movies.id, movies.title, movie_tmdb_data.tmdb_id
+       FROM movie_tmdb_data
+       JOIN movies ON movies.id = movie_tmdb_data.movie_id
+       WHERE COALESCE(movie_tmdb_data.last_refresh_status, '') <> 'failed'
+         AND movie_tmdb_data.fetched_at IS NULL
+       ORDER BY movies.title COLLATE NOCASE ASC, movies.id ASC
+       LIMIT ? OFFSET ?`,
+      [50, 0],
+    );
+
+    expect(plan).toEqual(
+      expect.arrayContaining([
+        "SCAN movies USING COVERING INDEX idx_movies_title_nocase",
+        "SEARCH movie_tmdb_data USING INDEX sqlite_autoindex_movie_tmdb_data_1 (movie_id=?)",
+      ]),
+    );
+    expect(plan.some((detail) => detail.includes("TEMP B-TREE"))).toBe(false);
+  });
+
   it("materializes alternate Library sorts before hydrating joins", async () => {
     const plan = await queryPlan(
       `WITH page AS MATERIALIZED (
