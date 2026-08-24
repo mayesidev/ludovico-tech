@@ -45,7 +45,9 @@ describe("pagination controls", () => {
   it("disables navigation for one page and while refreshing", () => {
     const { props, rerender } = renderControls({ total: 1, totalPages: 1 });
 
-    expect(screen.getByRole("combobox", { name: "Test catalog page" })).toBeDisabled();
+    expect(
+      screen.getByRole("combobox", { name: "Test catalog page" }),
+    ).toBeDisabled();
     expect(screen.getByRole("button", { name: /Previous/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Next/ })).toBeDisabled();
 
@@ -58,7 +60,9 @@ describe("pagination controls", () => {
         totalPages={4}
       />,
     );
-    expect(screen.getByRole("combobox", { name: "Test catalog page" })).toBeDisabled();
+    expect(
+      screen.getByRole("combobox", { name: "Test catalog page" }),
+    ).toBeDisabled();
     expect(
       screen.getByRole("combobox", { name: "Test catalog rows per page" }),
     ).toBeDisabled();
@@ -72,7 +76,9 @@ describe("pagination controls", () => {
     rerender(
       <PaginationControls {...props} page={2} total={40} totalPages={2} />,
     );
-    expect(screen.getByRole("combobox", { name: "Test catalog page" })).toHaveValue("2");
+    expect(
+      screen.getByRole("combobox", { name: "Test catalog page" }),
+    ).toHaveValue("2");
     expect(
       screen.getByRole("combobox", { name: "Test catalog page" }).children,
     ).toHaveLength(2);

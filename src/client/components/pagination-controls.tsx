@@ -41,9 +41,7 @@ export function PaginationControls({
             disabled={refreshing}
             value={pageSize}
             onChange={(event) =>
-              onPageSizeChange(
-                Number(event.target.value) as 25 | 50 | 100,
-              )
+              onPageSizeChange(Number(event.target.value) as 25 | 50 | 100)
             }
           >
             <option value={25}>25</option>
