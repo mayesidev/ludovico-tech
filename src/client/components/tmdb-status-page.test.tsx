@@ -139,10 +139,9 @@ describe("TMDB refresh status page", () => {
     render(<TmdbStatusPage canMutate onNavigate={vi.fn()} />);
 
     expect(await screen.findByText("Pending Movie")).toBeVisible();
-    expect(screen.getByRole("columnheader", { name: /Status/ })).toHaveAttribute(
-      "aria-sort",
-      "ascending",
-    );
+    expect(
+      screen.getByRole("columnheader", { name: /Status/ }),
+    ).toHaveAttribute("aria-sort", "ascending");
     const search = screen.getByPlaceholderText("Search all fields…");
     fireEvent.change(search, { target: { value: "1/1" } });
     await waitFor(() =>

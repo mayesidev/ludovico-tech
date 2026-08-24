@@ -79,7 +79,11 @@ describe("Ludovico Tech Worker routes", () => {
 
     const home = await request<{
       hasNextCollectionMovie: boolean;
-      nowShowing: { added_at: string; movie_id: string; runtime_minutes: number };
+      nowShowing: {
+        added_at: string;
+        movie_id: string;
+        runtime_minutes: number;
+      };
       posterReelMovies: Array<{ id: string }>;
       watchedMovies: Array<{ id: string }>;
     }>("/api/home");

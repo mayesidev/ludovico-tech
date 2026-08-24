@@ -1,7 +1,12 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api, type LibraryQuery, type LibraryResponse, type Movie } from "../api";
+import {
+  api,
+  type LibraryQuery,
+  type LibraryResponse,
+  type Movie,
+} from "../api";
 import { LibraryPage } from "./library-page";
 
 const movies: Movie[] = [

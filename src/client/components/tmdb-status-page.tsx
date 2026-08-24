@@ -211,10 +211,7 @@ export function TmdbStatusPage({
       sort,
     }));
   };
-  const sortHeader = (
-    label: string,
-    sort: TmdbRefreshQueueQuery["sort"],
-  ) => {
+  const sortHeader = (label: string, sort: TmdbRefreshQueueQuery["sort"]) => {
     const active = queueQuery.sort === sort;
     return (
       <th

@@ -93,11 +93,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
        ORDER BY ${nullsLast}${sortExpression} ${direction}, movies.id ASC
        LIMIT ? OFFSET ?`,
     )
-      .bind(
-        ...bindings,
-        input.pageSize,
-        (page - 1) * input.pageSize,
-      )
+      .bind(...bindings, input.pageSize, (page - 1) * input.pageSize)
       .all<MovieRow>();
     return c.json({
       movies: result.results,

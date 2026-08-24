@@ -87,15 +87,11 @@ export const registerTmdbRefreshRoutes = (app: Hono<AppEnv>) => {
     return c.json(await getTmdbRefreshSummary(c.env));
   });
 
-  app.get(
-    "/tmdb-refresh/items",
-    zValidator("query", queueInput),
-    async (c) => {
-      const actor = await mutationActor(c);
-      if (!actor) return c.json({ error: "Authentication required" }, 401);
-      return c.json(await getTmdbRefreshQueue(c.env, c.req.valid("query")));
-    },
-  );
+  app.get("/tmdb-refresh/items", zValidator("query", queueInput), async (c) => {
+    const actor = await mutationActor(c);
+    if (!actor) return c.json({ error: "Authentication required" }, 401);
+    return c.json(await getTmdbRefreshQueue(c.env, c.req.valid("query")));
+  });
 
   app.patch(
     "/tmdb-refresh/schedule",

@@ -1001,9 +1001,9 @@ describe("production authorization boundary", () => {
       expect((await request(path, bindings)).status).toBe(200);
     }
     expect((await request("/api/tmdb-refresh", bindings)).status).toBe(401);
-    expect(
-      (await request("/api/tmdb-refresh/summary", bindings)).status,
-    ).toBe(401);
+    expect((await request("/api/tmdb-refresh/summary", bindings)).status).toBe(
+      401,
+    );
     expect((await request("/api/tmdb-refresh/items", bindings)).status).toBe(
       401,
     );
