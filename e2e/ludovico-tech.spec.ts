@@ -300,16 +300,29 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await expect(page.getByRole("button", { name: "Edit" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Order" })).toHaveCount(0);
     const titleSort = page.getByRole("button", { name: "Title" });
+    const titleHeader = page.getByRole("columnheader", { name: /Title/ });
     const renderedTitles = page.locator("tbody tr td:first-child a");
-    await titleSort.click();
+    await expect(titleHeader).toHaveAttribute("aria-sort", "ascending");
     const ascendingTitles = await renderedTitles.allTextContents();
     expect(ascendingTitles).toEqual(
       [...ascendingTitles].sort((left, right) => left.localeCompare(right)),
     );
+
+    const descendingResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === "/api/library" &&
+        url.searchParams.get("direction") === "desc" &&
+        url.searchParams.get("sort") === "title" &&
+        response.ok()
+      );
+    });
     await titleSort.click();
-    expect(await renderedTitles.allTextContents()).toEqual(
-      [...ascendingTitles].reverse(),
-    );
+    await descendingResponse;
+    await expect(titleHeader).toHaveAttribute("aria-sort", "descending");
+    await expect
+      .poll(() => renderedTitles.allTextContents())
+      .toEqual([...ascendingTitles].reverse());
     await page.getByRole("link", { name: "Browser Test Feature" }).click();
     await expect(page).toHaveURL(/\/movies\//);
     await expect(
