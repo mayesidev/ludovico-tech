@@ -125,7 +125,7 @@ export function HomePage({
             )}
 
             {hasSelection && (directors.length > 0 || cast.length > 0) && (
-              <dl className="mt-5 grid gap-5 border-b border-border-subtle pb-5 sm:grid-cols-2">
+              <dl className="feature-credits">
                 {directors.length > 0 && (
                   <div>
                     <dt className="ui-label text-text-muted">Directed by</dt>
