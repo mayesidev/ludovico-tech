@@ -3,7 +3,7 @@ import { ArrowDown, LoaderCircle, RotateCw } from "lucide-react";
 import { api, type Movie, type NowShowing } from "../api";
 import type { Navigate, RunAction } from "../types";
 import { selectWatchedHistory } from "../lib/watched-history";
-import { formatDate, formatMovieTitle, formatRuntime } from "../lib/utils";
+import { cn, formatDate, formatMovieTitle, formatRuntime } from "../lib/utils";
 import { AppLink } from "./app-link";
 import { Badge, Button, Card, Input } from "./ui";
 import { Poster } from "./poster";
@@ -125,7 +125,13 @@ export function HomePage({
             )}
 
             {hasSelection && (directors.length > 0 || cast.length > 0) && (
-              <dl className="feature-credits">
+              <dl
+                className={cn(
+                  "feature-credits",
+                  (directors.length === 0 || cast.length === 0) &&
+                    "feature-credits-single",
+                )}
+              >
                 {directors.length > 0 && (
                   <div>
                     <dt className="ui-label text-text-muted">Directed by</dt>
