@@ -1,0 +1,3 @@
+UPDATE movie_tmdb_data
+SET contract_id = 'sha256:545dd6f0620518a413f9c48457aa75d3d517b332a80d660522676a5b5b4de15f'
+WHERE contract_id = 'sha256:177f6bf73c02760edc1f2c5e807e3f3eb1fd49901bcf2b6ec52d452b267aa4ff';
