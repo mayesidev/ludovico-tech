@@ -41,9 +41,11 @@ describe("TMDB metadata contract migration", () => {
         UPDATE movies SET version = 'Library Cut' WHERE id = 'complete';
       `);
 
-      database.exec(
-        `BEGIN;\n${migrationSource("0014_tmdb_metadata_contract.sql")}\nCOMMIT;`,
-      );
+      for (const name of migrations.filter(
+        (candidate) => candidate >= "0014_tmdb_metadata_contract.sql",
+      )) {
+        database.exec(`BEGIN;\n${migrationSource(name)}\nCOMMIT;`);
+      }
 
       const columns = database
         .prepare("PRAGMA table_info(movie_tmdb_data)")

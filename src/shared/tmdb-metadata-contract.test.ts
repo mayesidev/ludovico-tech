@@ -3,6 +3,7 @@ import {
   fingerprintTmdbMetadataContract,
   getTmdbMetadataContractId,
   TMDB_METADATA_CONTRACT,
+  TMDB_REQUEST_OPTIONS,
   tmdbMovieDetailSchema,
 } from "./tmdb-metadata-contract";
 
@@ -65,5 +66,17 @@ describe("TMDB metadata contract", () => {
     await expect(
       fingerprintTmdbMetadataContract(changedContract),
     ).resolves.not.toBe(await getTmdbMetadataContractId());
+  });
+
+  it("keeps request mechanics outside the metadata contract", async () => {
+    expect(TMDB_METADATA_CONTRACT).not.toHaveProperty("request");
+    expect(TMDB_METADATA_CONTRACT.normalization).not.toHaveProperty("request");
+    expect(TMDB_REQUEST_OPTIONS).toEqual({
+      appendToResponse: ["credits"],
+      language: "en-US",
+    });
+    await expect(
+      fingerprintTmdbMetadataContract(TMDB_METADATA_CONTRACT),
+    ).resolves.toBe(await getTmdbMetadataContractId());
   });
 });

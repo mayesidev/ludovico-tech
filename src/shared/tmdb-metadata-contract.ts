@@ -1,10 +1,11 @@
 import { z } from "zod";
 
+export const TMDB_REQUEST_OPTIONS = {
+  appendToResponse: ["credits"],
+  language: "en-US",
+} as const;
+
 export const TMDB_METADATA_RULES = {
-  request: {
-    appendToResponse: ["credits"],
-    language: "en-US",
-  },
   collection: {
     nameMaxLength: 200,
   },

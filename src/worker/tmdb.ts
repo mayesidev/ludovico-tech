@@ -7,6 +7,7 @@ import {
 import {
   getTmdbMetadataContractId,
   TMDB_METADATA_RULES,
+  TMDB_REQUEST_OPTIONS,
   tmdbMovieDetailSchema,
   type TmdbCollection,
   type TmdbMovieDetail,
@@ -329,9 +330,8 @@ export const getTmdbMovie = async (
     env,
     `/3/movie/${movieId}`,
     new URLSearchParams({
-      append_to_response:
-        TMDB_METADATA_RULES.request.appendToResponse.join(","),
-      language: TMDB_METADATA_RULES.request.language,
+      append_to_response: TMDB_REQUEST_OPTIONS.appendToResponse.join(","),
+      language: TMDB_REQUEST_OPTIONS.language,
     }),
   );
   const movie = mapMovieDetail(value);
