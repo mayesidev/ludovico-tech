@@ -2,6 +2,7 @@ import { ArrowLeft, ExternalLink, Pencil, Trash2 } from "lucide-react";
 import type { Movie, MovieDetail } from "../api";
 import { imdbTitleUrl } from "../../shared/imdb";
 import { formatDate, formatMovieTitle, formatRuntime } from "../lib/utils";
+import type { ReturnTarget } from "../types";
 import { AppLink } from "./app-link";
 import { Poster } from "./poster";
 import { Button } from "./ui";
@@ -12,7 +13,7 @@ type MovieDetailPageProps = {
   onDelete?: (movie: Movie) => void;
   onEdit?: (movie: Movie) => void;
   onNavigate: (path: string) => void;
-  returnTo: "library" | "now-showing";
+  returnTo: ReturnTarget;
 };
 
 export function MovieDetailPage({
@@ -23,9 +24,19 @@ export function MovieDetailPage({
   onNavigate,
   returnTo,
 }: MovieDetailPageProps) {
-  const returnHref = returnTo === "now-showing" ? "/" : "/library";
+  const returnHref =
+    returnTo === "now-showing"
+      ? "/"
+      : returnTo === "manager-office"
+        ? "/manager-office"
+        : "/library";
   const returnLabel =
-    returnTo === "now-showing" ? "Return to Now Showing" : "Return to Library";
+    returnTo === "now-showing"
+      ? "Return to Now Showing"
+      : returnTo === "manager-office"
+        ? "Return to Manager's Office"
+        : "Return to Library";
+  const returnQuery = returnTo === "library" ? "" : `?from=${returnTo}`;
 
   if (!movie) {
     return (
@@ -154,7 +165,7 @@ export function MovieDetailPage({
                 <dd>
                   <AppLink
                     className="font-semibold text-highlight-soft hover:text-text-primary"
-                    href={`/collections/${encodeURIComponent(movie.collection_id)}${returnTo === "now-showing" ? "?from=now-showing" : ""}`}
+                    href={`/collections/${encodeURIComponent(movie.collection_id)}${returnQuery}`}
                     onNavigate={onNavigate}
                   >
                     {movie.collection_name}

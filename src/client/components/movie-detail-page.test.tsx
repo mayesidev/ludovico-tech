@@ -294,4 +294,22 @@ describe("movie details", () => {
       screen.queryByRole("link", { name: "Return to Library" }),
     ).toBeNull();
   });
+
+  it("returns to the Manager's Office when opened from refresh status", () => {
+    render(
+      <MovieDetailPage
+        movie={movie}
+        onNavigate={vi.fn()}
+        returnTo="manager-office"
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Return to Manager's Office" }),
+    ).toHaveAttribute("href", "/manager-office");
+    expect(screen.getByRole("link", { name: "Test Saga" })).toHaveAttribute(
+      "href",
+      "/collections/collection-id?from=manager-office",
+    );
+  });
 });

@@ -27,6 +27,18 @@ const status: TmdbRefreshStatus = {
       tmdbId: 42,
     },
     {
+      dataVersion: 1,
+      fetchedAt: "2026-08-23T18:45:00.000Z",
+      lastAttemptAt: "2026-08-23T18:45:00.000Z",
+      lastError: null,
+      lastResult: "succeeded",
+      movieId: "current-movie",
+      refreshAfter: "2027-01-20T18:45:00.000Z",
+      state: "current",
+      title: "Current Movie",
+      tmdbId: 7,
+    },
+    {
       dataVersion: null,
       fetchedAt: null,
       lastAttemptAt: null,
@@ -42,7 +54,7 @@ const status: TmdbRefreshStatus = {
   schedule: {
     batchSize: 25,
     enabled: true,
-    intervalMinutes: 360,
+    intervalMinutes: 330,
     lastAttempted: 1,
     lastCompletedAt: "2026-08-24T01:00:00.000Z",
     lastError: null,
@@ -71,10 +83,40 @@ describe("TMDB refresh status page", () => {
     render(<TmdbStatusPage canMutate onNavigate={vi.fn()} />);
 
     expect(await screen.findByText("Pending Movie")).toBeVisible();
-    expect(screen.getByText(/every 6 hours/i)).toBeVisible();
+    expect(screen.getByText("Linked")).toBeVisible();
+    expect(screen.getByText("Not linked (excluded)")).toBeVisible();
+    expect(screen.queryByText("Eligible")).toBeNull();
+    expect(
+      screen.queryByText(/titles are linked for automatic updates/i),
+    ).toBeNull();
+    expect(screen.getByRole("link", { name: "Pending Movie" })).toHaveAttribute(
+      "href",
+      "/movies/pending-movie?from=manager-office",
+    );
+    expect(screen.getByText(/every 5 hours 30 minutes/i)).toBeVisible();
+    expect(
+      screen.getByRole("columnheader", {
+        name: "Data version (current: 1)",
+      }),
+    ).toBeVisible();
+    expect(screen.queryByText(/Pending work appears first/i)).toBeNull();
     expect(screen.getByText("Never fetched")).toBeVisible();
     expect(screen.getByText("Unlinked Movie")).toBeVisible();
     expect(screen.getByRole("columnheader", { name: "TMDB ID" })).toBeVisible();
+    expect(screen.getByPlaceholderText("Search all fields…")).toBeVisible();
+
+    const search = screen.getByPlaceholderText("Search all fields…");
+    fireEvent.change(search, { target: { value: "1/1" } });
+    expect(screen.getByText("Current Movie")).toBeVisible();
+    expect(screen.queryByText("Pending Movie")).toBeNull();
+    const displayedDate = new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date("2026-08-23T18:45:00.000Z"));
+    fireEvent.change(search, { target: { value: displayedDate } });
+    expect(screen.getByText("Current Movie")).toBeVisible();
+    expect(screen.queryByText("Pending Movie")).toBeNull();
+    fireEvent.change(search, { target: { value: "" } });
 
     fireEvent.click(screen.getByRole("button", { name: "Title" }));
     fireEvent.click(screen.getByRole("button", { name: /Title/ }));

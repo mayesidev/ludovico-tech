@@ -3,7 +3,6 @@ import {
   columnFilteringFeature,
   createFilteredRowModel,
   createSortedRowModel,
-  filterFn_includesString,
   globalFilteringFeature,
   rowSortingFeature,
   sortFn_alphanumeric,
@@ -35,15 +34,18 @@ const formatDueTimestamp = (value: string | null) =>
       : "—";
 
 const formatInterval = (minutes: number) => {
-  if (minutes % 1440 === 0) {
-    const days = minutes / 1440;
-    return `${days} day${days === 1 ? "" : "s"}`;
-  }
-  if (minutes % 60 === 0) {
-    const hours = minutes / 60;
-    return `${hours} hour${hours === 1 ? "" : "s"}`;
-  }
-  return `${minutes} minutes`;
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const remainingMinutes = minutes % 60;
+  return [
+    days > 0 ? `${days} day${days === 1 ? "" : "s"}` : null,
+    hours > 0 ? `${hours} hour${hours === 1 ? "" : "s"}` : null,
+    remainingMinutes > 0
+      ? `${remainingMinutes} minute${remainingMinutes === 1 ? "" : "s"}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 };
 
 type StatusItem = TmdbRefreshStatus["items"][number];
@@ -63,9 +65,6 @@ const statusTableFeatures = tableFeatures({
   rowSortingFeature,
   filteredRowModel: createFilteredRowModel(),
   sortedRowModel: createSortedRowModel(),
-  filterFns: {
-    includesString: filterFn_includesString,
-  },
   sortFns: {
     alphanumeric: sortFn_alphanumeric,
     basic: sortFn_basic,
@@ -133,7 +132,7 @@ export function TmdbStatusPage({
         cell: ({ row }) => (
           <AppLink
             className="font-semibold text-text-primary hover:text-highlight-soft"
-            href={`/movies/${encodeURIComponent(row.original.movieId)}?from=library`}
+            href={`/movies/${encodeURIComponent(row.original.movieId)}?from=manager-office`}
             onNavigate={onNavigate}
           >
             {row.original.title}
@@ -200,7 +199,7 @@ export function TmdbStatusPage({
       },
       {
         accessorKey: "dataVersion",
-        header: "Data version",
+        header: `Data version (current: ${status?.currentDataVersion ?? "—"})`,
         sortFn: "basic",
         sortUndefined: "last",
         cell: ({ row }) =>
@@ -219,7 +218,35 @@ export function TmdbStatusPage({
     state: { globalFilter: filter, sorting },
     onGlobalFilterChange: setFilter,
     onSortingChange: setSorting,
-    globalFilterFn: "includesString",
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const item = row.original;
+      const displayedVersion =
+        item.dataVersion === null
+          ? "—"
+          : `${item.dataVersion}/${status?.currentDataVersion ?? item.dataVersion}`;
+      const values = [
+        item.title,
+        item.tmdbId ?? "—",
+        stateLabel[item.state],
+        item.lastError,
+        item.fetchedAt,
+        formatTimestamp(
+          item.fetchedAt,
+          item.state === "unlinked" ? "—" : "Never",
+        ),
+        item.lastAttemptAt,
+        formatTimestamp(item.lastAttemptAt, "—"),
+        item.refreshAfter,
+        formatDueTimestamp(item.refreshAfter),
+        displayedVersion,
+      ];
+      const query = String(filterValue).trim().toLocaleLowerCase();
+      return values.some((value) =>
+        String(value ?? "")
+          .toLocaleLowerCase()
+          .includes(query),
+      );
+    },
   });
 
   if (!canMutate) {
@@ -262,10 +289,6 @@ export function TmdbStatusPage({
           <h1 className="font-heading text-3xl font-medium leading-none tracking-[0.01em] text-text-primary sm:text-4xl">
             Manager's Office
           </h1>
-          <p className="mt-3 text-sm text-text-muted">
-            Automatic Library updates, TMDB links, and refresh history.{" "}
-            {counts.linked} of {counts.total} titles are eligible.
-          </p>
         </div>
         <Button
           disabled={starting || schedule.running || !schedule.enabled}
@@ -299,8 +322,8 @@ export function TmdbStatusPage({
       <Card className="mb-8 overflow-hidden">
         <div className="grid grid-cols-2 divide-x divide-y divide-border-subtle sm:grid-cols-5 sm:divide-y-0">
           {[
-            ["Eligible", counts.linked],
-            ["Not linked", counts.unlinked],
+            ["Linked", counts.linked],
+            ["Not linked (excluded)", counts.unlinked],
             ["Pending", counts.pending],
             ["Current", counts.current],
             ["Failed", counts.failed],
@@ -320,8 +343,7 @@ export function TmdbStatusPage({
               <p className="mt-1 text-sm text-text-muted">
                 {schedule.enabled
                   ? `Runs every ${formatInterval(schedule.intervalMinutes)} in batches of ${schedule.batchSize}.`
-                  : "Paused. No scheduled batches will start."}{" "}
-                Data version {status.currentDataVersion}.
+                  : "Paused. No scheduled batches will start."}
               </p>
             </div>
             <Button
@@ -490,9 +512,6 @@ export function TmdbStatusPage({
           <h2 className="font-heading text-2xl font-medium tracking-tight text-text-primary">
             Library metadata
           </h2>
-          <p className="mt-2 text-sm text-text-muted">
-            Pending work appears first until you choose another sort order.
-          </p>
         </div>
         <div className="relative w-full sm:w-72">
           <Search
@@ -507,7 +526,7 @@ export function TmdbStatusPage({
             id="tmdb-status-search"
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
-            placeholder="Search titles or TMDB IDs…"
+            placeholder="Search all fields…"
           />
         </div>
       </div>

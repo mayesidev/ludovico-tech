@@ -90,7 +90,7 @@ export function AppHeader({
           {showTmdbStatus && (
             <NavButton
               active={tab === "tmdb-status"}
-              href="/tmdb-status"
+              href="/manager-office"
               onNavigate={onNavigate}
             >
               Manager's Office

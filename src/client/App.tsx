@@ -350,7 +350,10 @@ export default function App() {
                 returnTo:
                   route.page === "movie" && route.returnTo === "now-showing"
                     ? "/"
-                    : "/library",
+                    : route.page === "movie" &&
+                        route.returnTo === "manager-office"
+                      ? "/manager-office"
+                      : "/library",
               })
             }
             onEdit={setEditingMovie}

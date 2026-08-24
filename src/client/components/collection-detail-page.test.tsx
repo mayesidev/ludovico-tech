@@ -230,6 +230,10 @@ describe("collection details", () => {
       name: "Return to Now Showing",
     });
     expect(returnLink).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "First Movie" })).toHaveAttribute(
+      "href",
+      "/movies/first-id?from=now-showing",
+    );
     await user.click(screen.getByRole("button", { name: "Save Order" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Order saved.");
     expect(returnLink).toHaveAttribute("href", "/");
