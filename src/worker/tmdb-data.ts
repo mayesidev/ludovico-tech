@@ -43,11 +43,54 @@ export const tmdbOrphanCleanupStatements = (env: AppEnv["Bindings"]) => [
   ),
 ];
 
+export type TmdbCreditSnapshot = {
+  creditType: "cast" | "director";
+  personId: number;
+  position: number;
+};
+
+export const getTmdbCreditSnapshots = async (
+  env: AppEnv["Bindings"],
+  movieIds: string[],
+) => {
+  const snapshots = new Map<string, TmdbCreditSnapshot[]>(
+    movieIds.map((movieId) => [movieId, []]),
+  );
+  if (movieIds.length === 0) return snapshots;
+  const rows = await env.DB.prepare(
+    `SELECT movie_id, tmdb_person_id, credit_type, position
+     FROM movie_credits
+     WHERE movie_id IN (${movieIds.map(() => "?").join(", ")})
+     ORDER BY movie_id, credit_type, position`,
+  )
+    .bind(...movieIds)
+    .all<{
+      credit_type: "cast" | "director";
+      movie_id: string;
+      position: number;
+      tmdb_person_id: number;
+    }>();
+  for (const row of rows.results) {
+    snapshots.get(row.movie_id)?.push({
+      creditType: row.credit_type,
+      personId: row.tmdb_person_id,
+      position: row.position,
+    });
+  }
+  return snapshots;
+};
+
+const creditSnapshotKey = (credit: TmdbCreditSnapshot) =>
+  `${credit.creditType}:${credit.position}:${credit.personId}`;
+
 export const replaceTmdbDataStatements = async (
   env: AppEnv["Bindings"],
   movieId: string,
   result: TmdbMovieResult | null,
-  options: { includeOrphanCleanup?: boolean } = {},
+  options: {
+    existingCredits?: TmdbCreditSnapshot[];
+    includeOrphanCleanup?: boolean;
+  } = {},
 ) => {
   const includeOrphanCleanup = options.includeOrphanCleanup ?? true;
   if (!result) {
@@ -67,6 +110,33 @@ export const replaceTmdbDataStatements = async (
   const contractId = await getTmdbMetadataContractId();
   const refreshAfter = addMilliseconds(fetchedAt, REFRESH_AFTER_MS);
   const expiresAt = addMilliseconds(fetchedAt, EXPIRES_AFTER_MS);
+  const existingCredits =
+    options.existingCredits ??
+    (await getTmdbCreditSnapshots(env, [movieId])).get(movieId) ??
+    [];
+  const desiredCredits: TmdbCreditSnapshot[] = [
+    ...data.cast.map((person, index) => ({
+      creditType: "cast" as const,
+      personId: person.id,
+      position: index + 1,
+    })),
+    ...data.directors.map((person, index) => ({
+      creditType: "director" as const,
+      personId: person.id,
+      position: index + 1,
+    })),
+  ];
+  const existingCreditKeys = new Set(existingCredits.map(creditSnapshotKey));
+  const desiredCreditKeys = new Set(desiredCredits.map(creditSnapshotKey));
+  const preservedCredits = existingCredits.filter((credit) =>
+    desiredCreditKeys.has(creditSnapshotKey(credit)),
+  );
+  const creditsToInsert = desiredCredits.filter(
+    (credit) => !existingCreditKeys.has(creditSnapshotKey(credit)),
+  );
+  const creditsNeedDelete = existingCredits.some(
+    (credit) => !desiredCreditKeys.has(creditSnapshotKey(credit)),
+  );
   const statements: D1PreparedStatement[] = [];
 
   if (data.collection) {
@@ -134,28 +204,49 @@ export const replaceTmdbDataStatements = async (
       contractId,
       fetchedAt,
     ),
-    env.DB.prepare(
-      `DELETE FROM movie_credits
-       WHERE movie_id = ? AND ${currentSnapshotCondition}`,
-    ).bind(movieId, movieId, data.id, fetchedAt),
   );
 
-  for (const [index, person] of data.cast.entries()) {
+  if (creditsNeedDelete) {
+    const preserveCondition = preservedCredits
+      .map(
+        () =>
+          "(credit_type = ? AND tmdb_person_id = ? AND position = ?)",
+      )
+      .join(" OR ");
     statements.push(
       env.DB.prepare(
-        `INSERT INTO movie_credits
-         (movie_id, tmdb_person_id, credit_type, position)
-         SELECT ?, ?, 'cast', ? WHERE ${currentSnapshotCondition}`,
-      ).bind(movieId, person.id, index + 1, movieId, data.id, fetchedAt),
+        `DELETE FROM movie_credits
+         WHERE movie_id = ? AND ${currentSnapshotCondition}
+         ${preserveCondition ? `AND NOT (${preserveCondition})` : ""}`,
+      ).bind(
+        movieId,
+        movieId,
+        data.id,
+        fetchedAt,
+        ...preservedCredits.flatMap((credit) => [
+          credit.creditType,
+          credit.personId,
+          credit.position,
+        ]),
+      ),
     );
   }
-  for (const [index, person] of data.directors.entries()) {
+
+  for (const credit of creditsToInsert) {
     statements.push(
       env.DB.prepare(
         `INSERT INTO movie_credits
          (movie_id, tmdb_person_id, credit_type, position)
-         SELECT ?, ?, 'director', ? WHERE ${currentSnapshotCondition}`,
-      ).bind(movieId, person.id, index + 1, movieId, data.id, fetchedAt),
+         SELECT ?, ?, ?, ? WHERE ${currentSnapshotCondition}`,
+      ).bind(
+        movieId,
+        credit.personId,
+        credit.creditType,
+        credit.position,
+        movieId,
+        data.id,
+        fetchedAt,
+      ),
     );
   }
   if (includeOrphanCleanup) {
@@ -234,6 +325,10 @@ export const refreshDueTmdbData = async (
     })),
   );
   const cached = await readTmdbMovieCacheBatch(env, lookups, timestamp);
+  const creditSnapshots = await getTmdbCreditSnapshots(
+    env,
+    due.results.map((row) => row.movie_id),
+  );
 
   if (due.results.length > 0) {
     await env.DB.batch([
@@ -297,6 +392,7 @@ export const refreshDueTmdbData = async (
       report.refreshed += 1;
       persistenceStatements.push(
         ...(await replaceTmdbDataStatements(env, row.movie_id, result, {
+          existingCredits: creditSnapshots.get(row.movie_id) ?? [],
           includeOrphanCleanup: false,
         })),
         env.DB.prepare(

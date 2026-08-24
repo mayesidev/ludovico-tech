@@ -1,6 +1,11 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { refreshDueTmdbData, replaceTmdbDataStatements } from "./tmdb-data";
+import {
+  getTmdbCreditSnapshots,
+  refreshDueTmdbData,
+  replaceTmdbDataStatements,
+  type TmdbCreditSnapshot,
+} from "./tmdb-data";
 import type { TmdbMovieResult } from "./tmdb";
 import type { AppEnv } from "./env";
 import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
@@ -104,6 +109,47 @@ const responseFor = (tmdbId: number) =>
     }),
     { status: 200 },
   );
+
+const creditResult = (
+  tmdbId: number,
+  castIds: number[],
+  directorIds: number[],
+  fetchedAt: string,
+): TmdbMovieResult => ({
+  data: {
+    cast: castIds.map((id) => ({ id, name: `Person ${id}` })),
+    collection: null,
+    directors: directorIds.map((id) => ({ id, name: `Person ${id}` })),
+    id: tmdbId,
+    posterPath: null,
+    releaseDate: null,
+    runtimeMinutes: null,
+    title: `TMDB title ${tmdbId}`,
+  },
+  fetchedAt,
+});
+
+const installCreditWriteTracking = () =>
+  env.DB.batch([
+    env.DB.prepare(
+      "CREATE TABLE IF NOT EXISTS credit_write_events (action TEXT NOT NULL)",
+    ),
+    env.DB.prepare(
+      `CREATE TRIGGER IF NOT EXISTS track_credit_insert
+       AFTER INSERT ON movie_credits
+       BEGIN
+         INSERT INTO credit_write_events (action) VALUES ('insert');
+       END`,
+    ),
+    env.DB.prepare(
+      `CREATE TRIGGER IF NOT EXISTS track_credit_delete
+       AFTER DELETE ON movie_credits
+       BEGIN
+         INSERT INTO credit_write_events (action) VALUES ('delete');
+       END`,
+    ),
+    env.DB.prepare("DELETE FROM credit_write_events"),
+  ]);
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -268,6 +314,11 @@ describe("scheduled TMDB enrichment refresh", () => {
     expect(
       tracked.preparedQueries.filter((query) =>
         query.includes("SELECT cache_key, payload_json, fetched_at"),
+      ),
+    ).toHaveLength(1);
+    expect(
+      tracked.preparedQueries.filter((query) =>
+        query.includes("SELECT movie_id, tmdb_person_id, credit_type"),
       ),
     ).toHaveLength(1);
   });
@@ -512,4 +563,127 @@ describe("scheduled TMDB enrichment refresh", () => {
       ).first(),
     ).toEqual({ count: 0 });
   });
+});
+
+describe("TMDB credit snapshot persistence", () => {
+  it.each<{
+    expectedActions: string[];
+    expectedCredits: TmdbCreditSnapshot[];
+    initialCast: number[];
+    initialDirectors: number[];
+    name: string;
+    nextCast: number[];
+    nextDirectors: number[];
+  }>([
+    {
+      expectedActions: [],
+      expectedCredits: [
+        { creditType: "cast", personId: 101, position: 1 },
+        { creditType: "cast", personId: 102, position: 2 },
+        { creditType: "director", personId: 201, position: 1 },
+      ],
+      initialCast: [101, 102],
+      initialDirectors: [201],
+      name: "preserves an unchanged ordered snapshot",
+      nextCast: [101, 102],
+      nextDirectors: [201],
+    },
+    {
+      expectedActions: ["insert"],
+      expectedCredits: [
+        { creditType: "cast", personId: 101, position: 1 },
+        { creditType: "cast", personId: 102, position: 2 },
+      ],
+      initialCast: [101],
+      initialDirectors: [],
+      name: "inserts an added credit",
+      nextCast: [101, 102],
+      nextDirectors: [],
+    },
+    {
+      expectedActions: ["delete"],
+      expectedCredits: [
+        { creditType: "cast", personId: 101, position: 1 },
+      ],
+      initialCast: [101, 102],
+      initialDirectors: [],
+      name: "deletes a removed credit",
+      nextCast: [101],
+      nextDirectors: [],
+    },
+    {
+      expectedActions: ["delete", "delete", "insert", "insert"],
+      expectedCredits: [
+        { creditType: "cast", personId: 102, position: 1 },
+        { creditType: "cast", personId: 101, position: 2 },
+      ],
+      initialCast: [101, 102],
+      initialDirectors: [],
+      name: "rewrites only reordered credits",
+      nextCast: [102, 101],
+      nextDirectors: [],
+    },
+    {
+      expectedActions: ["delete", "insert"],
+      expectedCredits: [
+        { creditType: "director", personId: 101, position: 1 },
+      ],
+      initialCast: [101],
+      initialDirectors: [],
+      name: "moves a person between credit roles",
+      nextCast: [],
+      nextDirectors: [101],
+    },
+  ])(
+    "$name",
+    async ({
+      expectedActions,
+      expectedCredits,
+      initialCast,
+      initialDirectors,
+      nextCast,
+      nextDirectors,
+    }) => {
+      await insertLinkedMovie("credit-diff", 91);
+      await env.DB.batch(
+        await replaceTmdbDataStatements(
+          env,
+          "credit-diff",
+          creditResult(
+            91,
+            initialCast,
+            initialDirectors,
+            "2026-08-01T00:00:00.000Z",
+          ),
+        ),
+      );
+      await installCreditWriteTracking();
+
+      await env.DB.batch(
+        await replaceTmdbDataStatements(
+          env,
+          "credit-diff",
+          creditResult(
+            91,
+            nextCast,
+            nextDirectors,
+            "2026-08-02T00:00:00.000Z",
+          ),
+        ),
+      );
+
+      expect(
+        await env.DB.prepare(
+          "SELECT action FROM credit_write_events ORDER BY rowid",
+        ).all(),
+      ).toMatchObject({
+        results: expectedActions.map((action) => ({ action })),
+      });
+      expect(
+        (await getTmdbCreditSnapshots(env, ["credit-diff"])).get(
+          "credit-diff",
+        ),
+      ).toEqual(expectedCredits);
+    },
+  );
 });
