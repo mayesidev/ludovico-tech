@@ -139,6 +139,23 @@ export type TmdbRefreshItem = {
   tmdbId: number | null;
 };
 
+export type TmdbRefreshSchedule = {
+  batchSize: number;
+  enabled: boolean;
+  intervalMinutes: number;
+  lastAttempted: number;
+  lastCompletedAt: string | null;
+  lastError: string | null;
+  lastFailed: number;
+  lastRateLimited: boolean;
+  lastRefreshed: number;
+  lastRemaining: number;
+  lastStartedAt: string | null;
+  leaseExpiresAt: string | null;
+  nextRunAt: string;
+  running: boolean;
+};
+
 export type TmdbRefreshSummary = {
   currentContractId: string;
   counts: {
@@ -149,23 +166,10 @@ export type TmdbRefreshSummary = {
     total: number;
     unlinked: number;
   };
-  schedule: {
-    batchSize: number;
-    enabled: boolean;
-    intervalMinutes: number;
-    lastAttempted: number;
-    lastCompletedAt: string | null;
-    lastError: string | null;
-    lastFailed: number;
-    lastRateLimited: boolean;
-    lastRefreshed: number;
-    lastRemaining: number;
-    lastStartedAt: string | null;
-    leaseExpiresAt: string | null;
-    nextRunAt: string;
-    running: boolean;
-  };
+  schedule: TmdbRefreshSchedule;
 };
+
+export type TmdbRefreshRunStatus = { schedule: TmdbRefreshSchedule };
 
 export type TmdbRefreshStatus = TmdbRefreshSummary & {
   items: TmdbRefreshItem[];
@@ -318,6 +322,8 @@ export const api = {
   tmdbRefreshStatus: () => request<TmdbRefreshStatus>("/api/tmdb-refresh"),
   tmdbRefreshSummary: () =>
     request<TmdbRefreshSummary>("/api/tmdb-refresh/summary"),
+  tmdbRefreshRunStatus: () =>
+    request<TmdbRefreshRunStatus>("/api/tmdb-refresh/run-status"),
   tmdbRefreshQueue: (query: TmdbRefreshQueueQuery) => {
     const parameters = new URLSearchParams({
       dateSearch: query.dateSearch,

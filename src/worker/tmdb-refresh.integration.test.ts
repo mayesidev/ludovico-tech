@@ -12,6 +12,7 @@ import {
   claimTmdbRefresh,
   executeTmdbRefreshClaim,
   getTmdbRefreshQueue,
+  getTmdbRefreshRunStatus,
   getTmdbRefreshStatus,
   getTmdbRefreshSummary,
   runTmdbRefresh,
@@ -271,6 +272,37 @@ describe("TMDB refresh operations", () => {
     });
     expect(firstPage.items).toHaveLength(25);
 
+    const currentPage = await getTmdbRefreshQueue(
+      bindings(),
+      {
+        dateSearch: "",
+        direction: "asc",
+        page: 1,
+        pageSize: 25,
+        search: "",
+        sort: "title",
+        state: "current",
+      },
+      timestamp,
+    );
+    expect(currentPage.pagination.total).toBe(1);
+    expect(currentPage.items[0].movieId).toBe(movies[29].id);
+
+    const unlinkedPage = await getTmdbRefreshQueue(
+      bindings(),
+      {
+        dateSearch: "",
+        direction: "asc",
+        page: 1,
+        pageSize: 25,
+        search: "",
+        sort: "title",
+        state: "unlinked",
+      },
+      timestamp,
+    );
+    expect(unlinkedPage.pagination.total).toBe(29);
+
     const dateResult = await getTmdbRefreshQueue(
       bindings(),
       {
@@ -400,6 +432,15 @@ describe("TMDB refresh operations", () => {
         running: false,
       },
     });
+    await expect(getTmdbRefreshRunStatus(bindings(), timestamp)).resolves.toEqual(
+      { schedule: status.schedule },
+    );
+    const runStatusResponse = await createApp().fetch(
+      new Request("https://ludovico-tech.test/api/tmdb-refresh/run-status"),
+      bindings(),
+    );
+    expect(runStatusResponse.status).toBe(200);
+    expect(await runStatusResponse.json()).toEqual({ schedule: status.schedule });
     expect(
       await env.DB.prepare(
         "SELECT action FROM audit_log WHERE entity_type = 'tmdb_refresh_schedule'",

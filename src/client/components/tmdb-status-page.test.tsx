@@ -267,14 +267,11 @@ describe("TMDB refresh status page", () => {
 
   it("refreshes a manual run until completion and then reloads the queue", async () => {
     vi.useFakeTimers();
-    const runningSummary: TmdbRefreshSummary = {
-      ...summary,
-      schedule: {
-        ...summary.schedule,
-        lastStartedAt: "2026-08-24T02:00:00.000Z",
-        leaseExpiresAt: "2026-08-24T02:20:00.000Z",
-        running: true,
-      },
+    const runningSchedule = {
+      ...summary.schedule,
+      lastStartedAt: "2026-08-24T02:00:00.000Z",
+      leaseExpiresAt: "2026-08-24T02:20:00.000Z",
+      running: true,
     };
     const completedSummary: TmdbRefreshSummary = {
       ...summary,
@@ -289,9 +286,11 @@ describe("TMDB refresh status page", () => {
     const loadSummary = vi
       .spyOn(api, "tmdbRefreshSummary")
       .mockResolvedValueOnce(summary)
-      .mockResolvedValueOnce(runningSummary)
-      .mockResolvedValueOnce(runningSummary)
       .mockResolvedValueOnce(completedSummary);
+    const loadRunStatus = vi
+      .spyOn(api, "tmdbRefreshRunStatus")
+      .mockResolvedValueOnce({ schedule: runningSchedule })
+      .mockResolvedValueOnce({ schedule: completedSummary.schedule });
     const loadQueue = vi
       .spyOn(api, "tmdbRefreshQueue")
       .mockResolvedValue(queue());
@@ -313,24 +312,28 @@ describe("TMDB refresh status page", () => {
       await Promise.resolve();
     });
     expect(run).toHaveBeenCalledTimes(1);
-    expect(loadSummary).toHaveBeenCalledTimes(2);
+    expect(loadSummary).toHaveBeenCalledTimes(1);
+    expect(loadRunStatus).not.toHaveBeenCalled();
     expect(loadQueue).toHaveBeenCalledTimes(1);
     expect(
       screen.getByRole("button", { name: "Refresh running" }),
     ).toBeDisabled();
 
     await act(async () => vi.advanceTimersByTimeAsync(5_000));
-    expect(loadSummary).toHaveBeenCalledTimes(3);
+    expect(loadRunStatus).toHaveBeenCalledTimes(1);
+    expect(loadSummary).toHaveBeenCalledTimes(1);
     expect(loadQueue).toHaveBeenCalledTimes(1);
 
     await act(async () => vi.advanceTimersByTimeAsync(5_000));
-    expect(loadSummary).toHaveBeenCalledTimes(4);
+    expect(loadRunStatus).toHaveBeenCalledTimes(2);
+    expect(loadSummary).toHaveBeenCalledTimes(2);
     expect(loadQueue).toHaveBeenCalledTimes(2);
     expect(screen.getByText("2 refreshed, 0 failed")).toBeVisible();
     expect(screen.getByRole("button", { name: "Run now" })).toBeEnabled();
 
     await act(async () => vi.advanceTimersByTimeAsync(60_000));
-    expect(loadSummary).toHaveBeenCalledTimes(4);
+    expect(loadRunStatus).toHaveBeenCalledTimes(2);
+    expect(loadSummary).toHaveBeenCalledTimes(2);
     expect(loadQueue).toHaveBeenCalledTimes(2);
   });
 
@@ -358,6 +361,7 @@ describe("TMDB refresh status page", () => {
 
   it("does not request operational data for an anonymous visitor", () => {
     const loadSummary = vi.spyOn(api, "tmdbRefreshSummary");
+    const loadRunStatus = vi.spyOn(api, "tmdbRefreshRunStatus");
     const loadQueue = vi.spyOn(api, "tmdbRefreshQueue");
     render(<TmdbStatusPage canMutate={false} onNavigate={vi.fn()} />);
 
@@ -366,6 +370,7 @@ describe("TMDB refresh status page", () => {
     ).toBeVisible();
     expect(screen.getByText(/Sign in to view/)).toBeVisible();
     expect(loadSummary).not.toHaveBeenCalled();
+    expect(loadRunStatus).not.toHaveBeenCalled();
     expect(loadQueue).not.toHaveBeenCalled();
   });
 });
