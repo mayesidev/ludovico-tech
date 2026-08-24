@@ -208,18 +208,18 @@ describe("TMDB refresh status page", () => {
     );
   });
 
-  it("shows schedule controls and paginates without reloading the summary", async () => {
+  it("shows schedule controls and selects a page without reloading the summary", async () => {
     const loadSummary = vi
       .spyOn(api, "tmdbRefreshSummary")
       .mockResolvedValue(summary);
     const loadQueue = vi
       .spyOn(api, "tmdbRefreshQueue")
       .mockImplementation(async (query) =>
-        queue(query.page === 2 ? [items[1]] : items, {
+        queue(query.page === 3 ? [items[1]] : items, {
           page: query.page,
           pageSize: query.pageSize,
-          total: 51,
-          totalPages: Math.ceil(51 / query.pageSize),
+          total: 151,
+          totalPages: Math.ceil(151 / query.pageSize),
         }),
       );
     const run = vi
@@ -231,15 +231,16 @@ describe("TMDB refresh status page", () => {
     render(<TmdbStatusPage canMutate onNavigate={vi.fn()} />);
 
     expect(await screen.findByText(/every 5 hours 30 minutes/i)).toBeVisible();
-    expect(screen.getByText("Page 1 of 2")).toBeVisible();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Next Manager's Office page" }),
+    fireEvent.change(screen.getByLabelText("Manager's Office page"), {
+      target: { value: "3" },
+    });
+    await waitFor(() =>
+      expect(loadQueue).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 3 }),
+      ),
     );
-    expect(await screen.findByText("Page 2 of 2")).toBeVisible();
+    expect(screen.getByLabelText("Manager's Office page")).toHaveValue("3");
     expect(loadSummary).toHaveBeenCalledTimes(1);
-    expect(loadQueue).toHaveBeenLastCalledWith(
-      expect.objectContaining({ page: 2 }),
-    );
 
     fireEvent.click(screen.getByRole("button", { name: "Run now" }));
     await waitFor(() => expect(run).toHaveBeenCalledTimes(1));

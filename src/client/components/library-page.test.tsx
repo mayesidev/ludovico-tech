@@ -142,27 +142,35 @@ describe("movie library", () => {
     );
   });
 
-  it("navigates pages and changes the server page size", async () => {
+  it("selects a nonadjacent page and changes the server page size", async () => {
     const load = vi
       .spyOn(api, "library")
       .mockImplementation(async (query: LibraryQuery) =>
-        response(query.page === 2 ? [movies[0]] : [movies[1]], {
-          counts: { total: 51, unwatched: 25 },
+        response(query.page === 3 ? [movies[0]] : [movies[1]], {
+          counts: { total: 151, unwatched: 75 },
           pagination: {
             page: query.page,
             pageSize: query.pageSize,
-            total: 51,
-            totalPages: Math.ceil(51 / query.pageSize),
+            total: 151,
+            totalPages: Math.ceil(151 / query.pageSize),
           },
         }),
       );
     const user = userEvent.setup();
     renderLibrary(false);
 
-    expect(await screen.findByText("Page 1 of 2")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Next Library page" }));
-    expect(await screen.findByText("Page 2 of 2")).toBeVisible();
-    expect(screen.getByText("51–51 of 51 movies")).toBeVisible();
+    const pageSelector = await screen.findByRole("combobox", {
+      name: "Library page",
+    });
+    expect(pageSelector).toHaveValue("1");
+    await user.selectOptions(pageSelector, "3");
+    await waitFor(() =>
+      expect(load).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 3 }),
+      ),
+    );
+    expect(pageSelector).toHaveValue("3");
+    expect(screen.getByText("101–150 of 151 movies")).toBeVisible();
     await user.selectOptions(
       screen.getByRole("combobox", { name: "Library rows per page" }),
       "25",
