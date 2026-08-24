@@ -12,68 +12,9 @@ import {
 import { auditStatement, mutationActor } from "../middleware";
 import { movieEditInput, movieInput, ratingInput } from "../schemas";
 import { newId, normalizeTitle, now } from "../env";
-import { getTmdbMovie, type TmdbMovieDetail } from "../tmdb";
+import { getTmdbMovie, type TmdbMovieResult } from "../tmdb";
+import { replaceTmdbDataStatements } from "../tmdb-data";
 import { tmdbErrorResponse } from "./tmdb";
-
-const replaceMovieCreditStatements = (
-  env: AppEnv["Bindings"],
-  movieId: string,
-  metadata: TmdbMovieDetail | null,
-  timestamp: string,
-) => {
-  const statements: D1PreparedStatement[] = [
-    env.DB.prepare("DELETE FROM movie_credits WHERE movie_id = ?").bind(
-      movieId,
-    ),
-  ];
-  if (metadata) {
-    const people = new Map(
-      [...metadata.cast, ...metadata.directors].map((person) => [
-        person.id,
-        person,
-      ]),
-    );
-    for (const person of people.values()) {
-      statements.push(
-        env.DB.prepare(
-          `INSERT INTO tmdb_people (tmdb_id, name, updated_at)
-           VALUES (?, ?, ?)
-           ON CONFLICT(tmdb_id) DO UPDATE SET
-             name = excluded.name,
-             updated_at = excluded.updated_at`,
-        ).bind(person.id, person.name, timestamp),
-      );
-    }
-    for (const [index, person] of metadata.cast.entries()) {
-      statements.push(
-        env.DB.prepare(
-          `INSERT INTO movie_credits
-           (movie_id, tmdb_person_id, credit_type, position)
-           VALUES (?, ?, 'cast', ?)`,
-        ).bind(movieId, person.id, index + 1),
-      );
-    }
-    for (const [index, person] of metadata.directors.entries()) {
-      statements.push(
-        env.DB.prepare(
-          `INSERT INTO movie_credits
-           (movie_id, tmdb_person_id, credit_type, position)
-           VALUES (?, ?, 'director', ?)`,
-        ).bind(movieId, person.id, index + 1),
-      );
-    }
-  }
-  statements.push(
-    env.DB.prepare(
-      `DELETE FROM tmdb_people
-       WHERE NOT EXISTS (
-         SELECT 1 FROM movie_credits
-         WHERE movie_credits.tmdb_person_id = tmdb_people.tmdb_id
-       )`,
-    ),
-  );
-  return statements;
-};
 
 export const registerMovieRoutes = (app: Hono<AppEnv>) => {
   app.get("/movies", async (c) => {
@@ -199,10 +140,10 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     }
     const id = newId();
     const timestamp = now();
-    let metadata = null;
+    let tmdbResult: TmdbMovieResult | null = null;
     if (input.tmdbId) {
       try {
-        metadata = await getTmdbMovie(c.env, input.tmdbId);
+        tmdbResult = await getTmdbMovie(c.env, input.tmdbId);
       } catch (error) {
         return tmdbErrorResponse(error, c);
       }
@@ -218,6 +159,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         );
       }
     }
+    const metadata = tmdbResult?.data ?? null;
     const title = metadata?.title ?? input.title;
     let collectionId: string | null = null;
     const statements: D1PreparedStatement[] = [];
@@ -274,7 +216,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         metadata?.runtimeMinutes ?? null,
         input.imdbId ?? null,
         input.tmdbId ?? null,
-        input.tmdbId ? timestamp : null,
+        tmdbResult?.fetchedAt ?? null,
         metadata?.collection?.id ?? null,
         metadata?.collection?.name ?? null,
         version,
@@ -283,10 +225,8 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       ),
     );
 
-    if (metadata) {
-      statements.push(
-        ...replaceMovieCreditStatements(c.env, id, metadata, timestamp),
-      );
+    if (tmdbResult) {
+      statements.push(...replaceTmdbDataStatements(c.env, id, tmdbResult));
     }
 
     if (collectionId && position !== null) {
@@ -342,10 +282,10 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       }
     }
 
-    let metadata = null;
+    let tmdbResult: TmdbMovieResult | null = null;
     if (input.tmdbId) {
       try {
-        metadata = await getTmdbMovie(c.env, input.tmdbId);
+        tmdbResult = await getTmdbMovie(c.env, input.tmdbId);
       } catch (error) {
         return tmdbErrorResponse(error, c);
       }
@@ -361,6 +301,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         );
       }
     }
+    const metadata = tmdbResult?.data ?? null;
     const title = metadata?.title ?? input.title ?? existing.title;
     const tmdbChangeRequested = input.tmdbId !== undefined;
     const releaseDate =
@@ -491,15 +432,13 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         versionRuntime,
         versionReferenceUrl,
         tmdbChangeRequested ? 1 : 0,
-        input.tmdbId ? timestamp : null,
+        tmdbResult?.fetchedAt ?? null,
         movieId,
       ),
     ];
 
     if (tmdbChangeRequested) {
-      statements.push(
-        ...replaceMovieCreditStatements(c.env, movieId, metadata, timestamp),
-      );
+      statements.push(...replaceTmdbDataStatements(c.env, movieId, tmdbResult));
     }
 
     if (membershipChanged) {

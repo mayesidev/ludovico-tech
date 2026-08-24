@@ -65,6 +65,15 @@ describe("Cloudflare environment isolation validation", () => {
     );
   });
 
+  it("requires the bounded TMDB refresh schedule in deployed environments", () => {
+    const config = repositoryConfig();
+    environment(config, "production").triggers = { crons: [] };
+
+    expect(() => validateCloudflareConfig(config)).toThrow(
+      "production TMDB refresh schedule is incorrect",
+    );
+  });
+
   it("rejects a D1 database shared by staging and production", () => {
     const config = repositoryConfig();
     database(config, "staging").database_id = database(

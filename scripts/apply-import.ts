@@ -22,7 +22,7 @@ const runCommand: CommandRunner = (executable, arguments_) =>
   });
 
 const usage =
-  "Usage: pnpm import:apply -- --environment <development|staging|production> --database <exact-name> --catalog <directory> --metadata <directory> [--persist-to <directory>] [--execute]";
+  "Usage: pnpm import:apply -- --environment <development|staging|production> --database <exact-name> --catalog <directory> [--metadata <directory>] [--persist-to <directory>] [--execute]";
 
 const main = async () => {
   const options = parseImportOperatorArguments(process.argv.slice(2));

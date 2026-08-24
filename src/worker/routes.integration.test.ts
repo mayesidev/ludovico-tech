@@ -787,6 +787,20 @@ describe("TMDB routes and metadata attachment", () => {
     expect(movie).not.toHaveProperty("tmdb_fetched_at");
     expect(movie).not.toHaveProperty("added_by");
     expect(movie).not.toHaveProperty("updated_by");
+    expect(
+      await env.DB.prepare(
+        `SELECT movie_tmdb_data.data_version, tmdb_collections.name AS collection_name
+         FROM movie_tmdb_data
+         LEFT JOIN tmdb_collections
+           ON tmdb_collections.tmdb_id = movie_tmdb_data.tmdb_collection_id
+         WHERE movie_tmdb_data.movie_id = ?`,
+      )
+        .bind(String(movie.id))
+        .first(),
+    ).toEqual({
+      collection_name: "Attached Collection",
+      data_version: 1,
+    });
 
     const publicDetail = await request(
       `/api/movies/${String(movie.id)}`,
@@ -913,6 +927,18 @@ describe("TMDB routes and metadata attachment", () => {
     ).toEqual({ count: 0 });
     expect(
       await env.DB.prepare("SELECT COUNT(*) AS count FROM tmdb_people").first(),
+    ).toEqual({ count: 0 });
+    expect(
+      await env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM tmdb_collections",
+      ).first(),
+    ).toEqual({ count: 0 });
+    expect(
+      await env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM movie_tmdb_data WHERE movie_id = ?",
+      )
+        .bind(String(movie.id))
+        .first(),
     ).toEqual({ count: 0 });
     expect(duplicate.status).toBe(409);
 

@@ -10,6 +10,7 @@ import { registerAuthRoutes } from "./routes/auth";
 import { registerMovieRoutes } from "./routes/movies";
 import { registerRotationRoutes } from "./routes/rotation";
 import { registerTmdbRoutes } from "./routes/tmdb";
+import { refreshDueTmdbData } from "./tmdb-data";
 
 export const createApp = () => {
   const app = new Hono<AppEnv>();
@@ -53,4 +54,12 @@ export const createApp = () => {
 
 const app = createApp();
 
-export default app;
+const worker: ExportedHandler<AppEnv["Bindings"]> = {
+  fetch: app.fetch,
+  scheduled: async (_controller, env) => {
+    const report = await refreshDueTmdbData(env);
+    console.info("TMDB refresh completed", report);
+  },
+};
+
+export default worker;

@@ -17,6 +17,9 @@
     "development": {
       "name": "ludovico-tech-development",
       "workers_dev": false,
+      "triggers": {
+        "crons": [],
+      },
       "vars": {
         "APP_ENV": "development",
         "AUTH_MODE": "development",
@@ -37,6 +40,9 @@
     "staging": {
       "name": "ludovico-tech-staging",
       "workers_dev": false,
+      "triggers": {
+        "crons": ["17 */6 * * *"],
+      },
       "routes": [
         {
           "pattern": "staging.ludovicotech.com",
@@ -68,6 +74,9 @@
     "production": {
       "name": "ludovico-tech-production",
       "workers_dev": false,
+      "triggers": {
+        "crons": ["17 */6 * * *"],
+      },
       "routes": [
         {
           "pattern": "ludovicotech.com",

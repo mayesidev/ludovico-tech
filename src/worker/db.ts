@@ -61,17 +61,23 @@ export type MovieCredits = {
 };
 
 export const movieSelect = `
-  SELECT movies.id, movies.title, movies.added_at, movies.release_date,
-    movies.poster_path, movies.runtime_minutes, movies.version,
+  SELECT movies.id, movies.title, movies.added_at,
+    COALESCE(movie_tmdb_data.release_date, movies.release_date) AS release_date,
+    COALESCE(movie_tmdb_data.poster_path, movies.poster_path) AS poster_path,
+    COALESCE(movie_tmdb_data.runtime_minutes, movies.runtime_minutes) AS runtime_minutes,
+    movies.version,
     movies.version_runtime, movies.version_reference_url, movies.imdb_id,
-    movies.tmdb_id,
-    movies.tmdb_collection_id, movies.tmdb_collection_name,
+    COALESCE(movie_tmdb_data.tmdb_id, movies.tmdb_id) AS tmdb_id,
+    COALESCE(movie_tmdb_data.tmdb_collection_id, movies.tmdb_collection_id) AS tmdb_collection_id,
+    COALESCE(tmdb_collections.name, movies.tmdb_collection_name) AS tmdb_collection_name,
     collections.name AS collection_name,
     collections.order_confirmed AS collection_order_confirmed,
     collection_movies.collection_id, collection_movies.position AS collection_position,
     ratings.score AS rating_score, ratings.phrase AS rating_phrase,
     ratings.watched_at
   FROM movies
+  LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
+  LEFT JOIN tmdb_collections ON tmdb_collections.tmdb_id = movie_tmdb_data.tmdb_collection_id
   LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
   LEFT JOIN collections ON collections.id = collection_movies.collection_id
   LEFT JOIN ratings ON ratings.movie_id = movies.id
@@ -113,12 +119,15 @@ export const getMovieDetail = async (env: AppEnv["Bindings"], id: string) => {
 
 export const getNowShowing = async (env: AppEnv["Bindings"]) =>
   env.DB.prepare(
-    `SELECT now_showing.*, movies.title, movies.version, movies.release_date, movies.poster_path,
+    `SELECT now_showing.*, movies.title, movies.version,
+        COALESCE(movie_tmdb_data.release_date, movies.release_date) AS release_date,
+        COALESCE(movie_tmdb_data.poster_path, movies.poster_path) AS poster_path,
         ratings.score AS rating_score, ratings.phrase AS rating_phrase,
         ratings.watched_at, collection_movies.collection_id AS movie_collection_id,
         collections.name AS collection_name
        FROM now_showing
        LEFT JOIN movies ON movies.id = now_showing.movie_id
+       LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
        LEFT JOIN ratings ON ratings.movie_id = movies.id
        LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
        LEFT JOIN collections ON collections.id = now_showing.collection_id
