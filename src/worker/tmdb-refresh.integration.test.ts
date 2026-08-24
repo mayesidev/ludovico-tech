@@ -432,15 +432,17 @@ describe("TMDB refresh operations", () => {
         running: false,
       },
     });
-    await expect(getTmdbRefreshRunStatus(bindings(), timestamp)).resolves.toEqual(
-      { schedule: status.schedule },
-    );
+    await expect(
+      getTmdbRefreshRunStatus(bindings(), timestamp),
+    ).resolves.toEqual({ schedule: status.schedule });
     const runStatusResponse = await createApp().fetch(
       new Request("https://ludovico-tech.test/api/tmdb-refresh/run-status"),
       bindings(),
     );
     expect(runStatusResponse.status).toBe(200);
-    expect(await runStatusResponse.json()).toEqual({ schedule: status.schedule });
+    expect(await runStatusResponse.json()).toEqual({
+      schedule: status.schedule,
+    });
     expect(
       await env.DB.prepare(
         "SELECT action FROM audit_log WHERE entity_type = 'tmdb_refresh_schedule'",
