@@ -24,7 +24,7 @@ beforeEach(async () => {
     env.DB.prepare(
       `UPDATE tmdb_refresh_schedule SET
          enabled = 1,
-         interval_minutes = 15,
+         interval_minutes = 360,
          batch_size = 25,
          next_run_at = '1970-01-01T00:00:00.000Z',
          lease_expires_at = NULL,

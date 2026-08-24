@@ -455,7 +455,7 @@ describe("catalog schema", () => {
     ).toEqual({
       batch_size: 25,
       enabled: 1,
-      interval_minutes: 15,
+      interval_minutes: 360,
       next_run_at: "1970-01-01T00:00:00.000Z",
     });
 
@@ -466,7 +466,17 @@ describe("catalog schema", () => {
     ).rejects.toThrow();
     await expect(
       env.DB.prepare(
-        "UPDATE tmdb_refresh_schedule SET batch_size = 26 WHERE id = 1",
+        "UPDATE tmdb_refresh_schedule SET interval_minutes = 16 WHERE id = 1",
+      ).run(),
+    ).rejects.toThrow();
+    await expect(
+      env.DB.prepare(
+        "UPDATE tmdb_refresh_schedule SET batch_size = 50 WHERE id = 1",
+      ).run(),
+    ).resolves.toBeDefined();
+    await expect(
+      env.DB.prepare(
+        "UPDATE tmdb_refresh_schedule SET batch_size = 51 WHERE id = 1",
       ).run(),
     ).rejects.toThrow();
     await expect(

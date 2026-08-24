@@ -8,7 +8,6 @@ import { CURRENT_TMDB_DATA_VERSION } from "./tmdb";
 
 const SCHEDULE_ID = 1;
 const LEASE_MS = 20 * 60 * 1000;
-const STATUS_ITEM_LIMIT = 250;
 
 const addMilliseconds = (timestamp: string, milliseconds: number) =>
   new Date(new Date(timestamp).getTime() + milliseconds).toISOString();
@@ -185,11 +184,20 @@ export const getTmdbRefreshStatus = async (
       .first<ScheduleRow>(),
     env.DB.prepare(
       `SELECT
-         COUNT(*) AS linked,
-         SUM(CASE WHEN refresh_after <= ? OR data_version < ? THEN 1 ELSE 0 END) AS pending,
-         SUM(CASE WHEN refresh_after > ? AND data_version >= ? THEN 1 ELSE 0 END) AS current,
-         SUM(CASE WHEN last_refresh_status = 'failed' THEN 1 ELSE 0 END) AS failed
-       FROM movie_tmdb_data`,
+         COUNT(*) AS total,
+         COUNT(movie_tmdb_data.movie_id) AS linked,
+         SUM(CASE WHEN movie_tmdb_data.movie_id IS NULL THEN 1 ELSE 0 END) AS unlinked,
+         SUM(CASE WHEN movie_tmdb_data.movie_id IS NOT NULL
+                       AND (movie_tmdb_data.refresh_after <= ?
+                            OR movie_tmdb_data.data_version < ?)
+                  THEN 1 ELSE 0 END) AS pending,
+         SUM(CASE WHEN movie_tmdb_data.refresh_after > ?
+                       AND movie_tmdb_data.data_version >= ?
+                  THEN 1 ELSE 0 END) AS current,
+         SUM(CASE WHEN movie_tmdb_data.last_refresh_status = 'failed'
+                  THEN 1 ELSE 0 END) AS failed
+       FROM movies
+       LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id`,
     )
       .bind(
         timestamp,
@@ -202,10 +210,12 @@ export const getTmdbRefreshStatus = async (
         failed: number | null;
         linked: number;
         pending: number | null;
+        total: number;
+        unlinked: number | null;
       }>(),
     env.DB.prepare(
       `SELECT
-         movie_tmdb_data.movie_id,
+         movies.id AS movie_id,
          movies.title,
          movie_tmdb_data.tmdb_id,
          movie_tmdb_data.fetched_at,
@@ -215,39 +225,49 @@ export const getTmdbRefreshStatus = async (
          movie_tmdb_data.last_refresh_status,
          movie_tmdb_data.last_refresh_error,
          CASE
+           WHEN movie_tmdb_data.movie_id IS NULL THEN 'unlinked'
            WHEN movie_tmdb_data.last_refresh_status = 'failed' THEN 'failed'
            WHEN movie_tmdb_data.fetched_at IS NULL THEN 'never_fetched'
            WHEN movie_tmdb_data.data_version < ? THEN 'version_stale'
            WHEN movie_tmdb_data.refresh_after <= ? THEN 'due'
            ELSE 'current'
          END AS state
-       FROM movie_tmdb_data
-       JOIN movies ON movies.id = movie_tmdb_data.movie_id
+       FROM movies
+       LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
        ORDER BY
-         CASE WHEN movie_tmdb_data.refresh_after <= ?
-                    OR movie_tmdb_data.data_version < ? THEN 0 ELSE 1 END,
+         CASE
+           WHEN movie_tmdb_data.movie_id IS NOT NULL
+                AND (movie_tmdb_data.refresh_after <= ?
+                     OR movie_tmdb_data.data_version < ?) THEN 0
+           WHEN movie_tmdb_data.movie_id IS NULL THEN 1
+           ELSE 2
+         END,
          movie_tmdb_data.refresh_after,
-         movies.title
-       LIMIT ?`,
+         movies.title`,
     )
       .bind(
         CURRENT_TMDB_DATA_VERSION,
         timestamp,
         timestamp,
         CURRENT_TMDB_DATA_VERSION,
-        STATUS_ITEM_LIMIT,
       )
       .all<{
-        data_version: number;
+        data_version: number | null;
         fetched_at: string | null;
         last_refresh_attempt_at: string | null;
         last_refresh_error: string | null;
         last_refresh_status: "failed" | "running" | "succeeded" | null;
         movie_id: string;
-        refresh_after: string;
-        state: "current" | "due" | "failed" | "never_fetched" | "version_stale";
+        refresh_after: string | null;
+        state:
+          | "current"
+          | "due"
+          | "failed"
+          | "never_fetched"
+          | "unlinked"
+          | "version_stale";
         title: string;
-        tmdb_id: number;
+        tmdb_id: number | null;
       }>(),
   ]);
   if (!schedule) throw new Error("TMDB refresh schedule is missing");
@@ -276,6 +296,8 @@ export const getTmdbRefreshStatus = async (
       failed: counts?.failed ?? 0,
       linked: counts?.linked ?? 0,
       pending: counts?.pending ?? 0,
+      total: counts?.total ?? 0,
+      unlinked: counts?.unlinked ?? 0,
     },
     items: items.results.map((item) => ({
       dataVersion: item.data_version,
@@ -289,6 +311,5 @@ export const getTmdbRefreshStatus = async (
       title: item.title,
       tmdbId: item.tmdb_id,
     })),
-    truncated: (counts?.linked ?? 0) > STATUS_ITEM_LIMIT,
   };
 };

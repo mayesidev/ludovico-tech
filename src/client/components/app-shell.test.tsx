@@ -86,7 +86,7 @@ describe("site identity", () => {
         tab="home"
       />,
     );
-    expect(screen.queryByRole("link", { name: "TMDB Status" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Manager's Office" })).toBeNull();
 
     rerender(
       <AppHeader
@@ -102,10 +102,9 @@ describe("site identity", () => {
         tab="tmdb-status"
       />,
     );
-    expect(screen.getByRole("link", { name: "TMDB Status" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    expect(
+      screen.getByRole("link", { name: "Manager's Office" }),
+    ).toHaveAttribute("aria-current", "page");
   });
 });
 

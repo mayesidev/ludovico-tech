@@ -32,6 +32,10 @@ describe("client API", () => {
     await api.tmdbSearch("A movie & sequel");
     await api.tmdbMovie(42);
     await api.tmdbRefreshStatus();
+    await api.updateTmdbRefreshSchedule({
+      batchSize: 50,
+      intervalMinutes: 360,
+    });
     await api.runTmdbRefresh();
 
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
@@ -51,6 +55,7 @@ describe("client API", () => {
       "/api/tmdb/search?query=A%20movie%20%26%20sequel",
       "/api/tmdb/movies/42",
       "/api/tmdb-refresh",
+      "/api/tmdb-refresh/schedule",
       "/api/tmdb-refresh/run",
     ]);
     expect(fetchMock.mock.calls[8]?.[1]?.method).toBe("POST");
@@ -76,7 +81,11 @@ describe("client API", () => {
       method: "PATCH",
     });
     expect(fetchMock.mock.calls[12]?.[1]).toMatchObject({ method: "DELETE" });
-    expect(fetchMock.mock.calls[16]?.[1]).toMatchObject({ method: "POST" });
+    expect(fetchMock.mock.calls[16]?.[1]).toMatchObject({
+      body: JSON.stringify({ batchSize: 50, intervalMinutes: 360 }),
+      method: "PATCH",
+    });
+    expect(fetchMock.mock.calls[17]?.[1]).toMatchObject({ method: "POST" });
   });
 
   it("returns parsed JSON and preserves a safe HTTP error status", async () => {
