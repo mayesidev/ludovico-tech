@@ -142,10 +142,7 @@ describe("Ludovico Tech Worker routes", () => {
         `INSERT INTO collections
          (id, name, name_normalized, created_at, updated_at)
          VALUES ('library-alpha', 'Alpha Collection', 'alpha collection', ?, ?)`,
-      ).bind(
-        "2026-08-24T00:00:00.000Z",
-        "2026-08-24T00:00:00.000Z",
-      ),
+      ).bind("2026-08-24T00:00:00.000Z", "2026-08-24T00:00:00.000Z"),
       env.DB.prepare(
         `INSERT INTO collection_movies (collection_id, movie_id, position)
          VALUES ('library-alpha', ?, 1)`,
