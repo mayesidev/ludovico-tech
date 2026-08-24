@@ -52,7 +52,10 @@ export class TmdbServiceError extends Error {
 
   constructor(
     kind: TmdbFailureKind,
-    options: { retryAfter?: string | null; upstreamStatus?: number | null } = {},
+    options: {
+      retryAfter?: string | null;
+      upstreamStatus?: number | null;
+    } = {},
   ) {
     super("TMDB request failed");
     this.name = "TmdbServiceError";
@@ -60,11 +63,7 @@ export class TmdbServiceError extends Error {
     this.kind = kind;
     this.retryAfter = options.retryAfter ?? null;
     this.status =
-      kind === "rate_limited"
-        ? 429
-        : kind === "configuration"
-          ? 503
-          : 502;
+      kind === "rate_limited" ? 429 : kind === "configuration" ? 503 : 502;
     this.upstreamStatus = options.upstreamStatus ?? null;
   }
 }
@@ -246,13 +245,10 @@ const fetchTmdb = async (
   }
 
   if (response.status === 429) {
-    throw new TmdbServiceError(
-      "rate_limited",
-      {
-        retryAfter: safeRetryAfter(response.headers.get("Retry-After")),
-        upstreamStatus: response.status,
-      },
-    );
+    throw new TmdbServiceError("rate_limited", {
+      retryAfter: safeRetryAfter(response.headers.get("Retry-After")),
+      upstreamStatus: response.status,
+    });
   }
   if (!response.ok) {
     const kind: TmdbFailureKind =
