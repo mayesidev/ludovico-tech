@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { refreshDueTmdbData, replaceTmdbDataStatements } from "./tmdb-data";
 import type { TmdbMovieResult } from "./tmdb";
 import type { AppEnv } from "./env";
+import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
 
 const timestamp = "2026-08-23T12:00:00.000Z";
 const tmdbEnv = () =>
@@ -29,8 +30,8 @@ const insertLinkedMovie = async (id: string, tmdbId: number) => {
   await env.DB.batch([
     env.DB.prepare(
       `INSERT INTO movie_tmdb_data
-       (movie_id, tmdb_id, refresh_after, data_version)
-       VALUES (?, ?, '1970-01-01T00:00:00.000Z', 0)`,
+       (movie_id, tmdb_id, refresh_after)
+       VALUES (?, ?, '1970-01-01T00:00:00.000Z')`,
     ).bind(id, tmdbId),
     env.DB.prepare(
       `UPDATE movies
@@ -129,7 +130,7 @@ describe("scheduled TMDB enrichment refresh", () => {
     });
     expect(
       await env.DB.prepare(
-        `SELECT movie_tmdb_data.title, movie_tmdb_data.data_version,
+        `SELECT movie_tmdb_data.title, movie_tmdb_data.contract_id,
                 tmdb_collections.name AS collection_name
          FROM movie_tmdb_data
          LEFT JOIN tmdb_collections
@@ -140,7 +141,7 @@ describe("scheduled TMDB enrichment refresh", () => {
         .first(),
     ).toEqual({
       collection_name: "Current TMDB Collection",
-      data_version: 1,
+      contract_id: await getTmdbMetadataContractId(),
       title: "Current TMDB Title",
     });
     expect(
@@ -180,7 +181,7 @@ describe("scheduled TMDB enrichment refresh", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(
       await env.DB.prepare(
-        "SELECT COUNT(*) AS count FROM movie_tmdb_data WHERE data_version = 0",
+        "SELECT COUNT(*) AS count FROM movie_tmdb_data WHERE contract_id IS NULL",
       ).first(),
     ).toEqual({ count: 2 });
   });
@@ -236,10 +237,10 @@ describe("scheduled TMDB enrichment refresh", () => {
     };
 
     await env.DB.batch(
-      replaceTmdbDataStatements(env, "ordered-snapshot", newer),
+      await replaceTmdbDataStatements(env, "ordered-snapshot", newer),
     );
     await env.DB.batch(
-      replaceTmdbDataStatements(env, "ordered-snapshot", older),
+      await replaceTmdbDataStatements(env, "ordered-snapshot", older),
     );
 
     expect(

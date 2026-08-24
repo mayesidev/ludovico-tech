@@ -121,7 +121,7 @@ export type HealthState = {
 };
 
 export type TmdbRefreshItem = {
-  dataVersion: number | null;
+  contractId: string | null;
   fetchedAt: string | null;
   lastAttemptAt: string | null;
   lastError: string | null;
@@ -134,13 +134,13 @@ export type TmdbRefreshItem = {
     | "failed"
     | "never_fetched"
     | "unlinked"
-    | "version_stale";
+    | "contract_stale";
   title: string;
   tmdbId: number | null;
 };
 
 export type TmdbRefreshSummary = {
-  currentDataVersion: number;
+  currentContractId: string;
   counts: {
     current: number;
     failed: number;
@@ -184,7 +184,7 @@ export type TmdbRefreshQueueQuery = {
     | "fetchedAt"
     | "lastAttemptAt"
     | "refreshAfter"
-    | "dataVersion";
+    | "contractId";
   state: TmdbRefreshItem["state"] | "all";
 };
 

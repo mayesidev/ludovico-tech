@@ -306,7 +306,9 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     );
 
     if (tmdbResult) {
-      statements.push(...replaceTmdbDataStatements(c.env, id, tmdbResult));
+      statements.push(
+        ...(await replaceTmdbDataStatements(c.env, id, tmdbResult)),
+      );
       if (version !== null) {
         statements.push(
           c.env.DB.prepare(
@@ -508,7 +510,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       movieId,
     );
     const replaceTmdb = tmdbChangeRequested
-      ? replaceTmdbDataStatements(c.env, movieId, tmdbResult)
+      ? await replaceTmdbDataStatements(c.env, movieId, tmdbResult)
       : [];
     const statements: D1PreparedStatement[] =
       tmdbChangeRequested && tmdbResult

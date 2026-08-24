@@ -1,10 +1,9 @@
 import type { AppEnv } from "./env";
+import { getTmdbMovie, TmdbServiceError, type TmdbMovieResult } from "./tmdb";
 import {
-  CURRENT_TMDB_DATA_VERSION,
-  getTmdbMovie,
-  TmdbServiceError,
-  type TmdbMovieResult,
-} from "./tmdb";
+  getTmdbMetadataContractId,
+  tmdbMovieDetailSchema,
+} from "../shared/tmdb-metadata-contract";
 
 const REFRESH_AFTER_MS = 150 * 24 * 60 * 60 * 1000;
 const EXPIRES_AFTER_MS = 175 * 24 * 60 * 60 * 1000;
@@ -35,7 +34,7 @@ export const tmdbOrphanCleanupStatements = (env: AppEnv["Bindings"]) => [
   ),
 ];
 
-export const replaceTmdbDataStatements = (
+export const replaceTmdbDataStatements = async (
   env: AppEnv["Bindings"],
   movieId: string,
   result: TmdbMovieResult | null,
@@ -52,7 +51,9 @@ export const replaceTmdbDataStatements = (
     ];
   }
 
-  const { data, fetchedAt } = result;
+  const data = tmdbMovieDetailSchema.parse(result.data);
+  const { fetchedAt } = result;
+  const contractId = await getTmdbMetadataContractId();
   const refreshAfter = addMilliseconds(fetchedAt, REFRESH_AFTER_MS);
   const expiresAt = addMilliseconds(fetchedAt, EXPIRES_AFTER_MS);
   const statements: D1PreparedStatement[] = [];
@@ -90,7 +91,7 @@ export const replaceTmdbDataStatements = (
     env.DB.prepare(
       `INSERT INTO movie_tmdb_data
        (movie_id, tmdb_id, title, release_date, poster_path, runtime_minutes,
-        tmdb_collection_id, fetched_at, refresh_after, expires_at, data_version,
+        tmdb_collection_id, fetched_at, refresh_after, expires_at, contract_id,
         last_refresh_attempt_at, last_refresh_status, last_refresh_error)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'succeeded', NULL)
        ON CONFLICT(movie_id) DO UPDATE SET
@@ -103,7 +104,7 @@ export const replaceTmdbDataStatements = (
          fetched_at = excluded.fetched_at,
          refresh_after = excluded.refresh_after,
          expires_at = excluded.expires_at,
-         data_version = excluded.data_version,
+         contract_id = excluded.contract_id,
          last_refresh_attempt_at = excluded.last_refresh_attempt_at,
          last_refresh_status = excluded.last_refresh_status,
          last_refresh_error = excluded.last_refresh_error
@@ -119,7 +120,7 @@ export const replaceTmdbDataStatements = (
       fetchedAt,
       refreshAfter,
       expiresAt,
-      CURRENT_TMDB_DATA_VERSION,
+      contractId,
       fetchedAt,
     ),
     env.DB.prepare(
@@ -168,12 +169,13 @@ export const countDueTmdbData = async (
   env: AppEnv["Bindings"],
   timestamp = new Date().toISOString(),
 ) => {
+  const contractId = await getTmdbMetadataContractId();
   const result = await env.DB.prepare(
     `SELECT COUNT(*) AS count
      FROM movie_tmdb_data
-     WHERE refresh_after <= ? OR data_version < ?`,
+     WHERE refresh_after <= ? OR contract_id IS NULL OR contract_id <> ?`,
   )
-    .bind(timestamp, CURRENT_TMDB_DATA_VERSION)
+    .bind(timestamp, contractId)
     .first<{ count: number }>();
   return result?.count ?? 0;
 };
@@ -183,14 +185,15 @@ export const refreshDueTmdbData = async (
   timestamp = new Date().toISOString(),
   batchSize = DEFAULT_TMDB_REFRESH_BATCH_SIZE,
 ): Promise<TmdbRefreshReport> => {
+  const contractId = await getTmdbMetadataContractId();
   const due = await env.DB.prepare(
     `SELECT movie_id, tmdb_id
      FROM movie_tmdb_data
-     WHERE refresh_after <= ? OR data_version < ?
+     WHERE refresh_after <= ? OR contract_id IS NULL OR contract_id <> ?
      ORDER BY refresh_after, movie_id
      LIMIT ?`,
   )
-    .bind(timestamp, CURRENT_TMDB_DATA_VERSION, batchSize)
+    .bind(timestamp, contractId, batchSize)
     .all<{ movie_id: string; tmdb_id: number }>();
   const report: TmdbRefreshReport = {
     attempted: 0,
@@ -213,7 +216,7 @@ export const refreshDueTmdbData = async (
     try {
       const result = await getTmdbMovie(env, row.tmdb_id);
       await env.DB.batch([
-        ...replaceTmdbDataStatements(env, row.movie_id, result),
+        ...(await replaceTmdbDataStatements(env, row.movie_id, result)),
         env.DB.prepare(
           `UPDATE movie_tmdb_data SET
              last_refresh_attempt_at = ?,

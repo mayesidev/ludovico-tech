@@ -41,13 +41,16 @@ const formatInterval = (minutes: number) => {
     .join(" ");
 };
 
+const shortContractId = (value: string) =>
+  value.startsWith("sha256:") ? value.slice(7, 15) : value.slice(0, 8);
+
 const stateLabel: Record<TmdbRefreshItem["state"], string> = {
   current: "Current",
   due: "Due",
   failed: "Failed",
   never_fetched: "Never fetched",
   unlinked: "Not linked",
-  version_stale: "Version stale",
+  contract_stale: "Contract stale",
 };
 
 const initialQueueQuery: TmdbRefreshQueueQuery = {
@@ -351,6 +354,15 @@ export function TmdbStatusPage({
             </div>
           ))}
         </div>
+        <div className="border-t border-border-subtle px-5 py-3 text-xs text-text-muted">
+          Current fetch contract:{" "}
+          <span
+            className="font-mono text-text-secondary"
+            title={summary.currentContractId}
+          >
+            {shortContractId(summary.currentContractId)}
+          </span>
+        </div>
         <div className="border-t border-border-subtle px-5 py-4">
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <div>
@@ -543,7 +555,7 @@ export function TmdbStatusPage({
             <option value="failed">Failed</option>
             <option value="never_fetched">Never fetched</option>
             <option value="unlinked">Not linked</option>
-            <option value="version_stale">Version stale</option>
+            <option value="contract_stale">Contract stale</option>
           </select>
         </label>
         <div className="relative w-full sm:w-72">
@@ -575,10 +587,7 @@ export function TmdbStatusPage({
                 {sortHeader("Last fetched", "fetchedAt")}
                 {sortHeader("Last attempt", "lastAttemptAt")}
                 {sortHeader("Refresh after", "refreshAfter")}
-                {sortHeader(
-                  `Data version (current: ${summary.currentDataVersion})`,
-                  "dataVersion",
-                )}
+                {sortHeader("Fetch contract", "contractId")}
               </tr>
             </thead>
             <tbody className="data-surface divide-y divide-border-subtle">
@@ -630,9 +639,13 @@ export function TmdbStatusPage({
                     {formatDueTimestamp(item.refreshAfter)}
                   </td>
                   <td className="px-5 py-4 text-text-muted">
-                    {item.dataVersion === null
-                      ? "—"
-                      : `${item.dataVersion}/${summary.currentDataVersion}`}
+                    {item.contractId === null ? (
+                      "—"
+                    ) : (
+                      <span title={item.contractId}>
+                        {shortContractId(item.contractId)}
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}

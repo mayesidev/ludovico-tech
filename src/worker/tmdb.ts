@@ -3,14 +3,18 @@ import {
   distinctTmdbPeople,
   parseTmdbCredits,
   parseTmdbPerson,
-  type TmdbPerson,
 } from "../shared/tmdb-credits";
+import {
+  getTmdbMetadataContractId,
+  TMDB_METADATA_RULES,
+  tmdbMovieDetailSchema,
+  type TmdbCollection,
+  type TmdbMovieDetail,
+} from "../shared/tmdb-metadata-contract";
 
 const TMDB_API_ORIGIN = "https://api.themoviedb.org";
 const SEARCH_TTL_MS = 6 * 60 * 60 * 1000;
 const DETAIL_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-export const CURRENT_TMDB_DATA_VERSION = 1;
-
 export type TmdbMovie = {
   id: number;
   posterPath: string | null;
@@ -18,17 +22,10 @@ export type TmdbMovie = {
   title: string;
 };
 
-export type TmdbCollection = {
-  id: number;
-  name: string;
-};
-
-export type TmdbMovieDetail = TmdbMovie & {
-  cast: TmdbPerson[];
-  collection: TmdbCollection | null;
-  directors: TmdbPerson[];
-  runtimeMinutes: number | null;
-};
+export type {
+  TmdbCollection,
+  TmdbMovieDetail,
+} from "../shared/tmdb-metadata-contract";
 
 export type TmdbMovieResult = {
   data: TmdbMovieDetail;
@@ -176,7 +173,9 @@ const mapTmdbCollection = (
   }
   return {
     id: Number(collection.id),
-    name: collection.name.trim().slice(0, 200),
+    name: collection.name
+      .trim()
+      .slice(0, TMDB_METADATA_RULES.collection.nameMaxLength),
   };
 };
 
@@ -192,9 +191,15 @@ const mapCachedMovieDetail = (value: unknown): TmdbMovieDetail | null => {
   const movie = mapCachedMovie(value);
   if (!movie || !value || typeof value !== "object") return null;
   const detail = value as Record<string, unknown>;
-  const cast = mapCachedPeople(detail.cast, 5);
+  const cast = mapCachedPeople(
+    detail.cast,
+    TMDB_METADATA_RULES.people.cast.limit,
+  );
   const collection = mapTmdbCollection(detail.collection);
-  const directors = mapCachedPeople(detail.directors, 3);
+  const directors = mapCachedPeople(
+    detail.directors,
+    TMDB_METADATA_RULES.people.directors.limit,
+  );
   const runtimeMinutes = detail.runtimeMinutes;
   if (
     cast === null ||
@@ -205,13 +210,14 @@ const mapCachedMovieDetail = (value: unknown): TmdbMovieDetail | null => {
   ) {
     return null;
   }
-  return {
+  const parsed = tmdbMovieDetailSchema.safeParse({
     ...movie,
     cast,
     collection,
     directors,
     runtimeMinutes: runtimeMinutes as number | null,
-  };
+  });
+  return parsed.success ? parsed.data : null;
 };
 
 const mapMovie = (value: unknown): TmdbMovie | null => {
@@ -237,7 +243,9 @@ const mapMovie = (value: unknown): TmdbMovie | null => {
     )
       ? String(movie.release_date)
       : null,
-    title: movie.title.trim().slice(0, 200),
+    title: movie.title
+      .trim()
+      .slice(0, TMDB_METADATA_RULES.movie.titleMaxLength),
   };
 };
 
@@ -257,13 +265,14 @@ const mapMovieDetail = (value: unknown): TmdbMovieDetail | null => {
   ) {
     return null;
   }
-  return {
+  const parsed = tmdbMovieDetailSchema.safeParse({
     ...movie,
     cast: credits.cast,
     collection,
     directors: credits.directors,
     runtimeMinutes: runtime === null || runtime === 0 ? null : Number(runtime),
-  };
+  });
+  return parsed.success ? parsed.data : null;
 };
 
 export const searchTmdbMovies = async (
@@ -308,10 +317,8 @@ export const getTmdbMovie = async (
   env: AppEnv["Bindings"],
   movieId: number,
 ): Promise<TmdbMovieResult> => {
-  const key = await cacheKey(
-    `movie:v${CURRENT_TMDB_DATA_VERSION}`,
-    String(movieId),
-  );
+  const contractId = await getTmdbMetadataContractId();
+  const key = await cacheKey(`movie:${contractId}`, String(movieId));
   const cached = await readCache<unknown>(env, key);
   const cachedMovie = mapCachedMovieDetail(cached?.value);
   if (cached && cachedMovie) {
@@ -322,8 +329,9 @@ export const getTmdbMovie = async (
     env,
     `/3/movie/${movieId}`,
     new URLSearchParams({
-      append_to_response: "credits",
-      language: "en-US",
+      append_to_response:
+        TMDB_METADATA_RULES.request.appendToResponse.join(","),
+      language: TMDB_METADATA_RULES.request.language,
     }),
   );
   const movie = mapMovieDetail(value);

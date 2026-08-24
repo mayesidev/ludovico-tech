@@ -4,7 +4,7 @@ import {
   refreshDueTmdbData,
   type TmdbRefreshReport,
 } from "./tmdb-data";
-import { CURRENT_TMDB_DATA_VERSION } from "./tmdb";
+import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
 
 const SCHEDULE_ID = 1;
 const LEASE_MS = 20 * 60 * 1000;
@@ -178,6 +178,7 @@ export const getTmdbRefreshStatus = async (
   env: AppEnv["Bindings"],
   timestamp = new Date().toISOString(),
 ) => {
+  const currentContractId = await getTmdbMetadataContractId();
   const [schedule, counts, items] = await Promise.all([
     env.DB.prepare("SELECT * FROM tmdb_refresh_schedule WHERE id = ?")
       .bind(SCHEDULE_ID)
@@ -189,22 +190,18 @@ export const getTmdbRefreshStatus = async (
          SUM(CASE WHEN movie_tmdb_data.movie_id IS NULL THEN 1 ELSE 0 END) AS unlinked,
          SUM(CASE WHEN movie_tmdb_data.movie_id IS NOT NULL
                        AND (movie_tmdb_data.refresh_after <= ?
-                            OR movie_tmdb_data.data_version < ?)
+                            OR movie_tmdb_data.contract_id IS NULL
+                            OR movie_tmdb_data.contract_id <> ?)
                   THEN 1 ELSE 0 END) AS pending,
          SUM(CASE WHEN movie_tmdb_data.refresh_after > ?
-                       AND movie_tmdb_data.data_version >= ?
+                       AND movie_tmdb_data.contract_id = ?
                   THEN 1 ELSE 0 END) AS current,
          SUM(CASE WHEN movie_tmdb_data.last_refresh_status = 'failed'
                   THEN 1 ELSE 0 END) AS failed
        FROM movies
        LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id`,
     )
-      .bind(
-        timestamp,
-        CURRENT_TMDB_DATA_VERSION,
-        timestamp,
-        CURRENT_TMDB_DATA_VERSION,
-      )
+      .bind(timestamp, currentContractId, timestamp, currentContractId)
       .first<{
         current: number | null;
         failed: number | null;
@@ -220,7 +217,7 @@ export const getTmdbRefreshStatus = async (
          movie_tmdb_data.tmdb_id,
          movie_tmdb_data.fetched_at,
          movie_tmdb_data.refresh_after,
-         movie_tmdb_data.data_version,
+         movie_tmdb_data.contract_id,
          movie_tmdb_data.last_refresh_attempt_at,
          movie_tmdb_data.last_refresh_status,
          movie_tmdb_data.last_refresh_error,
@@ -228,7 +225,8 @@ export const getTmdbRefreshStatus = async (
            WHEN movie_tmdb_data.movie_id IS NULL THEN 'unlinked'
            WHEN movie_tmdb_data.last_refresh_status = 'failed' THEN 'failed'
            WHEN movie_tmdb_data.fetched_at IS NULL THEN 'never_fetched'
-           WHEN movie_tmdb_data.data_version < ? THEN 'version_stale'
+           WHEN movie_tmdb_data.contract_id IS NULL
+                OR movie_tmdb_data.contract_id <> ? THEN 'contract_stale'
            WHEN movie_tmdb_data.refresh_after <= ? THEN 'due'
            ELSE 'current'
          END AS state
@@ -238,21 +236,17 @@ export const getTmdbRefreshStatus = async (
          CASE
            WHEN movie_tmdb_data.movie_id IS NOT NULL
                 AND (movie_tmdb_data.refresh_after <= ?
-                     OR movie_tmdb_data.data_version < ?) THEN 0
+                     OR movie_tmdb_data.contract_id IS NULL
+                     OR movie_tmdb_data.contract_id <> ?) THEN 0
            WHEN movie_tmdb_data.movie_id IS NULL THEN 1
            ELSE 2
          END,
          movie_tmdb_data.refresh_after,
          movies.title`,
     )
-      .bind(
-        CURRENT_TMDB_DATA_VERSION,
-        timestamp,
-        timestamp,
-        CURRENT_TMDB_DATA_VERSION,
-      )
+      .bind(currentContractId, timestamp, timestamp, currentContractId)
       .all<{
-        data_version: number | null;
+        contract_id: string | null;
         fetched_at: string | null;
         last_refresh_attempt_at: string | null;
         last_refresh_error: string | null;
@@ -265,14 +259,14 @@ export const getTmdbRefreshStatus = async (
           | "failed"
           | "never_fetched"
           | "unlinked"
-          | "version_stale";
+          | "contract_stale";
         title: string;
         tmdb_id: number | null;
       }>(),
   ]);
   if (!schedule) throw new Error("TMDB refresh schedule is missing");
   return {
-    currentDataVersion: CURRENT_TMDB_DATA_VERSION,
+    currentContractId,
     schedule: {
       batchSize: schedule.batch_size,
       enabled: schedule.enabled === 1,
@@ -300,7 +294,7 @@ export const getTmdbRefreshStatus = async (
       unlinked: counts?.unlinked ?? 0,
     },
     items: items.results.map((item) => ({
-      dataVersion: item.data_version,
+      contractId: item.contract_id,
       fetchedAt: item.fetched_at,
       lastAttemptAt: item.last_refresh_attempt_at,
       lastError: item.last_refresh_error,
@@ -327,7 +321,7 @@ export type TmdbRefreshQueueInput = {
     | "fetchedAt"
     | "lastAttemptAt"
     | "refreshAfter"
-    | "dataVersion";
+    | "contractId";
   state:
     | "all"
     | "current"
@@ -335,7 +329,7 @@ export type TmdbRefreshQueueInput = {
     | "failed"
     | "never_fetched"
     | "unlinked"
-    | "version_stale";
+    | "contract_stale";
 };
 
 const mapSchedule = (schedule: ScheduleRow, timestamp: string) => ({
@@ -360,6 +354,7 @@ export const getTmdbRefreshSummary = async (
   env: AppEnv["Bindings"],
   timestamp = new Date().toISOString(),
 ) => {
+  const currentContractId = await getTmdbMetadataContractId();
   const [schedule, counts] = await Promise.all([
     env.DB.prepare("SELECT * FROM tmdb_refresh_schedule WHERE id = ?")
       .bind(SCHEDULE_ID)
@@ -371,22 +366,18 @@ export const getTmdbRefreshSummary = async (
          SUM(CASE WHEN movie_tmdb_data.movie_id IS NULL THEN 1 ELSE 0 END) AS unlinked,
          SUM(CASE WHEN movie_tmdb_data.movie_id IS NOT NULL
                        AND (movie_tmdb_data.refresh_after <= ?
-                            OR movie_tmdb_data.data_version < ?)
+                            OR movie_tmdb_data.contract_id IS NULL
+                            OR movie_tmdb_data.contract_id <> ?)
                   THEN 1 ELSE 0 END) AS pending,
          SUM(CASE WHEN movie_tmdb_data.refresh_after > ?
-                       AND movie_tmdb_data.data_version >= ?
+                       AND movie_tmdb_data.contract_id = ?
                   THEN 1 ELSE 0 END) AS current,
          SUM(CASE WHEN movie_tmdb_data.last_refresh_status = 'failed'
                   THEN 1 ELSE 0 END) AS failed
        FROM movies
        LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id`,
     )
-      .bind(
-        timestamp,
-        CURRENT_TMDB_DATA_VERSION,
-        timestamp,
-        CURRENT_TMDB_DATA_VERSION,
-      )
+      .bind(timestamp, currentContractId, timestamp, currentContractId)
       .first<{
         current: number | null;
         failed: number | null;
@@ -398,7 +389,7 @@ export const getTmdbRefreshSummary = async (
   ]);
   if (!schedule) throw new Error("TMDB refresh schedule is missing");
   return {
-    currentDataVersion: CURRENT_TMDB_DATA_VERSION,
+    currentContractId,
     schedule: mapSchedule(schedule, timestamp),
     counts: {
       current: counts?.current ?? 0,
@@ -419,7 +410,7 @@ const tmdbRefreshQueueCte = `
       movie_tmdb_data.tmdb_id,
       movie_tmdb_data.fetched_at,
       movie_tmdb_data.refresh_after,
-      movie_tmdb_data.data_version,
+      movie_tmdb_data.contract_id,
       movie_tmdb_data.last_refresh_attempt_at,
       movie_tmdb_data.last_refresh_status,
       movie_tmdb_data.last_refresh_error,
@@ -427,7 +418,8 @@ const tmdbRefreshQueueCte = `
         WHEN movie_tmdb_data.movie_id IS NULL THEN 'unlinked'
         WHEN movie_tmdb_data.last_refresh_status = 'failed' THEN 'failed'
         WHEN movie_tmdb_data.fetched_at IS NULL THEN 'never_fetched'
-        WHEN movie_tmdb_data.data_version < ? THEN 'version_stale'
+        WHEN movie_tmdb_data.contract_id IS NULL
+             OR movie_tmdb_data.contract_id <> ? THEN 'contract_stale'
         WHEN movie_tmdb_data.refresh_after <= ? THEN 'due'
         ELSE 'current'
       END AS state
@@ -438,7 +430,7 @@ const tmdbRefreshQueueCte = `
       CASE classified.state
         WHEN 'failed' THEN 0
         WHEN 'never_fetched' THEN 1
-        WHEN 'version_stale' THEN 2
+        WHEN 'contract_stale' THEN 2
         WHEN 'due' THEN 3
         WHEN 'unlinked' THEN 4
         ELSE 5
@@ -448,7 +440,7 @@ const tmdbRefreshQueueCte = `
 `;
 
 type TmdbRefreshQueueRow = {
-  data_version: number | null;
+  contract_id: string | null;
   fetched_at: string | null;
   last_refresh_attempt_at: string | null;
   last_refresh_error: string | null;
@@ -461,7 +453,7 @@ type TmdbRefreshQueueRow = {
     | "failed"
     | "never_fetched"
     | "unlinked"
-    | "version_stale";
+    | "contract_stale";
   state_rank: number;
   title: string;
   tmdb_id: number | null;
@@ -472,6 +464,7 @@ export const getTmdbRefreshQueue = async (
   input: TmdbRefreshQueueInput,
   timestamp = new Date().toISOString(),
 ) => {
+  const currentContractId = await getTmdbMetadataContractId();
   const filters: string[] = [];
   const bindings: Array<string | number> = [];
   if (input.state !== "all") {
@@ -489,16 +482,15 @@ export const getTmdbRefreshQueue = async (
          WHEN 'failed' THEN 'Failed'
          WHEN 'never_fetched' THEN 'Never fetched'
          WHEN 'unlinked' THEN 'Not linked'
-         ELSE 'Version stale'
+         ELSE 'Contract stale'
        END`,
       "COALESCE(last_refresh_error, '')",
       "COALESCE(fetched_at, CASE WHEN state = 'unlinked' THEN '—' ELSE 'Never' END)",
       "COALESCE(last_refresh_attempt_at, '—')",
       `COALESCE(refresh_after,
-         CASE WHEN state IN ('due', 'never_fetched', 'version_stale')
+         CASE WHEN state IN ('due', 'never_fetched', 'contract_stale')
               THEN 'Due now' ELSE '—' END)`,
-      `CASE WHEN data_version IS NULL THEN '—'
-            ELSE CAST(data_version AS TEXT) || '/${CURRENT_TMDB_DATA_VERSION}' END`,
+      "COALESCE(contract_id, '—')",
     ];
     const clauses = fields.map(
       (field) => `LOWER(${field}) LIKE LOWER(?) ESCAPE '\\'`,
@@ -522,7 +514,7 @@ export const getTmdbRefreshQueue = async (
     bindings.push(input.dateSearch, input.dateSearch, input.dateSearch);
   }
   const where = filters.length > 0 ? `WHERE ${filters.join(" AND ")}` : "";
-  const baseBindings = [CURRENT_TMDB_DATA_VERSION, timestamp];
+  const baseBindings = [currentContractId, timestamp];
   const counts = await env.DB.prepare(
     `${tmdbRefreshQueueCte} SELECT COUNT(*) AS total FROM queue ${where}`,
   )
@@ -538,7 +530,7 @@ export const getTmdbRefreshQueue = async (
     fetchedAt: "fetched_at",
     lastAttemptAt: "last_refresh_attempt_at",
     refreshAfter: "refresh_after",
-    dataVersion: "data_version",
+    contractId: "contract_id",
   } as const;
   const sortExpression = sortExpressions[input.sort];
   const direction = input.direction === "asc" ? "ASC" : "DESC";
@@ -561,7 +553,7 @@ export const getTmdbRefreshQueue = async (
     .all<TmdbRefreshQueueRow>();
   return {
     items: result.results.map((item) => ({
-      dataVersion: item.data_version,
+      contractId: item.contract_id,
       fetchedAt: item.fetched_at,
       lastAttemptAt: item.last_refresh_attempt_at,
       lastError: item.last_refresh_error,

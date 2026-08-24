@@ -20,8 +20,8 @@ const insertMovie = async (id: string, title = id) => {
 const insertTmdbLink = async (movieId: string, tmdbId: number) => {
   await env.DB.prepare(
     `INSERT INTO movie_tmdb_data
-     (movie_id, tmdb_id, refresh_after, data_version)
-     VALUES (?, ?, '1970-01-01T00:00:00.000Z', 0)`,
+     (movie_id, tmdb_id, refresh_after)
+     VALUES (?, ?, '1970-01-01T00:00:00.000Z')`,
   )
     .bind(movieId, tmdbId)
     .run();
@@ -383,8 +383,8 @@ describe("catalog schema", () => {
     await expect(
       env.DB.prepare(
         `INSERT INTO movie_tmdb_data
-         (movie_id, tmdb_id, tmdb_collection_id, refresh_after, data_version)
-         VALUES (?, 70, 7, '1970-01-01T00:00:00.000Z', 0)`,
+         (movie_id, tmdb_id, tmdb_collection_id, refresh_after)
+         VALUES (?, 70, 7, '1970-01-01T00:00:00.000Z')`,
       )
         .bind("movie-tmdb-collection")
         .run(),
@@ -396,8 +396,8 @@ describe("catalog schema", () => {
     ).run();
     await env.DB.prepare(
       `INSERT INTO movie_tmdb_data
-       (movie_id, tmdb_id, tmdb_collection_id, refresh_after, data_version)
-       VALUES (?, 70, 7, '1970-01-01T00:00:00.000Z', 0)`,
+       (movie_id, tmdb_id, tmdb_collection_id, refresh_after)
+       VALUES (?, 70, 7, '1970-01-01T00:00:00.000Z')`,
     )
       .bind("movie-tmdb-collection")
       .run();
@@ -428,8 +428,8 @@ describe("catalog schema", () => {
       .run();
     await env.DB.prepare(
       `INSERT INTO movie_tmdb_data
-       (movie_id, tmdb_id, tmdb_collection_id, refresh_after, data_version)
-       VALUES (?, ?, ?, ?, 0)`,
+       (movie_id, tmdb_id, tmdb_collection_id, refresh_after)
+       VALUES (?, ?, ?, ?)`,
     )
       .bind("movie-pending-tmdb", 701, 700, "1970-01-01T00:00:00.000Z")
       .run();
@@ -459,8 +459,8 @@ describe("catalog schema", () => {
     await expect(
       env.DB.prepare(
         `INSERT INTO movie_tmdb_data
-         (movie_id, tmdb_id, refresh_after, data_version)
-         VALUES (?, ?, ?, 0)`,
+         (movie_id, tmdb_id, refresh_after)
+         VALUES (?, ?, ?)`,
       )
         .bind("movie-duplicate-tmdb", 701, "1970-01-01T00:00:00.000Z")
         .run(),
