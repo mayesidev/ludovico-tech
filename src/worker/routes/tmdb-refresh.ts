@@ -58,7 +58,7 @@ const queueInput = z.object({
       "fetchedAt",
       "lastAttemptAt",
       "refreshAfter",
-      "dataVersion",
+      "contractId",
     ])
     .default("state"),
   state: z
@@ -69,7 +69,7 @@ const queueInput = z.object({
       "failed",
       "never_fetched",
       "unlinked",
-      "version_stale",
+      "contract_stale",
     ])
     .default("all"),
 });

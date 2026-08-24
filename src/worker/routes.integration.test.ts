@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { sha256Base64Url, type AppEnv } from "./env";
 import { createApp } from "./index";
+import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
 
 const app = createApp();
 const future = "2099-08-04T00:00:00.000Z";
@@ -789,7 +790,7 @@ describe("TMDB routes and metadata attachment", () => {
     expect(movie).not.toHaveProperty("updated_by");
     expect(
       await env.DB.prepare(
-        `SELECT movie_tmdb_data.data_version, tmdb_collections.name AS collection_name
+        `SELECT movie_tmdb_data.contract_id, tmdb_collections.name AS collection_name
          FROM movie_tmdb_data
          LEFT JOIN tmdb_collections
            ON tmdb_collections.tmdb_id = movie_tmdb_data.tmdb_collection_id
@@ -799,7 +800,7 @@ describe("TMDB routes and metadata attachment", () => {
         .first(),
     ).toEqual({
       collection_name: "Attached Collection",
-      data_version: 1,
+      contract_id: await getTmdbMetadataContractId(),
     });
 
     const publicDetail = await request(

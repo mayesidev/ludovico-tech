@@ -6,6 +6,8 @@ import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppEnv } from "./env";
 import { createApp } from "./index";
+import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
+import { refreshDueTmdbData } from "./tmdb-data";
 import {
   claimTmdbRefresh,
   executeTmdbRefreshClaim,
@@ -35,8 +37,8 @@ const insertLinkedMovie = async () => {
     .run();
   await env.DB.prepare(
     `INSERT INTO movie_tmdb_data
-     (movie_id, tmdb_id, refresh_after, data_version)
-     VALUES ('scheduled-status', 42, '1970-01-01T00:00:00.000Z', 0)`,
+     (movie_id, tmdb_id, refresh_after)
+     VALUES ('scheduled-status', 42, '1970-01-01T00:00:00.000Z')`,
   ).run();
 };
 
@@ -160,6 +162,51 @@ describe("TMDB refresh operations", () => {
     );
   });
 
+  it("refreshes a mismatched contract even before its time window is due", async () => {
+    await env.DB.prepare(
+      `INSERT INTO movies
+       (id, title, title_normalized, added_at, updated_at)
+       VALUES ('stale-contract', 'Stale Contract', 'stale contract', ?, ?)`,
+    )
+      .bind(timestamp, timestamp)
+      .run();
+    await env.DB.prepare(
+      `INSERT INTO movie_tmdb_data
+       (movie_id, tmdb_id, fetched_at, refresh_after, expires_at, contract_id)
+       VALUES ('stale-contract', 42, ?, '2027-01-20T00:00:00.000Z',
+               '2027-02-20T00:00:00.000Z', ?)`,
+    )
+      .bind(timestamp, `sha256:${"b".repeat(64)}`)
+      .run();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(tmdbResponse()));
+
+    const before = await getTmdbRefreshQueue(
+      bindings(),
+      {
+        dateSearch: "",
+        direction: "asc",
+        page: 1,
+        pageSize: 25,
+        search: "",
+        sort: "state",
+        state: "all",
+      },
+      timestamp,
+    );
+    expect(before.items[0]).toMatchObject({
+      movieId: "stale-contract",
+      state: "contract_stale",
+    });
+    await expect(
+      refreshDueTmdbData(bindings(), timestamp),
+    ).resolves.toMatchObject({ attempted: 1, failed: 0, refreshed: 1 });
+    expect(
+      await env.DB.prepare(
+        "SELECT contract_id FROM movie_tmdb_data WHERE movie_id = 'stale-contract'",
+      ).first(),
+    ).toEqual({ contract_id: await getTmdbMetadataContractId() });
+  });
+
   it("separates global refresh summary from the paginated title queue", async () => {
     const movies = Array.from({ length: 30 }, (_, index) => ({
       id: `queue-movie-${String(index).padStart(2, "0")}`,
@@ -182,10 +229,14 @@ describe("TMDB refresh operations", () => {
     );
     await env.DB.prepare(
       `INSERT INTO movie_tmdb_data
-       (movie_id, tmdb_id, fetched_at, refresh_after, expires_at, data_version)
-       VALUES (?, 90210, ?, '2027-01-20T18:45:00.000Z', '2027-02-20T18:45:00.000Z', 1)`,
+       (movie_id, tmdb_id, fetched_at, refresh_after, expires_at, contract_id)
+       VALUES (?, 90210, ?, '2027-01-20T18:45:00.000Z', '2027-02-20T18:45:00.000Z', ?)`,
     )
-      .bind(movies[29].id, "2026-08-23T18:45:00.000Z")
+      .bind(
+        movies[29].id,
+        "2026-08-23T18:45:00.000Z",
+        await getTmdbMetadataContractId(),
+      )
       .run();
 
     const summary = await getTmdbRefreshSummary(bindings(), timestamp);
@@ -233,27 +284,27 @@ describe("TMDB refresh operations", () => {
     );
     expect(dateResult.pagination).toMatchObject({ page: 1, total: 1 });
     expect(dateResult.items[0]).toMatchObject({
-      dataVersion: 1,
+      contractId: await getTmdbMetadataContractId(),
       movieId: movies[29].id,
       state: "current",
       tmdbId: 90210,
     });
 
-    const versionResult = await getTmdbRefreshQueue(
+    const contractResult = await getTmdbRefreshQueue(
       bindings(),
       {
         dateSearch: "",
         direction: "asc",
         page: 1,
         pageSize: 25,
-        search: "1/1",
-        sort: "dataVersion",
+        search: (await getTmdbMetadataContractId()).slice(7, 15),
+        sort: "contractId",
         state: "all",
       },
       timestamp,
     );
-    expect(versionResult.pagination.total).toBe(1);
-    expect(versionResult.items[0].movieId).toBe(movies[29].id);
+    expect(contractResult.pagination.total).toBe(1);
+    expect(contractResult.items[0].movieId).toBe(movies[29].id);
 
     const queueResponse = await createApp().fetch(
       new Request(

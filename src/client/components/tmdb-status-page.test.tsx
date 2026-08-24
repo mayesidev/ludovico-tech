@@ -15,9 +15,11 @@ import {
 } from "../api";
 import { TmdbStatusPage } from "./tmdb-status-page";
 
+const currentContractId = `sha256:${"a".repeat(64)}`;
+
 const items: TmdbRefreshItem[] = [
   {
-    dataVersion: 0,
+    contractId: null,
     fetchedAt: null,
     lastAttemptAt: null,
     lastError: null,
@@ -29,7 +31,7 @@ const items: TmdbRefreshItem[] = [
     tmdbId: 42,
   },
   {
-    dataVersion: 1,
+    contractId: currentContractId,
     fetchedAt: "2026-08-23T18:45:00.000Z",
     lastAttemptAt: "2026-08-23T18:45:00.000Z",
     lastError: null,
@@ -41,7 +43,7 @@ const items: TmdbRefreshItem[] = [
     tmdbId: 7,
   },
   {
-    dataVersion: null,
+    contractId: null,
     fetchedAt: null,
     lastAttemptAt: null,
     lastError: null,
@@ -63,7 +65,7 @@ const summary: TmdbRefreshSummary = {
     total: 3,
     unlinked: 1,
   },
-  currentDataVersion: 1,
+  currentContractId,
   schedule: {
     batchSize: 25,
     enabled: true,
@@ -130,7 +132,7 @@ describe("TMDB refresh status page", () => {
     const loadQueue = vi
       .spyOn(api, "tmdbRefreshQueue")
       .mockImplementation(async (query: TmdbRefreshQueueQuery) => {
-        if (query.search === "1/1" || query.dateSearch) {
+        if (query.search === "aaaaaaaa" || query.dateSearch) {
           return queue([items[1]], {
             page: 1,
             pageSize: query.pageSize,
@@ -151,11 +153,15 @@ describe("TMDB refresh status page", () => {
     expect(
       screen.getByRole("columnheader", { name: /Status/ }),
     ).toHaveAttribute("aria-sort", "ascending");
+    expect(screen.getByText("Current fetch contract:")).toBeVisible();
+    expect(
+      screen.getByRole("columnheader", { name: "Fetch contract" }),
+    ).toBeVisible();
     const search = screen.getByPlaceholderText("Search all fields…");
-    fireEvent.change(search, { target: { value: "1/1" } });
+    fireEvent.change(search, { target: { value: "aaaaaaaa" } });
     await waitFor(() =>
       expect(loadQueue).toHaveBeenLastCalledWith(
-        expect.objectContaining({ page: 1, search: "1/1" }),
+        expect.objectContaining({ page: 1, search: "aaaaaaaa" }),
       ),
     );
     expect(await screen.findByText("Current Movie")).toBeVisible();

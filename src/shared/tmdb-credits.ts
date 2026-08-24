@@ -1,7 +1,10 @@
-export type TmdbPerson = {
-  id: number;
-  name: string;
-};
+import {
+  TMDB_METADATA_RULES,
+  tmdbPersonSchema,
+  type TmdbPerson,
+} from "./tmdb-metadata-contract";
+
+export type { TmdbPerson } from "./tmdb-metadata-contract";
 
 export type TmdbCredits = {
   cast: TmdbPerson[];
@@ -11,18 +14,14 @@ export type TmdbCredits = {
 export const parseTmdbPerson = (value: unknown): TmdbPerson | null => {
   if (!value || typeof value !== "object") return null;
   const person = value as Record<string, unknown>;
-  if (
-    !Number.isInteger(person.id) ||
-    Number(person.id) <= 0 ||
-    typeof person.name !== "string" ||
-    !person.name.trim()
-  ) {
-    return null;
-  }
-  return {
-    id: Number(person.id),
-    name: person.name.trim().slice(0, 200),
-  };
+  const parsed = tmdbPersonSchema.safeParse({
+    id: person.id,
+    name:
+      typeof person.name === "string"
+        ? person.name.trim().slice(0, TMDB_METADATA_RULES.people.nameMaxLength)
+        : person.name,
+  });
+  return parsed.success ? parsed.data : null;
 };
 
 export const distinctTmdbPeople = (values: unknown[], limit: number) => {
@@ -60,16 +59,17 @@ export const parseTmdbCredits = (value: unknown): TmdbCredits | null => {
         return order || left.index - right.index;
       })
       .map(({ person }) => person),
-    5,
+    TMDB_METADATA_RULES.people.cast.limit,
   );
   const directors = distinctTmdbPeople(
     credits.crew.filter(
       (person) =>
         person !== null &&
         typeof person === "object" &&
-        (person as Record<string, unknown>).job === "Director",
+        (person as Record<string, unknown>).job ===
+          TMDB_METADATA_RULES.people.directors.job,
     ),
-    3,
+    TMDB_METADATA_RULES.people.directors.limit,
   );
   return { cast, directors };
 };

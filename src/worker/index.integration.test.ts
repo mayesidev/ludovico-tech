@@ -57,9 +57,8 @@ describe("Ludovico Tech Worker routes", () => {
       ...movies.map((movie, index) =>
         env.DB.prepare(
           `INSERT INTO movie_tmdb_data
-           (movie_id, tmdb_id, poster_path, runtime_minutes, refresh_after,
-            data_version)
-           VALUES (?, ?, ?, ?, '1970-01-01T00:00:00.000Z', 0)`,
+           (movie_id, tmdb_id, poster_path, runtime_minutes, refresh_after)
+           VALUES (?, ?, ?, ?, '1970-01-01T00:00:00.000Z')`,
         ).bind(movie.id, 10_000 + index, `/home-${index}.jpg`, 100 + index),
       ),
       ...movies.slice(0, 6).map((movie, index) =>

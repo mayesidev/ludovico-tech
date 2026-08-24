@@ -161,7 +161,7 @@ describe("generalized catalog import", () => {
       .bind("tt1234568")
       .first();
     const enrichment = await env.DB.prepare(
-      `SELECT movie_tmdb_data.tmdb_id, movie_tmdb_data.data_version,
+      `SELECT movie_tmdb_data.tmdb_id, movie_tmdb_data.contract_id,
               movie_tmdb_data.release_date, movie_tmdb_data.poster_path,
               movie_tmdb_data.runtime_minutes, movie_tmdb_data.fetched_at,
               movie_tmdb_data.tmdb_collection_id,
@@ -183,7 +183,7 @@ describe("generalized catalog import", () => {
     });
     expect(enrichment).toEqual({
       collection_name: "Synthetic Collection",
-      data_version: 0,
+      contract_id: null,
       fetched_at: "2026-08-10T10:00:00.000Z",
       poster_path: "/synthetic-two.jpg",
       release_date: "2024-01-02",
