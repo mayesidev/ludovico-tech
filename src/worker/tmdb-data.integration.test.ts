@@ -290,6 +290,19 @@ describe("scheduled TMDB enrichment refresh", () => {
     for (let index = 1; index <= 7; index += 1) {
       await insertLinkedMovie(`credential-failure-${index}`, 60 + index);
     }
+    await env.DB.batch([
+      env.DB.prepare(
+        "CREATE TABLE IF NOT EXISTS tmdb_data_write_events (movie_id TEXT NOT NULL)",
+      ),
+      env.DB.prepare(
+        `CREATE TRIGGER IF NOT EXISTS track_tmdb_data_update
+         AFTER UPDATE ON movie_tmdb_data
+         BEGIN
+           INSERT INTO tmdb_data_write_events (movie_id) VALUES (NEW.movie_id);
+         END`,
+      ),
+      env.DB.prepare("DELETE FROM tmdb_data_write_events"),
+    ]);
     const fetchMock = vi
       .fn()
       .mockResolvedValue(new Response(null, { status: 401 }));
@@ -306,13 +319,18 @@ describe("scheduled TMDB enrichment refresh", () => {
     expect(fetchMock).toHaveBeenCalledTimes(6);
     expect(
       await env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM tmdb_data_write_events",
+      ).first(),
+    ).toEqual({ count: 0 });
+    expect(
+      await env.DB.prepare(
         `SELECT last_refresh_attempt_at, last_refresh_error, last_refresh_status
          FROM movie_tmdb_data WHERE movie_id = 'credential-failure-1'`,
       ).first(),
     ).toEqual({
-      last_refresh_attempt_at: timestamp,
-      last_refresh_error: "TMDB credentials were rejected (HTTP 401)",
-      last_refresh_status: "failed",
+      last_refresh_attempt_at: null,
+      last_refresh_error: null,
+      last_refresh_status: null,
     });
     expect(
       await env.DB.prepare(
@@ -323,6 +341,32 @@ describe("scheduled TMDB enrichment refresh", () => {
       last_refresh_attempt_at: null,
       last_refresh_error: null,
       last_refresh_status: null,
+    });
+  });
+
+  it("logs a sanitized transport diagnostic for a shared network failure", async () => {
+    for (let index = 1; index <= 7; index += 1) {
+      await insertLinkedMovie(`network-failure-${index}`, 120 + index);
+    }
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValue(new TypeError("failed with test-tmdb-token"));
+    vi.stubGlobal("fetch", fetchMock);
+    const errorLog = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    expect(await refreshDueTmdbData(tmdbEnv(), timestamp)).toMatchObject({
+      attempted: 6,
+      failed: 6,
+      haltedReason: "TMDB could not be reached",
+      refreshed: 0,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(errorLog).toHaveBeenCalledWith("TMDB refresh batch halted", {
+      diagnostic: "TypeError: failed with [redacted]",
+      failureKind: "network",
+      upstreamStatus: null,
     });
   });
 
@@ -348,9 +392,45 @@ describe("scheduled TMDB enrichment refresh", () => {
          WHERE last_refresh_error = 'TMDB title was not found (HTTP 404)'`,
       ).first(),
     ).toEqual({ count: 7 });
+    expect(
+      await env.DB.prepare(
+        `SELECT COUNT(*) AS count FROM movie_tmdb_data
+         WHERE last_refresh_status = 'failed' AND refresh_after = ?`,
+      )
+        .bind(timestamp)
+        .first(),
+    ).toEqual({ count: 7 });
   });
 
-  it("bulk reads mixed cache hits and commits the claim in two batches", async () => {
+  it("processes untouched due titles before retrying an individual failure", async () => {
+    await insertLinkedMovie("retry-a-failure", 131);
+    await insertLinkedMovie("retry-b-next", 132);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(responseFor(132));
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await refreshDueTmdbData(tmdbEnv(), timestamp, 1)).toMatchObject({
+      attempted: 1,
+      failed: 1,
+      refreshed: 0,
+    });
+    expect(await refreshDueTmdbData(tmdbEnv(), timestamp, 1)).toMatchObject({
+      attempted: 1,
+      failed: 0,
+      refreshed: 1,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(new URL(String(fetchMock.mock.calls[0]?.[0])).pathname).toBe(
+      "/3/movie/131",
+    );
+    expect(new URL(String(fetchMock.mock.calls[1]?.[0])).pathname).toBe(
+      "/3/movie/132",
+    );
+  });
+
+  it("bulk reads mixed cache hits and commits the claim in one batch", async () => {
     await insertLinkedMovie("cached-title", 71);
     const fetchMock = vi
       .fn()
@@ -374,7 +454,7 @@ describe("scheduled TMDB enrichment refresh", () => {
       refreshed: 2,
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(tracked.batches()).toBe(2);
+    expect(tracked.batches()).toBe(1);
     expect(
       tracked.preparedQueries.filter((query) =>
         query.includes("SELECT cache_key, payload_json, fetched_at"),
@@ -463,7 +543,7 @@ describe("scheduled TMDB enrichment refresh", () => {
         batch: (statements: D1PreparedStatement[]) => {
           batchCall += 1;
           return bindings.DB.batch(
-            batchCall === 2
+            batchCall === 1
               ? [
                   ...statements,
                   bindings.DB.prepare(
