@@ -38,7 +38,9 @@ export const replaceTmdbDataStatements = async (
   env: AppEnv["Bindings"],
   movieId: string,
   result: TmdbMovieResult | null,
+  options: { includeOrphanCleanup?: boolean } = {},
 ) => {
+  const includeOrphanCleanup = options.includeOrphanCleanup ?? true;
   if (!result) {
     return [
       env.DB.prepare("DELETE FROM movie_credits WHERE movie_id = ?").bind(
@@ -47,7 +49,7 @@ export const replaceTmdbDataStatements = async (
       env.DB.prepare("DELETE FROM movie_tmdb_data WHERE movie_id = ?").bind(
         movieId,
       ),
-      ...tmdbOrphanCleanupStatements(env),
+      ...(includeOrphanCleanup ? tmdbOrphanCleanupStatements(env) : []),
     ];
   }
 
@@ -147,7 +149,9 @@ export const replaceTmdbDataStatements = async (
       ).bind(movieId, person.id, index + 1, movieId, data.id, fetchedAt),
     );
   }
-  statements.push(...tmdbOrphanCleanupStatements(env));
+  if (includeOrphanCleanup) {
+    statements.push(...tmdbOrphanCleanupStatements(env));
+  }
   return statements;
 };
 
@@ -216,7 +220,9 @@ export const refreshDueTmdbData = async (
     try {
       const result = await getTmdbMovie(env, row.tmdb_id);
       await env.DB.batch([
-        ...(await replaceTmdbDataStatements(env, row.movie_id, result)),
+        ...(await replaceTmdbDataStatements(env, row.movie_id, result, {
+          includeOrphanCleanup: false,
+        })),
         env.DB.prepare(
           `UPDATE movie_tmdb_data SET
              last_refresh_attempt_at = ?,

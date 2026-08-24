@@ -519,6 +519,46 @@ describe("catalog schema", () => {
     ).rejects.toThrow();
   });
 
+  it("indexes the ordered TMDB refresh queue", async () => {
+    expect(
+      await env.DB.prepare(
+        "PRAGMA index_info(idx_movie_tmdb_data_due_queue)",
+      ).all(),
+    ).toMatchObject({
+      results: [
+        { name: "refresh_after", seqno: 0 },
+        { name: "movie_id", seqno: 1 },
+        { name: "contract_id", seqno: 2 },
+        { name: "tmdb_id", seqno: 3 },
+      ],
+    });
+
+    const plan = await env.DB.prepare(
+      `EXPLAIN QUERY PLAN
+       SELECT movie_id, tmdb_id
+       FROM movie_tmdb_data
+       WHERE refresh_after <= ? OR contract_id IS NULL OR contract_id <> ?
+       ORDER BY refresh_after, movie_id
+       LIMIT ?`,
+    )
+      .bind(
+        "2026-08-24T00:00:00.000Z",
+        "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        25,
+      )
+      .all<{ detail: string }>();
+    const details = plan.results.map(({ detail }) => detail);
+    expect(
+      details.some((detail) =>
+        detail.includes("INDEX idx_movie_tmdb_data_due_queue"),
+      ),
+    ).toBe(true);
+    const usesTemporarySort = details.some((detail) =>
+      detail.includes("TEMP B-TREE"),
+    );
+    expect(usesTemporarySort).toBe(false);
+  });
+
   it("keeps source provenance and actor identifiers out of public movie DTOs", async () => {
     await insertMovie("movie-public", "Public Movie");
     await env.DB.prepare("UPDATE movies SET imdb_id = ? WHERE id = ?")

@@ -12,6 +12,30 @@ const tmdbEnv = () =>
     TMDB_READ_ACCESS_TOKEN: "test-tmdb-token",
   }) as AppEnv["Bindings"];
 
+const trackOrphanCleanup = () => {
+  let prepared = 0;
+  const bindings = tmdbEnv();
+  return {
+    bindings: {
+      ...bindings,
+      DB: {
+        batch: (statements: D1PreparedStatement[]) =>
+          bindings.DB.batch(statements),
+        prepare: (query: string) => {
+          if (
+            query.includes("DELETE FROM tmdb_people") ||
+            query.includes("DELETE FROM tmdb_collections")
+          ) {
+            prepared += 1;
+          }
+          return bindings.DB.prepare(query);
+        },
+      } as D1Database,
+    } as AppEnv["Bindings"],
+    prepared: () => prepared,
+  };
+};
+
 const insertLinkedMovie = async (id: string, tmdbId: number) => {
   await env.DB.prepare(
     `INSERT INTO movies
@@ -184,6 +208,33 @@ describe("scheduled TMDB enrichment refresh", () => {
         "SELECT COUNT(*) AS count FROM movie_tmdb_data WHERE contract_id IS NULL",
       ).first(),
     ).toEqual({ count: 2 });
+  });
+
+  it("runs orphan cleanup once per batch instead of once per title", async () => {
+    await insertLinkedMovie("cleanup-batch-one", 81);
+    await insertLinkedMovie("cleanup-batch-two", 82);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(responseFor(81))
+      .mockResolvedValueOnce(responseFor(82));
+    vi.stubGlobal("fetch", fetchMock);
+    const tracked = trackOrphanCleanup();
+
+    expect(await refreshDueTmdbData(tracked.bindings, timestamp, 2)).toEqual({
+      attempted: 2,
+      failed: 0,
+      rateLimited: false,
+      refreshed: 2,
+    });
+    expect(tracked.prepared()).toBe(2);
+
+    expect(await refreshDueTmdbData(tracked.bindings, timestamp, 2)).toEqual({
+      attempted: 0,
+      failed: 0,
+      rateLimited: false,
+      refreshed: 0,
+    });
+    expect(tracked.prepared()).toBe(4);
   });
 
   it("does not synthesize TMDB links from Library records", async () => {
