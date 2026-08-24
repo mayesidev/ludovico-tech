@@ -94,15 +94,17 @@ describe("TMDB refresh operations", () => {
        SET enabled = 0, next_run_at = '1970-01-01T00:00:00.000Z'
        WHERE id = 1`,
     ).run();
-    await expect(
-      runTmdbRefresh(bindings(), { force: true, timestamp }),
-    ).resolves.toEqual({ report: null, remaining: null, started: false });
+    await expect(runTmdbRefresh(bindings(), { timestamp })).resolves.toEqual({
+      report: null,
+      remaining: null,
+      started: false,
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("atomically prevents overlapping scheduled and manual claims", async () => {
     const [first, second] = await Promise.all([
-      claimTmdbRefresh(bindings(), true, timestamp),
+      claimTmdbRefresh(bindings(), false, timestamp),
       claimTmdbRefresh(bindings(), true, timestamp),
     ]);
 
@@ -353,7 +355,14 @@ describe("TMDB refresh operations", () => {
   });
 
   it("runs immediately through the authenticated application endpoint", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(timestamp));
     await insertLinkedMovie();
+    await env.DB.prepare(
+      `UPDATE tmdb_refresh_schedule
+       SET enabled = 0, next_run_at = '2026-08-25T00:00:00.000Z'
+       WHERE id = 1`,
+    ).run();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(tmdbResponse()));
     const executionContext = createExecutionContext();
     const response = await createApp().fetch(
@@ -374,12 +383,22 @@ describe("TMDB refresh operations", () => {
     );
     const status = (await statusResponse.json()) as {
       counts: { current: number; pending: number };
-      schedule: { lastRefreshed: number; running: boolean };
+      schedule: {
+        enabled: boolean;
+        lastRefreshed: number;
+        nextRunAt: string;
+        running: boolean;
+      };
     };
     expect(statusResponse.status).toBe(200);
     expect(status).toMatchObject({
       counts: { current: 1, pending: 0 },
-      schedule: { lastRefreshed: 1, running: false },
+      schedule: {
+        enabled: false,
+        lastRefreshed: 1,
+        nextRunAt: "2026-08-24T07:30:00.000Z",
+        running: false,
+      },
     });
     expect(
       await env.DB.prepare(

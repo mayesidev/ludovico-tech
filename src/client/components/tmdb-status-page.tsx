@@ -299,7 +299,7 @@ export function TmdbStatusPage({
             Refresh status
           </Button>
           <Button
-            disabled={manualRunActive || !schedule.enabled}
+            disabled={manualRunActive}
             onClick={() => {
               setStarting(true);
               setError(null);

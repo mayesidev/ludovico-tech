@@ -54,7 +54,7 @@ export const claimTmdbRefresh = async (
        last_error = NULL,
        updated_at = ?
      WHERE id = ?
-       AND enabled = 1
+       AND (? = 1 OR enabled = 1)
        AND (? = 1 OR next_run_at <= ?)
        AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
      RETURNING interval_minutes, batch_size`,
@@ -64,6 +64,7 @@ export const claimTmdbRefresh = async (
       timestamp,
       timestamp,
       SCHEDULE_ID,
+      force ? 1 : 0,
       force ? 1 : 0,
       timestamp,
       timestamp,

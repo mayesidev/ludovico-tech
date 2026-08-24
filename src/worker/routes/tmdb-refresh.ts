@@ -149,10 +149,7 @@ export const registerTmdbRefreshRoutes = (app: Hono<AppEnv>) => {
 
     const claim = await claimTmdbRefresh(c.env, true);
     if (!claim) {
-      return c.json(
-        { error: "TMDB refresh is disabled or already running" },
-        409,
-      );
+      return c.json({ error: "TMDB refresh is already running" }, 409);
     }
     await auditStatement(
       c.env,
