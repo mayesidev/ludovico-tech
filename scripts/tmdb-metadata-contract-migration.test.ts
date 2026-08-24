@@ -1,7 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import { getTmdbMetadataContractId } from "../src/shared/tmdb-metadata-contract";
 
 const migrations = readdirSync("migrations")
   .filter((name) => name.endsWith(".sql"))
@@ -41,8 +40,18 @@ describe("TMDB metadata contract migration", () => {
         UPDATE movies SET version = 'Library Cut' WHERE id = 'complete';
       `);
 
+      database.exec(
+        `BEGIN;\n${migrationSource("0014_tmdb_metadata_contract.sql")}\nCOMMIT;`,
+      );
+      const bootstrapContract = database
+        .prepare(
+          "SELECT contract_id FROM movie_tmdb_data WHERE movie_id = 'complete'",
+        )
+        .get() as { contract_id: string };
+      expect(bootstrapContract.contract_id).toMatch(/^sha256:[0-9a-f]{64}$/);
+
       for (const name of migrations.filter(
-        (candidate) => candidate >= "0014_tmdb_metadata_contract.sql",
+        (candidate) => candidate > "0014_tmdb_metadata_contract.sql",
       )) {
         database.exec(`BEGIN;\n${migrationSource(name)}\nCOMMIT;`);
       }
@@ -53,19 +62,21 @@ describe("TMDB metadata contract migration", () => {
         .map((column) => String(column.name));
       expect(columns).toContain("contract_id");
       expect(columns).not.toContain("data_version");
-      expect(
-        database
-          .prepare(
-            "SELECT movie_id, contract_id FROM movie_tmdb_data ORDER BY movie_id",
-          )
-          .all(),
-      ).toEqual([
+      const migratedRows = database
+        .prepare(
+          "SELECT movie_id, contract_id FROM movie_tmdb_data ORDER BY movie_id",
+        )
+        .all() as Array<{ contract_id: string | null; movie_id: string }>;
+      expect(migratedRows).toEqual([
         {
-          contract_id: await getTmdbMetadataContractId(),
+          contract_id: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
           movie_id: "complete",
         },
         { contract_id: null, movie_id: "pending" },
       ]);
+      expect(migratedRows[0].contract_id).not.toBe(
+        bootstrapContract.contract_id,
+      );
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
 
       database
