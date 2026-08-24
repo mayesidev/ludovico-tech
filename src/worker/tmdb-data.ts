@@ -278,9 +278,12 @@ export const countDueTmdbData = async (
   const result = await env.DB.prepare(
     `SELECT COUNT(*) AS count
      FROM movie_tmdb_data
-     WHERE refresh_after <= ? OR contract_id IS NULL OR contract_id <> ?`,
+     WHERE contract_id IS NULL
+        OR contract_id < ?
+        OR contract_id > ?
+        OR (contract_id = ? AND refresh_after <= ?)`,
   )
-    .bind(timestamp, contractId)
+    .bind(contractId, contractId, contractId, timestamp)
     .first<{ count: number }>();
   return result?.count ?? 0;
 };
