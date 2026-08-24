@@ -94,9 +94,11 @@ describe("TMDB refresh operations", () => {
        SET enabled = 0, next_run_at = '1970-01-01T00:00:00.000Z'
        WHERE id = 1`,
     ).run();
-    await expect(
-      runTmdbRefresh(bindings(), { timestamp }),
-    ).resolves.toEqual({ report: null, remaining: null, started: false });
+    await expect(runTmdbRefresh(bindings(), { timestamp })).resolves.toEqual({
+      report: null,
+      remaining: null,
+      started: false,
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
