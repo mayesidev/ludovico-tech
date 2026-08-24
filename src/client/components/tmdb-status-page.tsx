@@ -60,6 +60,9 @@ const initialQueueQuery: TmdbRefreshQueueQuery = {
   state: "all",
 };
 
+const MANUAL_RUN_REFRESH_INTERVAL_MS = 5_000;
+const MANUAL_RUN_REFRESH_WINDOW_MS = 2 * 60 * 1_000;
+
 const dateSearchValue = (value: string) => {
   const timestamp = Date.parse(value);
   return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : "";
@@ -77,6 +80,7 @@ export function TmdbStatusPage({
   const [loading, setLoading] = useState(canMutate);
   const [refreshing, setRefreshing] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [watchingManualRun, setWatchingManualRun] = useState(false);
   const [updatingSchedule, setUpdatingSchedule] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
@@ -87,22 +91,25 @@ export function TmdbStatusPage({
   const [batchSizeInput, setBatchSizeInput] = useState<string | null>(null);
   const summaryRequestSequence = useRef(0);
   const queueRequestSequence = useRef(0);
+  const manualRunRefreshDeadline = useRef(0);
 
   const loadSummary = useCallback(async () => {
-    if (!canMutate) return;
+    if (!canMutate) return null;
     const sequence = ++summaryRequestSequence.current;
     try {
       const response = await api.tmdbRefreshSummary();
-      if (sequence !== summaryRequestSequence.current) return;
+      if (sequence !== summaryRequestSequence.current) return null;
       setSummary(response);
       setError(null);
+      return response;
     } catch (cause) {
-      if (sequence !== summaryRequestSequence.current) return;
+      if (sequence !== summaryRequestSequence.current) return null;
       setError(
         cause instanceof Error
           ? cause.message
           : "Unable to load Library refresh status",
       );
+      return null;
     } finally {
       if (sequence === summaryRequestSequence.current) setLoading(false);
     }
@@ -165,6 +172,36 @@ export function TmdbStatusPage({
     return () => window.removeEventListener("focus", refreshOnFocus);
   }, [hasStatus, load]);
 
+  useEffect(() => {
+    if (!watchingManualRun) return;
+    let cancelled = false;
+    let timeout: number | undefined;
+    const refreshManualRun = async () => {
+      const nextSummary = await loadSummary();
+      if (cancelled) return;
+      if (
+        (nextSummary === null || nextSummary.schedule.running) &&
+        Date.now() < manualRunRefreshDeadline.current
+      ) {
+        timeout = window.setTimeout(
+          () => void refreshManualRun(),
+          MANUAL_RUN_REFRESH_INTERVAL_MS,
+        );
+        return;
+      }
+      setWatchingManualRun(false);
+      await loadQueue();
+    };
+    timeout = window.setTimeout(
+      () => void refreshManualRun(),
+      MANUAL_RUN_REFRESH_INTERVAL_MS,
+    );
+    return () => {
+      cancelled = true;
+      if (timeout !== undefined) window.clearTimeout(timeout);
+    };
+  }, [loadQueue, loadSummary, watchingManualRun]);
+
   if (!canMutate) {
     return (
       <div>
@@ -198,6 +235,7 @@ export function TmdbStatusPage({
   const scheduleHasChanges =
     parsedIntervalMinutes !== schedule.intervalMinutes ||
     parsedBatchSize !== schedule.batchSize;
+  const manualRunActive = starting || watchingManualRun || schedule.running;
   const changeSort = (sort: TmdbRefreshQueueQuery["sort"]) => {
     setQueueQuery((current) => ({
       ...current,
@@ -258,13 +296,22 @@ export function TmdbStatusPage({
             Refresh status
           </Button>
           <Button
-            disabled={starting || schedule.running || !schedule.enabled}
+            disabled={manualRunActive || !schedule.enabled}
             onClick={() => {
               setStarting(true);
               setError(null);
+              manualRunRefreshDeadline.current =
+                Date.now() + MANUAL_RUN_REFRESH_WINDOW_MS;
               void api
                 .runTmdbRefresh()
-                .then(load)
+                .then(async () => {
+                  const nextSummary = await loadSummary();
+                  if (nextSummary === null || nextSummary.schedule.running) {
+                    setWatchingManualRun(true);
+                  } else {
+                    await loadQueue();
+                  }
+                })
                 .catch((cause) =>
                   setError(
                     cause instanceof Error ? cause.message : "Refresh failed",
@@ -274,10 +321,10 @@ export function TmdbStatusPage({
             }}
           >
             <RefreshCw
-              className={schedule.running ? "animate-spin" : undefined}
+              className={manualRunActive ? "animate-spin" : undefined}
               size={16}
             />
-            {schedule.running ? "Refresh running" : "Run now"}
+            {manualRunActive ? "Refresh running" : "Run now"}
           </Button>
         </div>
       </div>

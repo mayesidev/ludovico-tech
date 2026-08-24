@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   api,
@@ -86,7 +92,10 @@ const queue = (
   },
 ): TmdbRefreshQueueResponse => ({ items: pageItems, pagination });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 describe("TMDB refresh status page", () => {
   it("refreshes the summary and current queue page on demand and focus", async () => {
@@ -248,6 +257,75 @@ describe("TMDB refresh status page", () => {
         intervalMinutes: 720,
       }),
     );
+  });
+
+  it("refreshes a manual run until completion and then reloads the queue", async () => {
+    vi.useFakeTimers();
+    const runningSummary: TmdbRefreshSummary = {
+      ...summary,
+      schedule: {
+        ...summary.schedule,
+        lastStartedAt: "2026-08-24T02:00:00.000Z",
+        leaseExpiresAt: "2026-08-24T02:20:00.000Z",
+        running: true,
+      },
+    };
+    const completedSummary: TmdbRefreshSummary = {
+      ...summary,
+      counts: { ...summary.counts, current: 2, pending: 0 },
+      schedule: {
+        ...summary.schedule,
+        lastCompletedAt: "2026-08-24T02:00:10.000Z",
+        lastRefreshed: 2,
+        lastRemaining: 0,
+      },
+    };
+    const loadSummary = vi
+      .spyOn(api, "tmdbRefreshSummary")
+      .mockResolvedValueOnce(summary)
+      .mockResolvedValueOnce(runningSummary)
+      .mockResolvedValueOnce(runningSummary)
+      .mockResolvedValueOnce(completedSummary);
+    const loadQueue = vi
+      .spyOn(api, "tmdbRefreshQueue")
+      .mockResolvedValue(queue());
+    const run = vi
+      .spyOn(api, "runTmdbRefresh")
+      .mockResolvedValue({ started: true });
+
+    render(<TmdbStatusPage canMutate onNavigate={vi.fn()} />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(loadSummary).toHaveBeenCalledTimes(1);
+    expect(loadQueue).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Run now" }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(loadSummary).toHaveBeenCalledTimes(2);
+    expect(loadQueue).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("button", { name: "Refresh running" }),
+    ).toBeDisabled();
+
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(loadSummary).toHaveBeenCalledTimes(3);
+    expect(loadQueue).toHaveBeenCalledTimes(1);
+
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(loadSummary).toHaveBeenCalledTimes(4);
+    expect(loadQueue).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("2 refreshed, 0 failed")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Run now" })).toBeEnabled();
+
+    await act(async () => vi.advanceTimersByTimeAsync(60_000));
+    expect(loadSummary).toHaveBeenCalledTimes(4);
+    expect(loadQueue).toHaveBeenCalledTimes(2);
   });
 
   it("does not request operational data for an anonymous visitor", () => {
