@@ -564,8 +564,10 @@ export const getTmdbRefreshQueue = async (
         sql: `SELECT COUNT(*) AS total FROM movie_tmdb_data
               WHERE COALESCE(last_refresh_status, '') <> 'failed'
                 AND fetched_at IS NOT NULL
-                AND (contract_id IS NULL OR contract_id <> ?)`,
-        bindings: [currentContractId],
+                AND (contract_id IS NULL
+                     OR contract_id < ?
+                     OR contract_id > ?)`,
+        bindings: [currentContractId, currentContractId],
       },
       due: {
         sql: `SELECT COUNT(*) AS total FROM movie_tmdb_data
