@@ -50,7 +50,9 @@ describe("TMDB metadata contract migration", () => {
             "SELECT contract_id FROM movie_tmdb_data WHERE movie_id = 'complete'",
           )
           .get(),
-      ).toEqual({ contract_id: expect.stringMatching(/^sha256:[0-9a-f]{64}$/) });
+      ).toEqual({
+        contract_id: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+      });
       expect(
         database
           .prepare(
