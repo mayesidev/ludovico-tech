@@ -351,12 +351,10 @@ describe("scheduled TMDB enrichment refresh", () => {
             batchCall === 2
               ? [
                   ...statements,
-                  bindings.DB
-                    .prepare(
-                      `INSERT INTO tmdb_people (tmdb_id, name, fetched_at)
+                  bindings.DB.prepare(
+                    `INSERT INTO tmdb_people (tmdb_id, name, fetched_at)
                        VALUES (-1, 'Invalid person', ?)`,
-                    )
-                    .bind(timestamp),
+                  ).bind(timestamp),
                 ]
               : statements,
           );
