@@ -128,6 +128,18 @@ describe("home workflows", () => {
     expect(screen.queryByText("Starring")).toBeNull();
   });
 
+  it("lets a single available credit field use the full row", () => {
+    renderHome({
+      nowShowing: nowShowing({
+        cast: [{ tmdbId: 1, name: "Only Actor" }],
+      }),
+    });
+
+    expect(screen.getByText("Starring").closest("dl")).toHaveClass(
+      "feature-credits-single",
+    );
+  });
+
   it("exposes title length for responsive feature-title scaling", () => {
     const title =
       "Dr. Strangelove or: How I Learned to Stop Worrying and Love the Bomb";
