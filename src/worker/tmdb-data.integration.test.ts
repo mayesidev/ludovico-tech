@@ -286,6 +286,70 @@ describe("scheduled TMDB enrichment refresh", () => {
     ).toEqual({ last_refresh_attempt_at: null, last_refresh_status: null });
   });
 
+  it("halts a batch on a shared credential failure and preserves unattempted rows", async () => {
+    for (let index = 1; index <= 7; index += 1) {
+      await insertLinkedMovie(`credential-failure-${index}`, 60 + index);
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 401 }));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    expect(await refreshDueTmdbData(tmdbEnv(), timestamp)).toEqual({
+      attempted: 6,
+      failed: 6,
+      haltedReason: "TMDB credentials were rejected (HTTP 401)",
+      rateLimited: false,
+      refreshed: 0,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(
+      await env.DB.prepare(
+        `SELECT last_refresh_attempt_at, last_refresh_error, last_refresh_status
+         FROM movie_tmdb_data WHERE movie_id = 'credential-failure-1'`,
+      ).first(),
+    ).toEqual({
+      last_refresh_attempt_at: timestamp,
+      last_refresh_error: "TMDB credentials were rejected (HTTP 401)",
+      last_refresh_status: "failed",
+    });
+    expect(
+      await env.DB.prepare(
+        `SELECT last_refresh_attempt_at, last_refresh_error, last_refresh_status
+         FROM movie_tmdb_data WHERE movie_id = 'credential-failure-7'`,
+      ).first(),
+    ).toEqual({
+      last_refresh_attempt_at: null,
+      last_refresh_error: null,
+      last_refresh_status: null,
+    });
+  });
+
+  it("continues after title-specific not-found responses", async () => {
+    for (let index = 1; index <= 7; index += 1) {
+      await insertLinkedMovie(`not-found-${index}`, 100 + index);
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 404 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await refreshDueTmdbData(tmdbEnv(), timestamp)).toEqual({
+      attempted: 7,
+      failed: 7,
+      rateLimited: false,
+      refreshed: 0,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(7);
+    expect(
+      await env.DB.prepare(
+        `SELECT COUNT(*) AS count FROM movie_tmdb_data
+         WHERE last_refresh_error = 'TMDB title was not found (HTTP 404)'`,
+      ).first(),
+    ).toEqual({ count: 7 });
+  });
+
   it("bulk reads mixed cache hits and commits the claim in two batches", async () => {
     await insertLinkedMovie("cached-title", 71);
     const fetchMock = vi
