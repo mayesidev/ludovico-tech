@@ -43,6 +43,42 @@ export const tmdbOrphanCleanupStatements = (env: AppEnv["Bindings"]) => [
   ),
 ];
 
+const uniqueIds = (ids: number[]) => [...new Set(ids)];
+
+export const tmdbCandidateOrphanCleanupStatements = (
+  env: AppEnv["Bindings"],
+  candidates: { collectionIds: number[]; personIds: number[] },
+) => {
+  const personIds = uniqueIds(candidates.personIds);
+  const collectionIds = uniqueIds(candidates.collectionIds);
+  const statements: D1PreparedStatement[] = [];
+  if (personIds.length > 0) {
+    statements.push(
+      env.DB.prepare(
+        `DELETE FROM tmdb_people
+         WHERE tmdb_id IN (${personIds.map(() => "?").join(", ")})
+           AND NOT EXISTS (
+             SELECT 1 FROM movie_credits
+             WHERE movie_credits.tmdb_person_id = tmdb_people.tmdb_id
+           )`,
+      ).bind(...personIds),
+    );
+  }
+  if (collectionIds.length > 0) {
+    statements.push(
+      env.DB.prepare(
+        `DELETE FROM tmdb_collections
+         WHERE tmdb_id IN (${collectionIds.map(() => "?").join(", ")})
+           AND NOT EXISTS (
+             SELECT 1 FROM movie_tmdb_data
+             WHERE movie_tmdb_data.tmdb_collection_id = tmdb_collections.tmdb_id
+           )`,
+      ).bind(...collectionIds),
+    );
+  }
+  return statements;
+};
+
 export type TmdbCreditSnapshot = {
   creditType: "cast" | "director";
   personId: number;
@@ -295,7 +331,7 @@ export const refreshDueTmdbData = async (
 ): Promise<TmdbRefreshReport> => {
   const contractId = await getTmdbMetadataContractId();
   const due = await env.DB.prepare(
-    `SELECT movie_id, tmdb_id, last_refresh_attempt_at,
+    `SELECT movie_id, tmdb_id, tmdb_collection_id, last_refresh_attempt_at,
             last_refresh_status, last_refresh_error
      FROM movie_tmdb_data
      WHERE refresh_after <= ? OR contract_id IS NULL OR contract_id <> ?
@@ -308,6 +344,7 @@ export const refreshDueTmdbData = async (
       last_refresh_error: string | null;
       last_refresh_status: "failed" | "running" | "succeeded" | null;
       movie_id: string;
+      tmdb_collection_id: number | null;
       tmdb_id: number;
     }>();
   const report: TmdbRefreshReport = {
@@ -383,11 +420,31 @@ export const refreshDueTmdbData = async (
     cached.invalidKeys,
     timestamp,
   );
+  const orphanCandidates = {
+    collectionIds: [] as number[],
+    personIds: [] as number[],
+  };
 
   for (const row of due.results) {
     const result = cached.results.get(row.tmdb_id) ?? fetched.get(row.tmdb_id);
     const failure = failures.get(row.tmdb_id);
     if (result) {
+      const desiredPersonIds = new Set(
+        [...result.data.cast, ...result.data.directors].map(
+          (person) => person.id,
+        ),
+      );
+      orphanCandidates.personIds.push(
+        ...(creditSnapshots.get(row.movie_id) ?? [])
+          .map((credit) => credit.personId)
+          .filter((personId) => !desiredPersonIds.has(personId)),
+      );
+      if (
+        row.tmdb_collection_id !== null &&
+        row.tmdb_collection_id !== (result.data.collection?.id ?? null)
+      ) {
+        orphanCandidates.collectionIds.push(row.tmdb_collection_id);
+      }
       report.attempted += 1;
       report.refreshed += 1;
       persistenceStatements.push(
@@ -433,7 +490,9 @@ export const refreshDueTmdbData = async (
     }
   }
 
-  persistenceStatements.push(...tmdbOrphanCleanupStatements(env));
+  persistenceStatements.push(
+    ...tmdbCandidateOrphanCleanupStatements(env, orphanCandidates),
+  );
   await env.DB.batch(persistenceStatements);
   return report;
 };
