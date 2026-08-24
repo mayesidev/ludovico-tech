@@ -1,3 +1,5 @@
+import type { ReturnTarget } from "./types";
+
 export type AppRoute =
   | { page: "home" }
   | { page: "library" }
@@ -6,14 +8,21 @@ export type AppRoute =
   | {
       page: "movie";
       movieId: string;
-      returnTo: "library" | "now-showing";
+      returnTo: ReturnTarget;
     }
   | {
       page: "collection";
       collectionId: string;
-      returnTo: "library" | "now-showing";
+      returnTo: ReturnTarget;
     }
   | { page: "not-found" };
+
+const parseReturnTarget = (search: string): ReturnTarget => {
+  const target = new URLSearchParams(search).get("from");
+  return target === "now-showing" || target === "manager-office"
+    ? target
+    : "library";
+};
 
 export const parseRoute = (pathname: string, search = ""): AppRoute => {
   const segments = pathname.split("/").filter(Boolean);
@@ -25,7 +34,7 @@ export const parseRoute = (pathname: string, search = ""): AppRoute => {
   if (segments.length === 1 && segments[0] === "credits") {
     return { page: "credits" };
   }
-  if (segments.length === 1 && segments[0] === "tmdb-status") {
+  if (segments.length === 1 && segments[0] === "manager-office") {
     return { page: "tmdb-status" };
   }
   if (segments.length === 2 && segments[0] === "movies") {
@@ -33,10 +42,7 @@ export const parseRoute = (pathname: string, search = ""): AppRoute => {
       return {
         page: "movie",
         movieId: decodeURIComponent(segments[1]),
-        returnTo:
-          new URLSearchParams(search).get("from") === "now-showing"
-            ? "now-showing"
-            : "library",
+        returnTo: parseReturnTarget(search),
       };
     } catch {
       return { page: "not-found" };
@@ -47,10 +53,7 @@ export const parseRoute = (pathname: string, search = ""): AppRoute => {
       return {
         page: "collection",
         collectionId: decodeURIComponent(segments[1]),
-        returnTo:
-          new URLSearchParams(search).get("from") === "now-showing"
-            ? "now-showing"
-            : "library",
+        returnTo: parseReturnTarget(search),
       };
     } catch {
       return { page: "not-found" };

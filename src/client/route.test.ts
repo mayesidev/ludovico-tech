@@ -6,7 +6,7 @@ describe("client routes", () => {
     expect(parseRoute("/")).toEqual({ page: "home" });
     expect(parseRoute("/library")).toEqual({ page: "library" });
     expect(parseRoute("/credits")).toEqual({ page: "credits" });
-    expect(parseRoute("/tmdb-status")).toEqual({ page: "tmdb-status" });
+    expect(parseRoute("/manager-office")).toEqual({ page: "tmdb-status" });
     expect(parseRoute("/movies/movie%20id")).toEqual({
       page: "movie",
       movieId: "movie id",
@@ -16,6 +16,11 @@ describe("client routes", () => {
       page: "movie",
       movieId: "movie id",
       returnTo: "now-showing",
+    });
+    expect(parseRoute("/movies/movie%20id", "?from=manager-office")).toEqual({
+      page: "movie",
+      movieId: "movie id",
+      returnTo: "manager-office",
     });
     expect(parseRoute("/collections/saga%20id")).toEqual({
       page: "collection",
@@ -27,10 +32,18 @@ describe("client routes", () => {
       collectionId: "saga id",
       returnTo: "now-showing",
     });
+    expect(
+      parseRoute("/collections/saga%20id", "?from=manager-office"),
+    ).toEqual({
+      page: "collection",
+      collectionId: "saga id",
+      returnTo: "manager-office",
+    });
   });
 
   it("rejects unknown and malformed routes", () => {
     expect(parseRoute("/unknown")).toEqual({ page: "not-found" });
+    expect(parseRoute("/tmdb-status")).toEqual({ page: "not-found" });
     expect(parseRoute("/movies/%E0%A4%A")).toEqual({ page: "not-found" });
   });
 });

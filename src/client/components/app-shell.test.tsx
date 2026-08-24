@@ -105,6 +105,9 @@ describe("site identity", () => {
     expect(
       screen.getByRole("link", { name: "Manager's Office" }),
     ).toHaveAttribute("aria-current", "page");
+    expect(
+      screen.getByRole("link", { name: "Manager's Office" }),
+    ).toHaveAttribute("href", "/manager-office");
   });
 });
 

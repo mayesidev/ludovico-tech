@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowUp, ExternalLink } from "lucide-react";
 import { api, type Movie } from "../api";
-import type { Navigate, RunAction } from "../types";
+import type { Navigate, ReturnTarget, RunAction } from "../types";
 import { cn, formatMovieTitle } from "../lib/utils";
 import { AppLink } from "./app-link";
 import { Button } from "./ui";
@@ -13,7 +13,7 @@ type CollectionDetailPageProps = {
   movies: Movie[];
   onLogin: () => void;
   onNavigate: Navigate;
-  returnTo: "library" | "now-showing";
+  returnTo: ReturnTarget;
   run: RunAction;
 };
 
@@ -62,13 +62,25 @@ export function CollectionDetailPage({
   }, [members]);
   const [draft, setDraft] = useState(members);
   const [saved, setSaved] = useState(false);
-  const returnHref = returnTo === "now-showing" ? "/" : "/library";
+  const returnHref =
+    returnTo === "now-showing"
+      ? "/"
+      : returnTo === "manager-office"
+        ? "/manager-office"
+        : "/library";
   const returnLabel =
-    returnTo === "now-showing" ? "Return to Now Showing" : "Library";
+    returnTo === "now-showing"
+      ? "Return to Now Showing"
+      : returnTo === "manager-office"
+        ? "Return to Manager's Office"
+        : "Library";
   const notFoundReturnLabel =
     returnTo === "now-showing"
       ? "Return to Now Showing"
-      : "Return to the Library";
+      : returnTo === "manager-office"
+        ? "Return to Manager's Office"
+        : "Return to the Library";
+  const returnQuery = returnTo === "library" ? "" : `?from=${returnTo}`;
 
   if (members.length === 0) {
     return (
@@ -176,7 +188,7 @@ export function CollectionDetailPage({
                 <div className="flex min-w-0 flex-col justify-center px-4 py-3 sm:px-5">
                   <AppLink
                     className="font-semibold text-text-primary hover:text-highlight-soft"
-                    href={`/movies/${encodeURIComponent(movie.id)}`}
+                    href={`/movies/${encodeURIComponent(movie.id)}${returnQuery}`}
                     onNavigate={onNavigate}
                   >
                     {title}

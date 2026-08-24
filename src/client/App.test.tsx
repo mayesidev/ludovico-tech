@@ -423,6 +423,35 @@ describe("application authorization presentation", () => {
     await waitFor(() => expect(window.location.pathname).toBe("/"));
   });
 
+  it("returns to the Manager's Office after deleting from that context", async () => {
+    arrange(authenticated);
+    vi.spyOn(api, "deleteMovie").mockResolvedValue({
+      deleted: true,
+      id: movie.id,
+    });
+    window.history.replaceState(
+      null,
+      "",
+      "/movies/movie-id?from=manager-office",
+    );
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Delete Movie" }),
+    );
+    const confirmation = screen.getByRole("dialog", {
+      name: "Delete Test Movie?",
+    });
+    await user.click(
+      within(confirmation).getByRole("button", { name: "Delete Movie" }),
+    );
+
+    await waitFor(() =>
+      expect(window.location.pathname).toBe("/manager-office"),
+    );
+  });
+
   it("expires authorization safely while saving collection order", async () => {
     arrange(authenticated);
     vi.mocked(api.authMe)
