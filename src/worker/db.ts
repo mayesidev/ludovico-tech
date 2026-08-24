@@ -63,6 +63,12 @@ export type HomeMovieRow = {
   watched_at: string | null;
 };
 
+export type RandomMovieRow = {
+  collection_id: string | null;
+  id: string;
+  title: string;
+};
+
 export type TmdbPersonReference = {
   tmdbId: number;
   name: string;
@@ -192,17 +198,27 @@ const homeMovieSelect = `
   LEFT JOIN ratings ON ratings.movie_id = movies.id
 `;
 
+const getRandomMovieRowId = async (env: AppEnv["Bindings"]) => {
+  const row = await env.DB.prepare(
+    "SELECT MAX(rowid) AS max_rowid FROM movies",
+  ).first<{ max_rowid: number | null }>();
+  if (!row?.max_rowid) return null;
+  const value = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0;
+  return 1 + Math.floor((value / 0x1_0000_0000) * row.max_rowid);
+};
+
 const getRandomHomeMovieSlice = async (
   env: AppEnv["Bindings"],
   predicate: string,
-  bindings: Array<string>,
+  bindings: Array<string | number>,
   limit: number,
 ) => {
-  const pivot = crypto.randomUUID();
+  const pivot = await getRandomMovieRowId(env);
+  if (pivot === null) return [];
   const afterPivot = await env.DB.prepare(
     `${homeMovieSelect}
-     WHERE ${predicate} AND movies.id >= ?
-     ORDER BY movies.id ASC
+     WHERE ${predicate} AND movies.rowid >= ?
+     ORDER BY movies.rowid ASC
      LIMIT ?`,
   )
     .bind(...bindings, pivot, limit)
@@ -210,8 +226,8 @@ const getRandomHomeMovieSlice = async (
   if (afterPivot.results.length >= limit) return afterPivot.results;
   const beforePivot = await env.DB.prepare(
     `${homeMovieSelect}
-     WHERE ${predicate} AND movies.id < ?
-     ORDER BY movies.id ASC
+     WHERE ${predicate} AND movies.rowid < ?
+     ORDER BY movies.rowid ASC
      LIMIT ?`,
   )
     .bind(...bindings, pivot, limit - afterPivot.results.length)
@@ -223,7 +239,7 @@ export const getWatchedHistory = async (env: AppEnv["Bindings"]) => {
   const latest = await env.DB.prepare(
     `${homeMovieSelect}
      WHERE ratings.id IS NOT NULL AND ratings.watched_at IS NOT NULL
-     ORDER BY ratings.watched_at DESC, movies.id ASC
+     ORDER BY ratings.watched_at DESC, ratings.movie_id ASC
      LIMIT 1`,
   ).first<HomeMovieRow>();
   const previous = await getRandomHomeMovieSlice(
@@ -233,6 +249,31 @@ export const getWatchedHistory = async (env: AppEnv["Bindings"]) => {
     latest ? 3 : 4,
   );
   return latest ? [latest, ...previous] : previous;
+};
+
+export const getRandomUnwatchedMovie = async (env: AppEnv["Bindings"]) => {
+  const pivot = await getRandomMovieRowId(env);
+  if (pivot === null) return null;
+  const select = `SELECT movies.id, movies.title,
+      collection_movies.collection_id
+    FROM movies
+    LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
+    LEFT JOIN ratings ON ratings.movie_id = movies.id`;
+  const afterPivot = await env.DB.prepare(
+    `${select}
+     WHERE ratings.id IS NULL AND movies.rowid >= ?
+     ORDER BY movies.rowid ASC LIMIT 1`,
+  )
+    .bind(pivot)
+    .first<RandomMovieRow>();
+  if (afterPivot) return afterPivot;
+  return env.DB.prepare(
+    `${select}
+     WHERE ratings.id IS NULL AND movies.rowid < ?
+     ORDER BY movies.rowid ASC LIMIT 1`,
+  )
+    .bind(pivot)
+    .first<RandomMovieRow>();
 };
 
 export const getPosterReelMovies = async (env: AppEnv["Bindings"]) => {

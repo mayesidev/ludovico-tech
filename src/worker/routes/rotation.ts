@@ -4,6 +4,7 @@ import {
   getMovie,
   getNowShowing,
   getNowShowingDetail,
+  getRandomUnwatchedMovie,
   getRemainingCollectionMovies,
 } from "../db";
 import { type AppEnv, newId, now } from "../env";
@@ -24,13 +25,7 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
       );
     }
 
-    const rolled = await c.env.DB.prepare(
-      `SELECT movies.id, movies.title, collection_movies.collection_id
-       FROM movies
-       LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
-       LEFT JOIN ratings ON ratings.movie_id = movies.id
-       WHERE ratings.id IS NULL ORDER BY RANDOM() LIMIT 1`,
-    ).first<{ id: string; title: string; collection_id: string | null }>();
+    const rolled = await getRandomUnwatchedMovie(c.env);
     if (!rolled) {
       return c.json({ error: "There are no unwatched movies left" }, 409);
     }

@@ -133,6 +133,20 @@ describe("Ludovico Tech Worker routes", () => {
         "2026-08-24T00:00:00.000Z",
         "2026-08-24T00:00:00.000Z",
       ),
+      env.DB.prepare(
+        `INSERT INTO movie_tmdb_data
+         (movie_id, tmdb_id, release_date, refresh_after)
+         VALUES (?, 100001, '2026-01-02', '2027-01-01T00:00:00.000Z')`,
+      ).bind(movies[0].id),
+      env.DB.prepare(
+        `INSERT INTO collections
+         (id, name, name_normalized, created_at, updated_at)
+         VALUES ('library-alpha', 'Alpha Collection', 'alpha collection', ?, ?)`,
+      ).bind("2026-08-24T00:00:00.000Z", "2026-08-24T00:00:00.000Z"),
+      env.DB.prepare(
+        `INSERT INTO collection_movies (collection_id, movie_id, position)
+         VALUES ('library-alpha', ?, 1)`,
+      ).bind(movies[1].id),
     ]);
 
     const secondPage = await request<{
@@ -187,6 +201,21 @@ describe("Ludovico Tech Worker routes", () => {
       "/api/library?pageSize=25&sort=rating&direction=asc",
     );
     expect(ratingOrder.body.movies[0].id).toBe(movies[29].id);
+
+    const addedOrder = await request<{ movies: Array<{ id: string }> }>(
+      "/api/library?pageSize=25&sort=addedAt&direction=desc",
+    );
+    expect(addedOrder.body.movies[0].id).toBe(movies[29].id);
+
+    const releaseOrder = await request<{ movies: Array<{ id: string }> }>(
+      "/api/library?pageSize=25&sort=releaseDate&direction=desc",
+    );
+    expect(releaseOrder.body.movies[0].id).toBe(movies[0].id);
+
+    const collectionOrder = await request<{ movies: Array<{ id: string }> }>(
+      "/api/library?pageSize=25&sort=collection&direction=asc",
+    );
+    expect(collectionOrder.body.movies[0].id).toBe(movies[1].id);
 
     const invalid = await request("/api/library?pageSize=10");
     expect(invalid.response.status).toBe(400);

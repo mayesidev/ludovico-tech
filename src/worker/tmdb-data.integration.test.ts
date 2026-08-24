@@ -431,7 +431,7 @@ describe("scheduled TMDB enrichment refresh", () => {
     ).toEqual({ count: 0 });
   });
 
-  it("runs orphan cleanup once per batch instead of once per title", async () => {
+  it("skips orphan cleanup when a batch abandons no shared metadata", async () => {
     await insertLinkedMovie("cleanup-batch-one", 81);
     await insertLinkedMovie("cleanup-batch-two", 82);
     const fetchMock = vi
@@ -447,7 +447,7 @@ describe("scheduled TMDB enrichment refresh", () => {
       rateLimited: false,
       refreshed: 2,
     });
-    expect(tracked.prepared()).toBe(2);
+    expect(tracked.prepared()).toBe(0);
 
     expect(await refreshDueTmdbData(tracked.bindings, timestamp, 2)).toEqual({
       attempted: 0,
@@ -455,7 +455,7 @@ describe("scheduled TMDB enrichment refresh", () => {
       rateLimited: false,
       refreshed: 0,
     });
-    expect(tracked.prepared()).toBe(4);
+    expect(tracked.prepared()).toBe(0);
   });
 
   it("does not synthesize TMDB links from Library records", async () => {
@@ -540,28 +540,65 @@ describe("scheduled TMDB enrichment refresh", () => {
     });
   });
 
-  it("deletes only unreferenced shared TMDB entities", async () => {
-    await env.DB.batch([
-      env.DB.prepare(
-        `INSERT INTO tmdb_people (tmdb_id, name, fetched_at)
-         VALUES (401, 'Orphan Person', ?)`,
-      ).bind(timestamp),
-      env.DB.prepare(
-        `INSERT INTO tmdb_collections (tmdb_id, name, fetched_at)
-         VALUES (90, 'Orphan Collection', ?)`,
-      ).bind(timestamp),
-    ]);
+  it("deletes only abandoned TMDB entities from the refreshed batch", async () => {
+    await insertLinkedMovie("cleanup-candidate", 91);
+    await insertLinkedMovie("cleanup-shared", 92);
+    const oldCandidate: TmdbMovieResult = {
+      data: {
+        cast: [
+          { id: 401, name: "Abandoned Person" },
+          { id: 402, name: "Shared Person" },
+        ],
+        collection: { id: 90, name: "Abandoned Collection" },
+        directors: [],
+        id: 91,
+        posterPath: null,
+        releaseDate: null,
+        runtimeMinutes: null,
+        title: "Old Candidate",
+      },
+      fetchedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const sharedReference: TmdbMovieResult = {
+      data: {
+        cast: [{ id: 402, name: "Shared Person" }],
+        collection: { id: 92, name: "Retained Collection" },
+        directors: [],
+        id: 92,
+        posterPath: null,
+        releaseDate: null,
+        runtimeMinutes: null,
+        title: "Shared Reference",
+      },
+      fetchedAt: "2026-01-01T00:00:00.000Z",
+    };
+    await env.DB.batch(
+      await replaceTmdbDataStatements(env, "cleanup-candidate", oldCandidate),
+    );
+    await env.DB.batch(
+      await replaceTmdbDataStatements(env, "cleanup-shared", sharedReference),
+    );
+    await env.DB.prepare(
+      `UPDATE movie_tmdb_data
+       SET refresh_after = '1970-01-01T00:00:00.000Z', contract_id = NULL
+       WHERE movie_id = 'cleanup-candidate'`,
+    ).run();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(responseFor(91)));
+    const tracked = trackOrphanCleanup();
 
-    await refreshDueTmdbData(tmdbEnv(), timestamp);
+    await refreshDueTmdbData(tracked.bindings, timestamp, 1);
 
-    expect(
-      await env.DB.prepare("SELECT COUNT(*) AS count FROM tmdb_people").first(),
-    ).toEqual({ count: 0 });
+    expect(tracked.prepared()).toBe(2);
     expect(
       await env.DB.prepare(
-        "SELECT COUNT(*) AS count FROM tmdb_collections",
-      ).first(),
-    ).toEqual({ count: 0 });
+        "SELECT tmdb_id FROM tmdb_people WHERE tmdb_id IN (401, 402) ORDER BY tmdb_id",
+      ).all(),
+    ).toMatchObject({ results: [{ tmdb_id: 402 }] });
+    expect(
+      await env.DB.prepare(
+        "SELECT tmdb_id FROM tmdb_collections WHERE tmdb_id IN (90, 92) ORDER BY tmdb_id",
+      ).all(),
+    ).toMatchObject({ results: [{ tmdb_id: 92 }] });
   });
 });
 
