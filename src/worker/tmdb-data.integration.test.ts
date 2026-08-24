@@ -2,8 +2,14 @@ import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { refreshDueTmdbData, replaceTmdbDataStatements } from "./tmdb-data";
 import type { TmdbMovieResult } from "./tmdb";
+import type { AppEnv } from "./env";
 
 const timestamp = "2026-08-23T12:00:00.000Z";
+const tmdbEnv = () =>
+  ({
+    ...env,
+    TMDB_READ_ACCESS_TOKEN: "test-tmdb-token",
+  }) as AppEnv["Bindings"];
 
 const insertLinkedMovie = async (id: string, tmdbId: number) => {
   await env.DB.prepare(
@@ -85,7 +91,7 @@ describe("scheduled TMDB enrichment refresh", () => {
     const fetchMock = vi.fn().mockResolvedValue(responseFor(42));
     vi.stubGlobal("fetch", fetchMock);
 
-    const report = await refreshDueTmdbData(env, timestamp);
+    const report = await refreshDueTmdbData(tmdbEnv(), timestamp);
 
     expect(report).toEqual({
       attempted: 1,
@@ -141,7 +147,7 @@ describe("scheduled TMDB enrichment refresh", () => {
       ],
     });
 
-    expect(await refreshDueTmdbData(env, timestamp)).toEqual({
+    expect(await refreshDueTmdbData(tmdbEnv(), timestamp)).toEqual({
       attempted: 0,
       failed: 0,
       rateLimited: false,
@@ -158,7 +164,7 @@ describe("scheduled TMDB enrichment refresh", () => {
       .mockResolvedValue(new Response(null, { status: 429 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    expect(await refreshDueTmdbData(env, timestamp)).toEqual({
+    expect(await refreshDueTmdbData(tmdbEnv(), timestamp)).toEqual({
       attempted: 1,
       failed: 1,
       rateLimited: true,
@@ -213,7 +219,7 @@ describe("scheduled TMDB enrichment refresh", () => {
       vi.fn().mockResolvedValue(new Response(null, { status: 429 })),
     );
 
-    expect(await refreshDueTmdbData(env, timestamp)).toMatchObject({
+    expect(await refreshDueTmdbData(tmdbEnv(), timestamp)).toMatchObject({
       attempted: 1,
       rateLimited: true,
       refreshed: 0,
@@ -302,7 +308,7 @@ describe("scheduled TMDB enrichment refresh", () => {
       ).bind(timestamp),
     ]);
 
-    await refreshDueTmdbData(env, timestamp);
+    await refreshDueTmdbData(tmdbEnv(), timestamp);
 
     expect(
       await env.DB.prepare("SELECT COUNT(*) AS count FROM tmdb_people").first(),
