@@ -1,19 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, RefreshCw, Search } from "lucide-react";
 import {
-  columnFilteringFeature,
-  createFilteredRowModel,
-  createSortedRowModel,
-  globalFilteringFeature,
-  rowSortingFeature,
-  sortFn_alphanumeric,
-  sortFn_basic,
-  tableFeatures,
-  useTable,
-  type ColumnDef,
-  type SortingState,
-} from "@tanstack/react-table";
-import { RefreshCw, Search } from "lucide-react";
-import { api, type TmdbRefreshStatus } from "../api";
+  api,
+  type TmdbRefreshItem,
+  type TmdbRefreshQueueQuery,
+  type TmdbRefreshQueueResponse,
+  type TmdbRefreshSummary,
+} from "../api";
 import type { Navigate } from "../types";
 import { AppLink } from "./app-link";
 import { Button, Card, Input } from "./ui";
@@ -48,9 +41,7 @@ const formatInterval = (minutes: number) => {
     .join(" ");
 };
 
-type StatusItem = TmdbRefreshStatus["items"][number];
-
-const stateLabel: Record<StatusItem["state"], string> = {
+const stateLabel: Record<TmdbRefreshItem["state"], string> = {
   current: "Current",
   due: "Due",
   failed: "Failed",
@@ -59,19 +50,20 @@ const stateLabel: Record<StatusItem["state"], string> = {
   version_stale: "Version stale",
 };
 
-const statusTableFeatures = tableFeatures({
-  columnFilteringFeature,
-  globalFilteringFeature,
-  rowSortingFeature,
-  filteredRowModel: createFilteredRowModel(),
-  sortedRowModel: createSortedRowModel(),
-  sortFns: {
-    alphanumeric: sortFn_alphanumeric,
-    basic: sortFn_basic,
-  },
-});
+const initialQueueQuery: TmdbRefreshQueueQuery = {
+  dateSearch: "",
+  direction: "asc",
+  page: 1,
+  pageSize: 50,
+  search: "",
+  sort: "state",
+  state: "all",
+};
 
-type StatusColumnDef = ColumnDef<typeof statusTableFeatures, StatusItem>;
+const dateSearchValue = (value: string) => {
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : "";
+};
 
 export function TmdbStatusPage({
   canMutate,
@@ -80,172 +72,98 @@ export function TmdbStatusPage({
   canMutate: boolean;
   onNavigate: Navigate;
 }) {
-  const [status, setStatus] = useState<TmdbRefreshStatus | null>(null);
+  const [summary, setSummary] = useState<TmdbRefreshSummary | null>(null);
+  const [queue, setQueue] = useState<TmdbRefreshQueueResponse | null>(null);
   const [loading, setLoading] = useState(canMutate);
   const [refreshing, setRefreshing] = useState(false);
   const [starting, setStarting] = useState(false);
   const [updatingSchedule, setUpdatingSchedule] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
-  const [sorting, setSorting] = useState<SortingState>([]);
+  const [queueQuery, setQueueQuery] = useState(initialQueueQuery);
   const [intervalMinutesInput, setIntervalMinutesInput] = useState<
     string | null
   >(null);
   const [batchSizeInput, setBatchSizeInput] = useState<string | null>(null);
+  const summaryRequestSequence = useRef(0);
+  const queueRequestSequence = useRef(0);
 
-  const load = useCallback(async () => {
+  const loadSummary = useCallback(async () => {
     if (!canMutate) return;
+    const sequence = ++summaryRequestSequence.current;
     try {
-      setStatus(await api.tmdbRefreshStatus());
+      const response = await api.tmdbRefreshSummary();
+      if (sequence !== summaryRequestSequence.current) return;
+      setSummary(response);
       setError(null);
     } catch (cause) {
+      if (sequence !== summaryRequestSequence.current) return;
       setError(
         cause instanceof Error
           ? cause.message
-          : "Unable to load TMDB refresh status",
+          : "Unable to load Library refresh status",
       );
     } finally {
-      setLoading(false);
+      if (sequence === summaryRequestSequence.current) setLoading(false);
     }
   }, [canMutate]);
 
-  useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
+  const loadQueue = useCallback(async () => {
+    if (!canMutate) return;
+    const sequence = ++queueRequestSequence.current;
+    setRefreshing(true);
+    try {
+      const response = await api.tmdbRefreshQueue(queueQuery);
+      if (sequence !== queueRequestSequence.current) return;
+      setQueue(response);
+      setError(null);
+    } catch (cause) {
+      if (sequence !== queueRequestSequence.current) return;
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Unable to load the refresh queue",
+      );
+    } finally {
+      if (sequence === queueRequestSequence.current) setRefreshing(false);
+    }
+  }, [canMutate, queueQuery]);
 
-  const hasStatus = status !== null;
+  const load = useCallback(async () => {
+    await Promise.all([loadSummary(), loadQueue()]);
+  }, [loadQueue, loadSummary]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setQueueQuery((current) =>
+        current.search === filter
+          ? current
+          : {
+              ...current,
+              dateSearch: dateSearchValue(filter),
+              page: 1,
+              search: filter,
+            },
+      );
+    }, 250);
+    return () => window.clearTimeout(timeout);
+  }, [filter]);
+
+  useEffect(() => {
+    void Promise.resolve().then(loadSummary);
+  }, [loadSummary]);
+
+  useEffect(() => {
+    void Promise.resolve().then(loadQueue);
+  }, [loadQueue]);
+
+  const hasStatus = summary !== null && queue !== null;
   useEffect(() => {
     if (!hasStatus) return;
     const refreshOnFocus = () => void load();
     window.addEventListener("focus", refreshOnFocus);
     return () => window.removeEventListener("focus", refreshOnFocus);
   }, [hasStatus, load]);
-
-  const columns = useMemo<StatusColumnDef[]>(
-    () => [
-      {
-        accessorKey: "title",
-        header: "Title",
-        sortFn: "alphanumeric",
-        cell: ({ row }) => (
-          <AppLink
-            className="font-semibold text-text-primary hover:text-highlight-soft"
-            href={`/movies/${encodeURIComponent(row.original.movieId)}?from=manager-office`}
-            onNavigate={onNavigate}
-          >
-            {row.original.title}
-          </AppLink>
-        ),
-      },
-      {
-        accessorKey: "tmdbId",
-        header: "TMDB ID",
-        sortFn: "basic",
-        sortUndefined: "last",
-        cell: ({ getValue }) => (getValue() as number | null) ?? "—",
-      },
-      {
-        id: "state",
-        accessorFn: (item) => stateLabel[item.state],
-        header: "Status",
-        sortFn: "alphanumeric",
-        cell: ({ row }) => (
-          <span
-            className={
-              row.original.state === "failed"
-                ? "text-danger"
-                : row.original.state === "current"
-                  ? "text-text-secondary"
-                  : "text-highlight-soft"
-            }
-          >
-            {stateLabel[row.original.state]}
-            {row.original.lastError && (
-              <span className="mt-1 block max-w-64 text-xs text-danger">
-                {row.original.lastError}
-              </span>
-            )}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "fetchedAt",
-        header: "Last fetched",
-        sortFn: "alphanumeric",
-        sortUndefined: "last",
-        cell: ({ row }) =>
-          formatTimestamp(
-            row.original.fetchedAt,
-            row.original.state === "unlinked" ? "—" : "Never",
-          ),
-      },
-      {
-        accessorKey: "lastAttemptAt",
-        header: "Last attempt",
-        sortFn: "alphanumeric",
-        sortUndefined: "last",
-        cell: ({ getValue }) =>
-          formatTimestamp((getValue() as string | null) ?? null, "—"),
-      },
-      {
-        accessorKey: "refreshAfter",
-        header: "Refresh after",
-        sortFn: "alphanumeric",
-        sortUndefined: "last",
-        cell: ({ getValue }) =>
-          formatDueTimestamp((getValue() as string | null) ?? null),
-      },
-      {
-        accessorKey: "dataVersion",
-        header: `Data version (current: ${status?.currentDataVersion ?? "—"})`,
-        sortFn: "basic",
-        sortUndefined: "last",
-        cell: ({ row }) =>
-          row.original.dataVersion === null
-            ? "—"
-            : `${row.original.dataVersion}/${status?.currentDataVersion ?? row.original.dataVersion}`,
-      },
-    ],
-    [onNavigate, status?.currentDataVersion],
-  );
-
-  const table = useTable({
-    features: statusTableFeatures,
-    data: status?.items ?? [],
-    columns,
-    state: { globalFilter: filter, sorting },
-    onGlobalFilterChange: setFilter,
-    onSortingChange: setSorting,
-    globalFilterFn: (row, _columnId, filterValue) => {
-      const item = row.original;
-      const displayedVersion =
-        item.dataVersion === null
-          ? "—"
-          : `${item.dataVersion}/${status?.currentDataVersion ?? item.dataVersion}`;
-      const values = [
-        item.title,
-        item.tmdbId ?? "—",
-        stateLabel[item.state],
-        item.lastError,
-        item.fetchedAt,
-        formatTimestamp(
-          item.fetchedAt,
-          item.state === "unlinked" ? "—" : "Never",
-        ),
-        item.lastAttemptAt,
-        formatTimestamp(item.lastAttemptAt, "—"),
-        item.refreshAfter,
-        formatDueTimestamp(item.refreshAfter),
-        displayedVersion,
-      ];
-      const query = String(filterValue).trim().toLocaleLowerCase();
-      return values.some((value) =>
-        String(value ?? "")
-          .toLocaleLowerCase()
-          .includes(query),
-      );
-    },
-  });
 
   if (!canMutate) {
     return (
@@ -260,11 +178,11 @@ export function TmdbStatusPage({
     );
   }
 
-  if (loading || !status) {
+  if (loading || !summary || !queue) {
     return <p className="text-text-muted">Loading refresh data…</p>;
   }
 
-  const { schedule, counts } = status;
+  const { schedule, counts } = summary;
   const intervalMinutes =
     intervalMinutesInput ?? String(schedule.intervalMinutes);
   const batchSize = batchSizeInput ?? String(schedule.batchSize);
@@ -280,6 +198,48 @@ export function TmdbStatusPage({
   const scheduleHasChanges =
     parsedIntervalMinutes !== schedule.intervalMinutes ||
     parsedBatchSize !== schedule.batchSize;
+  const changeSort = (sort: TmdbRefreshQueueQuery["sort"]) => {
+    setQueueQuery((current) => ({
+      ...current,
+      direction:
+        current.sort === sort
+          ? current.direction === "asc"
+            ? "desc"
+            : "asc"
+          : "asc",
+      page: 1,
+      sort,
+    }));
+  };
+  const sortHeader = (
+    label: string,
+    sort: TmdbRefreshQueueQuery["sort"],
+  ) => {
+    const active = queueQuery.sort === sort;
+    return (
+      <th
+        aria-sort={
+          active
+            ? queueQuery.direction === "asc"
+              ? "ascending"
+              : "descending"
+            : "none"
+        }
+        className="border-r border-highlight/10 px-5 py-4 font-semibold last:border-r-0"
+      >
+        <button
+          className="text-text-primary hover:text-highlight-soft"
+          onClick={() => changeSort(sort)}
+        >
+          {label}
+          {active ? (queueQuery.direction === "asc" ? " ↑" : " ↓") : ""}
+        </button>
+      </th>
+    );
+  };
+  const { page, pageSize, total, totalPages } = queue.pagination;
+  const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = Math.min(page * pageSize, total);
   return (
     <div>
       <div className="mb-7 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
@@ -291,10 +251,7 @@ export function TmdbStatusPage({
         <div className="flex flex-wrap gap-3">
           <Button
             disabled={refreshing}
-            onClick={() => {
-              setRefreshing(true);
-              void load().finally(() => setRefreshing(false));
-            }}
+            onClick={() => void load()}
             variant="secondary"
           >
             <RefreshCw
@@ -521,12 +478,30 @@ export function TmdbStatusPage({
         </div>
       </Card>
 
-      <div className="mb-5 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-        <div>
-          <h2 className="font-heading text-2xl font-medium tracking-tight text-text-primary">
-            Library metadata
-          </h2>
-        </div>
+      <div className="mb-5 flex flex-col justify-end gap-3 sm:flex-row sm:items-end">
+        <label className="grid gap-1.5 text-xs text-text-muted">
+          <span className="ui-label">Status</span>
+          <select
+            aria-label="Filter refresh status"
+            className="h-11 rounded-sm border border-border-subtle bg-canvas/75 px-3 text-sm text-text-primary"
+            value={queueQuery.state}
+            onChange={(event) =>
+              setQueueQuery((current) => ({
+                ...current,
+                page: 1,
+                state: event.target.value as TmdbRefreshQueueQuery["state"],
+              }))
+            }
+          >
+            <option value="all">All statuses</option>
+            <option value="current">Current</option>
+            <option value="due">Due</option>
+            <option value="failed">Failed</option>
+            <option value="never_fetched">Never fetched</option>
+            <option value="unlinked">Not linked</option>
+            <option value="version_stale">Version stale</option>
+          </select>
+        </label>
         <div className="relative w-full sm:w-72">
           <Search
             className="absolute left-3 top-3.5 text-text-muted"
@@ -545,65 +520,146 @@ export function TmdbStatusPage({
         </div>
       </div>
 
-      <Card className="overflow-hidden">
+      <Card aria-busy={refreshing} className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1180px] text-left text-sm">
             <thead className="ui-label border-b border-highlight/15 bg-[#7a1d30] text-text-primary/80">
-              {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <th
-                      aria-sort={
-                        header.column.getIsSorted() === "asc"
-                          ? "ascending"
-                          : header.column.getIsSorted() === "desc"
-                            ? "descending"
-                            : header.column.getCanSort()
-                              ? "none"
-                              : undefined
-                      }
-                      className="border-r border-highlight/10 px-5 py-4 font-semibold last:border-r-0"
-                      key={header.id}
-                    >
-                      {header.column.getCanSort() ? (
-                        <button
-                          className="text-text-primary hover:text-highlight-soft"
-                          onClick={header.column.getToggleSortingHandler()}
-                        >
-                          <table.FlexRender header={header} />
-                          {header.column.getIsSorted()
-                            ? header.column.getIsSorted() === "asc"
-                              ? " ↑"
-                              : " ↓"
-                            : ""}
-                        </button>
-                      ) : (
-                        <table.FlexRender header={header} />
-                      )}
-                    </th>
-                  ))}
-                </tr>
-              ))}
+              <tr>
+                {sortHeader("Title", "title")}
+                {sortHeader("TMDB ID", "tmdbId")}
+                {sortHeader("Status", "state")}
+                {sortHeader("Last fetched", "fetchedAt")}
+                {sortHeader("Last attempt", "lastAttemptAt")}
+                {sortHeader("Refresh after", "refreshAfter")}
+                {sortHeader(
+                  `Data version (current: ${summary.currentDataVersion})`,
+                  "dataVersion",
+                )}
+              </tr>
             </thead>
             <tbody className="data-surface divide-y divide-border-subtle">
-              {table.getRowModel().rows.map((row) => (
+              {queue.items.map((item) => (
                 <tr
                   className="bg-canvas/35 transition hover:bg-action/15"
-                  key={row.id}
+                  key={item.movieId}
                 >
-                  {row.getAllCells().map((cell) => (
-                    <td className="px-5 py-4 text-text-muted" key={cell.id}>
-                      <table.FlexRender cell={cell} />
-                    </td>
-                  ))}
+                  <td className="px-5 py-4 text-text-muted">
+                    <AppLink
+                      className="font-semibold text-text-primary hover:text-highlight-soft"
+                      href={`/movies/${encodeURIComponent(item.movieId)}?from=manager-office`}
+                      onNavigate={onNavigate}
+                    >
+                      {item.title}
+                    </AppLink>
+                  </td>
+                  <td className="px-5 py-4 text-text-muted">
+                    {item.tmdbId ?? "—"}
+                  </td>
+                  <td className="px-5 py-4 text-text-muted">
+                    <span
+                      className={
+                        item.state === "failed"
+                          ? "text-danger"
+                          : item.state === "current"
+                            ? "text-text-secondary"
+                            : "text-highlight-soft"
+                      }
+                    >
+                      {stateLabel[item.state]}
+                      {item.lastError && (
+                        <span className="mt-1 block max-w-64 text-xs text-danger">
+                          {item.lastError}
+                        </span>
+                      )}
+                    </span>
+                  </td>
+                  <td className="px-5 py-4 text-text-muted">
+                    {formatTimestamp(
+                      item.fetchedAt,
+                      item.state === "unlinked" ? "—" : "Never",
+                    )}
+                  </td>
+                  <td className="px-5 py-4 text-text-muted">
+                    {formatTimestamp(item.lastAttemptAt, "—")}
+                  </td>
+                  <td className="px-5 py-4 text-text-muted">
+                    {formatDueTimestamp(item.refreshAfter)}
+                  </td>
+                  <td className="px-5 py-4 text-text-muted">
+                    {item.dataVersion === null
+                      ? "—"
+                      : `${item.dataVersion}/${summary.currentDataVersion}`}
+                  </td>
                 </tr>
               ))}
+              {!refreshing && queue.items.length === 0 && (
+                <tr>
+                  <td
+                    className="px-5 py-8 text-center text-text-muted"
+                    colSpan={7}
+                  >
+                    No Library titles match these filters.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
-        <div className="border-t border-action/45 bg-action/10 px-5 py-4 text-xs text-text-muted">
-          {table.getFilteredRowModel().rows.length} of {counts.total} Library
-          titles
+        <div className="flex flex-col gap-4 border-t border-action/45 bg-action/10 px-5 py-4 text-xs text-text-muted sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            {rangeStart}–{rangeEnd} of {total} Library titles
+            {refreshing ? " · Updating…" : ""}
+          </span>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="inline-flex items-center gap-2">
+              <span>Rows per page</span>
+              <select
+                aria-label="Manager's Office rows per page"
+                className="h-9 rounded-sm border border-border-primary bg-canvas px-2 text-text-primary"
+                value={queueQuery.pageSize}
+                onChange={(event) =>
+                  setQueueQuery((current) => ({
+                    ...current,
+                    page: 1,
+                    pageSize: Number(event.target.value) as 25 | 50 | 100,
+                  }))
+                }
+              >
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </label>
+            <span className="tabular-nums">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              aria-label="Previous Manager's Office page"
+              className="grid size-9 place-items-center rounded-sm border border-border-primary bg-surface/75 text-text-secondary hover:border-text-muted hover:text-text-primary disabled:cursor-default disabled:opacity-30"
+              disabled={refreshing || page <= 1}
+              onClick={() =>
+                setQueueQuery((current) => ({
+                  ...current,
+                  page: page - 1,
+                }))
+              }
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              aria-label="Next Manager's Office page"
+              className="grid size-9 place-items-center rounded-sm border border-border-primary bg-surface/75 text-text-secondary hover:border-text-muted hover:text-text-primary disabled:cursor-default disabled:opacity-30"
+              disabled={refreshing || page >= totalPages}
+              onClick={() =>
+                setQueueQuery((current) => ({
+                  ...current,
+                  page: page + 1,
+                }))
+              }
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
       </Card>
     </div>

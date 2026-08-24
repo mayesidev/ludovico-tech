@@ -157,7 +157,7 @@ export function LibraryPage({
             id="library-search"
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
-            placeholder="Search titles…"
+            placeholder="Search all fields…"
           />
         </div>
       </div>

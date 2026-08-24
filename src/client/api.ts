@@ -120,7 +120,26 @@ export type HealthState = {
   commit: string;
 };
 
-export type TmdbRefreshStatus = {
+export type TmdbRefreshItem = {
+  dataVersion: number | null;
+  fetchedAt: string | null;
+  lastAttemptAt: string | null;
+  lastError: string | null;
+  lastResult: "failed" | "running" | "succeeded" | null;
+  movieId: string;
+  refreshAfter: string | null;
+  state:
+    | "current"
+    | "due"
+    | "failed"
+    | "never_fetched"
+    | "unlinked"
+    | "version_stale";
+  title: string;
+  tmdbId: number | null;
+};
+
+export type TmdbRefreshSummary = {
   currentDataVersion: number;
   counts: {
     current: number;
@@ -130,24 +149,6 @@ export type TmdbRefreshStatus = {
     total: number;
     unlinked: number;
   };
-  items: Array<{
-    dataVersion: number | null;
-    fetchedAt: string | null;
-    lastAttemptAt: string | null;
-    lastError: string | null;
-    lastResult: "failed" | "running" | "succeeded" | null;
-    movieId: string;
-    refreshAfter: string | null;
-    state:
-      | "current"
-      | "due"
-      | "failed"
-      | "never_fetched"
-      | "unlinked"
-      | "version_stale";
-    title: string;
-    tmdbId: number | null;
-  }>;
   schedule: {
     batchSize: number;
     enabled: boolean;
@@ -163,6 +164,37 @@ export type TmdbRefreshStatus = {
     leaseExpiresAt: string | null;
     nextRunAt: string;
     running: boolean;
+  };
+};
+
+export type TmdbRefreshStatus = TmdbRefreshSummary & {
+  items: TmdbRefreshItem[];
+};
+
+export type TmdbRefreshQueueQuery = {
+  dateSearch: string;
+  direction: "asc" | "desc";
+  page: number;
+  pageSize: 25 | 50 | 100;
+  search: string;
+  sort:
+    | "title"
+    | "tmdbId"
+    | "state"
+    | "fetchedAt"
+    | "lastAttemptAt"
+    | "refreshAfter"
+    | "dataVersion";
+  state: TmdbRefreshItem["state"] | "all";
+};
+
+export type TmdbRefreshQueueResponse = {
+  items: TmdbRefreshItem[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
   };
 };
 
@@ -284,6 +316,22 @@ export const api = {
   tmdbMovie: (id: number) =>
     request<{ movie: TmdbMovieDetail }>(`/api/tmdb/movies/${id}`),
   tmdbRefreshStatus: () => request<TmdbRefreshStatus>("/api/tmdb-refresh"),
+  tmdbRefreshSummary: () =>
+    request<TmdbRefreshSummary>("/api/tmdb-refresh/summary"),
+  tmdbRefreshQueue: (query: TmdbRefreshQueueQuery) => {
+    const parameters = new URLSearchParams({
+      dateSearch: query.dateSearch,
+      direction: query.direction,
+      page: String(query.page),
+      pageSize: String(query.pageSize),
+      search: query.search,
+      sort: query.sort,
+      state: query.state,
+    });
+    return request<TmdbRefreshQueueResponse>(
+      `/api/tmdb-refresh/items?${parameters.toString()}`,
+    );
+  },
   updateTmdbRefreshSchedule: (schedule: {
     batchSize?: number;
     enabled?: boolean;

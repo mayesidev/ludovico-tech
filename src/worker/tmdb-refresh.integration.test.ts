@@ -9,7 +9,9 @@ import { createApp } from "./index";
 import {
   claimTmdbRefresh,
   executeTmdbRefreshClaim,
+  getTmdbRefreshQueue,
   getTmdbRefreshStatus,
+  getTmdbRefreshSummary,
   runTmdbRefresh,
 } from "./tmdb-refresh";
 
@@ -152,6 +154,121 @@ describe("TMDB refresh operations", () => {
         }),
       ]),
     );
+  });
+
+  it("separates global refresh summary from the paginated title queue", async () => {
+    const movies = Array.from({ length: 30 }, (_, index) => ({
+      id: `queue-movie-${String(index).padStart(2, "0")}`,
+      title: `Queue Movie ${String(index).padStart(2, "0")}`,
+    }));
+    await env.DB.batch(
+      movies.map((movie) =>
+        env.DB.prepare(
+          `INSERT INTO movies
+           (id, title, title_normalized, added_at, updated_at)
+           VALUES (?, ?, ?, ?, ?)`,
+        ).bind(
+          movie.id,
+          movie.title,
+          movie.title.toLowerCase(),
+          timestamp,
+          timestamp,
+        ),
+      ),
+    );
+    await env.DB.prepare(
+      `INSERT INTO movie_tmdb_data
+       (movie_id, tmdb_id, fetched_at, refresh_after, expires_at, data_version)
+       VALUES (?, 90210, ?, '2027-01-20T18:45:00.000Z', '2027-02-20T18:45:00.000Z', 1)`,
+    )
+      .bind(movies[29].id, "2026-08-23T18:45:00.000Z")
+      .run();
+
+    const summary = await getTmdbRefreshSummary(bindings(), timestamp);
+    expect(summary.counts).toEqual({
+      current: 1,
+      failed: 0,
+      linked: 1,
+      pending: 0,
+      total: 30,
+      unlinked: 29,
+    });
+    const firstPage = await getTmdbRefreshQueue(
+      bindings(),
+      {
+        dateSearch: "",
+        direction: "asc",
+        page: 1,
+        pageSize: 25,
+        search: "",
+        sort: "title",
+        state: "all",
+      },
+      timestamp,
+    );
+    expect(firstPage.pagination).toEqual({
+      page: 1,
+      pageSize: 25,
+      total: 30,
+      totalPages: 2,
+    });
+    expect(firstPage.items).toHaveLength(25);
+
+    const dateResult = await getTmdbRefreshQueue(
+      bindings(),
+      {
+        dateSearch: "2026-08-23T18:45:00.000Z",
+        direction: "asc",
+        page: 2,
+        pageSize: 25,
+        search: "Aug 23, 2026, 1:45 PM",
+        sort: "fetchedAt",
+        state: "all",
+      },
+      timestamp,
+    );
+    expect(dateResult.pagination).toMatchObject({ page: 1, total: 1 });
+    expect(dateResult.items[0]).toMatchObject({
+      dataVersion: 1,
+      movieId: movies[29].id,
+      state: "current",
+      tmdbId: 90210,
+    });
+
+    const versionResult = await getTmdbRefreshQueue(
+      bindings(),
+      {
+        dateSearch: "",
+        direction: "asc",
+        page: 1,
+        pageSize: 25,
+        search: "1/1",
+        sort: "dataVersion",
+        state: "all",
+      },
+      timestamp,
+    );
+    expect(versionResult.pagination.total).toBe(1);
+    expect(versionResult.items[0].movieId).toBe(movies[29].id);
+
+    const queueResponse = await createApp().fetch(
+      new Request(
+        "https://ludovico-tech.test/api/tmdb-refresh/items?page=2&pageSize=25&sort=title",
+      ),
+      bindings(),
+    );
+    expect(queueResponse.status).toBe(200);
+    expect(await queueResponse.json()).toMatchObject({
+      pagination: { page: 2, pageSize: 25, total: 30, totalPages: 2 },
+    });
+
+    const invalidResponse = await createApp().fetch(
+      new Request(
+        "https://ludovico-tech.test/api/tmdb-refresh/items?pageSize=10",
+      ),
+      bindings(),
+    );
+    expect(invalidResponse.status).toBe(400);
   });
 
   it("keeps rate-limited work visible and eligible for retry", async () => {

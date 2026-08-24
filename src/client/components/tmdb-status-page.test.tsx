@@ -1,9 +1,54 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api, type TmdbRefreshStatus } from "../api";
+import {
+  api,
+  type TmdbRefreshItem,
+  type TmdbRefreshQueueQuery,
+  type TmdbRefreshQueueResponse,
+  type TmdbRefreshSummary,
+} from "../api";
 import { TmdbStatusPage } from "./tmdb-status-page";
 
-const status: TmdbRefreshStatus = {
+const items: TmdbRefreshItem[] = [
+  {
+    dataVersion: 0,
+    fetchedAt: null,
+    lastAttemptAt: null,
+    lastError: null,
+    lastResult: null,
+    movieId: "pending-movie",
+    refreshAfter: "1970-01-01T00:00:00.000Z",
+    state: "never_fetched",
+    title: "Pending Movie",
+    tmdbId: 42,
+  },
+  {
+    dataVersion: 1,
+    fetchedAt: "2026-08-23T18:45:00.000Z",
+    lastAttemptAt: "2026-08-23T18:45:00.000Z",
+    lastError: null,
+    lastResult: "succeeded",
+    movieId: "current-movie",
+    refreshAfter: "2027-01-20T18:45:00.000Z",
+    state: "current",
+    title: "Current Movie",
+    tmdbId: 7,
+  },
+  {
+    dataVersion: null,
+    fetchedAt: null,
+    lastAttemptAt: null,
+    lastError: null,
+    lastResult: null,
+    movieId: "unlinked-movie",
+    refreshAfter: null,
+    state: "unlinked",
+    title: "Unlinked Movie",
+    tmdbId: null,
+  },
+];
+
+const summary: TmdbRefreshSummary = {
   counts: {
     current: 1,
     failed: 0,
@@ -13,44 +58,6 @@ const status: TmdbRefreshStatus = {
     unlinked: 1,
   },
   currentDataVersion: 1,
-  items: [
-    {
-      dataVersion: 0,
-      fetchedAt: null,
-      lastAttemptAt: null,
-      lastError: null,
-      lastResult: null,
-      movieId: "pending-movie",
-      refreshAfter: "1970-01-01T00:00:00.000Z",
-      state: "never_fetched",
-      title: "Pending Movie",
-      tmdbId: 42,
-    },
-    {
-      dataVersion: 1,
-      fetchedAt: "2026-08-23T18:45:00.000Z",
-      lastAttemptAt: "2026-08-23T18:45:00.000Z",
-      lastError: null,
-      lastResult: "succeeded",
-      movieId: "current-movie",
-      refreshAfter: "2027-01-20T18:45:00.000Z",
-      state: "current",
-      title: "Current Movie",
-      tmdbId: 7,
-    },
-    {
-      dataVersion: null,
-      fetchedAt: null,
-      lastAttemptAt: null,
-      lastError: null,
-      lastResult: null,
-      movieId: "unlinked-movie",
-      refreshAfter: null,
-      state: "unlinked",
-      title: "Unlinked Movie",
-      tmdbId: null,
-    },
-  ],
   schedule: {
     batchSize: 25,
     enabled: true,
@@ -69,24 +76,138 @@ const status: TmdbRefreshStatus = {
   },
 };
 
+const queue = (
+  pageItems: TmdbRefreshItem[] = items,
+  pagination: TmdbRefreshQueueResponse["pagination"] = {
+    page: 1,
+    pageSize: 50,
+    total: 3,
+    totalPages: 1,
+  },
+): TmdbRefreshQueueResponse => ({ items: pageItems, pagination });
+
 afterEach(() => vi.restoreAllMocks());
 
 describe("TMDB refresh status page", () => {
-  it("refreshes status on demand and when the window regains focus", async () => {
-    const load = vi.spyOn(api, "tmdbRefreshStatus").mockResolvedValue(status);
+  it("refreshes the summary and current queue page on demand and focus", async () => {
+    const loadSummary = vi
+      .spyOn(api, "tmdbRefreshSummary")
+      .mockResolvedValue(summary);
+    const loadQueue = vi
+      .spyOn(api, "tmdbRefreshQueue")
+      .mockResolvedValue(queue());
     render(<TmdbStatusPage canMutate onNavigate={vi.fn()} />);
 
-    await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      expect(loadSummary).toHaveBeenCalledTimes(1);
+      expect(loadQueue).toHaveBeenCalledTimes(1);
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
-    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    await waitFor(() => {
+      expect(loadSummary).toHaveBeenCalledTimes(2);
+      expect(loadQueue).toHaveBeenCalledTimes(2);
+    });
 
     fireEvent.focus(window);
-    await waitFor(() => expect(load).toHaveBeenCalledTimes(3));
+    await waitFor(() => {
+      expect(loadSummary).toHaveBeenCalledTimes(3);
+      expect(loadQueue).toHaveBeenCalledTimes(3);
+    });
   });
 
-  it("shows the schedule, queue, and immediate refresh action", async () => {
-    vi.spyOn(api, "tmdbRefreshStatus").mockResolvedValue(status);
+  it("searches and sorts the complete queue through bounded requests", async () => {
+    vi.spyOn(api, "tmdbRefreshSummary").mockResolvedValue(summary);
+    const loadQueue = vi
+      .spyOn(api, "tmdbRefreshQueue")
+      .mockImplementation(async (query: TmdbRefreshQueueQuery) => {
+        if (query.search === "1/1" || query.dateSearch) {
+          return queue([items[1]], {
+            page: 1,
+            pageSize: query.pageSize,
+            total: 1,
+            totalPages: 1,
+          });
+        }
+        return queue(items, {
+          page: query.page,
+          pageSize: query.pageSize,
+          total: 51,
+          totalPages: Math.ceil(51 / query.pageSize),
+        });
+      });
+    render(<TmdbStatusPage canMutate onNavigate={vi.fn()} />);
+
+    expect(await screen.findByText("Pending Movie")).toBeVisible();
+    expect(screen.getByRole("columnheader", { name: /Status/ })).toHaveAttribute(
+      "aria-sort",
+      "ascending",
+    );
+    const search = screen.getByPlaceholderText("Search all fields…");
+    fireEvent.change(search, { target: { value: "1/1" } });
+    await waitFor(() =>
+      expect(loadQueue).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 1, search: "1/1" }),
+      ),
+    );
+    expect(await screen.findByText("Current Movie")).toBeVisible();
+    expect(screen.queryByText("Pending Movie")).toBeNull();
+
+    const displayedDate = new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date("2026-08-23T18:45:00.000Z"));
+    fireEvent.change(search, { target: { value: displayedDate } });
+    await waitFor(() =>
+      expect(loadQueue).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          dateSearch: "2026-08-23T18:45:00.000Z",
+          search: displayedDate,
+        }),
+      ),
+    );
+
+    fireEvent.change(search, { target: { value: "" } });
+    await waitFor(() =>
+      expect(loadQueue).toHaveBeenLastCalledWith(
+        expect.objectContaining({ search: "" }),
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Title" }));
+    await waitFor(() =>
+      expect(loadQueue).toHaveBeenLastCalledWith(
+        expect.objectContaining({ direction: "asc", sort: "title" }),
+      ),
+    );
+    expect(screen.getByRole("columnheader", { name: /Title/ })).toHaveAttribute(
+      "aria-sort",
+      "ascending",
+    );
+
+    fireEvent.change(screen.getByLabelText("Filter refresh status"), {
+      target: { value: "current" },
+    });
+    await waitFor(() =>
+      expect(loadQueue).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 1, state: "current" }),
+      ),
+    );
+  });
+
+  it("shows schedule controls and paginates without reloading the summary", async () => {
+    const loadSummary = vi
+      .spyOn(api, "tmdbRefreshSummary")
+      .mockResolvedValue(summary);
+    const loadQueue = vi
+      .spyOn(api, "tmdbRefreshQueue")
+      .mockImplementation(async (query) =>
+        queue(query.page === 2 ? [items[1]] : items, {
+          page: query.page,
+          pageSize: query.pageSize,
+          total: 51,
+          totalPages: Math.ceil(51 / query.pageSize),
+        }),
+      );
     const run = vi
       .spyOn(api, "runTmdbRefresh")
       .mockResolvedValue({ started: true });
@@ -95,49 +216,19 @@ describe("TMDB refresh status page", () => {
       .mockResolvedValue({ updated: true });
     render(<TmdbStatusPage canMutate onNavigate={vi.fn()} />);
 
-    expect(await screen.findByText("Pending Movie")).toBeVisible();
-    expect(screen.getByText("Linked")).toBeVisible();
-    expect(screen.getByText("Not linked (excluded)")).toBeVisible();
-    expect(screen.queryByText("Eligible")).toBeNull();
-    expect(
-      screen.queryByText(/titles are linked for automatic updates/i),
-    ).toBeNull();
-    expect(screen.getByRole("link", { name: "Pending Movie" })).toHaveAttribute(
-      "href",
-      "/movies/pending-movie?from=manager-office",
+    expect(await screen.findByText(/every 5 hours 30 minutes/i)).toBeVisible();
+    expect(screen.getByText("Page 1 of 2")).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Next Manager's Office page" }),
     );
-    expect(screen.getByText(/every 5 hours 30 minutes/i)).toBeVisible();
-    expect(
-      screen.getByRole("columnheader", {
-        name: "Data version (current: 1)",
-      }),
-    ).toBeVisible();
-    expect(screen.queryByText(/Pending work appears first/i)).toBeNull();
-    expect(screen.getByText("Never fetched")).toBeVisible();
-    expect(screen.getByText("Unlinked Movie")).toBeVisible();
-    expect(screen.getByRole("columnheader", { name: "TMDB ID" })).toBeVisible();
-    expect(screen.getByPlaceholderText("Search all fields…")).toBeVisible();
-
-    const search = screen.getByPlaceholderText("Search all fields…");
-    fireEvent.change(search, { target: { value: "1/1" } });
-    expect(screen.getByText("Current Movie")).toBeVisible();
-    expect(screen.queryByText("Pending Movie")).toBeNull();
-    const displayedDate = new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date("2026-08-23T18:45:00.000Z"));
-    fireEvent.change(search, { target: { value: displayedDate } });
-    expect(screen.getByText("Current Movie")).toBeVisible();
-    expect(screen.queryByText("Pending Movie")).toBeNull();
-    fireEvent.change(search, { target: { value: "" } });
-
-    fireEvent.click(screen.getByRole("button", { name: "Title" }));
-    fireEvent.click(screen.getByRole("button", { name: /Title/ }));
-    expect(screen.getAllByRole("row")[1]).toHaveTextContent("Unlinked Movie");
+    expect(await screen.findByText("Page 2 of 2")).toBeVisible();
+    expect(loadSummary).toHaveBeenCalledTimes(1);
+    expect(loadQueue).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 2 }),
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Run now" }));
     await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
-
     fireEvent.click(
       screen.getByRole("button", { name: "Pause automatic updates" }),
     );
@@ -161,13 +252,15 @@ describe("TMDB refresh status page", () => {
   });
 
   it("does not request operational data for an anonymous visitor", () => {
-    const load = vi.spyOn(api, "tmdbRefreshStatus");
+    const loadSummary = vi.spyOn(api, "tmdbRefreshSummary");
+    const loadQueue = vi.spyOn(api, "tmdbRefreshQueue");
     render(<TmdbStatusPage canMutate={false} onNavigate={vi.fn()} />);
 
     expect(
       screen.getByRole("heading", { name: "Manager's Office" }),
     ).toBeVisible();
     expect(screen.getByText(/Sign in to view/)).toBeVisible();
-    expect(load).not.toHaveBeenCalled();
+    expect(loadSummary).not.toHaveBeenCalled();
+    expect(loadQueue).not.toHaveBeenCalled();
   });
 });

@@ -41,6 +41,16 @@ describe("client API", () => {
     await api.tmdbSearch("A movie & sequel");
     await api.tmdbMovie(42);
     await api.tmdbRefreshStatus();
+    await api.tmdbRefreshSummary();
+    await api.tmdbRefreshQueue({
+      dateSearch: "2026-08-23T18:45:00.000Z",
+      direction: "desc",
+      page: 2,
+      pageSize: 25,
+      search: "Current",
+      sort: "fetchedAt",
+      state: "current",
+    });
     await api.updateTmdbRefreshSchedule({
       batchSize: 50,
       intervalMinutes: 360,
@@ -66,6 +76,8 @@ describe("client API", () => {
       "/api/tmdb/search?query=A%20movie%20%26%20sequel",
       "/api/tmdb/movies/42",
       "/api/tmdb-refresh",
+      "/api/tmdb-refresh/summary",
+      "/api/tmdb-refresh/items?dateSearch=2026-08-23T18%3A45%3A00.000Z&direction=desc&page=2&pageSize=25&search=Current&sort=fetchedAt&state=current",
       "/api/tmdb-refresh/schedule",
       "/api/tmdb-refresh/run",
     ]);
@@ -92,11 +104,11 @@ describe("client API", () => {
       method: "PATCH",
     });
     expect(fetchMock.mock.calls[14]?.[1]).toMatchObject({ method: "DELETE" });
-    expect(fetchMock.mock.calls[18]?.[1]).toMatchObject({
+    expect(fetchMock.mock.calls[20]?.[1]).toMatchObject({
       body: JSON.stringify({ batchSize: 50, intervalMinutes: 360 }),
       method: "PATCH",
     });
-    expect(fetchMock.mock.calls[19]?.[1]).toMatchObject({ method: "POST" });
+    expect(fetchMock.mock.calls[21]?.[1]).toMatchObject({ method: "POST" });
   });
 
   it("returns parsed JSON and preserves a safe HTTP error status", async () => {
