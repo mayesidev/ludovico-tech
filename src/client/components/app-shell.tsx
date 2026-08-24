@@ -19,6 +19,7 @@ type AppHeaderProps = {
   onLogin: () => void;
   onNavigate: Navigate;
   onLogout: () => void;
+  showTmdbStatus?: boolean;
 };
 
 export function AppHeader({
@@ -28,6 +29,7 @@ export function AppHeader({
   onLogin,
   onNavigate,
   onLogout,
+  showTmdbStatus = false,
 }: AppHeaderProps) {
   return (
     <header className="relative z-10 border-b border-border-subtle bg-canvas/80">
@@ -85,6 +87,15 @@ export function AppHeader({
           >
             Credits
           </NavButton>
+          {showTmdbStatus && (
+            <NavButton
+              active={tab === "tmdb-status"}
+              href="/tmdb-status"
+              onNavigate={onNavigate}
+            >
+              TMDB Status
+            </NavButton>
+          )}
         </nav>
 
         <div className="col-start-2 row-start-1 flex items-center gap-2 justify-self-end md:col-start-3">

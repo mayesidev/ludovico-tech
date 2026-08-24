@@ -41,7 +41,7 @@
       "name": "ludovico-tech-staging",
       "workers_dev": false,
       "triggers": {
-        "crons": ["17 */6 * * *"],
+        "crons": ["*/15 * * * *"],
       },
       "routes": [
         {
@@ -75,7 +75,7 @@
       "name": "ludovico-tech-production",
       "workers_dev": false,
       "triggers": {
-        "crons": ["17 */6 * * *"],
+        "crons": ["*/15 * * * *"],
       },
       "routes": [
         {

@@ -79,7 +79,7 @@ const validateEnvironment = (
   if (environment.workers_dev !== false) {
     throw new Error(`${key} workers.dev exposure must be disabled`);
   }
-  const expectedCrons = key === "development" ? [] : ["17 */6 * * *"];
+  const expectedCrons = key === "development" ? [] : ["*/15 * * * *"];
   if (
     JSON.stringify(environment.triggers?.crons ?? []) !==
     JSON.stringify(expectedCrons)

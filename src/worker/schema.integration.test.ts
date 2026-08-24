@@ -446,6 +446,38 @@ describe("catalog schema", () => {
     ).rejects.toThrow();
   });
 
+  it("persists one bounded internal TMDB refresh schedule", async () => {
+    expect(
+      await env.DB.prepare(
+        `SELECT enabled, interval_minutes, batch_size, next_run_at
+         FROM tmdb_refresh_schedule`,
+      ).first(),
+    ).toEqual({
+      batch_size: 25,
+      enabled: 1,
+      interval_minutes: 15,
+      next_run_at: "1970-01-01T00:00:00.000Z",
+    });
+
+    await expect(
+      env.DB.prepare(
+        "UPDATE tmdb_refresh_schedule SET interval_minutes = 14 WHERE id = 1",
+      ).run(),
+    ).rejects.toThrow();
+    await expect(
+      env.DB.prepare(
+        "UPDATE tmdb_refresh_schedule SET batch_size = 26 WHERE id = 1",
+      ).run(),
+    ).rejects.toThrow();
+    await expect(
+      env.DB.prepare(
+        "INSERT INTO tmdb_refresh_schedule (id, next_run_at, updated_at) VALUES (2, ?, ?)",
+      )
+        .bind("2026-08-24T01:30:00.000Z", "2026-08-24T01:30:00.000Z")
+        .run(),
+    ).rejects.toThrow();
+  });
+
   it("keeps source provenance and actor identifiers out of public movie DTOs", async () => {
     await insertMovie("movie-public", "Public Movie");
     await env.DB.prepare("UPDATE movies SET imdb_id = ? WHERE id = ?")

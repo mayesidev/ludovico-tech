@@ -31,6 +31,8 @@ describe("client API", () => {
     await api.deleteMovie("movie-id");
     await api.tmdbSearch("A movie & sequel");
     await api.tmdbMovie(42);
+    await api.tmdbRefreshStatus();
+    await api.runTmdbRefresh();
 
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
       "/api/health",
@@ -48,6 +50,8 @@ describe("client API", () => {
       "/api/movies/movie-id",
       "/api/tmdb/search?query=A%20movie%20%26%20sequel",
       "/api/tmdb/movies/42",
+      "/api/tmdb-refresh",
+      "/api/tmdb-refresh/run",
     ]);
     expect(fetchMock.mock.calls[8]?.[1]?.method).toBe("POST");
     expect(JSON.parse(String(fetchMock.mock.calls[8]?.[1]?.body))).toEqual({
@@ -72,6 +76,7 @@ describe("client API", () => {
       method: "PATCH",
     });
     expect(fetchMock.mock.calls[12]?.[1]).toMatchObject({ method: "DELETE" });
+    expect(fetchMock.mock.calls[16]?.[1]).toMatchObject({ method: "POST" });
   });
 
   it("returns parsed JSON and preserves a safe HTTP error status", async () => {

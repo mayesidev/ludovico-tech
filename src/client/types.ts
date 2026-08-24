@@ -1,4 +1,4 @@
-export type Tab = "credits" | "home" | "library";
+export type Tab = "credits" | "home" | "library" | "tmdb-status";
 
 export type Navigate = (path: string) => void;
 

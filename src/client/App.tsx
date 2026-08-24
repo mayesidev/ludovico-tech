@@ -22,6 +22,7 @@ import { CreditsPage } from "./components/credits-page";
 import { HomePage } from "./components/home-page";
 import { LibraryPage } from "./components/library-page";
 import { MovieDetailPage } from "./components/movie-detail-page";
+import { TmdbStatusPage } from "./components/tmdb-status-page";
 import { Button } from "./components/ui";
 import { parseRoute } from "./route";
 import type { RunAction, Tab } from "./types";
@@ -262,7 +263,9 @@ export default function App() {
       ? "home"
       : route.page === "credits"
         ? "credits"
-        : "library";
+        : route.page === "tmdb-status"
+          ? "tmdb-status"
+          : "library";
   return (
     <div className="app-background min-h-screen overflow-x-hidden text-text-primary">
       <AppHeader
@@ -290,11 +293,18 @@ export default function App() {
             () => setAuth({ authenticated: false, actor: null, local: false }),
           )
         }
+        showTmdbStatus={canMutate}
       />
 
       <main className="relative z-10 mx-auto max-w-7xl px-5 pb-20 pt-9 lg:px-8 lg:pt-12">
         {route.page === "credits" ? (
           <CreditsPage />
+        ) : route.page === "tmdb-status" ? (
+          auth === null ? (
+            <LoadingState />
+          ) : (
+            <TmdbStatusPage canMutate={canMutate} onNavigate={navigate} />
+          )
         ) : loading ? (
           <LoadingState />
         ) : route.page === "home" ? (
