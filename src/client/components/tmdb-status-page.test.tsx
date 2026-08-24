@@ -334,6 +334,28 @@ describe("TMDB refresh status page", () => {
     expect(loadQueue).toHaveBeenCalledTimes(2);
   });
 
+  it("allows a manual run while automatic updates are paused", async () => {
+    const pausedSummary: TmdbRefreshSummary = {
+      ...summary,
+      schedule: { ...summary.schedule, enabled: false },
+    };
+    vi.spyOn(api, "tmdbRefreshSummary").mockResolvedValue(pausedSummary);
+    vi.spyOn(api, "tmdbRefreshQueue").mockResolvedValue(queue());
+    const run = vi
+      .spyOn(api, "runTmdbRefresh")
+      .mockResolvedValue({ started: true });
+
+    render(<TmdbStatusPage canMutate onNavigate={vi.fn()} />);
+
+    const runNow = await screen.findByRole("button", { name: "Run now" });
+    expect(runNow).toBeEnabled();
+    expect(
+      screen.getByText("Paused. No scheduled batches will start."),
+    ).toBeVisible();
+    fireEvent.click(runNow);
+    await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
+  });
+
   it("does not request operational data for an anonymous visitor", () => {
     const loadSummary = vi.spyOn(api, "tmdbRefreshSummary");
     const loadQueue = vi.spyOn(api, "tmdbRefreshQueue");
