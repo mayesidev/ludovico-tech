@@ -395,7 +395,7 @@ describe("scheduled TMDB enrichment refresh", () => {
     expect(
       await env.DB.prepare(
         `SELECT COUNT(*) AS count FROM movie_tmdb_data
-         WHERE retry_queued_at = ?`,
+         WHERE last_refresh_status = 'failed' AND refresh_after = ?`,
       )
         .bind(timestamp)
         .first(),

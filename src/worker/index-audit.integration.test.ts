@@ -257,8 +257,7 @@ describe("D1 index alignment", () => {
     );
     const duePlan = await queryPlan(
       `SELECT movie_id, tmdb_id FROM movie_tmdb_data
-       WHERE retry_queued_at IS NULL
-         AND (refresh_after <= ? OR contract_id IS NULL OR contract_id <> ?)
+       WHERE refresh_after <= ? OR contract_id IS NULL OR contract_id <> ?
        ORDER BY refresh_after, movie_id LIMIT 25`,
       ["2026-08-24T00:00:00.000Z", await getTmdbMetadataContractId()],
     );
@@ -267,7 +266,7 @@ describe("D1 index alignment", () => {
       "SCAN movies USING COVERING INDEX idx_movies_title_nocase",
     );
     expect(duePlan).toContain(
-      "SEARCH movie_tmdb_data USING COVERING INDEX idx_movie_tmdb_data_due_queue (retry_queued_at=?)",
+      "SCAN movie_tmdb_data USING COVERING INDEX idx_movie_tmdb_data_due_queue",
     );
     expect(
       [...titlePlan, ...duePlan].some((detail) =>
