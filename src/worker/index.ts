@@ -10,7 +10,8 @@ import { registerAuthRoutes } from "./routes/auth";
 import { registerMovieRoutes } from "./routes/movies";
 import { registerRotationRoutes } from "./routes/rotation";
 import { registerTmdbRoutes } from "./routes/tmdb";
-import { refreshDueTmdbData } from "./tmdb-data";
+import { registerTmdbRefreshRoutes } from "./routes/tmdb-refresh";
+import { runTmdbRefresh } from "./tmdb-refresh";
 
 export const createApp = () => {
   const app = new Hono<AppEnv>();
@@ -35,6 +36,7 @@ export const createApp = () => {
   registerMovieRoutes(api);
   registerRotationRoutes(api);
   registerTmdbRoutes(api);
+  registerTmdbRefreshRoutes(api);
   app.route("/api", api);
 
   app.get("*", async (c) => {
@@ -56,9 +58,11 @@ const app = createApp();
 
 const worker: ExportedHandler<AppEnv["Bindings"]> = {
   fetch: app.fetch,
-  scheduled: async (_controller, env) => {
-    const report = await refreshDueTmdbData(env);
-    console.info("TMDB refresh completed", report);
+  scheduled: async (controller, env) => {
+    const result = await runTmdbRefresh(env, {
+      timestamp: new Date(controller.scheduledTime).toISOString(),
+    });
+    if (result.started) console.info("TMDB refresh completed", result);
   },
 };
 

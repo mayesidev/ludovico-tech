@@ -22,6 +22,24 @@ beforeEach(async () => {
     env.DB.prepare("DELETE FROM collections"),
     env.DB.prepare("DELETE FROM users"),
     env.DB.prepare(
+      `UPDATE tmdb_refresh_schedule SET
+         enabled = 1,
+         interval_minutes = 15,
+         batch_size = 25,
+         next_run_at = '1970-01-01T00:00:00.000Z',
+         lease_expires_at = NULL,
+         last_started_at = NULL,
+         last_completed_at = NULL,
+         last_attempted_count = 0,
+         last_refreshed_count = 0,
+         last_failed_count = 0,
+         last_remaining_count = 0,
+         last_rate_limited = 0,
+         last_error = NULL,
+         updated_at = '1970-01-01T00:00:00.000Z'
+       WHERE id = 1`,
+    ),
+    env.DB.prepare(
       "INSERT INTO now_showing (id, status, updated_at) VALUES (1, 'empty', datetime('now'))",
     ),
   ]);

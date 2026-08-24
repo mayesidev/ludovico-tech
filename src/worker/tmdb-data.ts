@@ -8,7 +8,7 @@ import {
 
 const REFRESH_AFTER_MS = 150 * 24 * 60 * 60 * 1000;
 const EXPIRES_AFTER_MS = 175 * 24 * 60 * 60 * 1000;
-const REFRESH_BATCH_SIZE = 25;
+export const DEFAULT_TMDB_REFRESH_BATCH_SIZE = 25;
 const PENDING_REFRESH_AT = "1970-01-01T00:00:00.000Z";
 
 const addMilliseconds = (timestamp: string, milliseconds: number) =>
@@ -95,8 +95,9 @@ export const replaceTmdbDataStatements = (
     env.DB.prepare(
       `INSERT INTO movie_tmdb_data
        (movie_id, tmdb_id, title, release_date, poster_path, runtime_minutes,
-        tmdb_collection_id, fetched_at, refresh_after, expires_at, data_version)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        tmdb_collection_id, fetched_at, refresh_after, expires_at, data_version,
+        last_refresh_attempt_at, last_refresh_status, last_refresh_error)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'succeeded', NULL)
        ON CONFLICT(movie_id) DO UPDATE SET
          tmdb_id = excluded.tmdb_id,
          title = excluded.title,
@@ -107,7 +108,10 @@ export const replaceTmdbDataStatements = (
          fetched_at = excluded.fetched_at,
          refresh_after = excluded.refresh_after,
          expires_at = excluded.expires_at,
-         data_version = excluded.data_version
+         data_version = excluded.data_version,
+         last_refresh_attempt_at = excluded.last_refresh_attempt_at,
+         last_refresh_status = excluded.last_refresh_status,
+         last_refresh_error = excluded.last_refresh_error
        WHERE excluded.fetched_at >= COALESCE(movie_tmdb_data.fetched_at, '')`,
     ).bind(
       movieId,
@@ -121,6 +125,7 @@ export const replaceTmdbDataStatements = (
       refreshAfter,
       expiresAt,
       CURRENT_TMDB_DATA_VERSION,
+      fetchedAt,
     ),
     env.DB.prepare(
       `UPDATE movies SET
@@ -238,9 +243,31 @@ export type TmdbRefreshReport = {
   rateLimited: boolean;
 };
 
+const refreshErrorMessage = (error: TmdbServiceError) =>
+  error.status === 429
+    ? "TMDB rate limited the refresh"
+    : error.status === 503
+      ? "TMDB is not configured"
+      : "TMDB refresh request failed";
+
+export const countDueTmdbData = async (
+  env: AppEnv["Bindings"],
+  timestamp = new Date().toISOString(),
+) => {
+  const result = await env.DB.prepare(
+    `SELECT COUNT(*) AS count
+     FROM movie_tmdb_data
+     WHERE refresh_after <= ? OR data_version < ?`,
+  )
+    .bind(timestamp, CURRENT_TMDB_DATA_VERSION)
+    .first<{ count: number }>();
+  return result?.count ?? 0;
+};
+
 export const refreshDueTmdbData = async (
   env: AppEnv["Bindings"],
   timestamp = new Date().toISOString(),
+  batchSize = DEFAULT_TMDB_REFRESH_BATCH_SIZE,
 ): Promise<TmdbRefreshReport> => {
   await seedCompatibilityRows(env);
   const due = await env.DB.prepare(
@@ -250,7 +277,7 @@ export const refreshDueTmdbData = async (
      ORDER BY refresh_after, movie_id
      LIMIT ?`,
   )
-    .bind(timestamp, CURRENT_TMDB_DATA_VERSION, REFRESH_BATCH_SIZE)
+    .bind(timestamp, CURRENT_TMDB_DATA_VERSION, batchSize)
     .all<{ movie_id: string; tmdb_id: number }>();
   const report: TmdbRefreshReport = {
     attempted: 0,
@@ -261,12 +288,39 @@ export const refreshDueTmdbData = async (
 
   for (const row of due.results) {
     report.attempted += 1;
+    await env.DB.prepare(
+      `UPDATE movie_tmdb_data SET
+         last_refresh_attempt_at = ?,
+         last_refresh_status = 'running',
+         last_refresh_error = NULL
+       WHERE movie_id = ?`,
+    )
+      .bind(timestamp, row.movie_id)
+      .run();
     try {
       const result = await getTmdbMovie(env, row.tmdb_id);
-      await env.DB.batch(replaceTmdbDataStatements(env, row.movie_id, result));
+      await env.DB.batch([
+        ...replaceTmdbDataStatements(env, row.movie_id, result),
+        env.DB.prepare(
+          `UPDATE movie_tmdb_data SET
+             last_refresh_attempt_at = ?,
+             last_refresh_status = 'succeeded',
+             last_refresh_error = NULL
+           WHERE movie_id = ?`,
+        ).bind(timestamp, row.movie_id),
+      ]);
       report.refreshed += 1;
     } catch (error) {
       if (!(error instanceof TmdbServiceError)) throw error;
+      await env.DB.prepare(
+        `UPDATE movie_tmdb_data SET
+           last_refresh_attempt_at = ?,
+           last_refresh_status = 'failed',
+           last_refresh_error = ?
+         WHERE movie_id = ?`,
+      )
+        .bind(timestamp, refreshErrorMessage(error), row.movie_id)
+        .run();
       report.failed += 1;
       if (error.status === 429) {
         report.rateLimited = true;

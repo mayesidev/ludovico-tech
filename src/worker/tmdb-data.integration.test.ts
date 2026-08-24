@@ -276,7 +276,9 @@ describe("scheduled TMDB enrichment refresh", () => {
 
     expect(
       await env.DB.prepare(
-        `SELECT movie_tmdb_data.title, tmdb_collections.name AS collection_name,
+        `SELECT movie_tmdb_data.title,
+                movie_tmdb_data.last_refresh_status,
+                tmdb_collections.name AS collection_name,
                 tmdb_people.name AS person_name
          FROM movie_tmdb_data
          JOIN tmdb_collections
@@ -291,6 +293,7 @@ describe("scheduled TMDB enrichment refresh", () => {
         .first(),
     ).toEqual({
       collection_name: "Newer Collection",
+      last_refresh_status: "succeeded",
       person_name: "Newer Actor",
       title: "Newer Title",
     });

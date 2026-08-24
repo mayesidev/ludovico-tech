@@ -75,6 +75,38 @@ describe("site identity", () => {
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
+
+  it("shows TMDB operations only to authenticated contributors", () => {
+    const { rerender } = render(
+      <AppHeader
+        auth={{ actor: null, authenticated: false, local: false }}
+        onLogin={vi.fn()}
+        onLogout={vi.fn()}
+        onNavigate={vi.fn()}
+        tab="home"
+      />,
+    );
+    expect(screen.queryByRole("link", { name: "TMDB Status" })).toBeNull();
+
+    rerender(
+      <AppHeader
+        auth={{
+          actor: { displayName: "Contributor", email: "c@example.test" },
+          authenticated: true,
+          local: false,
+        }}
+        onLogin={vi.fn()}
+        onLogout={vi.fn()}
+        onNavigate={vi.fn()}
+        showTmdbStatus
+        tab="tmdb-status"
+      />,
+    );
+    expect(screen.getByRole("link", { name: "TMDB Status" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
 });
 
 describe("random selection reveal", () => {

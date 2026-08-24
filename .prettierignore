@@ -6,6 +6,7 @@
 build/
 data/
 dist/
+migrations/**/*.sql
 node_modules/
 pnpm-lock.yaml
 playwright-report/

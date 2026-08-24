@@ -79,6 +79,45 @@ export type HealthState = {
   commit: string;
 };
 
+export type TmdbRefreshStatus = {
+  currentDataVersion: number;
+  counts: {
+    current: number;
+    failed: number;
+    linked: number;
+    pending: number;
+  };
+  items: Array<{
+    dataVersion: number;
+    fetchedAt: string | null;
+    lastAttemptAt: string | null;
+    lastError: string | null;
+    lastResult: "failed" | "running" | "succeeded" | null;
+    movieId: string;
+    refreshAfter: string;
+    state: "current" | "due" | "failed" | "never_fetched" | "version_stale";
+    title: string;
+    tmdbId: number;
+  }>;
+  schedule: {
+    batchSize: number;
+    enabled: boolean;
+    intervalMinutes: number;
+    lastAttempted: number;
+    lastCompletedAt: string | null;
+    lastError: string | null;
+    lastFailed: number;
+    lastRateLimited: boolean;
+    lastRefreshed: number;
+    lastRemaining: number;
+    lastStartedAt: string | null;
+    leaseExpiresAt: string | null;
+    nextRunAt: string;
+    running: boolean;
+  };
+  truncated: boolean;
+};
+
 export class ApiError extends Error {
   readonly status: number;
 
@@ -184,4 +223,7 @@ export const api = {
     ),
   tmdbMovie: (id: number) =>
     request<{ movie: TmdbMovieDetail }>(`/api/tmdb/movies/${id}`),
+  tmdbRefreshStatus: () => request<TmdbRefreshStatus>("/api/tmdb-refresh"),
+  runTmdbRefresh: () =>
+    request<{ started: true }>("/api/tmdb-refresh/run", { method: "POST" }),
 };

@@ -998,6 +998,7 @@ describe("production authorization boundary", () => {
     for (const path of publicReads) {
       expect((await request(path, bindings)).status).toBe(200);
     }
+    expect((await request("/api/tmdb-refresh", bindings)).status).toBe(401);
 
     const mutations: Array<[string, string, unknown?]> = [
       ["/api/movies", "POST", { title: "Unauthorized Movie" }],
@@ -1019,6 +1020,7 @@ describe("production authorization boundary", () => {
         { movieIds: ["00000000-0000-4000-8000-000000000001"] },
       ],
       ["/api/next", "POST"],
+      ["/api/tmdb-refresh/run", "POST"],
     ];
     for (const [path, method, body] of mutations) {
       const response = await request(path, bindings, {
