@@ -387,6 +387,65 @@ describe("catalog schema", () => {
     });
   });
 
+  it("separates pending TMDB enrichment from the Library record", async () => {
+    await insertMovie("movie-pending-tmdb", "Stable Library Title");
+    await env.DB.prepare(
+      `INSERT INTO tmdb_collections (tmdb_id, name, fetched_at)
+       VALUES (?, ?, ?)`,
+    )
+      .bind(700, "Shared Provider Collection", "2026-08-01T00:00:00.000Z")
+      .run();
+    await env.DB.prepare(
+      `INSERT INTO movie_tmdb_data
+       (movie_id, tmdb_id, tmdb_collection_id, refresh_after, data_version)
+       VALUES (?, ?, ?, ?, 0)`,
+    )
+      .bind("movie-pending-tmdb", 701, 700, "1970-01-01T00:00:00.000Z")
+      .run();
+
+    expect(
+      await env.DB.prepare(
+        `SELECT movies.title, movie_tmdb_data.tmdb_id,
+                movie_tmdb_data.fetched_at, movie_tmdb_data.expires_at,
+                tmdb_collections.name AS tmdb_collection_name
+         FROM movies
+         JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
+         JOIN tmdb_collections
+           ON tmdb_collections.tmdb_id = movie_tmdb_data.tmdb_collection_id
+         WHERE movies.id = ?`,
+      )
+        .bind("movie-pending-tmdb")
+        .first(),
+    ).toEqual({
+      expires_at: null,
+      fetched_at: null,
+      title: "Stable Library Title",
+      tmdb_collection_name: "Shared Provider Collection",
+      tmdb_id: 701,
+    });
+
+    await insertMovie("movie-duplicate-tmdb");
+    await expect(
+      env.DB.prepare(
+        `INSERT INTO movie_tmdb_data
+         (movie_id, tmdb_id, refresh_after, data_version)
+         VALUES (?, ?, ?, 0)`,
+      )
+        .bind("movie-duplicate-tmdb", 701, "1970-01-01T00:00:00.000Z")
+        .run(),
+    ).rejects.toThrow();
+
+    await expect(
+      env.DB.prepare(
+        `UPDATE movie_tmdb_data
+         SET fetched_at = ?, expires_at = NULL
+         WHERE movie_id = ?`,
+      )
+        .bind("2026-08-01T00:00:00.000Z", "movie-pending-tmdb")
+        .run(),
+    ).rejects.toThrow();
+  });
+
   it("keeps source provenance and actor identifiers out of public movie DTOs", async () => {
     await insertMovie("movie-public", "Public Movie");
     await env.DB.prepare("UPDATE movies SET imdb_id = ? WHERE id = ?")

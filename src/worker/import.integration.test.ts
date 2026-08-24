@@ -162,6 +162,19 @@ describe("generalized catalog import", () => {
     )
       .bind("tt1234568")
       .first();
+    const enrichment = await env.DB.prepare(
+      `SELECT movie_tmdb_data.tmdb_id, movie_tmdb_data.data_version,
+              movie_tmdb_data.refresh_after,
+              tmdb_collections.name AS collection_name
+       FROM movie_tmdb_data
+       LEFT JOIN tmdb_collections
+         ON tmdb_collections.tmdb_id = movie_tmdb_data.tmdb_collection_id
+       WHERE movie_tmdb_data.movie_id = (
+         SELECT id FROM movies WHERE imdb_id = ?
+       )`,
+    )
+      .bind("tt1234568")
+      .first();
 
     expect(plan.diagnostics).toEqual([]);
     expect(movie).toEqual({
@@ -172,6 +185,12 @@ describe("generalized catalog import", () => {
       tmdb_collection_id: 7,
       tmdb_collection_name: "Synthetic Collection",
       tmdb_fetched_at: "2026-08-10T10:00:00.000Z",
+      tmdb_id: 42,
+    });
+    expect(enrichment).toEqual({
+      collection_name: "Synthetic Collection",
+      data_version: 0,
+      refresh_after: "1970-01-01T00:00:00.000Z",
       tmdb_id: 42,
     });
   });

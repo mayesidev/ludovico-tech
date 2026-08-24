@@ -12,6 +12,7 @@ export type WorkerEnvironment = {
   name?: string;
   routes?: Array<{ custom_domain?: boolean; pattern?: string }>;
   secrets?: { required?: string[] };
+  triggers?: { crons?: string[] };
   vars?: Record<string, string>;
   workers_dev?: boolean;
 };
@@ -77,6 +78,13 @@ const validateEnvironment = (
   }
   if (environment.workers_dev !== false) {
     throw new Error(`${key} workers.dev exposure must be disabled`);
+  }
+  const expectedCrons = key === "development" ? [] : ["17 */6 * * *"];
+  if (
+    JSON.stringify(environment.triggers?.crons ?? []) !==
+    JSON.stringify(expectedCrons)
+  ) {
+    throw new Error(`${key} TMDB refresh schedule is incorrect`);
   }
   const routes = environment.routes ?? [];
   if (

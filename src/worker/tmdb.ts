@@ -9,6 +9,7 @@ import {
 const TMDB_API_ORIGIN = "https://api.themoviedb.org";
 const SEARCH_TTL_MS = 6 * 60 * 60 * 1000;
 const DETAIL_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const CURRENT_TMDB_DATA_VERSION = 1;
 
 export type TmdbMovie = {
   id: number;
@@ -27,6 +28,11 @@ export type TmdbMovieDetail = TmdbMovie & {
   collection: TmdbCollection | null;
   directors: TmdbPerson[];
   runtimeMinutes: number | null;
+};
+
+export type TmdbMovieResult = {
+  data: TmdbMovieDetail;
+  fetchedAt: string;
 };
 
 export class TmdbServiceError extends Error {
@@ -54,13 +60,16 @@ const cacheKey = async (scope: string, value: string) => {
 
 const readCache = async <T>(env: AppEnv["Bindings"], key: string) => {
   const cached = await env.DB.prepare(
-    "SELECT payload_json FROM tmdb_cache WHERE cache_key = ? AND expires_at > ?",
+    "SELECT payload_json, fetched_at FROM tmdb_cache WHERE cache_key = ? AND expires_at > ?",
   )
     .bind(key, new Date().toISOString())
-    .first<{ payload_json: string }>();
+    .first<{ fetched_at: string; payload_json: string }>();
   if (!cached) return null;
   try {
-    return JSON.parse(cached.payload_json) as T;
+    return {
+      fetchedAt: cached.fetched_at,
+      value: JSON.parse(cached.payload_json) as T,
+    };
   } catch {
     await env.DB.prepare("DELETE FROM tmdb_cache WHERE cache_key = ?")
       .bind(key)
@@ -90,6 +99,7 @@ const writeCache = async (
          expires_at = excluded.expires_at`,
     ).bind(key, JSON.stringify(value), fetchedAt, expiresAt),
   ]);
+  return fetchedAt;
 };
 
 const safeRetryAfter = (value: string | null) =>
@@ -263,8 +273,8 @@ export const searchTmdbMovies = async (
   const normalizedQuery = query.trim().replace(/\s+/g, " ").slice(0, 100);
   const key = await cacheKey("search", normalizedQuery.toLowerCase());
   const cached = await readCache<unknown>(env, key);
-  if (Array.isArray(cached)) {
-    const movies = cached.map(mapCachedMovie);
+  if (Array.isArray(cached?.value)) {
+    const movies = cached.value.map(mapCachedMovie);
     if (movies.every((movie): movie is TmdbMovie => Boolean(movie))) {
       return movies;
     }
@@ -297,10 +307,16 @@ export const searchTmdbMovies = async (
 export const getTmdbMovie = async (
   env: AppEnv["Bindings"],
   movieId: number,
-) => {
-  const key = await cacheKey("movie", String(movieId));
-  const cached = mapCachedMovieDetail(await readCache<unknown>(env, key));
-  if (cached) return cached;
+): Promise<TmdbMovieResult> => {
+  const key = await cacheKey(
+    `movie:v${CURRENT_TMDB_DATA_VERSION}`,
+    String(movieId),
+  );
+  const cached = await readCache<unknown>(env, key);
+  const cachedMovie = mapCachedMovieDetail(cached?.value);
+  if (cached && cachedMovie) {
+    return { data: cachedMovie, fetchedAt: cached.fetchedAt };
+  }
 
   const value = await fetchTmdb(
     env,
@@ -312,6 +328,6 @@ export const getTmdbMovie = async (
   );
   const movie = mapMovieDetail(value);
   if (!movie || movie.id !== movieId) throw new TmdbServiceError(502);
-  await writeCache(env, key, movie, DETAIL_TTL_MS);
-  return movie;
+  const fetchedAt = await writeCache(env, key, movie, DETAIL_TTL_MS);
+  return { data: movie, fetchedAt };
 };

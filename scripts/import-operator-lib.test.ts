@@ -117,6 +117,16 @@ describe("private import artifact preflight", () => {
     );
   });
 
+  it("accepts a catalog-only import for Worker-managed TMDB enrichment", () => {
+    const { catalogDirectory } = createArtifactBundle();
+    const bundle = loadImportBundle(catalogDirectory);
+
+    expect(bundle.metadata).toBeNull();
+    expect(importPreflightSummary(bundle)).toBe(
+      "Preflight passed: 2 catalog chunks, 2 movies, 1 collection, 1 rating; diagnostics: COLLECTION_INDICATOR_UNCERTAIN",
+    );
+  });
+
   it("rejects a chunk whose private contents changed after generation", () => {
     const directories = createArtifactBundle();
     writeFileSync(
@@ -223,6 +233,17 @@ describe("private import target confirmation", () => {
     });
   });
 
+  it("does not require a TMDB metadata artifact", () => {
+    expect(
+      parseImportOperatorArguments(
+        requiredArguments.slice(0, requiredArguments.indexOf("--metadata")),
+      ),
+    ).toMatchObject({
+      execute: false,
+      metadataDirectory: null,
+    });
+  });
+
   it("rejects a database name that does not exactly match the environment", () => {
     expect(() =>
       parseImportOperatorArguments(
@@ -254,6 +275,43 @@ describe("private import target confirmation", () => {
 });
 
 describe("private import execution", () => {
+  it("applies a catalog without requiring a metadata phase", async () => {
+    const directories = createArtifactBundle();
+    const bundle = loadImportBundle(directories.catalogDirectory);
+    const options = {
+      ...productionOptions(directories),
+      metadataDirectory: null,
+    };
+    const calls: Array<{ arguments_: string[]; executable: string }> = [];
+    let summaryCall = 0;
+    const runner: CommandRunner = async (executable, arguments_) => {
+      calls.push({ arguments_, executable });
+      if (arguments_.length === 1) return "";
+      if (arguments_.includes("SELECT name FROM d1_migrations ORDER BY id")) {
+        return migrationResponse();
+      }
+      if (arguments_.includes("--command")) {
+        summaryCall += 1;
+        return summaryCall === 1
+          ? summary()
+          : summary({
+              collections: 1,
+              movies: 2,
+              now_showing_status: "ready",
+              ratings: 1,
+              sources: 2,
+            });
+      }
+      return "[]";
+    };
+
+    await executeImportBundle(bundle, options, runner, vi.fn());
+
+    expect(
+      calls.filter((call) => call.arguments_.includes("--file")),
+    ).toHaveLength(2);
+  });
+
   it("verifies the target, applies catalog before metadata, and verifies counts", async () => {
     const directories = createArtifactBundle();
     const bundle = loadImportBundle(

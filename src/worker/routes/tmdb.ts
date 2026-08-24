@@ -44,7 +44,7 @@ export const registerTmdbRoutes = (app: Hono<AppEnv>) => {
     }
 
     try {
-      return c.json({ movie: await getTmdbMovie(c.env, movieId) });
+      return c.json({ movie: (await getTmdbMovie(c.env, movieId)).data });
     } catch (error) {
       return tmdbErrorResponse(error, c);
     }

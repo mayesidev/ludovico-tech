@@ -84,7 +84,7 @@ type LoadedArtifact<TManifest extends ImportManifest> = {
 
 export type ImportBundle = {
   catalog: LoadedArtifact<CatalogManifest>;
-  metadata: LoadedArtifact<MetadataManifest>;
+  metadata: LoadedArtifact<MetadataManifest> | null;
 };
 
 const readJson = (path: string, label: string) => {
@@ -180,25 +180,25 @@ const loadArtifact = <TManifest extends ImportManifest>(
 
 export const loadImportBundle = (
   catalogDirectory: string,
-  metadataDirectory: string,
+  metadataDirectory: string | null = null,
 ): ImportBundle => {
   const catalog = loadArtifact<CatalogManifest>(
     catalogDirectory,
     "catalog_import",
   );
-  const metadata = loadArtifact<MetadataManifest>(
-    metadataDirectory,
-    "tmdb_metadata",
-  );
+  const metadata = metadataDirectory
+    ? loadArtifact<MetadataManifest>(metadataDirectory, "tmdb_metadata")
+    : null;
   if (
     catalog.manifest.counts.movies < 1 ||
     catalog.manifest.counts.sources < catalog.manifest.counts.movies ||
     catalog.manifest.counts.ratings > catalog.manifest.counts.movies ||
     catalog.manifest.counts.collections > catalog.manifest.counts.movies ||
-    metadata.manifest.counts.collections !== 0 ||
-    metadata.manifest.counts.ratings !== 0 ||
-    metadata.manifest.counts.sources !== 0 ||
-    metadata.manifest.counts.movies > catalog.manifest.counts.movies
+    (metadata !== null &&
+      (metadata.manifest.counts.collections !== 0 ||
+        metadata.manifest.counts.ratings !== 0 ||
+        metadata.manifest.counts.sources !== 0 ||
+        metadata.manifest.counts.movies > catalog.manifest.counts.movies))
   ) {
     throw new ImportOperatorError("Import artifact counts are inconsistent");
   }
@@ -212,7 +212,7 @@ export type ImportOperatorOptions = {
   database: string;
   environment: ImportEnvironment;
   execute: boolean;
-  metadataDirectory: string;
+  metadataDirectory: string | null;
   persistTo: string | null;
 };
 
@@ -254,7 +254,6 @@ export const parseImportOperatorArguments = (
   const environment = values.get("--environment");
   const database = values.get("--database");
   const catalogDirectory = values.get("--catalog");
-  const metadataDirectory = values.get("--metadata");
   if (
     environment !== "development" &&
     environment !== "staging" &&
@@ -267,7 +266,6 @@ export const parseImportOperatorArguments = (
   if (
     !database ||
     !catalogDirectory ||
-    !metadataDirectory ||
     database !== expectedDatabase(environment)
   ) {
     throw new ImportOperatorError(
@@ -290,7 +288,7 @@ export const parseImportOperatorArguments = (
     database,
     environment,
     execute,
-    metadataDirectory,
+    metadataDirectory: values.get("--metadata") ?? null,
     persistTo,
   };
 };
@@ -392,7 +390,7 @@ const assertImportedDatabase = (
     summary.movies !== expected.movies ||
     summary.ratings !== expected.ratings ||
     summary.sources !== expected.sources ||
-    summary.tmdbMovies !== bundle.metadata.manifest.counts.movies ||
+    summary.tmdbMovies !== (bundle.metadata?.manifest.counts.movies ?? 0) ||
     summary.nowShowingStatus !== bundle.catalog.manifest.nowShowingStatus
   ) {
     throw new ImportOperatorError(
@@ -491,7 +489,10 @@ export const executeImportBundle = async (
   );
   assertEmptyDatabase(parseDatabaseSummary(beforeSource));
 
-  for (const artifact of [bundle.catalog, bundle.metadata]) {
+  const artifacts: Array<
+    LoadedArtifact<CatalogManifest> | LoadedArtifact<MetadataManifest>
+  > = bundle.metadata ? [bundle.catalog, bundle.metadata] : [bundle.catalog];
+  for (const artifact of artifacts) {
     for (const [index, chunk] of artifact.chunks.entries()) {
       log(
         `Applying ${artifact.manifest.artifactType} ${chunk.filename} (${index + 1}/${artifact.chunks.length})`,
@@ -533,11 +534,14 @@ export const importPreflightSummary = (bundle: ImportBundle) => {
   const diagnosticCodes = [
     ...new Set([
       ...bundle.catalog.diagnosticCodes,
-      ...bundle.metadata.diagnosticCodes,
+      ...(bundle.metadata?.diagnosticCodes ?? []),
     ]),
   ].sort();
   const counts = bundle.catalog.manifest.counts;
   const count = (value: number, singular: string) =>
     `${value} ${singular}${value === 1 ? "" : "s"}`;
-  return `Preflight passed: ${count(bundle.catalog.chunks.length, "catalog chunk")}, ${count(bundle.metadata.chunks.length, "metadata chunk")}, ${count(counts.movies, "movie")}, ${count(counts.collections, "collection")}, ${count(counts.ratings, "rating")}${diagnosticCodes.length ? `; diagnostics: ${diagnosticCodes.join(", ")}` : ""}`;
+  const metadataSummary = bundle.metadata
+    ? `, ${count(bundle.metadata.chunks.length, "metadata chunk")}`
+    : "";
+  return `Preflight passed: ${count(bundle.catalog.chunks.length, "catalog chunk")}${metadataSummary}, ${count(counts.movies, "movie")}, ${count(counts.collections, "collection")}, ${count(counts.ratings, "rating")}${diagnosticCodes.length ? `; diagnostics: ${diagnosticCodes.join(", ")}` : ""}`;
 };
