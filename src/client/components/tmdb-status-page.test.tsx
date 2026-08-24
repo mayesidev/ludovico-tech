@@ -42,7 +42,7 @@ const status: TmdbRefreshStatus = {
   schedule: {
     batchSize: 25,
     enabled: true,
-    intervalMinutes: 15,
+    intervalMinutes: 360,
     lastAttempted: 1,
     lastCompletedAt: "2026-08-24T01:00:00.000Z",
     lastError: null,
@@ -52,7 +52,7 @@ const status: TmdbRefreshStatus = {
     lastRemaining: 1,
     lastStartedAt: "2026-08-24T00:59:00.000Z",
     leaseExpiresAt: null,
-    nextRunAt: "2026-08-24T01:15:00.000Z",
+    nextRunAt: "2026-08-24T07:00:00.000Z",
     running: false,
   },
 };
@@ -67,16 +67,14 @@ describe("TMDB refresh status page", () => {
       .mockResolvedValue({ started: true });
     const updateSchedule = vi
       .spyOn(api, "updateTmdbRefreshSchedule")
-      .mockResolvedValue({ enabled: false });
+      .mockResolvedValue({ updated: true });
     render(<TmdbStatusPage canMutate onNavigate={vi.fn()} />);
 
     expect(await screen.findByText("Pending Movie")).toBeVisible();
-    expect(screen.getByText(/every 15 minutes/i)).toBeVisible();
+    expect(screen.getByText(/every 6 hours/i)).toBeVisible();
     expect(screen.getByText("Never fetched")).toBeVisible();
     expect(screen.getByText("Unlinked Movie")).toBeVisible();
-    expect(
-      screen.getByRole("columnheader", { name: "TMDB ID" }),
-    ).toBeVisible();
+    expect(screen.getByRole("columnheader", { name: "TMDB ID" })).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Title" }));
     fireEvent.click(screen.getByRole("button", { name: /Title/ }));
@@ -88,7 +86,23 @@ describe("TMDB refresh status page", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Pause automatic updates" }),
     );
-    await waitFor(() => expect(updateSchedule).toHaveBeenCalledWith(false));
+    await waitFor(() =>
+      expect(updateSchedule).toHaveBeenCalledWith({ enabled: false }),
+    );
+
+    fireEvent.change(screen.getByLabelText("Frequency (minutes)"), {
+      target: { value: "720" },
+    });
+    fireEvent.change(screen.getByLabelText("Batch size"), {
+      target: { value: "50" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save schedule" }));
+    await waitFor(() =>
+      expect(updateSchedule).toHaveBeenCalledWith({
+        batchSize: 50,
+        intervalMinutes: 720,
+      }),
+    );
   });
 
   it("does not request operational data for an anonymous visitor", () => {

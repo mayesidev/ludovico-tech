@@ -231,10 +231,14 @@ export const api = {
   tmdbMovie: (id: number) =>
     request<{ movie: TmdbMovieDetail }>(`/api/tmdb/movies/${id}`),
   tmdbRefreshStatus: () => request<TmdbRefreshStatus>("/api/tmdb-refresh"),
-  updateTmdbRefreshSchedule: (enabled: boolean) =>
-    request<{ enabled: boolean }>("/api/tmdb-refresh/schedule", {
+  updateTmdbRefreshSchedule: (schedule: {
+    batchSize?: number;
+    enabled?: boolean;
+    intervalMinutes?: number;
+  }) =>
+    request<{ updated: true }>("/api/tmdb-refresh/schedule", {
       method: "PATCH",
-      body: JSON.stringify({ enabled }),
+      body: JSON.stringify(schedule),
     }),
   runTmdbRefresh: () =>
     request<{ started: true }>("/api/tmdb-refresh/run", { method: "POST" }),

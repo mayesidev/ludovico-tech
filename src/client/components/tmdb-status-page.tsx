@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  columnFilteringFeature,
   createFilteredRowModel,
   createSortedRowModel,
   filterFn_includesString,
@@ -33,6 +34,18 @@ const formatDueTimestamp = (value: string | null) =>
       ? "Due now"
       : "—";
 
+const formatInterval = (minutes: number) => {
+  if (minutes % 1440 === 0) {
+    const days = minutes / 1440;
+    return `${days} day${days === 1 ? "" : "s"}`;
+  }
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return `${hours} hour${hours === 1 ? "" : "s"}`;
+  }
+  return `${minutes} minutes`;
+};
+
 type StatusItem = TmdbRefreshStatus["items"][number];
 
 const stateLabel: Record<StatusItem["state"], string> = {
@@ -45,6 +58,7 @@ const stateLabel: Record<StatusItem["state"], string> = {
 };
 
 const statusTableFeatures = tableFeatures({
+  columnFilteringFeature,
   globalFilteringFeature,
   rowSortingFeature,
   filteredRowModel: createFilteredRowModel(),
@@ -74,6 +88,10 @@ export function TmdbStatusPage({
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [intervalMinutesInput, setIntervalMinutesInput] = useState<
+    string | null
+  >(null);
+  const [batchSizeInput, setBatchSizeInput] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!canMutate) return;
@@ -101,7 +119,7 @@ export function TmdbStatusPage({
     if (!hasStatus) return;
     const interval = window.setInterval(
       () => void load(),
-      refreshRunning ? 1500 : 15_000,
+      refreshRunning ? 1500 : 60_000,
     );
     return () => window.clearInterval(interval);
   }, [hasStatus, load, refreshRunning]);
@@ -222,6 +240,21 @@ export function TmdbStatusPage({
   }
 
   const { schedule, counts } = status;
+  const intervalMinutes =
+    intervalMinutesInput ?? String(schedule.intervalMinutes);
+  const batchSize = batchSizeInput ?? String(schedule.batchSize);
+  const parsedIntervalMinutes = Number(intervalMinutes);
+  const parsedBatchSize = Number(batchSize);
+  const scheduleValuesAreValid =
+    Number.isInteger(parsedIntervalMinutes) &&
+    parsedIntervalMinutes >= 15 &&
+    parsedIntervalMinutes <= 10080 &&
+    Number.isInteger(parsedBatchSize) &&
+    parsedBatchSize >= 1 &&
+    parsedBatchSize <= 50;
+  const scheduleHasChanges =
+    parsedIntervalMinutes !== schedule.intervalMinutes ||
+    parsedBatchSize !== schedule.batchSize;
   return (
     <div>
       <div className="mb-7 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
@@ -230,7 +263,7 @@ export function TmdbStatusPage({
             Manager's Office
           </h1>
           <p className="mt-3 text-sm text-text-muted">
-            Automatic Library updates, TMDB links, and refresh history. {" "}
+            Automatic Library updates, TMDB links, and refresh history.{" "}
             {counts.linked} of {counts.total} titles are eligible.
           </p>
         </div>
@@ -286,7 +319,7 @@ export function TmdbStatusPage({
               <p className="ui-label text-text-primary">Automatic updates</p>
               <p className="mt-1 text-sm text-text-muted">
                 {schedule.enabled
-                  ? `Runs every ${schedule.intervalMinutes} minutes in batches of ${schedule.batchSize}.`
+                  ? `Runs every ${formatInterval(schedule.intervalMinutes)} in batches of ${schedule.batchSize}.`
                   : "Paused. No scheduled batches will start."}{" "}
                 Data version {status.currentDataVersion}.
               </p>
@@ -297,7 +330,7 @@ export function TmdbStatusPage({
                 setUpdatingSchedule(true);
                 setError(null);
                 void api
-                  .updateTmdbRefreshSchedule(!schedule.enabled)
+                  .updateTmdbRefreshSchedule({ enabled: !schedule.enabled })
                   .then(load)
                   .catch((cause) =>
                     setError(
@@ -315,6 +348,107 @@ export function TmdbStatusPage({
                 : "Resume automatic updates"}
             </Button>
           </div>
+          <form
+            className="mt-5 grid gap-4 border-t border-border-subtle pt-5 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!scheduleValuesAreValid || !scheduleHasChanges) return;
+              setUpdatingSchedule(true);
+              setError(null);
+              void api
+                .updateTmdbRefreshSchedule({
+                  batchSize: parsedBatchSize,
+                  intervalMinutes: parsedIntervalMinutes,
+                })
+                .then(() => {
+                  setIntervalMinutesInput(null);
+                  setBatchSizeInput(null);
+                  return load();
+                })
+                .catch((cause) =>
+                  setError(
+                    cause instanceof Error
+                      ? cause.message
+                      : "Unable to save refresh schedule",
+                  ),
+                )
+                .finally(() => setUpdatingSchedule(false));
+            }}
+          >
+            <div className="text-sm text-text-secondary">
+              <label
+                className="ui-label mb-2 block text-text-muted"
+                htmlFor="tmdb-refresh-frequency"
+              >
+                Frequency (minutes)
+              </label>
+              <Input
+                aria-describedby="tmdb-refresh-frequency-help"
+                aria-invalid={
+                  intervalMinutes !== "" &&
+                  (!Number.isInteger(parsedIntervalMinutes) ||
+                    parsedIntervalMinutes < 15 ||
+                    parsedIntervalMinutes > 10080)
+                }
+                max={10080}
+                min={15}
+                id="tmdb-refresh-frequency"
+                onChange={(event) =>
+                  setIntervalMinutesInput(event.target.value)
+                }
+                step={15}
+                type="number"
+                value={intervalMinutes}
+              />
+              <span
+                className="mt-1.5 block text-xs text-text-muted"
+                id="tmdb-refresh-frequency-help"
+              >
+                15 minutes to 7 days
+              </span>
+            </div>
+            <div className="text-sm text-text-secondary">
+              <label
+                className="ui-label mb-2 block text-text-muted"
+                htmlFor="tmdb-refresh-batch-size"
+              >
+                Batch size
+              </label>
+              <Input
+                aria-describedby="tmdb-refresh-batch-size-help"
+                aria-invalid={
+                  batchSize !== "" &&
+                  (!Number.isInteger(parsedBatchSize) ||
+                    parsedBatchSize < 1 ||
+                    parsedBatchSize > 50)
+                }
+                max={50}
+                min={1}
+                id="tmdb-refresh-batch-size"
+                onChange={(event) => setBatchSizeInput(event.target.value)}
+                step={1}
+                type="number"
+                value={batchSize}
+              />
+              <span
+                className="mt-1.5 block text-xs text-text-muted"
+                id="tmdb-refresh-batch-size-help"
+              >
+                1 to 50 titles per run
+              </span>
+            </div>
+            <Button
+              className="sm:col-span-2 lg:col-span-1 lg:mb-[1.375rem]"
+              disabled={
+                updatingSchedule ||
+                !scheduleValuesAreValid ||
+                !scheduleHasChanges
+              }
+              type="submit"
+            >
+              Save schedule
+            </Button>
+          </form>
           <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <dt className="ui-label text-text-muted">Next run</dt>

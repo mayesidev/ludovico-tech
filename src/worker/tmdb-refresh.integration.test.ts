@@ -61,7 +61,10 @@ const tmdbResponse = () =>
     { status: 200 },
   );
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
 
 describe("TMDB refresh operations", () => {
   it("does no provider work when the internal schedule is not due", async () => {
@@ -123,12 +126,12 @@ describe("TMDB refresh operations", () => {
       unlinked: 1,
     });
     expect(status.schedule).toMatchObject({
-      intervalMinutes: 15,
+      intervalMinutes: 360,
       lastAttempted: 1,
       lastFailed: 0,
       lastRefreshed: 1,
       lastRemaining: 0,
-      nextRunAt: "2026-08-24T01:45:00.000Z",
+      nextRunAt: "2026-08-24T07:30:00.000Z",
       running: false,
     });
     expect(status.items).toEqual(
@@ -213,7 +216,9 @@ describe("TMDB refresh operations", () => {
     ).toEqual({ action: "run_requested" });
   });
 
-  it("pauses and resumes automatic refresh through an audited control", async () => {
+  it("updates the automatic refresh schedule through audited controls", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(timestamp));
     const app = createApp();
     const pause = await app.fetch(
       new Request("https://ludovico-tech.test/api/tmdb-refresh/schedule", {
@@ -225,7 +230,7 @@ describe("TMDB refresh operations", () => {
     );
 
     expect(pause.status).toBe(200);
-    expect(await pause.json()).toEqual({ enabled: false });
+    expect(await pause.json()).toEqual({ updated: true });
     expect(
       await env.DB.prepare(
         "SELECT enabled FROM tmdb_refresh_schedule WHERE id = 1",
@@ -241,16 +246,52 @@ describe("TMDB refresh operations", () => {
       bindings(),
     );
     expect(resume.status).toBe(200);
-    expect(await resume.json()).toEqual({ enabled: true });
+    expect(await resume.json()).toEqual({ updated: true });
+
+    const invalid = await app.fetch(
+      new Request("https://ludovico-tech.test/api/tmdb-refresh/schedule", {
+        body: JSON.stringify({ intervalMinutes: 16 }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
+      }),
+      bindings(),
+    );
+    expect(invalid.status).toBe(400);
+
+    const update = await app.fetch(
+      new Request("https://ludovico-tech.test/api/tmdb-refresh/schedule", {
+        body: JSON.stringify({ batchSize: 50, intervalMinutes: 720 }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
+      }),
+      bindings(),
+    );
+    expect(update.status).toBe(200);
+    expect(await update.json()).toEqual({ updated: true });
+    expect(
+      await env.DB.prepare(
+        `SELECT batch_size, enabled, interval_minutes, next_run_at
+         FROM tmdb_refresh_schedule WHERE id = 1`,
+      ).first(),
+    ).toEqual({
+      batch_size: 50,
+      enabled: 1,
+      interval_minutes: 720,
+      next_run_at: "2026-08-24T13:30:00.000Z",
+    });
     const actions = (
       await env.DB.prepare(
         `SELECT action FROM audit_log
          WHERE entity_type = 'tmdb_refresh_schedule'`,
       ).all<{ action: string }>()
     ).results.map(({ action }) => action);
-    expect(actions).toHaveLength(2);
+    expect(actions).toHaveLength(3);
     expect(actions).toEqual(
-      expect.arrayContaining(["schedule_paused", "schedule_resumed"]),
+      expect.arrayContaining([
+        "schedule_paused",
+        "schedule_resumed",
+        "schedule_updated",
+      ]),
     );
   });
 });
