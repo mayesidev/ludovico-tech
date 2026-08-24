@@ -209,8 +209,9 @@ export const replaceTmdbDataStatements = async (
       `INSERT INTO movie_tmdb_data
        (movie_id, tmdb_id, title, release_date, poster_path, runtime_minutes,
         tmdb_collection_id, fetched_at, refresh_after, expires_at, contract_id,
-        last_refresh_attempt_at, last_refresh_status, last_refresh_error)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'succeeded', NULL)
+        last_refresh_attempt_at, last_refresh_status, last_refresh_error,
+        retry_queued_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'succeeded', NULL, NULL)
        ON CONFLICT(movie_id) DO UPDATE SET
          tmdb_id = excluded.tmdb_id,
          title = excluded.title,
@@ -224,7 +225,8 @@ export const replaceTmdbDataStatements = async (
          contract_id = excluded.contract_id,
          last_refresh_attempt_at = excluded.last_refresh_attempt_at,
          last_refresh_status = excluded.last_refresh_status,
-         last_refresh_error = excluded.last_refresh_error
+         last_refresh_error = excluded.last_refresh_error,
+         retry_queued_at = excluded.retry_queued_at
        WHERE excluded.fetched_at >= COALESCE(movie_tmdb_data.fetched_at, '')`,
     ).bind(
       movieId,
@@ -348,10 +350,11 @@ export const refreshDueTmdbData = async (
   batchSize = DEFAULT_TMDB_REFRESH_BATCH_SIZE,
 ): Promise<TmdbRefreshReport> => {
   const contractId = await getTmdbMetadataContractId();
-  const due = await env.DB.prepare(
+  const primaryDue = await env.DB.prepare(
     `SELECT movie_id, tmdb_id, tmdb_collection_id
      FROM movie_tmdb_data
-     WHERE refresh_after <= ? OR contract_id IS NULL OR contract_id <> ?
+     WHERE retry_queued_at IS NULL
+       AND (refresh_after <= ? OR contract_id IS NULL OR contract_id <> ?)
      ORDER BY refresh_after, movie_id
      LIMIT ?`,
   )
@@ -361,6 +364,30 @@ export const refreshDueTmdbData = async (
       tmdb_collection_id: number | null;
       tmdb_id: number;
     }>();
+  const retryDue =
+    primaryDue.results.length < batchSize
+      ? await env.DB.prepare(
+          `SELECT movie_id, tmdb_id, tmdb_collection_id
+           FROM movie_tmdb_data
+           WHERE retry_queued_at IS NOT NULL
+             AND (refresh_after <= ? OR contract_id IS NULL OR contract_id <> ?)
+           ORDER BY retry_queued_at, refresh_after, movie_id
+           LIMIT ?`,
+        )
+          .bind(
+            timestamp,
+            contractId,
+            batchSize - primaryDue.results.length,
+          )
+          .all<{
+            movie_id: string;
+            tmdb_collection_id: number | null;
+            tmdb_id: number;
+          }>()
+      : { results: [] };
+  const due = {
+    results: [...primaryDue.results, ...retryDue.results],
+  };
   const report: TmdbRefreshReport = {
     attempted: 0,
     failed: 0,
@@ -383,6 +410,7 @@ export const refreshDueTmdbData = async (
 
   const fetched = new Map<number, TmdbMovieResult>();
   const failures = new Map<number, TmdbServiceError>();
+  const sharedFailureIds = new Set<number>();
   const misses = lookups.filter((lookup) => !cached.results.has(lookup.tmdbId));
   for (
     let offset = 0;
@@ -408,7 +436,10 @@ export const refreshDueTmdbData = async (
         fetched.set(outcome.lookup.tmdbId, outcome.result);
       } else {
         failures.set(outcome.lookup.tmdbId, outcome.error);
-        if (outcome.error.status === 429) report.rateLimited = true;
+        if (outcome.error.status === 429) {
+          report.rateLimited = true;
+          sharedFailureIds.add(outcome.lookup.tmdbId);
+        }
       }
     }
     const chunkFailures = outcomes.flatMap((outcome) =>
@@ -417,9 +448,14 @@ export const refreshDueTmdbData = async (
     const sharedFailure =
       chunkFailures.length === outcomes.length &&
       chunkFailures.every((error) => error.batchScoped);
-    if (!report.rateLimited && sharedFailure) {
+    if (sharedFailure) {
       const error = chunkFailures[0];
-      report.haltedReason = refreshErrorMessage(error);
+      for (const outcome of outcomes) {
+        if ("error" in outcome) sharedFailureIds.add(outcome.lookup.tmdbId);
+      }
+      if (!report.rateLimited) {
+        report.haltedReason = refreshErrorMessage(error);
+      }
       console.error("TMDB refresh batch halted", {
         diagnostic: error.diagnostic,
         failureKind: error.kind,
@@ -480,14 +516,21 @@ export const refreshDueTmdbData = async (
     } else if (failure) {
       report.attempted += 1;
       report.failed += 1;
+      if (sharedFailureIds.has(row.tmdb_id)) continue;
       persistenceStatements.push(
         env.DB.prepare(
           `UPDATE movie_tmdb_data SET
              last_refresh_attempt_at = ?,
              last_refresh_status = 'failed',
-             last_refresh_error = ?
+             last_refresh_error = ?,
+             retry_queued_at = ?
            WHERE movie_id = ?`,
-        ).bind(timestamp, refreshErrorMessage(failure), row.movie_id),
+        ).bind(
+          timestamp,
+          refreshErrorMessage(failure),
+          timestamp,
+          row.movie_id,
+        ),
       );
     }
   }

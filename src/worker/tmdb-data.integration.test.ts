@@ -321,16 +321,16 @@ describe("scheduled TMDB enrichment refresh", () => {
       await env.DB.prepare(
         "SELECT COUNT(*) AS count FROM tmdb_data_write_events",
       ).first(),
-    ).toEqual({ count: 6 });
+    ).toEqual({ count: 0 });
     expect(
       await env.DB.prepare(
         `SELECT last_refresh_attempt_at, last_refresh_error, last_refresh_status
          FROM movie_tmdb_data WHERE movie_id = 'credential-failure-1'`,
       ).first(),
     ).toEqual({
-      last_refresh_attempt_at: timestamp,
-      last_refresh_error: "TMDB credentials were rejected (HTTP 401)",
-      last_refresh_status: "failed",
+      last_refresh_attempt_at: null,
+      last_refresh_error: null,
+      last_refresh_status: null,
     });
     expect(
       await env.DB.prepare(
@@ -390,6 +390,42 @@ describe("scheduled TMDB enrichment refresh", () => {
          WHERE last_refresh_error = 'TMDB title was not found (HTTP 404)'`,
       ).first(),
     ).toEqual({ count: 7 });
+    expect(
+      await env.DB.prepare(
+        `SELECT COUNT(*) AS count FROM movie_tmdb_data
+         WHERE retry_queued_at = ?`,
+      )
+        .bind(timestamp)
+        .first(),
+    ).toEqual({ count: 7 });
+  });
+
+  it("processes untouched due titles before retrying an individual failure", async () => {
+    await insertLinkedMovie("retry-a-failure", 131);
+    await insertLinkedMovie("retry-b-next", 132);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(responseFor(132));
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await refreshDueTmdbData(tmdbEnv(), timestamp, 1)).toMatchObject({
+      attempted: 1,
+      failed: 1,
+      refreshed: 0,
+    });
+    expect(await refreshDueTmdbData(tmdbEnv(), timestamp, 1)).toMatchObject({
+      attempted: 1,
+      failed: 0,
+      refreshed: 1,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(new URL(String(fetchMock.mock.calls[0]?.[0])).pathname).toBe(
+      "/3/movie/131",
+    );
+    expect(new URL(String(fetchMock.mock.calls[1]?.[0])).pathname).toBe(
+      "/3/movie/132",
+    );
   });
 
   it("bulk reads mixed cache hits and commits the claim in one batch", async () => {

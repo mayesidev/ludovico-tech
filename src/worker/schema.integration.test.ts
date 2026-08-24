@@ -526,10 +526,11 @@ describe("catalog schema", () => {
       ).all(),
     ).toMatchObject({
       results: [
-        { name: "refresh_after", seqno: 0 },
-        { name: "movie_id", seqno: 1 },
-        { name: "contract_id", seqno: 2 },
-        { name: "tmdb_id", seqno: 3 },
+        { name: "retry_queued_at", seqno: 0 },
+        { name: "refresh_after", seqno: 1 },
+        { name: "movie_id", seqno: 2 },
+        { name: "contract_id", seqno: 3 },
+        { name: "tmdb_id", seqno: 4 },
       ],
     });
 
@@ -537,7 +538,8 @@ describe("catalog schema", () => {
       `EXPLAIN QUERY PLAN
        SELECT movie_id, tmdb_id
        FROM movie_tmdb_data
-       WHERE refresh_after <= ? OR contract_id IS NULL OR contract_id <> ?
+       WHERE retry_queued_at IS NULL
+         AND (refresh_after <= ? OR contract_id IS NULL OR contract_id <> ?)
        ORDER BY refresh_after, movie_id
        LIMIT ?`,
     )
@@ -557,6 +559,30 @@ describe("catalog schema", () => {
       detail.includes("TEMP B-TREE"),
     );
     expect(usesTemporarySort).toBe(false);
+
+    const retryPlan = await env.DB.prepare(
+      `EXPLAIN QUERY PLAN
+       SELECT movie_id, tmdb_id
+       FROM movie_tmdb_data
+       WHERE retry_queued_at IS NOT NULL
+         AND (refresh_after <= ? OR contract_id IS NULL OR contract_id <> ?)
+       ORDER BY retry_queued_at, refresh_after, movie_id
+       LIMIT ?`,
+    )
+      .bind(
+        "2026-08-24T00:00:00.000Z",
+        "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        25,
+      )
+      .all<{ detail: string }>();
+    expect(
+      retryPlan.results.some(({ detail }) =>
+        detail.includes("INDEX idx_movie_tmdb_data_due_queue"),
+      ),
+    ).toBe(true);
+    expect(
+      retryPlan.results.some(({ detail }) => detail.includes("TEMP B-TREE")),
+    ).toBe(false);
   });
 
   it("keeps source provenance and actor identifiers out of public movie DTOs", async () => {

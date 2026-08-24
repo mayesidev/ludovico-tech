@@ -380,9 +380,9 @@ describe("TMDB refresh operations", () => {
       lastRemaining: 1,
     });
     expect(status.items[0]).toMatchObject({
-      lastError: "TMDB rate limited the refresh",
-      lastResult: "failed",
-      state: "failed",
+      lastError: null,
+      lastResult: null,
+      state: "never_fetched",
     });
   });
 
@@ -412,9 +412,9 @@ describe("TMDB refresh operations", () => {
       lastRemaining: 1,
     });
     expect(status.items[0]).toMatchObject({
-      lastError: "TMDB credentials were rejected (HTTP 401)",
-      lastResult: "failed",
-      state: "failed",
+      lastError: null,
+      lastResult: null,
+      state: "never_fetched",
     });
   });
 
