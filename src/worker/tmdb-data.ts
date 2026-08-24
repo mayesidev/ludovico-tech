@@ -291,6 +291,7 @@ export const replaceTmdbDataStatements = async (
 export type TmdbRefreshReport = {
   attempted: number;
   failed: number;
+  haltedReason?: string;
   refreshed: number;
   rateLimited: boolean;
 };
@@ -299,12 +300,29 @@ type TmdbFetchOutcome =
   | { lookup: TmdbMovieCacheLookup; result: TmdbMovieResult }
   | { error: TmdbServiceError; lookup: TmdbMovieCacheLookup };
 
-const refreshErrorMessage = (error: TmdbServiceError) =>
-  error.status === 429
-    ? "TMDB rate limited the refresh"
-    : error.status === 503
-      ? "TMDB is not configured"
-      : "TMDB refresh request failed";
+const refreshErrorMessage = (error: TmdbServiceError) => {
+  const upstreamStatus = error.upstreamStatus
+    ? ` (HTTP ${error.upstreamStatus})`
+    : "";
+  switch (error.kind) {
+    case "authentication":
+      return `TMDB credentials were rejected${upstreamStatus}`;
+    case "configuration":
+      return "TMDB is not configured";
+    case "invalid_response":
+      return "TMDB returned an invalid response";
+    case "network":
+      return "TMDB could not be reached";
+    case "not_found":
+      return `TMDB title was not found${upstreamStatus}`;
+    case "provider_rejected":
+      return `TMDB rejected the refresh request${upstreamStatus}`;
+    case "provider_unavailable":
+      return `TMDB is temporarily unavailable${upstreamStatus}`;
+    case "rate_limited":
+      return "TMDB rate limited the refresh";
+  }
+};
 
 export const countDueTmdbData = async (
   env: AppEnv["Bindings"],
@@ -384,7 +402,7 @@ export const refreshDueTmdbData = async (
   const misses = lookups.filter((lookup) => !cached.results.has(lookup.tmdbId));
   for (
     let offset = 0;
-    offset < misses.length && !report.rateLimited;
+    offset < misses.length && !report.rateLimited && !report.haltedReason;
     offset += TMDB_FETCH_CONCURRENCY
   ) {
     const chunk = misses.slice(offset, offset + TMDB_FETCH_CONCURRENCY);
@@ -408,6 +426,20 @@ export const refreshDueTmdbData = async (
         failures.set(outcome.lookup.tmdbId, outcome.error);
         if (outcome.error.status === 429) report.rateLimited = true;
       }
+    }
+    const chunkFailures = outcomes.flatMap((outcome) =>
+      "error" in outcome ? [outcome.error] : [],
+    );
+    const sharedFailure =
+      chunkFailures.length === outcomes.length &&
+      chunkFailures.every((error) => error.batchScoped);
+    if (!report.rateLimited && sharedFailure) {
+      const error = chunkFailures[0];
+      report.haltedReason = refreshErrorMessage(error);
+      console.error("TMDB refresh batch halted", {
+        failureKind: error.kind,
+        upstreamStatus: error.upstreamStatus,
+      });
     }
   }
 

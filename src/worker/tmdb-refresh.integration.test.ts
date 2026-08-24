@@ -386,6 +386,38 @@ describe("TMDB refresh operations", () => {
     });
   });
 
+  it("reports a shared provider failure as the run-level error", async () => {
+    await insertLinkedMovie();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(null, { status: 401 })),
+    );
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expect(
+      runTmdbRefresh(bindings(), { force: true, timestamp }),
+    ).resolves.toMatchObject({
+      remaining: 1,
+      report: {
+        attempted: 1,
+        failed: 1,
+        haltedReason: "TMDB credentials were rejected (HTTP 401)",
+        refreshed: 0,
+      },
+    });
+    const status = await getTmdbRefreshStatus(bindings(), timestamp);
+    expect(status.schedule).toMatchObject({
+      lastError: "TMDB credentials were rejected (HTTP 401)",
+      lastFailed: 1,
+      lastRemaining: 1,
+    });
+    expect(status.items[0]).toMatchObject({
+      lastError: "TMDB credentials were rejected (HTTP 401)",
+      lastResult: "failed",
+      state: "failed",
+    });
+  });
+
   it("runs immediately through the authenticated application endpoint", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(timestamp));

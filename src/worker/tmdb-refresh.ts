@@ -101,9 +101,10 @@ const finishClaim = async (
   );
   const lastError = report.rateLimited
     ? "TMDB rate limited the refresh"
-    : report.failed > 0
-      ? `${report.failed} title refresh${report.failed === 1 ? "" : "es"} failed`
-      : null;
+    : report.haltedReason ??
+      (report.failed > 0
+        ? `${report.failed} title refresh${report.failed === 1 ? "" : "es"} failed`
+        : null);
   await env.DB.prepare(
     `UPDATE tmdb_refresh_schedule SET
        next_run_at = ?,

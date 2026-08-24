@@ -33,15 +33,39 @@ export type TmdbMovieResult = {
   fetchedAt: string;
 };
 
+export type TmdbFailureKind =
+  | "authentication"
+  | "configuration"
+  | "invalid_response"
+  | "network"
+  | "not_found"
+  | "provider_rejected"
+  | "provider_unavailable"
+  | "rate_limited";
+
 export class TmdbServiceError extends Error {
+  readonly batchScoped: boolean;
+  readonly kind: TmdbFailureKind;
   readonly retryAfter: string | null;
   readonly status: 429 | 502 | 503;
+  readonly upstreamStatus: number | null;
 
-  constructor(status: 429 | 502 | 503, retryAfter: string | null = null) {
+  constructor(
+    kind: TmdbFailureKind,
+    options: { retryAfter?: string | null; upstreamStatus?: number | null } = {},
+  ) {
     super("TMDB request failed");
     this.name = "TmdbServiceError";
-    this.retryAfter = retryAfter;
-    this.status = status;
+    this.batchScoped = kind !== "not_found";
+    this.kind = kind;
+    this.retryAfter = options.retryAfter ?? null;
+    this.status =
+      kind === "rate_limited"
+        ? 429
+        : kind === "configuration"
+          ? 503
+          : 502;
+    this.upstreamStatus = options.upstreamStatus ?? null;
   }
 }
 
@@ -202,7 +226,9 @@ const fetchTmdb = async (
   path: string,
   parameters: URLSearchParams,
 ) => {
-  if (!env.TMDB_READ_ACCESS_TOKEN) throw new TmdbServiceError(503);
+  if (!env.TMDB_READ_ACCESS_TOKEN) {
+    throw new TmdbServiceError("configuration");
+  }
 
   let response: Response;
   try {
@@ -216,21 +242,36 @@ const fetchTmdb = async (
       redirect: "error",
     });
   } catch {
-    throw new TmdbServiceError(502);
+    throw new TmdbServiceError("network");
   }
 
   if (response.status === 429) {
     throw new TmdbServiceError(
-      429,
-      safeRetryAfter(response.headers.get("Retry-After")),
+      "rate_limited",
+      {
+        retryAfter: safeRetryAfter(response.headers.get("Retry-After")),
+        upstreamStatus: response.status,
+      },
     );
   }
-  if (!response.ok) throw new TmdbServiceError(502);
+  if (!response.ok) {
+    const kind: TmdbFailureKind =
+      response.status === 401 || response.status === 403
+        ? "authentication"
+        : response.status === 404
+          ? "not_found"
+          : response.status >= 500
+            ? "provider_unavailable"
+            : "provider_rejected";
+    throw new TmdbServiceError(kind, { upstreamStatus: response.status });
+  }
 
   try {
     return (await response.json()) as unknown;
   } catch {
-    throw new TmdbServiceError(502);
+    throw new TmdbServiceError("invalid_response", {
+      upstreamStatus: response.status,
+    });
   }
 };
 
@@ -400,7 +441,7 @@ export const searchTmdbMovies = async (
       : null;
   const source =
     response && Array.isArray(response.results) ? response.results : null;
-  if (!source) throw new TmdbServiceError(502);
+  if (!source) throw new TmdbServiceError("invalid_response");
   const results = source
     .map((movie: unknown) => mapMovie(movie))
     .filter((movie): movie is TmdbMovie => Boolean(movie))
@@ -445,6 +486,8 @@ export const fetchTmdbMovie = async (
     }),
   );
   const movie = mapMovieDetail(value);
-  if (!movie || movie.id !== movieId) throw new TmdbServiceError(502);
+  if (!movie || movie.id !== movieId) {
+    throw new TmdbServiceError("invalid_response");
+  }
   return { data: movie, fetchedAt: new Date().toISOString() };
 };
