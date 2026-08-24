@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, RefreshCw, Search } from "lucide-react";
+import { RefreshCw, Search } from "lucide-react";
 import {
   api,
   type TmdbRefreshItem,
@@ -9,6 +9,7 @@ import {
 } from "../api";
 import type { Navigate } from "../types";
 import { AppLink } from "./app-link";
+import { PaginationControls } from "./pagination-controls";
 import { Button, Card, Input } from "./ui";
 
 const formatTimestamp = (value: string | null, fallback = "Never") =>
@@ -290,8 +291,6 @@ export function TmdbStatusPage({
     );
   };
   const { page, pageSize, total, totalPages } = queue.pagination;
-  const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const rangeEnd = Math.min(page * pageSize, total);
   return (
     <div>
       <div className="mb-7 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
@@ -669,62 +668,25 @@ export function TmdbStatusPage({
             </tbody>
           </table>
         </div>
-        <div className="flex flex-col gap-4 border-t border-action/45 bg-action/10 px-5 py-4 text-xs text-text-muted sm:flex-row sm:items-center sm:justify-between">
-          <span>
-            {rangeStart}–{rangeEnd} of {total} Library titles
-            {refreshing ? " · Updating…" : ""}
-          </span>
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="inline-flex items-center gap-2">
-              <span>Rows per page</span>
-              <select
-                aria-label="Manager's Office rows per page"
-                className="h-9 rounded-sm border border-border-primary bg-canvas px-2 text-text-primary"
-                value={queueQuery.pageSize}
-                onChange={(event) =>
-                  setQueueQuery((current) => ({
-                    ...current,
-                    page: 1,
-                    pageSize: Number(event.target.value) as 25 | 50 | 100,
-                  }))
-                }
-              >
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-            </label>
-            <span className="tabular-nums">
-              Page {page} of {totalPages}
-            </span>
-            <button
-              aria-label="Previous Manager's Office page"
-              className="grid size-9 place-items-center rounded-sm border border-border-primary bg-surface/75 text-text-secondary hover:border-text-muted hover:text-text-primary disabled:cursor-default disabled:opacity-30"
-              disabled={refreshing || page <= 1}
-              onClick={() =>
-                setQueueQuery((current) => ({
-                  ...current,
-                  page: page - 1,
-                }))
-              }
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              aria-label="Next Manager's Office page"
-              className="grid size-9 place-items-center rounded-sm border border-border-primary bg-surface/75 text-text-secondary hover:border-text-muted hover:text-text-primary disabled:cursor-default disabled:opacity-30"
-              disabled={refreshing || page >= totalPages}
-              onClick={() =>
-                setQueueQuery((current) => ({
-                  ...current,
-                  page: page + 1,
-                }))
-              }
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        </div>
+        <PaginationControls
+          context="Manager's Office"
+          itemLabel="Library titles"
+          page={page}
+          pageSize={pageSize}
+          refreshing={refreshing}
+          total={total}
+          totalPages={totalPages}
+          onPageChange={(nextPage) =>
+            setQueueQuery((current) => ({ ...current, page: nextPage }))
+          }
+          onPageSizeChange={(nextPageSize) =>
+            setQueueQuery((current) => ({
+              ...current,
+              page: 1,
+              pageSize: nextPageSize,
+            }))
+          }
+        />
       </Card>
     </div>
   );

@@ -1,11 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
-  Pencil,
-  Search,
-} from "lucide-react";
+import { ExternalLink, Pencil, Search } from "lucide-react";
 import {
   api,
   type LibraryQuery,
@@ -16,6 +10,7 @@ import { imdbTitleUrl } from "../../shared/imdb";
 import type { Navigate } from "../types";
 import { formatDate, formatMovieTitle } from "../lib/utils";
 import { AppLink } from "./app-link";
+import { PaginationControls } from "./pagination-controls";
 import { Card, Input } from "./ui";
 
 type LibraryPageProps = {
@@ -128,8 +123,6 @@ export function LibraryPage({
   const pageSize = data?.pagination.pageSize ?? query.pageSize;
   const filteredTotal = data?.pagination.total ?? 0;
   const totalPages = data?.pagination.totalPages ?? 1;
-  const rangeStart = filteredTotal === 0 ? 0 : (page - 1) * pageSize + 1;
-  const rangeEnd = Math.min(page * pageSize, filteredTotal);
 
   return (
     <div>
@@ -257,56 +250,25 @@ export function LibraryPage({
             </tbody>
           </table>
         </div>
-        <div className="flex flex-col gap-4 border-t border-action/45 bg-action/10 px-5 py-4 text-xs text-text-muted sm:flex-row sm:items-center sm:justify-between">
-          <span>
-            {rangeStart}–{rangeEnd} of {filteredTotal} movies
-            {refreshing ? " · Updating…" : ""}
-          </span>
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="inline-flex items-center gap-2">
-              <span>Rows per page</span>
-              <select
-                aria-label="Library rows per page"
-                className="h-9 rounded-sm border border-border-primary bg-canvas px-2 text-text-primary"
-                value={query.pageSize}
-                onChange={(event) =>
-                  setQuery((current) => ({
-                    ...current,
-                    page: 1,
-                    pageSize: Number(event.target.value) as 25 | 50 | 100,
-                  }))
-                }
-              >
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-            </label>
-            <span className="tabular-nums">
-              Page {page} of {totalPages}
-            </span>
-            <button
-              aria-label="Previous Library page"
-              className="grid size-9 place-items-center rounded-sm border border-border-primary bg-surface/75 text-text-secondary hover:border-text-muted hover:text-text-primary disabled:cursor-default disabled:opacity-30"
-              disabled={refreshing || page <= 1}
-              onClick={() =>
-                setQuery((current) => ({ ...current, page: page - 1 }))
-              }
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              aria-label="Next Library page"
-              className="grid size-9 place-items-center rounded-sm border border-border-primary bg-surface/75 text-text-secondary hover:border-text-muted hover:text-text-primary disabled:cursor-default disabled:opacity-30"
-              disabled={refreshing || page >= totalPages}
-              onClick={() =>
-                setQuery((current) => ({ ...current, page: page + 1 }))
-              }
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        </div>
+        <PaginationControls
+          context="Library"
+          itemLabel="movies"
+          page={page}
+          pageSize={pageSize}
+          refreshing={refreshing}
+          total={filteredTotal}
+          totalPages={totalPages}
+          onPageChange={(nextPage) =>
+            setQuery((current) => ({ ...current, page: nextPage }))
+          }
+          onPageSizeChange={(nextPageSize) =>
+            setQuery((current) => ({
+              ...current,
+              page: 1,
+              pageSize: nextPageSize,
+            }))
+          }
+        />
       </Card>
     </div>
   );
