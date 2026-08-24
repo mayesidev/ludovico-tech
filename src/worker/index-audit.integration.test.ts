@@ -102,9 +102,7 @@ describe("D1 index alignment", () => {
         expect.stringContaining("idx_movie_tmdb_data_collection"),
       ]),
     );
-    expect(
-      details.filter((detail) => detail.startsWith("SCAN ")),
-    ).toEqual([]);
+    expect(details.filter((detail) => detail.startsWith("SCAN "))).toEqual([]);
   });
 
   it("uses index searches for selective steady-state refresh counts", async () => {
@@ -115,12 +113,7 @@ describe("D1 index alignment", () => {
           OR contract_id < ?
           OR contract_id > ?
           OR (contract_id = ? AND refresh_after <= ?)`,
-      [
-        contractId,
-        contractId,
-        contractId,
-        "2026-08-24T00:00:00.000Z",
-      ],
+      [contractId, contractId, contractId, "2026-08-24T00:00:00.000Z"],
     );
 
     expect(plan[0]).toBe("MULTI-INDEX OR");
