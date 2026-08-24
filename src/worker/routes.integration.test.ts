@@ -527,6 +527,7 @@ describe("TMDB routes and metadata attachment", () => {
         Accept: "application/json",
         Authorization: "Bearer test-tmdb-token",
       },
+      redirect: "error",
     });
   });
 
