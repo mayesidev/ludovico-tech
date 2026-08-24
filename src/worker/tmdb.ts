@@ -227,8 +227,13 @@ const safeRetryAfter = (value: string | null) =>
 
 const safeFetchDiagnostic = (error: unknown, secret: string) => {
   const detail =
-    error instanceof Error ? `${error.name}: ${error.message}` : "Unknown error";
-  return detail.replaceAll(secret, "[redacted]").replace(/\s+/g, " ").slice(0, 200);
+    error instanceof Error
+      ? `${error.name}: ${error.message}`
+      : "Unknown error";
+  return detail
+    .replaceAll(secret, "[redacted]")
+    .replace(/\s+/g, " ")
+    .slice(0, 200);
 };
 
 const fetchTmdb = async (
@@ -243,7 +248,11 @@ const fetchTmdb = async (
   let url = new URL(path, TMDB_API_ORIGIN);
   url.search = parameters.toString();
   let response: Response | null = null;
-  for (let redirectCount = 0; redirectCount <= TMDB_MAX_REDIRECTS; redirectCount += 1) {
+  for (
+    let redirectCount = 0;
+    redirectCount <= TMDB_MAX_REDIRECTS;
+    redirectCount += 1
+  ) {
     try {
       response = await fetch(url.toString(), {
         headers: {

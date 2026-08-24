@@ -352,7 +352,9 @@ describe("scheduled TMDB enrichment refresh", () => {
       .fn()
       .mockRejectedValue(new TypeError("failed with test-tmdb-token"));
     vi.stubGlobal("fetch", fetchMock);
-    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const errorLog = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
 
     expect(await refreshDueTmdbData(tmdbEnv(), timestamp)).toMatchObject({
       attempted: 6,

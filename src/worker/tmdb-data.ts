@@ -374,11 +374,7 @@ export const refreshDueTmdbData = async (
            ORDER BY retry_queued_at, refresh_after, movie_id
            LIMIT ?`,
         )
-          .bind(
-            timestamp,
-            contractId,
-            batchSize - primaryDue.results.length,
-          )
+          .bind(timestamp, contractId, batchSize - primaryDue.results.length)
           .all<{
             movie_id: string;
             tmdb_collection_id: number | null;
