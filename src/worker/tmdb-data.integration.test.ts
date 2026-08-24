@@ -602,9 +602,7 @@ describe("TMDB credit snapshot persistence", () => {
     },
     {
       expectedActions: ["delete"],
-      expectedCredits: [
-        { creditType: "cast", personId: 101, position: 1 },
-      ],
+      expectedCredits: [{ creditType: "cast", personId: 101, position: 1 }],
       initialCast: [101, 102],
       initialDirectors: [],
       name: "deletes a removed credit",
@@ -625,9 +623,7 @@ describe("TMDB credit snapshot persistence", () => {
     },
     {
       expectedActions: ["delete", "insert"],
-      expectedCredits: [
-        { creditType: "director", personId: 101, position: 1 },
-      ],
+      expectedCredits: [{ creditType: "director", personId: 101, position: 1 }],
       initialCast: [101],
       initialDirectors: [],
       name: "moves a person between credit roles",
@@ -663,12 +659,7 @@ describe("TMDB credit snapshot persistence", () => {
         await replaceTmdbDataStatements(
           env,
           "credit-diff",
-          creditResult(
-            91,
-            nextCast,
-            nextDirectors,
-            "2026-08-02T00:00:00.000Z",
-          ),
+          creditResult(91, nextCast, nextDirectors, "2026-08-02T00:00:00.000Z"),
         ),
       );
 
@@ -680,9 +671,7 @@ describe("TMDB credit snapshot persistence", () => {
         results: expectedActions.map((action) => ({ action })),
       });
       expect(
-        (await getTmdbCreditSnapshots(env, ["credit-diff"])).get(
-          "credit-diff",
-        ),
+        (await getTmdbCreditSnapshots(env, ["credit-diff"])).get("credit-diff"),
       ).toEqual(expectedCredits);
     },
   );

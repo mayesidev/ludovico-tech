@@ -208,10 +208,7 @@ export const replaceTmdbDataStatements = async (
 
   if (creditsNeedDelete) {
     const preserveCondition = preservedCredits
-      .map(
-        () =>
-          "(credit_type = ? AND tmdb_person_id = ? AND position = ?)",
-      )
+      .map(() => "(credit_type = ? AND tmdb_person_id = ? AND position = ?)")
       .join(" OR ");
     statements.push(
       env.DB.prepare(
