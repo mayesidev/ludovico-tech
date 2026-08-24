@@ -196,17 +196,15 @@ export const buildTmdbMetadataPlan = (
       continue;
     }
 
-    statements.push(
-      `UPDATE movies SET release_date = ${sql(match.releaseDate)}, poster_path = ${sql(match.posterPath)}, runtime_minutes = ${sql(match.runtimeMinutes)}, tmdb_id = ${match.tmdbId}, tmdb_collection_id = ${sql(match.tmdbCollectionId)}, tmdb_collection_name = ${sql(match.tmdbCollectionName)}, tmdb_fetched_at = ${sql(reconciliation.generatedAt)} WHERE imdb_id = ${sql(match.legacyImdbId)} AND title_normalized = ${sql(match.sourceTitleNormalized)} AND (tmdb_id IS NULL OR tmdb_id = ${match.tmdbId}) AND NOT EXISTS (SELECT 1 FROM movies AS linked WHERE linked.tmdb_id = ${match.tmdbId} AND linked.imdb_id <> ${sql(match.legacyImdbId)});`,
-    );
     matchedMovies += 1;
-    const movieId = `(SELECT id FROM movies WHERE imdb_id = ${sql(match.legacyImdbId)} AND title_normalized = ${sql(match.sourceTitleNormalized)} AND tmdb_id = ${match.tmdbId} LIMIT 1)`;
+    const movieId = `(SELECT id FROM movies WHERE imdb_id = ${sql(match.legacyImdbId)} AND title_normalized = ${sql(match.sourceTitleNormalized)} LIMIT 1)`;
+    const linkAvailable = `${movieId} IS NOT NULL AND NOT EXISTS (SELECT 1 FROM movie_tmdb_data AS linked WHERE linked.tmdb_id = ${match.tmdbId} AND linked.movie_id <> ${movieId})`;
     statements.push(
       ...tmdbDataStatements(
         movieId,
         match,
         reconciliation.generatedAt,
-        `${movieId} IS NOT NULL`,
+        linkAvailable,
       ),
     );
     statements.push(
@@ -214,7 +212,7 @@ export const buildTmdbMetadataPlan = (
         movieId,
         match,
         reconciliation.generatedAt,
-        `${movieId} IS NOT NULL`,
+        linkAvailable,
       ),
     );
   }
@@ -1044,7 +1042,7 @@ const tmdbCreditStatements = (
   );
   for (const person of people.values()) {
     statements.push(
-      `INSERT INTO tmdb_people (tmdb_id, name, updated_at, fetched_at) VALUES (${person.id}, ${sql(person.name)}, ${sql(updatedAt)}, ${sql(updatedAt)}) ON CONFLICT(tmdb_id) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at, fetched_at = excluded.fetched_at WHERE excluded.fetched_at >= COALESCE(tmdb_people.fetched_at, tmdb_people.updated_at);`,
+      `INSERT INTO tmdb_people (tmdb_id, name, fetched_at) VALUES (${person.id}, ${sql(person.name)}, ${sql(updatedAt)}) ON CONFLICT(tmdb_id) DO UPDATE SET name = excluded.name, fetched_at = excluded.fetched_at WHERE excluded.fetched_at >= tmdb_people.fetched_at;`,
     );
   }
   for (const [index, person] of match.cast.entries()) {
@@ -1313,18 +1311,16 @@ export const buildImportPlan = async (
 
   for (const movie of orderedMovies) {
     statements.push(
-      `INSERT OR IGNORE INTO movies (id, title, title_normalized, added_at, updated_at, release_date, poster_path, runtime_minutes, tmdb_id, tmdb_collection_id, tmdb_collection_name, tmdb_fetched_at, imdb_id) VALUES (${sql(movie.id)}, ${sql(movie.title)}, ${sql(movie.titleNormalized)}, ${sql(movie.addedAt)}, ${sql(importedAt)}, ${sql(movie.tmdbMatch?.releaseDate ?? null)}, ${sql(movie.tmdbMatch?.posterPath ?? null)}, ${sql(movie.tmdbMatch?.runtimeMinutes ?? null)}, ${sql(movie.tmdbMatch?.tmdbId ?? null)}, ${sql(movie.tmdbMatch?.tmdbCollectionId ?? null)}, ${sql(movie.tmdbMatch?.tmdbCollectionName ?? null)}, ${sql(movie.tmdbMatch ? (reconciliation?.generatedAt ?? null) : null)}, ${sql(movie.legacyImdbId)});`,
+      `INSERT OR IGNORE INTO movies (id, title, title_normalized, added_at, updated_at, imdb_id) VALUES (${sql(movie.id)}, ${sql(movie.title)}, ${sql(movie.titleNormalized)}, ${sql(movie.addedAt)}, ${sql(importedAt)}, ${sql(movie.legacyImdbId)});`,
     );
     if (movie.tmdbMatch && reconciliation) {
-      statements.push(
-        `UPDATE movies SET release_date = ${sql(movie.tmdbMatch.releaseDate)}, poster_path = ${sql(movie.tmdbMatch.posterPath)}, runtime_minutes = ${sql(movie.tmdbMatch.runtimeMinutes)}, tmdb_id = ${movie.tmdbMatch.tmdbId}, tmdb_collection_id = ${sql(movie.tmdbMatch.tmdbCollectionId)}, tmdb_collection_name = ${sql(movie.tmdbMatch.tmdbCollectionName)}, tmdb_fetched_at = ${sql(reconciliation.generatedAt)} WHERE id = ${sql(movie.id)} AND (tmdb_id IS NULL OR tmdb_id = ${movie.tmdbMatch.tmdbId}) AND NOT EXISTS (SELECT 1 FROM movies AS linked WHERE linked.tmdb_id = ${movie.tmdbMatch.tmdbId} AND linked.id <> ${sql(movie.id)});`,
-      );
+      const linkAvailable = `NOT EXISTS (SELECT 1 FROM movie_tmdb_data AS linked WHERE linked.tmdb_id = ${movie.tmdbMatch.tmdbId} AND linked.movie_id <> ${sql(movie.id)})`;
       statements.push(
         ...tmdbDataStatements(
           sql(movie.id),
           movie.tmdbMatch,
           reconciliation.generatedAt,
-          `EXISTS (SELECT 1 FROM movies WHERE id = ${sql(movie.id)} AND tmdb_id = ${movie.tmdbMatch.tmdbId})`,
+          linkAvailable,
         ),
       );
       statements.push(
@@ -1332,7 +1328,7 @@ export const buildImportPlan = async (
           sql(movie.id),
           movie.tmdbMatch,
           reconciliation.generatedAt,
-          `EXISTS (SELECT 1 FROM movies WHERE id = ${sql(movie.id)} AND tmdb_id = ${movie.tmdbMatch.tmdbId})`,
+          linkAvailable,
         ),
       );
     }

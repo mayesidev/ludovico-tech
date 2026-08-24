@@ -91,12 +91,12 @@ describe("TMDB metadata artifact command", () => {
         counts: { collections: 0, movies: 1, ratings: 0, sources: 0 },
         nowShowingStatus: null,
       });
-      expect(sql).toContain("UPDATE movies SET release_date");
-      expect(sql).toContain("runtime_minutes = 123");
-      expect(sql).toContain("tmdb_collection_id = 7");
-      expect(sql).toContain("tmdb_collection_name = 'Synthetic Collection'");
+      expect(sql).toContain("INSERT INTO movie_tmdb_data");
+      expect(sql).toContain("runtime_minutes, tmdb_collection_id");
+      expect(sql).toContain("VALUES (7, 'Synthetic Collection'");
       expect(sql).toContain("INSERT INTO tmdb_people");
       expect(sql).toContain("INSERT OR REPLACE INTO movie_credits");
+      expect(sql).not.toContain("UPDATE movies SET release_date");
       expect(sql).not.toMatch(/collection_movies|now_showing|ratings/);
     } finally {
       rmSync(directory, { force: true, recursive: true });

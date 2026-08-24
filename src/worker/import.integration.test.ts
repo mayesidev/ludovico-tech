@@ -133,7 +133,7 @@ describe("generalized catalog import", () => {
   it("leaves external identity and collection order unconfirmed", async () => {
     await importSyntheticCatalog();
     const tmdbLinkCount = await env.DB.prepare(
-      "SELECT COUNT(*) AS count FROM movies WHERE tmdb_id IS NOT NULL",
+      "SELECT COUNT(*) AS count FROM movie_tmdb_data",
     ).first<{ count: number }>();
     const collection = await env.DB.prepare(
       "SELECT order_confirmed FROM collections",
@@ -156,14 +156,15 @@ describe("generalized catalog import", () => {
     }
 
     const movie = await env.DB.prepare(
-      `SELECT title, release_date, poster_path, runtime_minutes, tmdb_id,
-        tmdb_collection_id, tmdb_collection_name, tmdb_fetched_at
-       FROM movies WHERE imdb_id = ?`,
+      "SELECT title FROM movies WHERE imdb_id = ?",
     )
       .bind("tt1234568")
       .first();
     const enrichment = await env.DB.prepare(
       `SELECT movie_tmdb_data.tmdb_id, movie_tmdb_data.data_version,
+              movie_tmdb_data.release_date, movie_tmdb_data.poster_path,
+              movie_tmdb_data.runtime_minutes, movie_tmdb_data.fetched_at,
+              movie_tmdb_data.tmdb_collection_id,
               movie_tmdb_data.refresh_after,
               tmdb_collections.name AS collection_name
        FROM movie_tmdb_data
@@ -178,19 +179,17 @@ describe("generalized catalog import", () => {
 
     expect(plan.diagnostics).toEqual([]);
     expect(movie).toEqual({
-      poster_path: "/synthetic-two.jpg",
-      release_date: "2024-01-02",
-      runtime_minutes: 123,
       title: "Synthetic Movie Two",
-      tmdb_collection_id: 7,
-      tmdb_collection_name: "Synthetic Collection",
-      tmdb_fetched_at: "2026-08-10T10:00:00.000Z",
-      tmdb_id: 42,
     });
     expect(enrichment).toEqual({
       collection_name: "Synthetic Collection",
       data_version: 0,
+      fetched_at: "2026-08-10T10:00:00.000Z",
+      poster_path: "/synthetic-two.jpg",
+      release_date: "2024-01-02",
       refresh_after: "1970-01-01T00:00:00.000Z",
+      runtime_minutes: 123,
+      tmdb_collection_id: 7,
       tmdb_id: 42,
     });
   });
@@ -221,7 +220,10 @@ describe("generalized catalog import", () => {
               (SELECT COUNT(*) FROM movie_import_sources) AS sources`,
     ).first();
     const linked = await env.DB.prepare(
-      "SELECT title, tmdb_id FROM movies WHERE imdb_id = ?",
+      `SELECT movies.title, movie_tmdb_data.tmdb_id
+       FROM movies
+       LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
+       WHERE movies.imdb_id = ?`,
     )
       .bind("tt1234568")
       .first();

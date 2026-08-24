@@ -17,6 +17,16 @@ const insertMovie = async (id: string, title = id) => {
     .run();
 };
 
+const insertTmdbLink = async (movieId: string, tmdbId: number) => {
+  await env.DB.prepare(
+    `INSERT INTO movie_tmdb_data
+     (movie_id, tmdb_id, refresh_after, data_version)
+     VALUES (?, ?, '1970-01-01T00:00:00.000Z', 0)`,
+  )
+    .bind(movieId, tmdbId)
+    .run();
+};
+
 describe("catalog schema", () => {
   it("bootstraps a complete empty catalog without source data", async () => {
     const movieCount = await env.DB.prepare(
@@ -106,13 +116,13 @@ describe("catalog schema", () => {
 
   it("keeps version details attached to a TMDB movie and a named version", async () => {
     await insertMovie("movie-valid-version");
+    await insertTmdbLink("movie-valid-version", 42);
     await env.DB.prepare(
       `UPDATE movies
-       SET tmdb_id = ?, version = ?, version_runtime = ?, version_reference_url = ?
+       SET version = ?, version_runtime = ?, version_reference_url = ?
        WHERE id = ?`,
     )
       .bind(
-        42,
         "Director's Cut",
         112,
         "https://example.com/cuts/42",
@@ -129,29 +139,28 @@ describe("catalog schema", () => {
 
     await insertMovie("movie-details-without-version");
     await expect(
-      env.DB.prepare(
-        "UPDATE movies SET tmdb_id = ?, version_runtime = ? WHERE id = ?",
-      )
-        .bind(43, 100, "movie-details-without-version")
+      env.DB.prepare("UPDATE movies SET version_runtime = ? WHERE id = ?")
+        .bind(100, "movie-details-without-version")
         .run(),
     ).rejects.toThrow();
 
     await insertMovie("movie-invalid-version-runtime");
+    await insertTmdbLink("movie-invalid-version-runtime", 44);
     await expect(
       env.DB.prepare(
-        "UPDATE movies SET tmdb_id = ?, version = ?, version_runtime = ? WHERE id = ?",
+        "UPDATE movies SET version = ?, version_runtime = ? WHERE id = ?",
       )
-        .bind(44, "Extended Edition", 0, "movie-invalid-version-runtime")
+        .bind("Extended Edition", 0, "movie-invalid-version-runtime")
         .run(),
     ).rejects.toThrow();
 
     await insertMovie("movie-invalid-version-url");
+    await insertTmdbLink("movie-invalid-version-url", 45);
     await expect(
       env.DB.prepare(
-        "UPDATE movies SET tmdb_id = ?, version = ?, version_reference_url = ? WHERE id = ?",
+        "UPDATE movies SET version = ?, version_reference_url = ? WHERE id = ?",
       )
         .bind(
-          45,
           "Fan Edit",
           "file:///private/edit.mkv",
           "movie-invalid-version-url",
@@ -202,7 +211,7 @@ describe("catalog schema", () => {
     await insertMovie("movie-credits-one");
     await insertMovie("movie-credits-two");
     await env.DB.prepare(
-      "INSERT INTO tmdb_people (tmdb_id, name, updated_at) VALUES (?, ?, ?)",
+      "INSERT INTO tmdb_people (tmdb_id, name, fetched_at) VALUES (?, ?, ?)",
     )
       .bind(101, "Shared Person", "2026-08-06T00:00:00.000Z")
       .run();
@@ -221,7 +230,7 @@ describe("catalog schema", () => {
 
     await expect(
       env.DB.prepare(
-        "INSERT INTO tmdb_people (tmdb_id, name, updated_at) VALUES (?, ?, ?)",
+        "INSERT INTO tmdb_people (tmdb_id, name, fetched_at) VALUES (?, ?, ?)",
       )
         .bind(102, "   ", "2026-08-06T00:00:00.000Z")
         .run(),
@@ -323,19 +332,26 @@ describe("catalog schema", () => {
     });
   });
 
-  it("allows only positive movie runtimes when known", async () => {
+  it("allows only positive normalized TMDB runtimes when known", async () => {
     await insertMovie("movie-valid-runtime");
-    await env.DB.prepare("UPDATE movies SET runtime_minutes = ? WHERE id = ?")
+    await insertTmdbLink("movie-valid-runtime", 61);
+    await env.DB.prepare(
+      "UPDATE movie_tmdb_data SET runtime_minutes = ? WHERE movie_id = ?",
+    )
       .bind(123, "movie-valid-runtime")
       .run();
     expect(
-      await env.DB.prepare("SELECT runtime_minutes FROM movies WHERE id = ?")
+      await env.DB.prepare(
+        "SELECT runtime_minutes FROM movie_tmdb_data WHERE movie_id = ?",
+      )
         .bind("movie-valid-runtime")
         .first(),
     ).toEqual({ runtime_minutes: 123 });
 
     await expect(
-      env.DB.prepare("UPDATE movies SET runtime_minutes = 0 WHERE id = ?")
+      env.DB.prepare(
+        "UPDATE movie_tmdb_data SET runtime_minutes = 0 WHERE movie_id = ?",
+      )
         .bind("movie-valid-runtime")
         .run(),
     ).rejects.toThrow();
@@ -362,22 +378,37 @@ describe("catalog schema", () => {
     ).rejects.toThrow();
   });
 
-  it("keeps TMDB collection identifiers and names paired", async () => {
+  it("stores TMDB collection names once behind normalized references", async () => {
     await insertMovie("movie-tmdb-collection");
     await expect(
-      env.DB.prepare("UPDATE movies SET tmdb_collection_id = 7 WHERE id = ?")
+      env.DB.prepare(
+        `INSERT INTO movie_tmdb_data
+         (movie_id, tmdb_id, tmdb_collection_id, refresh_after, data_version)
+         VALUES (?, 70, 7, '1970-01-01T00:00:00.000Z', 0)`,
+      )
         .bind("movie-tmdb-collection")
         .run(),
     ).rejects.toThrow();
 
     await env.DB.prepare(
-      "UPDATE movies SET tmdb_collection_id = 7, tmdb_collection_name = 'Provider Collection' WHERE id = ?",
+      `INSERT INTO tmdb_collections (tmdb_id, name, fetched_at)
+       VALUES (7, 'Provider Collection', '2026-08-06T00:00:00.000Z')`,
+    ).run();
+    await env.DB.prepare(
+      `INSERT INTO movie_tmdb_data
+       (movie_id, tmdb_id, tmdb_collection_id, refresh_after, data_version)
+       VALUES (?, 70, 7, '1970-01-01T00:00:00.000Z', 0)`,
     )
       .bind("movie-tmdb-collection")
       .run();
     expect(
       await env.DB.prepare(
-        "SELECT tmdb_collection_id, tmdb_collection_name FROM movies WHERE id = ?",
+        `SELECT movie_tmdb_data.tmdb_collection_id,
+                tmdb_collections.name AS tmdb_collection_name
+         FROM movie_tmdb_data
+         JOIN tmdb_collections
+           ON tmdb_collections.tmdb_id = movie_tmdb_data.tmdb_collection_id
+         WHERE movie_tmdb_data.movie_id = ?`,
       )
         .bind("movie-tmdb-collection")
         .first(),

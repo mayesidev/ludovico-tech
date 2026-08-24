@@ -51,7 +51,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       filters.push(`(
         LOWER(movies.title || ' ' || COALESCE(movies.version, '')) LIKE LOWER(?) ESCAPE '\\'
         OR LOWER(COALESCE(collections.name, '')) LIKE LOWER(?) ESCAPE '\\'
-        OR LOWER(COALESCE(movie_tmdb_data.release_date, movies.release_date, '')) LIKE LOWER(?) ESCAPE '\\'
+        OR LOWER(COALESCE(movie_tmdb_data.release_date, '')) LIKE LOWER(?) ESCAPE '\\'
         OR LOWER(movies.added_at) LIKE LOWER(?) ESCAPE '\\'
         OR LOWER(COALESCE(CAST(ratings.score AS TEXT), '')) LIKE LOWER(?) ESCAPE '\\'
         OR LOWER(COALESCE(ratings.phrase, '')) LIKE LOWER(?) ESCAPE '\\'
@@ -75,8 +75,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     const sortExpressions = {
       title: "movies.title COLLATE NOCASE",
       collection: "collections.name COLLATE NOCASE",
-      releaseDate:
-        "COALESCE(movie_tmdb_data.release_date, movies.release_date)",
+      releaseDate: "movie_tmdb_data.release_date",
       addedAt: "movies.added_at",
       rating: "ratings.score",
     } as const;
@@ -240,7 +239,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         return tmdbErrorResponse(error, c);
       }
       const duplicate = await c.env.DB.prepare(
-        "SELECT id FROM movies WHERE tmdb_id = ?",
+        "SELECT movie_id FROM movie_tmdb_data WHERE tmdb_id = ?",
       )
         .bind(input.tmdbId)
         .first();
@@ -290,11 +289,10 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
 
     statements.push(
       c.env.DB.prepare(
-        `INSERT INTO movies (id, title, title_normalized, added_at, added_by, updated_at, updated_by,
-        release_date, poster_path, runtime_minutes, imdb_id, tmdb_id, tmdb_fetched_at,
-        tmdb_collection_id, tmdb_collection_name, version, version_runtime,
-        version_reference_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO movies
+         (id, title, title_normalized, added_at, added_by, updated_at, updated_by,
+          imdb_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         id,
         title,
@@ -303,22 +301,23 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         actor.id,
         timestamp,
         actor.id,
-        metadata?.releaseDate ?? null,
-        metadata?.posterPath ?? null,
-        metadata?.runtimeMinutes ?? null,
         input.imdbId ?? null,
-        input.tmdbId ?? null,
-        tmdbResult?.fetchedAt ?? null,
-        metadata?.collection?.id ?? null,
-        metadata?.collection?.name ?? null,
-        version,
-        versionRuntime,
-        versionReferenceUrl,
       ),
     );
 
     if (tmdbResult) {
       statements.push(...replaceTmdbDataStatements(c.env, id, tmdbResult));
+      if (version !== null) {
+        statements.push(
+          c.env.DB.prepare(
+            `UPDATE movies SET
+               version = ?,
+               version_runtime = ?,
+               version_reference_url = ?
+             WHERE id = ?`,
+          ).bind(version, versionRuntime, versionReferenceUrl, id),
+        );
+      }
     }
 
     if (collectionId && position !== null) {
@@ -382,7 +381,8 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         return tmdbErrorResponse(error, c);
       }
       const duplicate = await c.env.DB.prepare(
-        "SELECT id FROM movies WHERE tmdb_id = ? AND id <> ?",
+        `SELECT movie_id FROM movie_tmdb_data
+         WHERE tmdb_id = ? AND movie_id <> ?`,
       )
         .bind(input.tmdbId, movieId)
         .first();
@@ -396,21 +396,6 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     const metadata = tmdbResult?.data ?? null;
     const title = metadata?.title ?? input.title ?? existing.title;
     const tmdbChangeRequested = input.tmdbId !== undefined;
-    const releaseDate =
-      metadata?.releaseDate ??
-      (tmdbChangeRequested ? null : existing.release_date);
-    const posterPath =
-      metadata?.posterPath ??
-      (tmdbChangeRequested ? null : existing.poster_path);
-    const runtimeMinutes =
-      metadata?.runtimeMinutes ??
-      (tmdbChangeRequested ? null : existing.runtime_minutes);
-    const tmdbCollectionId = tmdbChangeRequested
-      ? (metadata?.collection?.id ?? null)
-      : existing.tmdb_collection_id;
-    const tmdbCollectionName = tmdbChangeRequested
-      ? (metadata?.collection?.name ?? null)
-      : existing.tmdb_collection_name;
     const resolvedTmdbId = tmdbChangeRequested
       ? (input.tmdbId ?? null)
       : existing.tmdb_id;
@@ -500,38 +485,35 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
           )?.position ?? 1)
         : null;
 
-    const statements: D1PreparedStatement[] = [
-      c.env.DB.prepare(
-        `UPDATE movies SET title = ?, title_normalized = ?, updated_at = ?, updated_by = ?,
-        release_date = ?, poster_path = ?, runtime_minutes = ?, imdb_id = ?, tmdb_id = ?,
-        tmdb_collection_id = ?, tmdb_collection_name = ?, version = ?,
-        version_runtime = ?, version_reference_url = ?,
-        tmdb_fetched_at = CASE WHEN ? THEN ? ELSE tmdb_fetched_at END
-        WHERE id = ?`,
-      ).bind(
-        title,
-        normalizeTitle(title),
-        timestamp,
-        actor.id,
-        releaseDate,
-        posterPath,
-        runtimeMinutes,
-        resolvedImdbId,
-        resolvedTmdbId,
-        tmdbCollectionId,
-        tmdbCollectionName,
-        version,
-        versionRuntime,
-        versionReferenceUrl,
-        tmdbChangeRequested ? 1 : 0,
-        tmdbResult?.fetchedAt ?? null,
-        movieId,
-      ),
-    ];
-
-    if (tmdbChangeRequested) {
-      statements.push(...replaceTmdbDataStatements(c.env, movieId, tmdbResult));
-    }
+    const updateMovie = c.env.DB.prepare(
+      `UPDATE movies SET
+           title = ?,
+           title_normalized = ?,
+           updated_at = ?,
+           updated_by = ?,
+           imdb_id = ?,
+           version = ?,
+           version_runtime = ?,
+           version_reference_url = ?
+         WHERE id = ?`,
+    ).bind(
+      title,
+      normalizeTitle(title),
+      timestamp,
+      actor.id,
+      resolvedImdbId,
+      version,
+      versionRuntime,
+      versionReferenceUrl,
+      movieId,
+    );
+    const replaceTmdb = tmdbChangeRequested
+      ? replaceTmdbDataStatements(c.env, movieId, tmdbResult)
+      : [];
+    const statements: D1PreparedStatement[] =
+      tmdbChangeRequested && tmdbResult
+        ? [...replaceTmdb, updateMovie]
+        : [updateMovie, ...replaceTmdb];
 
     if (membershipChanged) {
       if (createCollection && targetCollectionId && targetCollectionName) {
