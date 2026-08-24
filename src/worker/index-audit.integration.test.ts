@@ -193,28 +193,39 @@ describe("D1 index alignment", () => {
     ).toBe(false);
   });
 
-  it("materializes only the requested Library IDs before hydrating joins", async () => {
+  it("uses the title index directly for the default Library page", async () => {
+    const plan = await queryPlan(
+      `${movieSelect}
+       ORDER BY movies.title COLLATE NOCASE ASC, movies.id ASC
+       LIMIT ? OFFSET ?`,
+      [25, 0],
+    );
+
+    expect(plan).toContain("SCAN movies USING INDEX idx_movies_title_nocase");
+    expect(plan).not.toContain("MATERIALIZE page");
+    expect(plan.some((detail) => detail.includes("TEMP B-TREE"))).toBe(false);
+  });
+
+  it("materializes alternate Library sorts before hydrating joins", async () => {
     const plan = await queryPlan(
       `WITH page AS MATERIALIZED (
          SELECT movies.id
          FROM movies
-         ORDER BY movies.title COLLATE NOCASE ASC, movies.id ASC
+         ORDER BY movies.added_at DESC, movies.id ASC
          LIMIT ? OFFSET ?
        )
        ${movieSelect}
        WHERE movies.id IN (SELECT id FROM page)
-       ORDER BY movies.title COLLATE NOCASE ASC, movies.id ASC`,
+       ORDER BY movies.added_at DESC, movies.id ASC`,
       [25, 0],
     );
 
     expect(plan).toContain("MATERIALIZE page");
-    expect(plan).toContain(
-      "SCAN movies USING COVERING INDEX idx_movies_title_nocase",
+    expect(plan).toEqual(
+      expect.arrayContaining([
+        "SEARCH movies USING INDEX sqlite_autoindex_movies_1 (id=?)",
+      ]),
     );
-    expect(plan.filter((detail) => detail.startsWith("SCAN "))).toEqual([
-      "SCAN movies USING COVERING INDEX idx_movies_title_nocase",
-      "SCAN page",
-    ]);
   });
 
   it("uses index searches for selective steady-state refresh counts", async () => {

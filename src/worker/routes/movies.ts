@@ -117,18 +117,23 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       ${needsCollection ? "LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id" : ""}
       ${needsCollection ? "LEFT JOIN collections ON collections.id = collection_movies.collection_id" : ""}
       ${needsRatings ? "LEFT JOIN ratings ON ratings.movie_id = movies.id" : ""}`;
+    const directTitlePage =
+      !input.search && input.status === "all" && input.sort === "title";
     const result = await c.env.DB.prepare(
-      `WITH page AS MATERIALIZED (
-         SELECT movies.id
-         ${pageFrom}
-         ${where}
-         ORDER BY ${nullsLast}${sortExpression} ${direction}, movies.id ASC
-         LIMIT ? OFFSET ?
-       )
-       ${movieSelect}
-       WHERE movies.id IN (SELECT id FROM page)
-       ORDER BY ${nullsLast}${sortExpression} ${direction}, movies.id ASC
-      `,
+      directTitlePage
+        ? `${movieSelect}
+           ORDER BY movies.title COLLATE NOCASE ${direction}, movies.id ASC
+           LIMIT ? OFFSET ?`
+        : `WITH page AS MATERIALIZED (
+             SELECT movies.id
+             ${pageFrom}
+             ${where}
+             ORDER BY ${nullsLast}${sortExpression} ${direction}, movies.id ASC
+             LIMIT ? OFFSET ?
+           )
+           ${movieSelect}
+           WHERE movies.id IN (SELECT id FROM page)
+           ORDER BY ${nullsLast}${sortExpression} ${direction}, movies.id ASC`,
     )
       .bind(...bindings, input.pageSize, (page - 1) * input.pageSize)
       .all<MovieRow>();
