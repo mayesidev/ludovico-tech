@@ -86,18 +86,26 @@ export type TmdbRefreshStatus = {
     failed: number;
     linked: number;
     pending: number;
+    total: number;
+    unlinked: number;
   };
   items: Array<{
-    dataVersion: number;
+    dataVersion: number | null;
     fetchedAt: string | null;
     lastAttemptAt: string | null;
     lastError: string | null;
     lastResult: "failed" | "running" | "succeeded" | null;
     movieId: string;
-    refreshAfter: string;
-    state: "current" | "due" | "failed" | "never_fetched" | "version_stale";
+    refreshAfter: string | null;
+    state:
+      | "current"
+      | "due"
+      | "failed"
+      | "never_fetched"
+      | "unlinked"
+      | "version_stale";
     title: string;
-    tmdbId: number;
+    tmdbId: number | null;
   }>;
   schedule: {
     batchSize: number;
@@ -115,7 +123,6 @@ export type TmdbRefreshStatus = {
     nextRunAt: string;
     running: boolean;
   };
-  truncated: boolean;
 };
 
 export class ApiError extends Error {
@@ -224,6 +231,11 @@ export const api = {
   tmdbMovie: (id: number) =>
     request<{ movie: TmdbMovieDetail }>(`/api/tmdb/movies/${id}`),
   tmdbRefreshStatus: () => request<TmdbRefreshStatus>("/api/tmdb-refresh"),
+  updateTmdbRefreshSchedule: (enabled: boolean) =>
+    request<{ enabled: boolean }>("/api/tmdb-refresh/schedule", {
+      method: "PATCH",
+      body: JSON.stringify({ enabled }),
+    }),
   runTmdbRefresh: () =>
     request<{ started: true }>("/api/tmdb-refresh/run", { method: "POST" }),
 };

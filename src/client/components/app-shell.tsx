@@ -68,7 +68,7 @@ export function AppHeader({
 
         <nav
           aria-label="Primary navigation"
-          className="col-span-2 row-start-2 flex min-h-[50px] items-stretch justify-center border-t border-border-subtle md:col-span-1 md:col-start-2 md:row-start-1 md:min-h-[87px] md:border-t-0"
+          className="col-span-2 row-start-2 flex min-h-[50px] items-stretch justify-start overflow-x-auto border-t border-border-subtle md:col-span-1 md:col-start-2 md:row-start-1 md:min-h-[87px] md:justify-center md:overflow-visible md:border-t-0"
         >
           <NavButton active={tab === "home"} href="/" onNavigate={onNavigate}>
             Now Showing
@@ -93,7 +93,7 @@ export function AppHeader({
               href="/tmdb-status"
               onNavigate={onNavigate}
             >
-              TMDB Status
+              Manager's Office
             </NavButton>
           )}
         </nav>
@@ -124,7 +124,7 @@ function NavButton({
       href={href}
       onNavigate={onNavigate}
       className={cn(
-        "nav-label relative grid min-w-0 place-items-center px-3 transition sm:min-w-32 sm:px-6",
+        "nav-label relative grid shrink-0 place-items-center whitespace-nowrap px-3 transition sm:min-w-32 sm:px-6",
         active
           ? "text-text-primary after:absolute after:inset-x-5 after:bottom-[-1px] after:h-[3px] after:bg-action"
           : "text-text-muted hover:text-text-primary",

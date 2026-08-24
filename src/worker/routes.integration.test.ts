@@ -1021,6 +1021,7 @@ describe("production authorization boundary", () => {
       ],
       ["/api/next", "POST"],
       ["/api/tmdb-refresh/run", "POST"],
+      ["/api/tmdb-refresh/schedule", "PATCH", { enabled: false }],
     ];
     for (const [path, method, body] of mutations) {
       const response = await request(path, bindings, {
