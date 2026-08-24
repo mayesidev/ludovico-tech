@@ -72,6 +72,19 @@ const status: TmdbRefreshStatus = {
 afterEach(() => vi.restoreAllMocks());
 
 describe("TMDB refresh status page", () => {
+  it("refreshes status on demand and when the window regains focus", async () => {
+    const load = vi.spyOn(api, "tmdbRefreshStatus").mockResolvedValue(status);
+    render(<TmdbStatusPage canMutate onNavigate={vi.fn()} />);
+
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+
+    fireEvent.focus(window);
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(3));
+  });
+
   it("shows the schedule, queue, and immediate refresh action", async () => {
     vi.spyOn(api, "tmdbRefreshStatus").mockResolvedValue(status);
     const run = vi

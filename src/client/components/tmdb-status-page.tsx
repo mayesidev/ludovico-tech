@@ -82,6 +82,7 @@ export function TmdbStatusPage({
 }) {
   const [status, setStatus] = useState<TmdbRefreshStatus | null>(null);
   const [loading, setLoading] = useState(canMutate);
+  const [refreshing, setRefreshing] = useState(false);
   const [starting, setStarting] = useState(false);
   const [updatingSchedule, setUpdatingSchedule] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,15 +114,12 @@ export function TmdbStatusPage({
   }, [load]);
 
   const hasStatus = status !== null;
-  const refreshRunning = status?.schedule.running ?? false;
   useEffect(() => {
     if (!hasStatus) return;
-    const interval = window.setInterval(
-      () => void load(),
-      refreshRunning ? 1500 : 60_000,
-    );
-    return () => window.clearInterval(interval);
-  }, [hasStatus, load, refreshRunning]);
+    const refreshOnFocus = () => void load();
+    window.addEventListener("focus", refreshOnFocus);
+    return () => window.removeEventListener("focus", refreshOnFocus);
+  }, [hasStatus, load]);
 
   const columns = useMemo<StatusColumnDef[]>(
     () => [
@@ -290,28 +288,44 @@ export function TmdbStatusPage({
             Manager's Office
           </h1>
         </div>
-        <Button
-          disabled={starting || schedule.running || !schedule.enabled}
-          onClick={() => {
-            setStarting(true);
-            setError(null);
-            void api
-              .runTmdbRefresh()
-              .then(load)
-              .catch((cause) =>
-                setError(
-                  cause instanceof Error ? cause.message : "Refresh failed",
-                ),
-              )
-              .finally(() => setStarting(false));
-          }}
-        >
-          <RefreshCw
-            className={schedule.running ? "animate-spin" : undefined}
-            size={16}
-          />
-          {schedule.running ? "Refresh running" : "Run now"}
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          <Button
+            disabled={refreshing}
+            onClick={() => {
+              setRefreshing(true);
+              void load().finally(() => setRefreshing(false));
+            }}
+            variant="secondary"
+          >
+            <RefreshCw
+              className={refreshing ? "animate-spin" : undefined}
+              size={16}
+            />
+            Refresh status
+          </Button>
+          <Button
+            disabled={starting || schedule.running || !schedule.enabled}
+            onClick={() => {
+              setStarting(true);
+              setError(null);
+              void api
+                .runTmdbRefresh()
+                .then(load)
+                .catch((cause) =>
+                  setError(
+                    cause instanceof Error ? cause.message : "Refresh failed",
+                  ),
+                )
+                .finally(() => setStarting(false));
+            }}
+          >
+            <RefreshCw
+              className={schedule.running ? "animate-spin" : undefined}
+              size={16}
+            />
+            {schedule.running ? "Refresh running" : "Run now"}
+          </Button>
+        </div>
       </div>
 
       {error && (
