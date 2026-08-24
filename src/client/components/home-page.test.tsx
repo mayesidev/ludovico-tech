@@ -25,6 +25,7 @@ const movie = (overrides: Partial<Movie> = {}): Movie => ({
 });
 
 const nowShowing = (overrides: Partial<NowShowing> = {}): NowShowing => ({
+  added_at: "2026-08-07T00:00:00.000Z",
   cast: [],
   collection_id: null,
   collection_name: null,
@@ -35,10 +36,12 @@ const nowShowing = (overrides: Partial<NowShowing> = {}): NowShowing => ({
   rating_phrase: null,
   rating_score: null,
   release_date: "2020-01-02",
+  runtime_minutes: null,
   rolled_movie_id: "movie-id",
   status: "ready",
   title: "Test Movie",
   version: null,
+  version_runtime: null,
   watched_at: null,
   ...overrides,
 });
@@ -54,13 +57,13 @@ const renderHome = (
   const props: Parameters<typeof HomePage>[0] = {
     busy: false,
     canMutate: true,
-    movies: [movie()],
+    hasNextCollectionMovie: false,
     nowShowing: nowShowing(),
     onLogin: vi.fn(),
     onNavigate: vi.fn(),
-    remaining: [],
     roll: vi.fn(),
     run,
+    watchedMovies: [],
     ...overrides,
   };
   return { props, ...render(<HomePage {...props} />) };
@@ -219,7 +222,7 @@ describe("home workflows", () => {
         rating_score: 4,
         status: "watched",
       }),
-      remaining: [movie({ collection_id: "collection-id", id: "second-id" })],
+      hasNextCollectionMovie: true,
       roll,
     });
 
@@ -297,7 +300,7 @@ describe("home workflows", () => {
   });
 
   it("renders one aligned empty history state without fake entries", () => {
-    renderHome({ movies: [] });
+    renderHome({ watchedMovies: [] });
 
     expect(
       screen.getByRole("heading", { level: 2, name: "Watched Movies" }),
@@ -311,14 +314,13 @@ describe("home workflows", () => {
     const onNavigate = vi.fn();
     const user = userEvent.setup();
     renderHome({
-      movies: [
+      watchedMovies: [
         movie({
           id: "rated-id",
           rating_phrase: "A real rating",
           rating_score: 4,
           title: "Rated Movie",
         }),
-        movie({ id: "unwatched-id", title: "Unwatched Movie" }),
       ],
       onNavigate,
     });
@@ -334,7 +336,6 @@ describe("home workflows", () => {
     ).toBeVisible();
     expect(screen.getByText("4 · A real rating")).toBeVisible();
     expect(screen.queryByText("4/5")).toBeNull();
-    expect(screen.queryByText("Unwatched Movie")).toBeNull();
     const detailsLink = screen.getByRole("link", {
       name: "View details for Rated Movie",
     });
@@ -350,9 +351,8 @@ describe("home workflows", () => {
 
   it("keeps the catalog summary and decorative status labels out of the feature", () => {
     renderHome({
-      movies: [
+      watchedMovies: [
         movie({ id: "rated-id", rating_phrase: "Seen", rating_score: 3 }),
-        movie({ id: "unwatched-id", rating_score: null }),
       ],
     });
 

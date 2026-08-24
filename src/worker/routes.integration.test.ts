@@ -993,6 +993,7 @@ describe("production authorization boundary", () => {
       "/api/movies",
       "/api/collections",
       "/api/now-showing",
+      "/api/home",
       "/api/auth/me",
     ];
     for (const path of publicReads) {

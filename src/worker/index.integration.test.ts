@@ -35,6 +35,67 @@ describe("Ludovico Tech Worker routes", () => {
     expect(catalog.body.movies).toEqual([]);
   });
 
+  it("serves bounded Home data independently of catalog size", async () => {
+    const movies = Array.from({ length: 16 }, (_, index) => ({
+      id: `home-movie-${String(index).padStart(2, "0")}`,
+      title: `Home Movie ${index}`,
+    }));
+    await env.DB.batch([
+      ...movies.map((movie, index) =>
+        env.DB.prepare(
+          `INSERT INTO movies
+           (id, title, title_normalized, added_at, updated_at, poster_path, runtime_minutes)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(
+          movie.id,
+          movie.title,
+          movie.title.toLowerCase(),
+          `2026-08-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
+          "2026-08-24T00:00:00.000Z",
+          `/home-${index}.jpg`,
+          100 + index,
+        ),
+      ),
+      ...movies.slice(0, 6).map((movie, index) =>
+        env.DB.prepare(
+          `INSERT INTO ratings
+           (id, movie_id, recorded_at, watched_at, score, phrase, source)
+           VALUES (?, ?, ?, ?, ?, ?, 'application')`,
+        ).bind(
+          `home-rating-${index}`,
+          movie.id,
+          `2026-08-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
+          `2026-08-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
+          index / 2,
+          `History ${index}`,
+        ),
+      ),
+      env.DB.prepare(
+        `UPDATE now_showing
+         SET movie_id = ?, rolled_movie_id = ?, status = 'ready'
+         WHERE id = 1`,
+      ).bind(movies[15].id, movies[15].id),
+    ]);
+
+    const home = await request<{
+      hasNextCollectionMovie: boolean;
+      nowShowing: { added_at: string; movie_id: string; runtime_minutes: number };
+      posterReelMovies: Array<{ id: string }>;
+      watchedMovies: Array<{ id: string }>;
+    }>("/api/home");
+
+    expect(home.response.status).toBe(200);
+    expect(home.body.nowShowing).toMatchObject({
+      added_at: "2026-08-16T00:00:00.000Z",
+      movie_id: movies[15].id,
+      runtime_minutes: 115,
+    });
+    expect(home.body.hasNextCollectionMovie).toBe(false);
+    expect(home.body.watchedMovies).toHaveLength(4);
+    expect(home.body.watchedMovies[0].id).toBe(movies[5].id);
+    expect(home.body.posterReelMovies).toHaveLength(12);
+  });
+
   it("supports adding, rolling, rating, and watched-state filtering", async () => {
     const added = await request<{ movie: { id: string; title: string } }>(
       "/api/movies",

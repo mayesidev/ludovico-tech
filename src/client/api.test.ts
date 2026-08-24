@@ -15,6 +15,7 @@ describe("client API", () => {
     await api.authMe();
     await api.logout();
     await api.nowShowing();
+    await api.home();
     await api.movies("watched");
     await api.collection("collection-id");
     await api.roll();
@@ -43,6 +44,7 @@ describe("client API", () => {
       "/api/auth/me",
       "/api/auth/logout",
       "/api/now-showing",
+      "/api/home",
       "/api/movies?status=watched",
       "/api/collections/collection-id",
       "/api/roll",
@@ -58,16 +60,16 @@ describe("client API", () => {
       "/api/tmdb-refresh/schedule",
       "/api/tmdb-refresh/run",
     ]);
-    expect(fetchMock.mock.calls[8]?.[1]?.method).toBe("POST");
-    expect(JSON.parse(String(fetchMock.mock.calls[8]?.[1]?.body))).toEqual({
+    expect(fetchMock.mock.calls[9]?.[1]?.method).toBe("POST");
+    expect(JSON.parse(String(fetchMock.mock.calls[9]?.[1]?.body))).toEqual({
       phrase: "Custom phrase",
       score: 4.5,
     });
-    expect(fetchMock.mock.calls[9]?.[1]).toMatchObject({
+    expect(fetchMock.mock.calls[10]?.[1]).toMatchObject({
       body: JSON.stringify({ movieIds: ["first", "second"] }),
       method: "POST",
     });
-    expect(fetchMock.mock.calls[10]?.[1]).toMatchObject({
+    expect(fetchMock.mock.calls[11]?.[1]).toMatchObject({
       body: JSON.stringify({
         collectionName: "Saga",
         imdbId: "tt0117509",
@@ -76,16 +78,16 @@ describe("client API", () => {
       }),
       method: "POST",
     });
-    expect(fetchMock.mock.calls[11]?.[1]).toMatchObject({
+    expect(fetchMock.mock.calls[12]?.[1]).toMatchObject({
       body: JSON.stringify({ imdbId: null, title: "New title" }),
       method: "PATCH",
     });
-    expect(fetchMock.mock.calls[12]?.[1]).toMatchObject({ method: "DELETE" });
-    expect(fetchMock.mock.calls[16]?.[1]).toMatchObject({
+    expect(fetchMock.mock.calls[13]?.[1]).toMatchObject({ method: "DELETE" });
+    expect(fetchMock.mock.calls[17]?.[1]).toMatchObject({
       body: JSON.stringify({ batchSize: 50, intervalMinutes: 360 }),
       method: "PATCH",
     });
-    expect(fetchMock.mock.calls[17]?.[1]).toMatchObject({ method: "POST" });
+    expect(fetchMock.mock.calls[18]?.[1]).toMatchObject({ method: "POST" });
   });
 
   it("returns parsed JSON and preserves a safe HTTP error status", async () => {

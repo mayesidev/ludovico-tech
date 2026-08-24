@@ -1,4 +1,4 @@
-import type { Movie } from "../api";
+import type { HomeMovie } from "../api";
 import { posterUrl } from "./utils";
 
 export const POSTER_REEL_DURATION_MS = 2400;
@@ -12,7 +12,7 @@ const POSTER_LOAD_TIMEOUT_MS = 2000;
 type PosterLoader = (url: string) => Promise<boolean>;
 
 export const selectPosterReel = (
-  movies: Movie[],
+  movies: HomeMovie[],
   random: () => number = Math.random,
   limit = POSTER_REEL_LIMIT,
 ) => {
@@ -65,7 +65,7 @@ export const preloadPosterPath = async (
 };
 
 export const preloadPosterReel = async (
-  reel: Movie[],
+  reel: HomeMovie[],
   load: PosterLoader = loadPosterImage,
 ) =>
   Promise.all(

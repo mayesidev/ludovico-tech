@@ -32,6 +32,7 @@ export type MovieDetail = Movie & {
 };
 
 export type NowShowing = {
+  added_at?: string | null;
   cast: TmdbPersonReference[];
   id: number;
   rolled_movie_id: string | null;
@@ -40,13 +41,33 @@ export type NowShowing = {
   status: "empty" | "ready" | "watched";
   title: string | null;
   version: string | null;
+  version_runtime?: number | null;
   release_date: string | null;
   poster_path: string | null;
+  runtime_minutes?: number | null;
   rating_score: number | null;
   rating_phrase: string | null;
   watched_at: string | null;
   collection_name: string | null;
   directors: TmdbPersonReference[];
+};
+
+export type HomeMovie = Pick<
+  Movie,
+  | "id"
+  | "title"
+  | "poster_path"
+  | "version"
+  | "rating_score"
+  | "rating_phrase"
+  | "watched_at"
+>;
+
+export type HomeResponse = {
+  hasNextCollectionMovie: boolean;
+  nowShowing: NowShowing | null;
+  posterReelMovies: HomeMovie[];
+  watchedMovies: HomeMovie[];
 };
 
 export type NowShowingResponse = {
@@ -164,6 +185,7 @@ export const api = {
   logout: () =>
     request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
   nowShowing: () => request<NowShowingResponse>("/api/now-showing"),
+  home: () => request<HomeResponse>("/api/home"),
   movies: (status = "all") =>
     request<{ movies: Movie[] }>(`/api/movies?status=${status}`),
   movie: (id: string) =>

@@ -5,7 +5,10 @@ import {
   getMovie,
   getMovieDetail,
   getNowShowingDetail,
+  getPosterReelMovies,
   getRemainingCollectionMovies,
+  getWatchedHistory,
+  hasRemainingCollectionMovie,
   movieSelect,
   type MovieRow,
 } from "../db";
@@ -92,6 +95,24 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     return c.json({
       nowShowing: current,
       remainingCollectionMovies: remaining,
+    });
+  });
+
+  app.get("/home", async (c) => {
+    const nowShowing = await getNowShowingDetail(c.env);
+    const [watchedMovies, posterReelMovies, hasNextCollectionMovie] =
+      await Promise.all([
+        getWatchedHistory(c.env),
+        getPosterReelMovies(c.env),
+        nowShowing?.collection_id
+          ? hasRemainingCollectionMovie(c.env, nowShowing.collection_id)
+          : false,
+      ]);
+    return c.json({
+      nowShowing,
+      hasNextCollectionMovie,
+      watchedMovies,
+      posterReelMovies,
     });
   });
 
