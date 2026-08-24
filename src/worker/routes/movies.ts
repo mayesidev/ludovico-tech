@@ -9,7 +9,6 @@ import {
   getRemainingCollectionMovies,
   getWatchedHistory,
   hasRemainingCollectionMovie,
-  movieFrom,
   movieSelect,
   type MovieRow,
 } from "../db";
@@ -62,14 +61,33 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     const globalCounts = await c.env.DB.prepare(
       `SELECT COUNT(*) AS total,
         SUM(CASE WHEN ratings.id IS NULL THEN 1 ELSE 0 END) AS unwatched
-       ${movieFrom}`,
+       FROM movies
+       LEFT JOIN ratings ON ratings.movie_id = movies.id`,
     ).first<{ total: number; unwatched: number | null }>();
-    const filteredCounts = await c.env.DB.prepare(
-      `SELECT COUNT(*) AS total ${movieFrom} ${where}`,
-    )
-      .bind(...bindings)
-      .first<{ total: number }>();
-    const total = filteredCounts?.total ?? 0;
+    const globalTotal = globalCounts?.total ?? 0;
+    const globalUnwatched = globalCounts?.unwatched ?? 0;
+    let total: number;
+    if (!input.search) {
+      total =
+        input.status === "unwatched"
+          ? globalUnwatched
+          : input.status === "watched"
+            ? globalTotal - globalUnwatched
+            : globalTotal;
+    } else {
+      const filteredCounts = await c.env.DB.prepare(
+        `SELECT COUNT(*) AS total
+         FROM movies
+         LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
+         LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
+         LEFT JOIN collections ON collections.id = collection_movies.collection_id
+         LEFT JOIN ratings ON ratings.movie_id = movies.id
+         ${where}`,
+      )
+        .bind(...bindings)
+        .first<{ total: number }>();
+      total = filteredCounts?.total ?? 0;
+    }
     const totalPages = Math.max(1, Math.ceil(total / input.pageSize));
     const page = Math.min(input.page, totalPages);
     const sortExpressions = {
@@ -97,8 +115,8 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     return c.json({
       movies: result.results,
       counts: {
-        total: globalCounts?.total ?? 0,
-        unwatched: globalCounts?.unwatched ?? 0,
+        total: globalTotal,
+        unwatched: globalUnwatched,
       },
       pagination: { page, pageSize: input.pageSize, total, totalPages },
     });

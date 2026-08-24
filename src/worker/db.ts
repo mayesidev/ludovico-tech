@@ -192,6 +192,33 @@ const homeMovieSelect = `
   LEFT JOIN ratings ON ratings.movie_id = movies.id
 `;
 
+const getRandomHomeMovieSlice = async (
+  env: AppEnv["Bindings"],
+  predicate: string,
+  bindings: Array<string>,
+  limit: number,
+) => {
+  const pivot = crypto.randomUUID();
+  const afterPivot = await env.DB.prepare(
+    `${homeMovieSelect}
+     WHERE ${predicate} AND movies.id >= ?
+     ORDER BY movies.id ASC
+     LIMIT ?`,
+  )
+    .bind(...bindings, pivot, limit)
+    .all<HomeMovieRow>();
+  if (afterPivot.results.length >= limit) return afterPivot.results;
+  const beforePivot = await env.DB.prepare(
+    `${homeMovieSelect}
+     WHERE ${predicate} AND movies.id < ?
+     ORDER BY movies.id ASC
+     LIMIT ?`,
+  )
+    .bind(...bindings, pivot, limit - afterPivot.results.length)
+    .all<HomeMovieRow>();
+  return [...afterPivot.results, ...beforePivot.results];
+};
+
 export const getWatchedHistory = async (env: AppEnv["Bindings"]) => {
   const latest = await env.DB.prepare(
     `${homeMovieSelect}
@@ -199,29 +226,25 @@ export const getWatchedHistory = async (env: AppEnv["Bindings"]) => {
      ORDER BY ratings.watched_at DESC, movies.id ASC
      LIMIT 1`,
   ).first<HomeMovieRow>();
-  const previous = await env.DB.prepare(
-    `${homeMovieSelect}
-     WHERE ratings.id IS NOT NULL${latest ? " AND movies.id <> ?" : ""}
-     ORDER BY RANDOM()
-     LIMIT ?`,
-  )
-    .bind(...(latest ? [latest.id, 3] : [4]))
-    .all<HomeMovieRow>();
-  return latest ? [latest, ...previous.results] : previous.results;
+  const previous = await getRandomHomeMovieSlice(
+    env,
+    `ratings.id IS NOT NULL${latest ? " AND movies.id <> ?" : ""}`,
+    latest ? [latest.id] : [],
+    latest ? 3 : 4,
+  );
+  return latest ? [latest, ...previous] : previous;
 };
 
 export const getPosterReelMovies = async (env: AppEnv["Bindings"]) => {
-  const withPosters = await env.DB.prepare(
-    `${homeMovieSelect}
-     WHERE movie_tmdb_data.poster_path IS NOT NULL
-     ORDER BY RANDOM()
-     LIMIT 12`,
-  ).all<HomeMovieRow>();
-  if (withPosters.results.length > 0) return withPosters.results;
-  const fallback = await env.DB.prepare(
-    `${homeMovieSelect} ORDER BY RANDOM() LIMIT 12`,
-  ).all<HomeMovieRow>();
-  return fallback.results;
+  const withPosters = await getRandomHomeMovieSlice(
+    env,
+    "movie_tmdb_data.poster_path IS NOT NULL",
+    [],
+    12,
+  );
+  return withPosters.length > 0
+    ? withPosters
+    : getRandomHomeMovieSlice(env, "1 = 1", [], 12);
 };
 
 export const hasRemainingCollectionMovie = async (

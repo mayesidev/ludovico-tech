@@ -155,6 +155,24 @@ describe("Ludovico Tech Worker routes", () => {
     expect(secondPage.body.movies.map((movie) => movie.id)).toEqual(
       movies.slice(25).map((movie) => movie.id),
     );
+    const titlePlan = (
+      await env.DB.prepare(
+        `EXPLAIN QUERY PLAN
+         SELECT movies.id
+         FROM movies
+         LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
+         LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
+         LEFT JOIN ratings ON ratings.movie_id = movies.id
+         ORDER BY movies.title COLLATE NOCASE ASC, movies.id ASC
+         LIMIT 25`,
+      ).all<{ detail: string }>()
+    ).results.map(({ detail }) => detail);
+    expect(titlePlan).toContain(
+      "SCAN movies USING COVERING INDEX idx_movies_title_nocase",
+    );
+    expect(titlePlan.some((detail) => detail.includes("TEMP B-TREE"))).toBe(
+      false,
+    );
 
     const searched = await request<{
       movies: Array<{ id: string }>;

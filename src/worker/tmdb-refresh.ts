@@ -35,6 +35,14 @@ type ScheduleRow = {
   next_run_at: string;
 };
 
+type ScheduleSummaryRow = ScheduleRow & {
+  current_count: number | null;
+  failed_count: number | null;
+  linked_count: number;
+  pending_count: number | null;
+  total_count: number;
+};
+
 export type TmdbRefreshRunResult = {
   report: TmdbRefreshReport | null;
   remaining: number | null;
@@ -356,51 +364,62 @@ export const getTmdbRefreshSummary = async (
   timestamp = new Date().toISOString(),
 ) => {
   const currentContractId = await getTmdbMetadataContractId();
-  const [schedule, counts] = await Promise.all([
-    env.DB.prepare("SELECT * FROM tmdb_refresh_schedule WHERE id = ?")
-      .bind(SCHEDULE_ID)
-      .first<ScheduleRow>(),
-    env.DB.prepare(
-      `SELECT
-         COUNT(*) AS total,
-         COUNT(movie_tmdb_data.movie_id) AS linked,
-         SUM(CASE WHEN movie_tmdb_data.movie_id IS NULL THEN 1 ELSE 0 END) AS unlinked,
-         SUM(CASE WHEN movie_tmdb_data.movie_id IS NOT NULL
-                       AND (movie_tmdb_data.refresh_after <= ?
-                            OR movie_tmdb_data.contract_id IS NULL
-                            OR movie_tmdb_data.contract_id <> ?)
-                  THEN 1 ELSE 0 END) AS pending,
-         SUM(CASE WHEN movie_tmdb_data.refresh_after > ?
-                       AND movie_tmdb_data.contract_id = ?
-                  THEN 1 ELSE 0 END) AS current,
-         SUM(CASE WHEN movie_tmdb_data.last_refresh_status = 'failed'
-                  THEN 1 ELSE 0 END) AS failed
-       FROM movies
-       LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id`,
+  const schedule = await env.DB.prepare(
+    `SELECT tmdb_refresh_schedule.*,
+       (SELECT COUNT(*) FROM movies) AS total_count,
+       metadata_counts.linked_count,
+       metadata_counts.pending_count,
+       metadata_counts.current_count,
+       metadata_counts.failed_count
+     FROM tmdb_refresh_schedule
+     CROSS JOIN (
+       SELECT COUNT(*) AS linked_count,
+         SUM(CASE
+          WHEN refresh_after <= ? OR contract_id IS NULL OR contract_id <> ?
+          THEN 1 ELSE 0 END) AS pending_count,
+         SUM(CASE
+          WHEN refresh_after > ? AND contract_id = ?
+          THEN 1 ELSE 0 END) AS current_count,
+         SUM(CASE WHEN last_refresh_status = 'failed' THEN 1 ELSE 0 END)
+           AS failed_count
+       FROM movie_tmdb_data
+     ) AS metadata_counts
+     WHERE id = ?`,
+  )
+    .bind(
+      timestamp,
+      currentContractId,
+      timestamp,
+      currentContractId,
+      SCHEDULE_ID,
     )
-      .bind(timestamp, currentContractId, timestamp, currentContractId)
-      .first<{
-        current: number | null;
-        failed: number | null;
-        linked: number;
-        pending: number | null;
-        total: number;
-        unlinked: number | null;
-      }>(),
-  ]);
+    .first<ScheduleSummaryRow>();
   if (!schedule) throw new Error("TMDB refresh schedule is missing");
   return {
     currentContractId,
     schedule: mapSchedule(schedule, timestamp),
     counts: {
-      current: counts?.current ?? 0,
-      failed: counts?.failed ?? 0,
-      linked: counts?.linked ?? 0,
-      pending: counts?.pending ?? 0,
-      total: counts?.total ?? 0,
-      unlinked: counts?.unlinked ?? 0,
+      current: schedule.current_count ?? 0,
+      failed: schedule.failed_count ?? 0,
+      linked: schedule.linked_count,
+      pending: schedule.pending_count ?? 0,
+      total: schedule.total_count,
+      unlinked: schedule.total_count - schedule.linked_count,
     },
   };
+};
+
+export const getTmdbRefreshRunStatus = async (
+  env: AppEnv["Bindings"],
+  timestamp = new Date().toISOString(),
+) => {
+  const schedule = await env.DB.prepare(
+    "SELECT * FROM tmdb_refresh_schedule WHERE id = ?",
+  )
+    .bind(SCHEDULE_ID)
+    .first<ScheduleRow>();
+  if (!schedule) throw new Error("TMDB refresh schedule is missing");
+  return { schedule: mapSchedule(schedule, timestamp) };
 };
 
 const tmdbRefreshQueueCte = `
@@ -516,11 +535,66 @@ export const getTmdbRefreshQueue = async (
   }
   const where = filters.length > 0 ? `WHERE ${filters.join(" AND ")}` : "";
   const baseBindings = [currentContractId, timestamp];
-  const counts = await env.DB.prepare(
-    `${tmdbRefreshQueueCte} SELECT COUNT(*) AS total FROM queue ${where}`,
-  )
-    .bind(...baseBindings, ...bindings)
-    .first<{ total: number }>();
+  let counts: { total: number } | null;
+  if (!input.search && !input.dateSearch) {
+    const simpleCounts = {
+      all: {
+        sql: "SELECT COUNT(*) AS total FROM movies",
+        bindings: [] as Array<string>,
+      },
+      unlinked: {
+        sql: `SELECT COUNT(*) AS total
+              FROM movies
+              LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
+              WHERE movie_tmdb_data.movie_id IS NULL`,
+        bindings: [] as Array<string>,
+      },
+      failed: {
+        sql: `SELECT COUNT(*) AS total FROM movie_tmdb_data
+              WHERE last_refresh_status = 'failed'`,
+        bindings: [] as Array<string>,
+      },
+      never_fetched: {
+        sql: `SELECT COUNT(*) AS total FROM movie_tmdb_data
+              WHERE COALESCE(last_refresh_status, '') <> 'failed'
+                AND fetched_at IS NULL`,
+        bindings: [] as Array<string>,
+      },
+      contract_stale: {
+        sql: `SELECT COUNT(*) AS total FROM movie_tmdb_data
+              WHERE COALESCE(last_refresh_status, '') <> 'failed'
+                AND fetched_at IS NOT NULL
+                AND (contract_id IS NULL OR contract_id <> ?)`,
+        bindings: [currentContractId],
+      },
+      due: {
+        sql: `SELECT COUNT(*) AS total FROM movie_tmdb_data
+              WHERE COALESCE(last_refresh_status, '') <> 'failed'
+                AND fetched_at IS NOT NULL
+                AND contract_id = ?
+                AND refresh_after <= ?`,
+        bindings: [currentContractId, timestamp],
+      },
+      current: {
+        sql: `SELECT COUNT(*) AS total FROM movie_tmdb_data
+              WHERE COALESCE(last_refresh_status, '') <> 'failed'
+                AND fetched_at IS NOT NULL
+                AND contract_id = ?
+                AND refresh_after > ?`,
+        bindings: [currentContractId, timestamp],
+      },
+    } as const;
+    const query = simpleCounts[input.state];
+    counts = await env.DB.prepare(query.sql)
+      .bind(...query.bindings)
+      .first<{ total: number }>();
+  } else {
+    counts = await env.DB.prepare(
+      `${tmdbRefreshQueueCte} SELECT COUNT(*) AS total FROM queue ${where}`,
+    )
+      .bind(...baseBindings, ...bindings)
+      .first<{ total: number }>();
+  }
   const total = counts?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / input.pageSize));
   const page = Math.min(input.page, totalPages);

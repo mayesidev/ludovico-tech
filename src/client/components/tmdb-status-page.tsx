@@ -143,6 +143,20 @@ export function TmdbStatusPage({
     await Promise.all([loadSummary(), loadQueue()]);
   }, [loadQueue, loadSummary]);
 
+  const loadRunStatus = useCallback(async () => {
+    if (!canMutate) return null;
+    try {
+      return await api.tmdbRefreshRunStatus();
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Unable to load Library refresh status",
+      );
+      return null;
+    }
+  }, [canMutate]);
+
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       setQueueQuery((current) =>
@@ -180,10 +194,10 @@ export function TmdbStatusPage({
     let cancelled = false;
     let timeout: number | undefined;
     const refreshManualRun = async () => {
-      const nextSummary = await loadSummary();
+      const nextStatus = await loadRunStatus();
       if (cancelled) return;
       if (
-        (nextSummary === null || nextSummary.schedule.running) &&
+        (nextStatus === null || nextStatus.schedule.running) &&
         Date.now() < manualRunRefreshDeadline.current
       ) {
         timeout = window.setTimeout(
@@ -193,7 +207,7 @@ export function TmdbStatusPage({
         return;
       }
       setWatchingManualRun(false);
-      await loadQueue();
+      await load();
     };
     timeout = window.setTimeout(
       () => void refreshManualRun(),
@@ -203,7 +217,7 @@ export function TmdbStatusPage({
       cancelled = true;
       if (timeout !== undefined) window.clearTimeout(timeout);
     };
-  }, [loadQueue, loadSummary, watchingManualRun]);
+  }, [load, loadRunStatus, watchingManualRun]);
 
   if (!canMutate) {
     return (
@@ -307,14 +321,7 @@ export function TmdbStatusPage({
                 Date.now() + MANUAL_RUN_REFRESH_WINDOW_MS;
               void api
                 .runTmdbRefresh()
-                .then(async () => {
-                  const nextSummary = await loadSummary();
-                  if (nextSummary === null || nextSummary.schedule.running) {
-                    setWatchingManualRun(true);
-                  } else {
-                    await loadQueue();
-                  }
-                })
+                .then(() => setWatchingManualRun(true))
                 .catch((cause) =>
                   setError(
                     cause instanceof Error ? cause.message : "Refresh failed",
