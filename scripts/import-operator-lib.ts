@@ -489,10 +489,10 @@ export const executeImportBundle = async (
   );
   assertEmptyDatabase(parseDatabaseSummary(beforeSource));
 
-  for (const artifact of [bundle.catalog, bundle.metadata].filter(
-    (candidate): candidate is LoadedArtifact<ImportManifest> =>
-      candidate !== null,
-  )) {
+  const artifacts: Array<
+    LoadedArtifact<CatalogManifest> | LoadedArtifact<MetadataManifest>
+  > = bundle.metadata ? [bundle.catalog, bundle.metadata] : [bundle.catalog];
+  for (const artifact of artifacts) {
     for (const [index, chunk] of artifact.chunks.entries()) {
       log(
         `Applying ${artifact.manifest.artifactType} ${chunk.filename} (${index + 1}/${artifact.chunks.length})`,
