@@ -557,7 +557,6 @@ describe("catalog schema", () => {
       detail.includes("TEMP B-TREE"),
     );
     expect(usesTemporarySort).toBe(false);
-
   });
 
   it("keeps source provenance and actor identifiers out of public movie DTOs", async () => {
