@@ -290,6 +290,19 @@ describe("scheduled TMDB enrichment refresh", () => {
     for (let index = 1; index <= 7; index += 1) {
       await insertLinkedMovie(`credential-failure-${index}`, 60 + index);
     }
+    await env.DB.batch([
+      env.DB.prepare(
+        "CREATE TABLE IF NOT EXISTS tmdb_data_write_events (movie_id TEXT NOT NULL)",
+      ),
+      env.DB.prepare(
+        `CREATE TRIGGER IF NOT EXISTS track_tmdb_data_update
+         AFTER UPDATE ON movie_tmdb_data
+         BEGIN
+           INSERT INTO tmdb_data_write_events (movie_id) VALUES (NEW.movie_id);
+         END`,
+      ),
+      env.DB.prepare("DELETE FROM tmdb_data_write_events"),
+    ]);
     const fetchMock = vi
       .fn()
       .mockResolvedValue(new Response(null, { status: 401 }));
@@ -304,6 +317,11 @@ describe("scheduled TMDB enrichment refresh", () => {
       refreshed: 0,
     });
     expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(
+      await env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM tmdb_data_write_events",
+      ).first(),
+    ).toEqual({ count: 6 });
     expect(
       await env.DB.prepare(
         `SELECT last_refresh_attempt_at, last_refresh_error, last_refresh_status
@@ -323,6 +341,30 @@ describe("scheduled TMDB enrichment refresh", () => {
       last_refresh_attempt_at: null,
       last_refresh_error: null,
       last_refresh_status: null,
+    });
+  });
+
+  it("logs a sanitized transport diagnostic for a shared network failure", async () => {
+    for (let index = 1; index <= 7; index += 1) {
+      await insertLinkedMovie(`network-failure-${index}`, 120 + index);
+    }
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValue(new TypeError("failed with test-tmdb-token"));
+    vi.stubGlobal("fetch", fetchMock);
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    expect(await refreshDueTmdbData(tmdbEnv(), timestamp)).toMatchObject({
+      attempted: 6,
+      failed: 6,
+      haltedReason: "TMDB could not be reached",
+      refreshed: 0,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(errorLog).toHaveBeenCalledWith("TMDB refresh batch halted", {
+      diagnostic: "TypeError: failed with [redacted]",
+      failureKind: "network",
+      upstreamStatus: null,
     });
   });
 
@@ -350,7 +392,7 @@ describe("scheduled TMDB enrichment refresh", () => {
     ).toEqual({ count: 7 });
   });
 
-  it("bulk reads mixed cache hits and commits the claim in two batches", async () => {
+  it("bulk reads mixed cache hits and commits the claim in one batch", async () => {
     await insertLinkedMovie("cached-title", 71);
     const fetchMock = vi
       .fn()
@@ -374,7 +416,7 @@ describe("scheduled TMDB enrichment refresh", () => {
       refreshed: 2,
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(tracked.batches()).toBe(2);
+    expect(tracked.batches()).toBe(1);
     expect(
       tracked.preparedQueries.filter((query) =>
         query.includes("SELECT cache_key, payload_json, fetched_at"),
@@ -463,7 +505,7 @@ describe("scheduled TMDB enrichment refresh", () => {
         batch: (statements: D1PreparedStatement[]) => {
           batchCall += 1;
           return bindings.DB.batch(
-            batchCall === 2
+            batchCall === 1
               ? [
                   ...statements,
                   bindings.DB.prepare(

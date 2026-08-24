@@ -14,6 +14,8 @@ import {
 } from "../shared/tmdb-metadata-contract";
 
 const TMDB_API_ORIGIN = "https://api.themoviedb.org";
+const TMDB_MAX_REDIRECTS = 2;
+const TMDB_REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const SEARCH_TTL_MS = 6 * 60 * 60 * 1000;
 const DETAIL_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export type TmdbMovie = {
@@ -45,6 +47,7 @@ export type TmdbFailureKind =
 
 export class TmdbServiceError extends Error {
   readonly batchScoped: boolean;
+  readonly diagnostic: string | null;
   readonly kind: TmdbFailureKind;
   readonly retryAfter: string | null;
   readonly status: 429 | 502 | 503;
@@ -53,6 +56,7 @@ export class TmdbServiceError extends Error {
   constructor(
     kind: TmdbFailureKind,
     options: {
+      diagnostic?: string | null;
       retryAfter?: string | null;
       upstreamStatus?: number | null;
     } = {},
@@ -60,6 +64,7 @@ export class TmdbServiceError extends Error {
     super("TMDB request failed");
     this.name = "TmdbServiceError";
     this.batchScoped = kind !== "not_found";
+    this.diagnostic = options.diagnostic ?? null;
     this.kind = kind;
     this.retryAfter = options.retryAfter ?? null;
     this.status =
@@ -220,6 +225,12 @@ export const tmdbMovieCachePersistenceStatements = (
 const safeRetryAfter = (value: string | null) =>
   value && /^\d{1,4}$/.test(value) ? value : null;
 
+const safeFetchDiagnostic = (error: unknown, secret: string) => {
+  const detail =
+    error instanceof Error ? `${error.name}: ${error.message}` : "Unknown error";
+  return detail.replaceAll(secret, "[redacted]").replace(/\s+/g, " ").slice(0, 200);
+};
+
 const fetchTmdb = async (
   env: AppEnv["Bindings"],
   path: string,
@@ -229,20 +240,49 @@ const fetchTmdb = async (
     throw new TmdbServiceError("configuration");
   }
 
-  let response: Response;
-  try {
-    const url = new URL(path, TMDB_API_ORIGIN);
-    url.search = parameters.toString();
-    response = await fetch(url.toString(), {
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${env.TMDB_READ_ACCESS_TOKEN}`,
-      },
-      redirect: "error",
-    });
-  } catch {
-    throw new TmdbServiceError("network");
+  let url = new URL(path, TMDB_API_ORIGIN);
+  url.search = parameters.toString();
+  let response: Response | null = null;
+  for (let redirectCount = 0; redirectCount <= TMDB_MAX_REDIRECTS; redirectCount += 1) {
+    try {
+      response = await fetch(url.toString(), {
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${env.TMDB_READ_ACCESS_TOKEN}`,
+        },
+        redirect: "manual",
+      });
+    } catch (error) {
+      throw new TmdbServiceError("network", {
+        diagnostic: safeFetchDiagnostic(error, env.TMDB_READ_ACCESS_TOKEN),
+      });
+    }
+    if (!TMDB_REDIRECT_STATUSES.has(response.status)) break;
+    const location = response.headers.get("Location");
+    if (!location || redirectCount === TMDB_MAX_REDIRECTS) {
+      throw new TmdbServiceError("provider_rejected", {
+        upstreamStatus: response.status,
+      });
+    }
+    let redirectedUrl: URL;
+    try {
+      redirectedUrl = new URL(location, url);
+    } catch {
+      throw new TmdbServiceError("provider_rejected", {
+        upstreamStatus: response.status,
+      });
+    }
+    if (
+      redirectedUrl.protocol !== "https:" ||
+      redirectedUrl.origin !== TMDB_API_ORIGIN
+    ) {
+      throw new TmdbServiceError("provider_rejected", {
+        upstreamStatus: response.status,
+      });
+    }
+    url = redirectedUrl;
   }
+  if (!response) throw new TmdbServiceError("network");
 
   if (response.status === 429) {
     throw new TmdbServiceError("rate_limited", {

@@ -349,8 +349,7 @@ export const refreshDueTmdbData = async (
 ): Promise<TmdbRefreshReport> => {
   const contractId = await getTmdbMetadataContractId();
   const due = await env.DB.prepare(
-    `SELECT movie_id, tmdb_id, tmdb_collection_id, last_refresh_attempt_at,
-            last_refresh_status, last_refresh_error
+    `SELECT movie_id, tmdb_id, tmdb_collection_id
      FROM movie_tmdb_data
      WHERE refresh_after <= ? OR contract_id IS NULL OR contract_id <> ?
      ORDER BY refresh_after, movie_id
@@ -358,9 +357,6 @@ export const refreshDueTmdbData = async (
   )
     .bind(timestamp, contractId, batchSize)
     .all<{
-      last_refresh_attempt_at: string | null;
-      last_refresh_error: string | null;
-      last_refresh_status: "failed" | "running" | "succeeded" | null;
       movie_id: string;
       tmdb_collection_id: number | null;
       tmdb_id: number;
@@ -384,18 +380,6 @@ export const refreshDueTmdbData = async (
     env,
     due.results.map((row) => row.movie_id),
   );
-
-  if (due.results.length > 0) {
-    await env.DB.batch([
-      env.DB.prepare(
-        `UPDATE movie_tmdb_data SET
-           last_refresh_attempt_at = ?,
-           last_refresh_status = 'running',
-           last_refresh_error = NULL
-         WHERE movie_id IN (${due.results.map(() => "?").join(", ")})`,
-      ).bind(timestamp, ...due.results.map((row) => row.movie_id)),
-    ]);
-  }
 
   const fetched = new Map<number, TmdbMovieResult>();
   const failures = new Map<number, TmdbServiceError>();
@@ -437,6 +421,7 @@ export const refreshDueTmdbData = async (
       const error = chunkFailures[0];
       report.haltedReason = refreshErrorMessage(error);
       console.error("TMDB refresh batch halted", {
+        diagnostic: error.diagnostic,
         failureKind: error.kind,
         upstreamStatus: error.upstreamStatus,
       });
@@ -503,21 +488,6 @@ export const refreshDueTmdbData = async (
              last_refresh_error = ?
            WHERE movie_id = ?`,
         ).bind(timestamp, refreshErrorMessage(failure), row.movie_id),
-      );
-    } else {
-      persistenceStatements.push(
-        env.DB.prepare(
-          `UPDATE movie_tmdb_data SET
-             last_refresh_attempt_at = ?,
-             last_refresh_status = ?,
-             last_refresh_error = ?
-           WHERE movie_id = ?`,
-        ).bind(
-          row.last_refresh_attempt_at,
-          row.last_refresh_status,
-          row.last_refresh_error,
-          row.movie_id,
-        ),
       );
     }
   }

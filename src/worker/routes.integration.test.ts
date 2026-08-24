@@ -527,8 +527,59 @@ describe("TMDB routes and metadata attachment", () => {
         Accept: "application/json",
         Authorization: "Bearer test-tmdb-token",
       },
-      redirect: "error",
+      redirect: "manual",
     });
+  });
+
+  it("follows only bounded same-origin TMDB redirects", async () => {
+    const session = await authenticated({
+      TMDB_READ_ACCESS_TOKEN: "test-tmdb-token",
+    });
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(null, {
+          headers: {
+            Location:
+              "https://api.themoviedb.org/3/search/movie?query=Redirected",
+          },
+          status: 302,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ results: [] }), { status: 200 }),
+      );
+
+    const redirected = await request(
+      "/api/tmdb/search?query=Redirected",
+      session.bindings,
+      { headers: { Cookie: session.cookie } },
+    );
+
+    expect(redirected.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(new URL(String(fetchMock.mock.calls[1]?.[0])).origin).toBe(
+      "https://api.themoviedb.org",
+    );
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
+      headers: { Authorization: "Bearer test-tmdb-token" },
+      redirect: "manual",
+    });
+
+    fetchMock.mockReset().mockResolvedValueOnce(
+      new Response(null, {
+        headers: { Location: "https://example.test/collect" },
+        status: 302,
+      }),
+    );
+    const rejected = await request(
+      "/api/tmdb/search?query=CrossOrigin",
+      session.bindings,
+      { headers: { Cookie: session.cookie } },
+    );
+    expect(rejected.status).toBe(502);
+    expect(await rejected.json()).toEqual({ error: "TMDB lookup failed" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("caches authoritative movie details", async () => {
