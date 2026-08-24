@@ -991,6 +991,7 @@ describe("production authorization boundary", () => {
     const bindings = productionEnv({ ALLOWED_EMAILS: invitedEmail });
     const publicReads = [
       "/api/movies",
+      "/api/library",
       "/api/collections",
       "/api/now-showing",
       "/api/home",

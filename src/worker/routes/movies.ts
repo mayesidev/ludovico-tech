@@ -9,11 +9,17 @@ import {
   getRemainingCollectionMovies,
   getWatchedHistory,
   hasRemainingCollectionMovie,
+  movieFrom,
   movieSelect,
   type MovieRow,
 } from "../db";
 import { auditStatement, mutationActor } from "../middleware";
-import { movieEditInput, movieInput, ratingInput } from "../schemas";
+import {
+  libraryQueryInput,
+  movieEditInput,
+  movieInput,
+  ratingInput,
+} from "../schemas";
 import { newId, normalizeTitle, now } from "../env";
 import { getTmdbMovie, type TmdbMovieResult } from "../tmdb";
 import { replaceTmdbDataStatements } from "../tmdb-data";
@@ -32,6 +38,75 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       `${query} ORDER BY movies.title COLLATE NOCASE`,
     ).all<MovieRow>();
     return c.json({ movies: result.results });
+  });
+
+  app.get("/library", zValidator("query", libraryQueryInput), async (c) => {
+    const input = c.req.valid("query");
+    const filters: string[] = [];
+    const bindings: Array<string | number> = [];
+    if (input.status === "watched") filters.push("ratings.id IS NOT NULL");
+    if (input.status === "unwatched") filters.push("ratings.id IS NULL");
+    if (input.search) {
+      const pattern = `%${input.search.replace(/[\\%_]/g, "\\$&")}%`;
+      filters.push(`(
+        LOWER(movies.title || ' ' || COALESCE(movies.version, '')) LIKE LOWER(?) ESCAPE '\\'
+        OR LOWER(COALESCE(collections.name, '')) LIKE LOWER(?) ESCAPE '\\'
+        OR LOWER(COALESCE(movie_tmdb_data.release_date, movies.release_date, '')) LIKE LOWER(?) ESCAPE '\\'
+        OR LOWER(movies.added_at) LIKE LOWER(?) ESCAPE '\\'
+        OR LOWER(COALESCE(CAST(ratings.score AS TEXT), '')) LIKE LOWER(?) ESCAPE '\\'
+        OR LOWER(COALESCE(ratings.phrase, '')) LIKE LOWER(?) ESCAPE '\\'
+      )`);
+      bindings.push(pattern, pattern, pattern, pattern, pattern, pattern);
+    }
+    const where = filters.length > 0 ? `WHERE ${filters.join(" AND ")}` : "";
+    const globalCounts = await c.env.DB.prepare(
+      `SELECT COUNT(*) AS total,
+        SUM(CASE WHEN ratings.id IS NULL THEN 1 ELSE 0 END) AS unwatched
+       ${movieFrom}`,
+    ).first<{ total: number; unwatched: number | null }>();
+    const filteredCounts = await c.env.DB.prepare(
+      `SELECT COUNT(*) AS total ${movieFrom} ${where}`,
+    )
+      .bind(...bindings)
+      .first<{ total: number }>();
+    const total = filteredCounts?.total ?? 0;
+    const totalPages = Math.max(1, Math.ceil(total / input.pageSize));
+    const page = Math.min(input.page, totalPages);
+    const sortExpressions = {
+      title: "movies.title COLLATE NOCASE",
+      collection: "collections.name COLLATE NOCASE",
+      releaseDate:
+        "COALESCE(movie_tmdb_data.release_date, movies.release_date)",
+      addedAt: "movies.added_at",
+      rating: "ratings.score",
+    } as const;
+    const sortExpression = sortExpressions[input.sort];
+    const direction = input.direction === "asc" ? "ASC" : "DESC";
+    const nullsLast =
+      input.sort === "collection" ||
+      input.sort === "releaseDate" ||
+      input.sort === "rating"
+        ? `${sortExpression} IS NULL ASC, `
+        : "";
+    const result = await c.env.DB.prepare(
+      `${movieSelect} ${where}
+       ORDER BY ${nullsLast}${sortExpression} ${direction}, movies.id ASC
+       LIMIT ? OFFSET ?`,
+    )
+      .bind(
+        ...bindings,
+        input.pageSize,
+        (page - 1) * input.pageSize,
+      )
+      .all<MovieRow>();
+    return c.json({
+      movies: result.results,
+      counts: {
+        total: globalCounts?.total ?? 0,
+        unwatched: globalCounts?.unwatched ?? 0,
+      },
+      pagination: { page, pageSize: input.pageSize, total, totalPages },
+    });
   });
 
   app.get("/collections", async (c) => {

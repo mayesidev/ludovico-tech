@@ -73,6 +73,15 @@ export type MovieCredits = {
   directors: TmdbPersonReference[];
 };
 
+export const movieFrom = `
+  FROM movies
+  LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
+  LEFT JOIN tmdb_collections ON tmdb_collections.tmdb_id = movie_tmdb_data.tmdb_collection_id
+  LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
+  LEFT JOIN collections ON collections.id = collection_movies.collection_id
+  LEFT JOIN ratings ON ratings.movie_id = movies.id
+`;
+
 export const movieSelect = `
   SELECT movies.id, movies.title, movies.added_at,
     COALESCE(movie_tmdb_data.release_date, movies.release_date) AS release_date,
@@ -88,12 +97,7 @@ export const movieSelect = `
     collection_movies.collection_id, collection_movies.position AS collection_position,
     ratings.score AS rating_score, ratings.phrase AS rating_phrase,
     ratings.watched_at
-  FROM movies
-  LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
-  LEFT JOIN tmdb_collections ON tmdb_collections.tmdb_id = movie_tmdb_data.tmdb_collection_id
-  LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
-  LEFT JOIN collections ON collections.id = collection_movies.collection_id
-  LEFT JOIN ratings ON ratings.movie_id = movies.id
+  ${movieFrom}
 `;
 
 export const getMovie = async (env: AppEnv["Bindings"], id: string) =>

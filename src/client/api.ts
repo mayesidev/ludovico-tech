@@ -70,6 +70,26 @@ export type HomeResponse = {
   watchedMovies: HomeMovie[];
 };
 
+export type LibraryQuery = {
+  direction: "asc" | "desc";
+  page: number;
+  pageSize: 25 | 50 | 100;
+  search: string;
+  sort: "title" | "collection" | "releaseDate" | "addedAt" | "rating";
+  status: "all" | "watched" | "unwatched";
+};
+
+export type LibraryResponse = {
+  counts: { total: number; unwatched: number };
+  movies: Movie[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
 export type NowShowingResponse = {
   nowShowing: NowShowing | null;
   remainingCollectionMovies: Movie[];
@@ -188,6 +208,17 @@ export const api = {
   home: () => request<HomeResponse>("/api/home"),
   movies: (status = "all") =>
     request<{ movies: Movie[] }>(`/api/movies?status=${status}`),
+  library: (query: LibraryQuery) => {
+    const parameters = new URLSearchParams({
+      direction: query.direction,
+      page: String(query.page),
+      pageSize: String(query.pageSize),
+      search: query.search,
+      sort: query.sort,
+      status: query.status,
+    });
+    return request<LibraryResponse>(`/api/library?${parameters.toString()}`);
+  },
   movie: (id: string) =>
     request<{ movie: MovieDetail }>(`/api/movies/${encodeURIComponent(id)}`),
   collection: (id: string) =>

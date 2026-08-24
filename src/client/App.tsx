@@ -53,8 +53,8 @@ export default function App() {
   const [hasNextCollectionMovie, setHasNextCollectionMovie] = useState(false);
   const [watchedMovies, setWatchedMovies] = useState<HomeMovie[]>([]);
   const [posterReelMovies, setPosterReelMovies] = useState<HomeMovie[]>([]);
-  const [movies, setMovies] = useState<Movie[]>([]);
   const [collectionMovies, setCollectionMovies] = useState<Movie[]>([]);
+  const [catalogRevision, setCatalogRevision] = useState(0);
   const [movieDetail, setMovieDetail] = useState<MovieDetail | null>(null);
   const [movieDetailLoading, setMovieDetailLoading] = useState(
     route.page === "movie",
@@ -100,9 +100,7 @@ export default function App() {
           setHasNextCollectionMovie(home.hasNextCollectionMovie);
           setWatchedMovies(home.watchedMovies);
           setPosterReelMovies(home.posterReelMovies);
-        } else if (route.page === "library") {
-          setMovies((await api.movies()).movies);
-        } else {
+        } else if (route.page === "collection") {
           setCollectionMovies(
             (await api.collection(route.collectionId)).movies,
           );
@@ -214,6 +212,7 @@ export default function App() {
       try {
         await action();
         after?.();
+        setCatalogRevision((current) => current + 1);
         await refresh(false);
         await refreshMovieDetail(false);
       } catch (cause) {
@@ -363,10 +362,10 @@ export default function App() {
           />
         ) : route.page === "library" ? (
           <LibraryPage
-            movies={movies}
             canMutate={canMutate}
             onEdit={setEditingMovie}
             onNavigate={navigate}
+            reloadToken={catalogRevision}
           />
         ) : route.page === "collection" ? (
           <CollectionDetailPage

@@ -79,6 +79,11 @@ const arrange = (auth: AuthState) => {
     movie: { ...movie, cast: [], directors: [] },
   });
   vi.spyOn(api, "movies").mockResolvedValue({ movies: [movie] });
+  vi.spyOn(api, "library").mockResolvedValue({
+    counts: { total: 1, unwatched: 1 },
+    movies: [movie],
+    pagination: { page: 1, pageSize: 50, total: 1, totalPages: 1 },
+  });
   vi.spyOn(api, "home").mockResolvedValue({
     hasNextCollectionMovie: false,
     nowShowing: null,
@@ -125,6 +130,8 @@ describe("application authorization presentation", () => {
     await user.click(library);
     expect(window.location.pathname).toBe("/library");
     expect(library).toHaveAttribute("aria-current", "page");
+    expect(api.library).toHaveBeenCalledOnce();
+    expect(api.movies).not.toHaveBeenCalled();
     await user.click(screen.getByRole("link", { name: "Test Movie" }));
     expect(window.location.pathname).toBe("/movies/movie-id");
     expect(

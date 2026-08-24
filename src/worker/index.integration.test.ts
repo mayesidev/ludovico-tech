@@ -96,6 +96,75 @@ describe("Ludovico Tech Worker routes", () => {
     expect(home.body.posterReelMovies).toHaveLength(12);
   });
 
+  it("paginates Library search and sorting before returning bounded rows", async () => {
+    const movies = Array.from({ length: 30 }, (_, index) => ({
+      id: `library-movie-${String(index).padStart(2, "0")}`,
+      title: `Paged Movie ${String(index).padStart(2, "0")}`,
+    }));
+    await env.DB.batch([
+      ...movies.map((movie, index) =>
+        env.DB.prepare(
+          `INSERT INTO movies
+           (id, title, title_normalized, added_at, updated_at)
+           VALUES (?, ?, ?, ?, ?)`,
+        ).bind(
+          movie.id,
+          movie.title,
+          movie.title.toLowerCase(),
+          `2026-07-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
+          "2026-08-24T00:00:00.000Z",
+        ),
+      ),
+      env.DB.prepare(
+        `INSERT INTO ratings
+         (id, movie_id, recorded_at, watched_at, score, phrase, source)
+         VALUES ('library-zero-rating', ?, ?, ?, 0, 'Zero elements', 'application')`,
+      ).bind(
+        movies[29].id,
+        "2026-08-24T00:00:00.000Z",
+        "2026-08-24T00:00:00.000Z",
+      ),
+    ]);
+
+    const secondPage = await request<{
+      counts: { total: number; unwatched: number };
+      movies: Array<{ id: string }>;
+      pagination: {
+        page: number;
+        pageSize: number;
+        total: number;
+        totalPages: number;
+      };
+    }>("/api/library?page=2&pageSize=25&sort=title&direction=asc");
+    expect(secondPage.body.counts).toEqual({ total: 30, unwatched: 29 });
+    expect(secondPage.body.pagination).toEqual({
+      page: 2,
+      pageSize: 25,
+      total: 30,
+      totalPages: 2,
+    });
+    expect(secondPage.body.movies.map((movie) => movie.id)).toEqual(
+      movies.slice(25).map((movie) => movie.id),
+    );
+
+    const searched = await request<{
+      movies: Array<{ id: string }>;
+      pagination: { page: number; total: number };
+    }>("/api/library?page=2&pageSize=25&search=Paged%20Movie%2029");
+    expect(searched.body.pagination).toMatchObject({ page: 1, total: 1 });
+    expect(searched.body.movies.map((movie) => movie.id)).toEqual([
+      movies[29].id,
+    ]);
+
+    const ratingOrder = await request<{ movies: Array<{ id: string }> }>(
+      "/api/library?pageSize=25&sort=rating&direction=asc",
+    );
+    expect(ratingOrder.body.movies[0].id).toBe(movies[29].id);
+
+    const invalid = await request("/api/library?pageSize=10");
+    expect(invalid.response.status).toBe(400);
+  });
+
   it("supports adding, rolling, rating, and watched-state filtering", async () => {
     const added = await request<{ movie: { id: string; title: string } }>(
       "/api/movies",
