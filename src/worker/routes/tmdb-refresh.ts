@@ -9,7 +9,6 @@ import {
   getTmdbRefreshOverview,
   getTmdbRefreshQueue,
   getTmdbRefreshRunStatus,
-  getTmdbRefreshStatus,
   getTmdbRefreshSummary,
 } from "../tmdb-refresh";
 
@@ -77,12 +76,6 @@ const queueInput = z.object({
 });
 
 export const registerTmdbRefreshRoutes = (app: Hono<AppEnv>) => {
-  app.get("/tmdb-refresh", async (c) => {
-    const actor = await mutationActor(c);
-    if (!actor) return c.json({ error: "Authentication required" }, 401);
-    return c.json(await getTmdbRefreshStatus(c.env));
-  });
-
   app.get("/tmdb-refresh/summary", async (c) => {
     const actor = await mutationActor(c);
     if (!actor) return c.json({ error: "Authentication required" }, 401);

@@ -14,7 +14,6 @@ import {
   getTmdbRefreshOverview,
   getTmdbRefreshQueue,
   getTmdbRefreshRunStatus,
-  getTmdbRefreshStatus,
   getTmdbRefreshSummary,
   runTmdbRefresh,
 } from "./tmdb-refresh";
@@ -28,6 +27,21 @@ const bindings = () =>
     AUTH_MODE: "development",
     TMDB_READ_ACCESS_TOKEN: "test-tmdb-token",
   }) as AppEnv["Bindings"];
+
+const refreshOverview = () =>
+  getTmdbRefreshOverview(
+    bindings(),
+    {
+      dateSearch: "",
+      direction: "asc",
+      page: 1,
+      pageSize: 25,
+      search: "",
+      sort: "state",
+      state: "all",
+    },
+    timestamp,
+  );
 
 const insertLinkedMovie = async () => {
   await env.DB.prepare(
@@ -77,6 +91,15 @@ afterEach(() => {
 });
 
 describe("TMDB refresh operations", () => {
+  it("does not expose the retired unbounded status endpoint", async () => {
+    const response = await createApp().fetch(
+      new Request("https://ludovico-tech.test/api/tmdb-refresh"),
+      bindings(),
+    );
+
+    expect(response.status).toBe(404);
+  });
+
   it("does no provider work when the internal schedule is not due", async () => {
     await env.DB.prepare(
       "UPDATE tmdb_refresh_schedule SET next_run_at = ? WHERE id = 1",
@@ -128,8 +151,8 @@ describe("TMDB refresh operations", () => {
       started: true,
     });
 
-    const status = await getTmdbRefreshStatus(bindings(), timestamp);
-    expect(status.counts).toEqual({
+    const status = await refreshOverview();
+    expect(status.summary.counts).toEqual({
       current: 1,
       failed: 0,
       linked: 1,
@@ -137,7 +160,7 @@ describe("TMDB refresh operations", () => {
       total: 2,
       unlinked: 1,
     });
-    expect(status.schedule).toMatchObject({
+    expect(status.summary.schedule).toMatchObject({
       intervalMinutes: 360,
       lastAttempted: 1,
       lastFailed: 0,
@@ -146,7 +169,7 @@ describe("TMDB refresh operations", () => {
       nextRunAt: "2026-08-24T07:30:00.000Z",
       running: false,
     });
-    expect(status.items).toEqual(
+    expect(status.queue.items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           lastAttemptAt: timestamp,
@@ -428,13 +451,13 @@ describe("TMDB refresh operations", () => {
       remaining: 1,
       report: { attempted: 1, failed: 1, rateLimited: true, refreshed: 0 },
     });
-    const status = await getTmdbRefreshStatus(bindings(), timestamp);
-    expect(status.schedule).toMatchObject({
+    const status = await refreshOverview();
+    expect(status.summary.schedule).toMatchObject({
       lastFailed: 1,
       lastRateLimited: true,
       lastRemaining: 1,
     });
-    expect(status.items[0]).toMatchObject({
+    expect(status.queue.items[0]).toMatchObject({
       lastError: null,
       lastResult: null,
       state: "never_fetched",
@@ -460,13 +483,13 @@ describe("TMDB refresh operations", () => {
         refreshed: 0,
       },
     });
-    const status = await getTmdbRefreshStatus(bindings(), timestamp);
-    expect(status.schedule).toMatchObject({
+    const status = await refreshOverview();
+    expect(status.summary.schedule).toMatchObject({
       lastError: "TMDB credentials were rejected (HTTP 401)",
       lastFailed: 1,
       lastRemaining: 1,
     });
-    expect(status.items[0]).toMatchObject({
+    expect(status.queue.items[0]).toMatchObject({
       lastError: null,
       lastResult: null,
       state: "never_fetched",
@@ -497,7 +520,7 @@ describe("TMDB refresh operations", () => {
     await waitOnExecutionContext(executionContext);
 
     const statusResponse = await createApp().fetch(
-      new Request("https://ludovico-tech.test/api/tmdb-refresh"),
+      new Request("https://ludovico-tech.test/api/tmdb-refresh/summary"),
       bindings(),
     );
     const status = (await statusResponse.json()) as {
