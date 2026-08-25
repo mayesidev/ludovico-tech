@@ -30,6 +30,7 @@ describe("D1 index alignment", () => {
         "idx_movie_import_sources_movie",
         "idx_movie_tmdb_data_collection",
         "idx_movie_tmdb_data_due_queue",
+        "idx_movie_tmdb_data_expiration",
         "idx_movie_tmdb_data_refresh",
         "idx_movies_title_nocase",
         "idx_oauth_states_expires_at",
@@ -98,6 +99,14 @@ describe("D1 index alignment", () => {
         "2026-08-24T00:00:00.000Z",
       ]),
       queryPlan(
+        `SELECT movie_id FROM movie_tmdb_data
+         WHERE expires_at IS NOT NULL
+           AND expires_at <= ?
+           AND expired_at IS NULL
+         ORDER BY expires_at, movie_id LIMIT 25`,
+        ["2026-08-24T00:00:00.000Z"],
+      ),
+      queryPlan(
         `DELETE FROM tmdb_people
          WHERE tmdb_id IN (?, ?)
            AND NOT EXISTS (
@@ -123,6 +132,7 @@ describe("D1 index alignment", () => {
         expect.stringContaining("idx_auth_sessions_expires_at"),
         expect.stringContaining("idx_oauth_states_expires_at"),
         expect.stringContaining("idx_tmdb_cache_expires_at"),
+        expect.stringContaining("idx_movie_tmdb_data_expiration"),
         expect.stringContaining("idx_movie_credits_person"),
         expect.stringContaining("idx_movie_tmdb_data_collection"),
       ]),

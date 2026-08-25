@@ -131,6 +131,7 @@ export type TmdbRefreshItem = {
   state:
     | "current"
     | "due"
+    | "expired"
     | "failed"
     | "never_fetched"
     | "unlinked"

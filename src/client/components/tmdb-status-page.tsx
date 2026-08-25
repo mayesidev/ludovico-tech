@@ -48,6 +48,7 @@ const shortContractId = (value: string) =>
 const stateLabel: Record<TmdbRefreshItem["state"], string> = {
   current: "Current",
   due: "Due",
+  expired: "Expired",
   failed: "Failed",
   never_fetched: "Never fetched",
   unlinked: "Not linked",
@@ -562,6 +563,7 @@ export function TmdbStatusPage({
             <option value="all">All statuses</option>
             <option value="current">Current</option>
             <option value="due">Due</option>
+            <option value="expired">Expired</option>
             <option value="failed">Failed</option>
             <option value="never_fetched">Never fetched</option>
             <option value="unlinked">Not linked</option>
