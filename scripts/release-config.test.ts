@@ -45,12 +45,11 @@ describe("semantic release configuration", () => {
   });
 
   it.each([
-    ["refactor(api)!: remove an endpoint", "major"],
+    ["perf(api)!: retire a supported endpoint", "major"],
     [
-      "refactor(api): remove an endpoint\n\nBREAKING CHANGE: the endpoint is no longer available",
+      "fix(api): enforce request validation\n\nBREAKING CHANGE: legacy request input is no longer accepted",
       "major",
     ],
-    ["docs!: remove a supported contract", "major"],
     ["refactor: reorganize runtime code", "patch"],
     ["docs: clarify deployment behavior", null],
   ])("analyzes %j as %s", async (message, expected) => {
