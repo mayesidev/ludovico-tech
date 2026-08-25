@@ -1,4 +1,4 @@
-export const releasePreset = "conventionalcommits";
+export const releasePresetConfig = "./scripts/release-preset.mjs";
 export const releaseRules = [
   { breaking: true, release: "major" },
   { type: "refactor", release: "patch" },
@@ -10,9 +10,12 @@ export default {
   plugins: [
     [
       "@semantic-release/commit-analyzer",
-      { preset: releasePreset, releaseRules },
+      { config: releasePresetConfig, releaseRules },
     ],
-    ["@semantic-release/release-notes-generator", { preset: releasePreset }],
+    [
+      "@semantic-release/release-notes-generator",
+      { config: releasePresetConfig },
+    ],
     "@semantic-release/github",
   ],
 };

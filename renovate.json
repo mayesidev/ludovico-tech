@@ -17,6 +17,16 @@
       ],
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "Cloudflare development toolchain"
+    },
+    {
+      "description": "Upgrade the coupled semantic-release notes toolchain together",
+      "matchPackageNames": [
+        "@semantic-release/release-notes-generator",
+        "conventional-changelog-conventionalcommits"
+      ],
+      "matchUpdateTypes": ["major"],
+      "groupName": "semantic-release notes toolchain",
+      "minimumGroupSize": 2
     }
   ],
   "vulnerabilityAlerts": {
