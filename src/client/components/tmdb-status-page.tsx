@@ -93,56 +93,55 @@ export function TmdbStatusPage({
     string | null
   >(null);
   const [batchSizeInput, setBatchSizeInput] = useState<string | null>(null);
-  const summaryRequestSequence = useRef(0);
-  const queueRequestSequence = useRef(0);
+  const requestSequence = useRef(0);
+  const initialLoad = useRef(true);
   const manualRunRefreshDeadline = useRef(0);
-
-  const loadSummary = useCallback(async () => {
-    if (!canMutate) return null;
-    const sequence = ++summaryRequestSequence.current;
-    try {
-      const response = await api.tmdbRefreshSummary();
-      if (sequence !== summaryRequestSequence.current) return null;
-      setSummary(response);
-      setError(null);
-      return response;
-    } catch (cause) {
-      if (sequence !== summaryRequestSequence.current) return null;
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Unable to load Library refresh status",
-      );
-      return null;
-    } finally {
-      if (sequence === summaryRequestSequence.current) setLoading(false);
-    }
-  }, [canMutate]);
 
   const loadQueue = useCallback(async () => {
     if (!canMutate) return;
-    const sequence = ++queueRequestSequence.current;
+    const sequence = ++requestSequence.current;
     setRefreshing(true);
     try {
       const response = await api.tmdbRefreshQueue(queueQuery);
-      if (sequence !== queueRequestSequence.current) return;
+      if (sequence !== requestSequence.current) return;
       setQueue(response);
       setError(null);
     } catch (cause) {
-      if (sequence !== queueRequestSequence.current) return;
+      if (sequence !== requestSequence.current) return;
       setError(
         cause instanceof Error
           ? cause.message
           : "Unable to load the refresh queue",
       );
     } finally {
-      if (sequence === queueRequestSequence.current) setRefreshing(false);
+      if (sequence === requestSequence.current) setRefreshing(false);
     }
   }, [canMutate, queueQuery]);
 
   const load = useCallback(async () => {
-    await Promise.all([loadSummary(), loadQueue()]);
-  }, [loadQueue, loadSummary]);
+    if (!canMutate) return;
+    const sequence = ++requestSequence.current;
+    setRefreshing(true);
+    try {
+      const response = await api.tmdbRefreshOverview(queueQuery);
+      if (sequence !== requestSequence.current) return;
+      setSummary(response.summary);
+      setQueue(response.queue);
+      setError(null);
+    } catch (cause) {
+      if (sequence !== requestSequence.current) return;
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Unable to load Library refresh status",
+      );
+    } finally {
+      if (sequence === requestSequence.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    }
+  }, [canMutate, queueQuery]);
 
   const loadRunStatus = useCallback(async () => {
     if (!canMutate) return null;
@@ -175,12 +174,17 @@ export function TmdbStatusPage({
   }, [filter]);
 
   useEffect(() => {
-    void Promise.resolve().then(loadSummary);
-  }, [loadSummary]);
-
-  useEffect(() => {
+    if (!canMutate) {
+      initialLoad.current = true;
+      return;
+    }
+    if (initialLoad.current) {
+      initialLoad.current = false;
+      void Promise.resolve().then(load);
+      return;
+    }
     void Promise.resolve().then(loadQueue);
-  }, [loadQueue]);
+  }, [canMutate, load, loadQueue]);
 
   const hasStatus = summary !== null && queue !== null;
   useEffect(() => {

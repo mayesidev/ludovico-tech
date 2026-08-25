@@ -36,12 +36,25 @@ type ScheduleRow = {
 };
 
 type ScheduleSummaryRow = ScheduleRow & {
+  contract_stale_count: number | null;
   current_count: number | null;
+  due_count: number | null;
   failed_count: number | null;
   linked_count: number;
+  never_fetched_count: number | null;
   pending_count: number | null;
   total_count: number;
 };
+
+type TmdbRefreshState =
+  | "current"
+  | "due"
+  | "failed"
+  | "never_fetched"
+  | "unlinked"
+  | "contract_stale";
+
+type TmdbRefreshStateCounts = Record<TmdbRefreshState, number>;
 
 export type TmdbRefreshRunResult = {
   report: TmdbRefreshReport | null;
@@ -332,14 +345,7 @@ export type TmdbRefreshQueueInput = {
     | "lastAttemptAt"
     | "refreshAfter"
     | "contractId";
-  state:
-    | "all"
-    | "current"
-    | "due"
-    | "failed"
-    | "never_fetched"
-    | "unlinked"
-    | "contract_stale";
+  state: "all" | TmdbRefreshState;
 };
 
 const mapSchedule = (schedule: ScheduleRow, timestamp: string) => ({
@@ -360,7 +366,7 @@ const mapSchedule = (schedule: ScheduleRow, timestamp: string) => ({
     schedule.lease_expires_at !== null && schedule.lease_expires_at > timestamp,
 });
 
-export const getTmdbRefreshSummary = async (
+const getTmdbRefreshSummaryData = async (
   env: AppEnv["Bindings"],
   timestamp = new Date().toISOString(),
 ) => {
@@ -371,18 +377,43 @@ export const getTmdbRefreshSummary = async (
        metadata_counts.linked_count,
        metadata_counts.pending_count,
        metadata_counts.current_count,
-       metadata_counts.failed_count
+       metadata_counts.failed_count,
+       metadata_counts.never_fetched_count,
+       metadata_counts.contract_stale_count,
+       metadata_counts.due_count
      FROM tmdb_refresh_schedule
      CROSS JOIN (
        SELECT COUNT(*) AS linked_count,
          SUM(CASE
-          WHEN refresh_after <= ? OR contract_id IS NULL OR contract_id <> ?
+          WHEN last_refresh_status = 'failed'
+            OR fetched_at IS NULL
+            OR refresh_after <= ?
+            OR contract_id IS NULL
+            OR contract_id <> ?
           THEN 1 ELSE 0 END) AS pending_count,
          SUM(CASE
-          WHEN refresh_after > ? AND contract_id = ?
+          WHEN COALESCE(last_refresh_status, '') <> 'failed'
+            AND fetched_at IS NOT NULL
+            AND refresh_after > ?
+            AND contract_id = ?
           THEN 1 ELSE 0 END) AS current_count,
          SUM(CASE WHEN last_refresh_status = 'failed' THEN 1 ELSE 0 END)
-           AS failed_count
+           AS failed_count,
+         SUM(CASE
+          WHEN COALESCE(last_refresh_status, '') <> 'failed'
+            AND fetched_at IS NULL
+          THEN 1 ELSE 0 END) AS never_fetched_count,
+         SUM(CASE
+          WHEN COALESCE(last_refresh_status, '') <> 'failed'
+            AND fetched_at IS NOT NULL
+            AND (contract_id IS NULL OR contract_id <> ?)
+          THEN 1 ELSE 0 END) AS contract_stale_count,
+         SUM(CASE
+          WHEN COALESCE(last_refresh_status, '') <> 'failed'
+            AND fetched_at IS NOT NULL
+            AND contract_id = ?
+            AND refresh_after <= ?
+          THEN 1 ELSE 0 END) AS due_count
        FROM movie_tmdb_data
      ) AS metadata_counts
      WHERE id = ?`,
@@ -392,23 +423,42 @@ export const getTmdbRefreshSummary = async (
       currentContractId,
       timestamp,
       currentContractId,
+      currentContractId,
+      currentContractId,
+      timestamp,
       SCHEDULE_ID,
     )
     .first<ScheduleSummaryRow>();
   if (!schedule) throw new Error("TMDB refresh schedule is missing");
+  const stateCounts: TmdbRefreshStateCounts = {
+    contract_stale: schedule.contract_stale_count ?? 0,
+    current: schedule.current_count ?? 0,
+    due: schedule.due_count ?? 0,
+    failed: schedule.failed_count ?? 0,
+    never_fetched: schedule.never_fetched_count ?? 0,
+    unlinked: schedule.total_count - schedule.linked_count,
+  };
   return {
-    currentContractId,
-    schedule: mapSchedule(schedule, timestamp),
-    counts: {
-      current: schedule.current_count ?? 0,
-      failed: schedule.failed_count ?? 0,
-      linked: schedule.linked_count,
-      pending: schedule.pending_count ?? 0,
-      total: schedule.total_count,
-      unlinked: schedule.total_count - schedule.linked_count,
+    stateCounts,
+    summary: {
+      currentContractId,
+      schedule: mapSchedule(schedule, timestamp),
+      counts: {
+        current: stateCounts.current,
+        failed: stateCounts.failed,
+        linked: schedule.linked_count,
+        pending: schedule.pending_count ?? 0,
+        total: schedule.total_count,
+        unlinked: stateCounts.unlinked,
+      },
     },
   };
 };
+
+export const getTmdbRefreshSummary = async (
+  env: AppEnv["Bindings"],
+  timestamp = new Date().toISOString(),
+) => (await getTmdbRefreshSummaryData(env, timestamp)).summary;
 
 export const getTmdbRefreshRunStatus = async (
   env: AppEnv["Bindings"],
@@ -468,16 +518,152 @@ type TmdbRefreshQueueRow = {
   last_refresh_status: "failed" | "running" | "succeeded" | null;
   movie_id: string;
   refresh_after: string | null;
-  state:
-    | "current"
-    | "due"
-    | "failed"
-    | "never_fetched"
-    | "unlinked"
-    | "contract_stale";
+  state: TmdbRefreshState;
   state_rank: number;
   title: string;
   tmdb_id: number | null;
+};
+
+const mapTmdbRefreshQueueRow = (item: TmdbRefreshQueueRow) => ({
+  contractId: item.contract_id,
+  fetchedAt: item.fetched_at,
+  lastAttemptAt: item.last_refresh_attempt_at,
+  lastError: item.last_refresh_error,
+  lastResult: item.last_refresh_status,
+  movieId: item.movie_id,
+  refreshAfter: item.refresh_after,
+  state: item.state,
+  title: item.title,
+  tmdbId: item.tmdb_id,
+});
+
+const stateRank = {
+  failed: 0,
+  never_fetched: 1,
+  contract_stale: 2,
+  due: 3,
+  unlinked: 4,
+  current: 5,
+} satisfies Record<TmdbRefreshState, number>;
+
+const stateQuery = (
+  state: TmdbRefreshState,
+  currentContractId: string,
+  timestamp: string,
+) => {
+  if (state === "unlinked") {
+    return {
+      bindings: [] as Array<string>,
+      sql: `SELECT
+        NULL AS contract_id,
+        NULL AS fetched_at,
+        NULL AS last_refresh_attempt_at,
+        NULL AS last_refresh_error,
+        NULL AS last_refresh_status,
+        movies.id AS movie_id,
+        NULL AS refresh_after,
+        'unlinked' AS state,
+        ${stateRank.unlinked} AS state_rank,
+        movies.title,
+        NULL AS tmdb_id
+      FROM movies
+      LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
+      WHERE movie_tmdb_data.movie_id IS NULL`,
+    };
+  }
+
+  const predicates = {
+    failed: "movie_tmdb_data.last_refresh_status = 'failed'",
+    never_fetched: `COALESCE(movie_tmdb_data.last_refresh_status, '') <> 'failed'
+      AND movie_tmdb_data.fetched_at IS NULL`,
+    contract_stale: `COALESCE(movie_tmdb_data.last_refresh_status, '') <> 'failed'
+      AND movie_tmdb_data.fetched_at IS NOT NULL
+      AND (movie_tmdb_data.contract_id IS NULL OR movie_tmdb_data.contract_id <> ?)`,
+    due: `COALESCE(movie_tmdb_data.last_refresh_status, '') <> 'failed'
+      AND movie_tmdb_data.fetched_at IS NOT NULL
+      AND movie_tmdb_data.contract_id = ?
+      AND movie_tmdb_data.refresh_after <= ?`,
+    current: `COALESCE(movie_tmdb_data.last_refresh_status, '') <> 'failed'
+      AND movie_tmdb_data.fetched_at IS NOT NULL
+      AND movie_tmdb_data.contract_id = ?
+      AND movie_tmdb_data.refresh_after > ?`,
+  } as const;
+  const bindings = {
+    failed: [] as Array<string>,
+    never_fetched: [] as Array<string>,
+    contract_stale: [currentContractId],
+    due: [currentContractId, timestamp],
+    current: [currentContractId, timestamp],
+  } satisfies Record<Exclude<TmdbRefreshState, "unlinked">, Array<string>>;
+  return {
+    bindings: bindings[state],
+    sql: `SELECT
+      movie_tmdb_data.contract_id,
+      movie_tmdb_data.fetched_at,
+      movie_tmdb_data.last_refresh_attempt_at,
+      movie_tmdb_data.last_refresh_error,
+      movie_tmdb_data.last_refresh_status,
+      movies.id AS movie_id,
+      movie_tmdb_data.refresh_after,
+      '${state}' AS state,
+      ${stateRank[state]} AS state_rank,
+      movies.title,
+      movie_tmdb_data.tmdb_id
+    FROM movie_tmdb_data
+    JOIN movies ON movies.id = movie_tmdb_data.movie_id
+    WHERE ${predicates[state]}`,
+  };
+};
+
+const getStateSortedTmdbRefreshQueue = async (
+  env: AppEnv["Bindings"],
+  input: TmdbRefreshQueueInput,
+  currentContractId: string,
+  stateCounts: TmdbRefreshStateCounts,
+  timestamp: string,
+) => {
+  const states =
+    input.state === "all"
+      ? (Object.keys(stateRank) as Array<TmdbRefreshState>).sort(
+          (left, right) => stateRank[left] - stateRank[right],
+        )
+      : [input.state];
+  if (input.state === "all" && input.direction === "desc") states.reverse();
+  const total = states.reduce((sum, state) => sum + stateCounts[state], 0);
+  const totalPages = Math.max(1, Math.ceil(total / input.pageSize));
+  const page = Math.min(input.page, totalPages);
+  const pageStart = (page - 1) * input.pageSize;
+  const pageEnd = Math.min(pageStart + input.pageSize, total);
+  let stateStart = 0;
+  const items: TmdbRefreshQueueRow[] = [];
+
+  for (const state of states) {
+    const stateEnd = stateStart + stateCounts[state];
+    const overlapStart = Math.max(pageStart, stateStart);
+    const overlapEnd = Math.min(pageEnd, stateEnd);
+    if (overlapStart < overlapEnd) {
+      const query = stateQuery(state, currentContractId, timestamp);
+      const result = await env.DB.prepare(
+        `${query.sql}
+         ORDER BY movies.title COLLATE NOCASE ASC, movies.id ASC
+         LIMIT ? OFFSET ?`,
+      )
+        .bind(
+          ...query.bindings,
+          overlapEnd - overlapStart,
+          overlapStart - stateStart,
+        )
+        .all<TmdbRefreshQueueRow>();
+      items.push(...result.results);
+    }
+    stateStart = stateEnd;
+    if (stateStart >= pageEnd) break;
+  }
+
+  return {
+    items: items.map(mapTmdbRefreshQueueRow),
+    pagination: { page, pageSize: input.pageSize, total, totalPages },
+  };
 };
 
 export const getTmdbRefreshQueue = async (
@@ -485,6 +671,19 @@ export const getTmdbRefreshQueue = async (
   input: TmdbRefreshQueueInput,
   timestamp = new Date().toISOString(),
 ) => {
+  if (input.sort === "state" && !input.search && !input.dateSearch) {
+    const { stateCounts, summary } = await getTmdbRefreshSummaryData(
+      env,
+      timestamp,
+    );
+    return getStateSortedTmdbRefreshQueue(
+      env,
+      input,
+      summary.currentContractId,
+      stateCounts,
+      timestamp,
+    );
+  }
   const currentContractId = await getTmdbMetadataContractId();
   const filters: string[] = [];
   const bindings: Array<string | number> = [];
@@ -630,18 +829,7 @@ export const getTmdbRefreshQueue = async (
     )
     .all<TmdbRefreshQueueRow>();
   return {
-    items: result.results.map((item) => ({
-      contractId: item.contract_id,
-      fetchedAt: item.fetched_at,
-      lastAttemptAt: item.last_refresh_attempt_at,
-      lastError: item.last_refresh_error,
-      lastResult: item.last_refresh_status,
-      movieId: item.movie_id,
-      refreshAfter: item.refresh_after,
-      state: item.state,
-      title: item.title,
-      tmdbId: item.tmdb_id,
-    })),
+    items: result.results.map(mapTmdbRefreshQueueRow),
     pagination: {
       page,
       pageSize: input.pageSize,
@@ -649,4 +837,26 @@ export const getTmdbRefreshQueue = async (
       totalPages,
     },
   };
+};
+
+export const getTmdbRefreshOverview = async (
+  env: AppEnv["Bindings"],
+  input: TmdbRefreshQueueInput,
+  timestamp = new Date().toISOString(),
+) => {
+  const { stateCounts, summary } = await getTmdbRefreshSummaryData(
+    env,
+    timestamp,
+  );
+  const queue =
+    input.sort === "state" && !input.search && !input.dateSearch
+      ? await getStateSortedTmdbRefreshQueue(
+          env,
+          input,
+          summary.currentContractId,
+          stateCounts,
+          timestamp,
+        )
+      : await getTmdbRefreshQueue(env, input, timestamp);
+  return { queue, summary };
 };
