@@ -106,7 +106,7 @@ describe("complete CI and deployment gates", () => {
     expect(smoke).toBeGreaterThan(deploy);
   });
 
-  it("applies and validates an exact published tag's migrations before deploying", () => {
+  it("cuts over an exact release behind verified maintenance mode", () => {
     const source = workflow("deploy.yml");
     const nodeSetup = source.indexOf("Set up Node.js");
     const tagValidation = source.indexOf("validate-tag");
@@ -114,10 +114,22 @@ describe("complete CI and deployment gates", () => {
       'git checkout --detach "$release_sha"',
     );
     const build = source.indexOf("pnpm build:production");
+    const maintenanceDeploy = source.indexOf(
+      "Deploy exact release in maintenance mode",
+    );
+    const maintenanceGate = source.indexOf(
+      "Verify maintenance mode owns production traffic",
+    );
+    const recoveryCheckpoint = source.indexOf(
+      "Capture production D1 recovery checkpoint",
+    );
     const migration = source.indexOf("wrangler d1 migrations apply DB");
     const migrationGate = source.indexOf("check-migrations");
-    const deploy = source.indexOf("wrangler deploy \\");
+    const deploy = source.indexOf("Deploy exact release commit");
     const smoke = source.indexOf("verify-deployment");
+    const fallback = source.indexOf(
+      "Restore maintenance mode after cutover failure",
+    );
 
     expect(source).toContain("environment: production");
     expect(source).toContain("ref: main");
@@ -129,7 +141,9 @@ describe("complete CI and deployment gates", () => {
     );
     expect(source).toContain("Required production secret %s is not configured");
     expect(source).toContain("production-secrets.json");
-    expect(source).toContain('--secrets-file "$secrets_file"');
+    expect(source).toContain(
+      '--secrets-file "$RUNNER_TEMP/production-secrets.json"',
+    );
     expect(source).toContain(
       "TMDB_READ_ACCESS_TOKEN: ${{ secrets.TMDB_READ_ACCESS_TOKEN }}",
     );
@@ -158,15 +172,26 @@ describe("complete CI and deployment gates", () => {
     expect(source).toMatch(
       /wrangler d1 execute DB --config wrangler\.jsonc --remote --env production/,
     );
+    expect(source).toContain("check-refresh-paused");
+    expect(source).toContain("d1 time-travel info DB");
+    expect(source).toContain("D1_RECOVERY_BOOKMARK");
+    expect(source).toContain('--var "MAINTENANCE_MODE:true"');
+    expect(source).toContain('--var "MAINTENANCE_MODE:false"');
+    expect(source).toContain("verify-maintenance");
+    expect(source).toContain("steps.maintenance.outcome == 'success'");
     expect(nodeSetup).toBeGreaterThan(0);
     expect(tagValidation).toBeGreaterThan(nodeSetup);
     expect(releaseCheckout).toBeGreaterThan(tagValidation);
     expect(build).toBeGreaterThan(tagValidation);
+    expect(maintenanceDeploy).toBeGreaterThan(build);
+    expect(maintenanceGate).toBeGreaterThan(maintenanceDeploy);
+    expect(recoveryCheckpoint).toBeGreaterThan(maintenanceGate);
     expect(migration).toBeGreaterThan(releaseCheckout);
-    expect(migration).toBeGreaterThan(build);
+    expect(migration).toBeGreaterThan(recoveryCheckpoint);
     expect(migrationGate).toBeGreaterThan(migration);
     expect(deploy).toBeGreaterThan(migrationGate);
     expect(smoke).toBeGreaterThan(deploy);
+    expect(fallback).toBeGreaterThan(smoke);
     expect(source).toContain(
       '"$PRODUCTION_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" production',
     );

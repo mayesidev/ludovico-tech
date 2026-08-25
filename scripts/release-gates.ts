@@ -111,6 +111,32 @@ export const assertReleaseMigrationsApplied = (
   }
 };
 
+export const assertTmdbRefreshPaused = (response: unknown) => {
+  if (!Array.isArray(response) || response.length !== 1) {
+    throw new Error("TMDB refresh schedule response is invalid");
+  }
+  const result = response[0];
+  if (
+    !result ||
+    typeof result !== "object" ||
+    (result as Record<string, unknown>).success !== true ||
+    !Array.isArray((result as Record<string, unknown>).results) ||
+    (result as { results: unknown[] }).results.length !== 1
+  ) {
+    throw new Error("TMDB refresh schedule query failed");
+  }
+  const row = (result as { results: unknown[] }).results[0];
+  if (!row || typeof row !== "object") {
+    throw new Error("TMDB refresh schedule row is invalid");
+  }
+  const schedule = row as Record<string, unknown>;
+  if (schedule.enabled !== 0 || schedule.lease_expires_at !== null) {
+    throw new Error(
+      "TMDB refresh schedule must be paused with no active lease",
+    );
+  }
+};
+
 type Fetcher = (
   input: string | URL | Request,
   init?: RequestInit,
@@ -123,6 +149,14 @@ const deploymentVerificationDelayMs = 5_000;
 
 const json = async (response: Response) => {
   if (!response.ok) throw new Error("Deployment endpoint is not ready");
+  try {
+    return (await response.json()) as unknown;
+  } catch {
+    throw new Error("Deployment endpoint returned invalid JSON");
+  }
+};
+
+const responseJson = async (response: Response) => {
   try {
     return (await response.json()) as unknown;
   } catch {
@@ -200,6 +234,73 @@ export const verifyDeployment = async (
   }
 };
 
+export const verifyMaintenanceDeployment = async (
+  fetcher: Fetcher,
+  sleep: Sleep,
+  baseUrl: string,
+  releaseTag: string,
+  gitSha: string,
+  expectedEnvironment: string,
+  attempts = deploymentVerificationAttempts,
+) => {
+  const origin = validateDeploymentTarget(
+    baseUrl,
+    releaseTag,
+    gitSha,
+    expectedEnvironment,
+  );
+  if (
+    !Number.isInteger(attempts) ||
+    attempts < 1 ||
+    attempts > deploymentVerificationAttempts
+  ) {
+    throw new Error("Deployment verification attempt count is invalid");
+  }
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const healthResponse = await fetcher(new URL("/api/health", origin), {
+        cache: "no-store",
+        redirect: "error",
+      });
+      const health = record(
+        await responseJson(healthResponse),
+        "Maintenance health response is invalid",
+      );
+      if (
+        healthResponse.status !== 503 ||
+        health.ok !== false ||
+        health.maintenance !== true ||
+        health.environment !== expectedEnvironment ||
+        health.version !== releaseTag ||
+        health.commit !== gitSha
+      ) {
+        throw new Error(
+          "Maintenance deployment metadata does not match release",
+        );
+      }
+
+      const catalogResponse = await fetcher(new URL("/api/movies", origin), {
+        cache: "no-store",
+        redirect: "error",
+      });
+      const catalog = record(
+        await responseJson(catalogResponse),
+        "Maintenance catalog response is invalid",
+      );
+      if (catalogResponse.status !== 503 || catalog.maintenance !== true) {
+        throw new Error(
+          "Maintenance deployment did not block application routes",
+        );
+      }
+      return;
+    } catch (error) {
+      if (attempt === attempts) throw error;
+      await sleep(deploymentVerificationDelayMs);
+    }
+  }
+};
+
 const migrationNames = (directory: string) =>
   readdirSync(resolve(directory))
     .filter((name) => /^\d+.*\.sql$/.test(name))
@@ -207,7 +308,7 @@ const migrationNames = (directory: string) =>
 
 const usage = () => {
   throw new Error(
-    "Usage: release-gates.ts <validate-tag|validate-target|check-migrations|verify-deployment> ...",
+    "Usage: release-gates.ts <validate-tag|validate-target|check-migrations|check-refresh-paused|verify-deployment|verify-maintenance> ...",
   );
 };
 
@@ -228,8 +329,28 @@ export const runReleaseGate = async (args: string[]) => {
     );
     return;
   }
+  if (command === "check-refresh-paused" && values.length === 1) {
+    assertTmdbRefreshPaused(
+      JSON.parse(readFileSync(resolve(values[0]), "utf8")) as unknown,
+    );
+    return;
+  }
   if (command === "verify-deployment" && values.length === 4) {
     await verifyDeployment(
+      fetch,
+      (milliseconds) =>
+        new Promise((resolvePromise) =>
+          setTimeout(resolvePromise, milliseconds),
+        ),
+      values[0],
+      values[1],
+      values[2],
+      values[3],
+    );
+    return;
+  }
+  if (command === "verify-maintenance" && values.length === 4) {
+    await verifyMaintenanceDeployment(
       fetch,
       (milliseconds) =>
         new Promise((resolvePromise) =>
