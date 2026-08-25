@@ -114,6 +114,39 @@ describe("production runtime configuration", () => {
     expect(await catalog.json()).toMatchObject({ maintenance: true });
   });
 
+  it("returns API 404s before the deployed asset fallback", async () => {
+    const assetFetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response("deployed application shell", { status: 200 }),
+      );
+    const bindings = productionEnv({
+      ...googleConfiguration,
+      ASSETS: { fetch: assetFetch } as unknown as Fetcher,
+      TMDB_READ_ACCESS_TOKEN: "test-tmdb-token",
+    });
+
+    for (const path of [
+      "/api/movies",
+      "/api/collections",
+      "/api/now-showing",
+      "/api/tmdb-refresh/summary",
+    ]) {
+      const response = await request(path, bindings);
+      expect(response.status).toBe(404);
+      expect(response.headers.get("Content-Type")).toContain(
+        "application/json",
+      );
+      expect(await response.json()).toEqual({ error: "Not found" });
+    }
+    expect(assetFetch).not.toHaveBeenCalled();
+
+    const browserRoute = await request("/manager-office", bindings);
+    expect(browserRoute.status).toBe(200);
+    expect(await browserRoute.text()).toBe("deployed application shell");
+    expect(assetFetch).toHaveBeenCalledOnce();
+  });
+
   it("fails health closed for invalid or incomplete production bindings", async () => {
     const invalid = await request(
       "/api/health",
@@ -1076,15 +1109,6 @@ describe("production authorization boundary", () => {
     const publicReads = ["/api/library", "/api/home", "/api/auth/me"];
     for (const path of publicReads) {
       expect((await request(path, bindings)).status).toBe(200);
-    }
-    const retiredReads = [
-      "/api/movies",
-      "/api/collections",
-      "/api/now-showing",
-      "/api/tmdb-refresh/summary",
-    ];
-    for (const path of retiredReads) {
-      expect((await request(path, bindings)).status).toBe(404);
     }
     expect((await request("/api/tmdb-refresh/overview", bindings)).status).toBe(
       401,

@@ -67,6 +67,7 @@ export const createApp = () => {
   registerTmdbRoutes(api);
   registerTmdbRefreshRoutes(api);
   app.route("/api", api);
+  app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));
 
   app.get("*", async (c) => {
     if (c.env.ASSETS) return c.env.ASSETS.fetch(c.req.raw);
