@@ -67,6 +67,7 @@ const initialQueueQuery: TmdbRefreshQueueQuery = {
 
 const MANUAL_RUN_REFRESH_INTERVAL_MS = 5_000;
 const MANUAL_RUN_REFRESH_WINDOW_MS = 2 * 60 * 1_000;
+const FOCUS_REFRESH_FRESHNESS_MS = 60 * 1_000;
 
 const dateSearchValue = (value: string) => {
   const timestamp = Date.parse(value);
@@ -96,6 +97,7 @@ export function TmdbStatusPage({
   const [batchSizeInput, setBatchSizeInput] = useState<string | null>(null);
   const requestSequence = useRef(0);
   const initialLoad = useRef(true);
+  const lastOverviewLoadedAt = useRef<number | null>(null);
   const manualRunRefreshDeadline = useRef(0);
 
   const loadQueue = useCallback(async () => {
@@ -128,6 +130,7 @@ export function TmdbStatusPage({
       if (sequence !== requestSequence.current) return;
       setSummary(response.summary);
       setQueue(response.queue);
+      lastOverviewLoadedAt.current = Date.now();
       setError(null);
     } catch (cause) {
       if (sequence !== requestSequence.current) return;
@@ -190,7 +193,15 @@ export function TmdbStatusPage({
   const hasStatus = summary !== null && queue !== null;
   useEffect(() => {
     if (!hasStatus) return;
-    const refreshOnFocus = () => void load();
+    const refreshOnFocus = () => {
+      if (
+        lastOverviewLoadedAt.current !== null &&
+        Date.now() - lastOverviewLoadedAt.current < FOCUS_REFRESH_FRESHNESS_MS
+      ) {
+        return;
+      }
+      void load();
+    };
     window.addEventListener("focus", refreshOnFocus);
     return () => window.removeEventListener("focus", refreshOnFocus);
   }, [hasStatus, load]);

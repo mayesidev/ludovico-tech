@@ -103,7 +103,9 @@ afterEach(() => {
 });
 
 describe("TMDB refresh status page", () => {
-  it("refreshes the overview on demand and focus", async () => {
+  it("refreshes the overview on demand and after focus data becomes stale", async () => {
+    let timestamp = 1_000;
+    vi.spyOn(Date, "now").mockImplementation(() => timestamp);
     const loadOverview = vi
       .spyOn(api, "tmdbRefreshOverview")
       .mockResolvedValue({ queue: queue(), summary });
@@ -123,6 +125,11 @@ describe("TMDB refresh status page", () => {
       expect(loadQueue).not.toHaveBeenCalled();
     });
 
+    fireEvent.focus(window);
+    expect(loadOverview).toHaveBeenCalledTimes(2);
+    expect(loadQueue).not.toHaveBeenCalled();
+
+    timestamp += 60_000;
     fireEvent.focus(window);
     await waitFor(() => {
       expect(loadOverview).toHaveBeenCalledTimes(3);
