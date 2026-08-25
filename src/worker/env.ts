@@ -7,6 +7,7 @@ export type AppEnv = {
     AUTH_MODE?: string;
     APP_VERSION?: string;
     GIT_SHA?: string;
+    MAINTENANCE_MODE?: string;
     GOOGLE_CLIENT_ID?: string;
     GOOGLE_CLIENT_SECRET?: string;
     GOOGLE_REDIRECT_URI?: string;
@@ -57,6 +58,17 @@ export const getRuntimeConfig = (env: AppEnv["Bindings"]): RuntimeConfig => {
 export const isDevelopmentAuth = (env: AppEnv["Bindings"]) => {
   const config = getRuntimeConfig(env);
   return config.authMode === "development";
+};
+
+export const isMaintenanceMode = (env: AppEnv["Bindings"]) => {
+  if (
+    env.MAINTENANCE_MODE !== undefined &&
+    env.MAINTENANCE_MODE !== "false" &&
+    env.MAINTENANCE_MODE !== "true"
+  ) {
+    throw new RuntimeConfigurationError();
+  }
+  return env.MAINTENANCE_MODE === "true";
 };
 
 export const isSecureEnvironment = (environment: AppEnvironment) =>

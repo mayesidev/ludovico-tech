@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getRuntimeConfig,
   isDeploymentReady,
+  isMaintenanceMode,
   isSecureEnvironment,
   normalizeTitle,
   RuntimeConfigurationError,
@@ -106,5 +107,18 @@ describe("runtime configuration", () => {
         );
       }
     }
+  });
+
+  it("requires an explicit boolean string for maintenance mode", () => {
+    expect(isMaintenanceMode(bindings({}))).toBe(false);
+    expect(isMaintenanceMode(bindings({ MAINTENANCE_MODE: "false" }))).toBe(
+      false,
+    );
+    expect(isMaintenanceMode(bindings({ MAINTENANCE_MODE: "true" }))).toBe(
+      true,
+    );
+    expect(() =>
+      isMaintenanceMode(bindings({ MAINTENANCE_MODE: "yes" })),
+    ).toThrow(RuntimeConfigurationError);
   });
 });

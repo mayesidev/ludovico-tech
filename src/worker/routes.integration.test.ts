@@ -91,6 +91,29 @@ afterEach(() => {
 });
 
 describe("production runtime configuration", () => {
+  it("serves no application routes while a release is in maintenance", async () => {
+    const bindings = productionEnv({
+      ...googleConfiguration,
+      APP_VERSION: "v5.0.3",
+      GIT_SHA: "a".repeat(40),
+      MAINTENANCE_MODE: "true",
+      TMDB_READ_ACCESS_TOKEN: "test-tmdb-token",
+    });
+    const health = await request("/api/health", bindings);
+    expect(health.status).toBe(503);
+    expect(await health.json()).toEqual({
+      commit: "a".repeat(40),
+      environment: "production",
+      maintenance: true,
+      ok: false,
+      version: "v5.0.3",
+    });
+
+    const catalog = await request("/api/movies", bindings);
+    expect(catalog.status).toBe(503);
+    expect(await catalog.json()).toMatchObject({ maintenance: true });
+  });
+
   it("fails health closed for invalid or incomplete production bindings", async () => {
     const invalid = await request(
       "/api/health",

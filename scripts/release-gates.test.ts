@@ -4,10 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   assertReleaseMigrationsApplied,
+  assertTmdbRefreshPaused,
   isReleaseTag,
   runReleaseGate,
   validateDeploymentTarget,
   verifyDeployment,
+  verifyMaintenanceDeployment,
 } from "./release-gates";
 
 describe("release input validation", () => {
@@ -121,6 +123,26 @@ describe("release migration gate", () => {
     expect(() => assertReleaseMigrationsApplied([], response([]))).toThrow(
       "Release migration set is invalid",
     );
+  });
+});
+
+describe("production refresh gate", () => {
+  const response = (enabled: number, lease: string | null) => [
+    {
+      results: [{ enabled, lease_expires_at: lease }],
+      success: true,
+    },
+  ];
+
+  it("requires a paused schedule with no active lease", () => {
+    expect(() => assertTmdbRefreshPaused(response(0, null))).not.toThrow();
+    expect(() => assertTmdbRefreshPaused(response(1, null))).toThrow(
+      "must be paused",
+    );
+    expect(() =>
+      assertTmdbRefreshPaused(response(0, "2026-08-25T02:00:00.000Z")),
+    ).toThrow("no active lease");
+    expect(() => assertTmdbRefreshPaused([])).toThrow("invalid");
   });
 });
 
@@ -259,5 +281,73 @@ describe("deployed release verification", () => {
         1,
       ),
     ).rejects.toThrow("Deployment environment is invalid");
+  });
+});
+
+describe("maintenance release verification", () => {
+  const baseUrl = "https://ludovicotech.com";
+  const releaseTag = "v5.0.3";
+  const gitSha = "d".repeat(40);
+
+  it("requires the exact release identity and blocks application routes", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            commit: gitSha,
+            environment: "production",
+            maintenance: true,
+            ok: false,
+            version: releaseTag,
+          },
+          { status: 503 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ maintenance: true }, { status: 503 }),
+      );
+
+    await verifyMaintenanceDeployment(
+      fetcher,
+      vi.fn(),
+      baseUrl,
+      releaseTag,
+      gitSha,
+      "production",
+      1,
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      new URL("/api/health", baseUrl),
+      { cache: "no-store", redirect: "error" },
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      new URL("/api/movies", baseUrl),
+      { cache: "no-store", redirect: "error" },
+    );
+  });
+
+  it("rejects a normal or mismatched deployment", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      Response.json({
+        commit: gitSha,
+        environment: "production",
+        ok: true,
+        version: releaseTag,
+      }),
+    );
+    await expect(
+      verifyMaintenanceDeployment(
+        fetcher,
+        vi.fn(),
+        baseUrl,
+        releaseTag,
+        gitSha,
+        "production",
+        1,
+      ),
+    ).rejects.toThrow("does not match release");
   });
 });
