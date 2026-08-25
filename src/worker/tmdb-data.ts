@@ -582,10 +582,7 @@ export const refreshDueTmdbData = async (
 
   const persistenceStatements = tmdbMovieCachePersistenceStatements(
     env,
-    lookups.flatMap((lookup) => {
-      const result = fetched.get(lookup.tmdbId);
-      return result ? [{ ...lookup, result }] : [];
-    }),
+    [],
     cached.invalidKeys,
     timestamp,
   );

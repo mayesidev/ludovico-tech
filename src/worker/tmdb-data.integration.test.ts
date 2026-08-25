@@ -7,7 +7,7 @@ import {
   replaceTmdbDataStatements,
   type TmdbCreditSnapshot,
 } from "./tmdb-data";
-import type { TmdbMovieResult } from "./tmdb";
+import { getTmdbMovie, type TmdbMovieResult } from "./tmdb";
 import type { AppEnv } from "./env";
 import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
 
@@ -439,7 +439,10 @@ describe("scheduled TMDB enrichment refresh", () => {
       .mockResolvedValueOnce(responseFor(72));
     vi.stubGlobal("fetch", fetchMock);
 
-    await refreshDueTmdbData(tmdbEnv(), timestamp);
+    const cachedResult = await getTmdbMovie(tmdbEnv(), 71);
+    await env.DB.batch(
+      await replaceTmdbDataStatements(env, "cached-title", cachedResult),
+    );
     await env.DB.prepare(
       "UPDATE movie_tmdb_data SET refresh_after = ? WHERE movie_id = ?",
     )
@@ -486,6 +489,14 @@ describe("scheduled TMDB enrichment refresh", () => {
         query.includes("INSERT INTO movie_tmdb_data"),
       ),
     ).toHaveLength(1);
+    expect(
+      tracked.preparedQueries.filter((query) =>
+        query.includes("INSERT INTO tmdb_cache"),
+      ),
+    ).toHaveLength(0);
+    expect(
+      await env.DB.prepare("SELECT COUNT(*) AS count FROM tmdb_cache").first(),
+    ).toEqual({ count: 1 });
   });
 
   it("records provider failures without discarding successful titles", async () => {
