@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -219,6 +220,81 @@ describe("TMDB refresh status page", () => {
         expect.objectContaining({ page: 1, state: "current" }),
       ),
     );
+  });
+
+  it("queues a current title and refreshes only the bounded queue", async () => {
+    const dueItem: TmdbRefreshItem = {
+      ...items[1],
+      refreshAfter: "2026-08-24T01:30:00.000Z",
+      state: "due",
+    };
+    const loadOverview = vi
+      .spyOn(api, "tmdbRefreshOverview")
+      .mockResolvedValue({ queue: queue(), summary });
+    const loadQueue = vi
+      .spyOn(api, "tmdbRefreshQueue")
+      .mockResolvedValue(queue([items[0], dueItem, items[2]]));
+    const queueRefetch = vi.spyOn(api, "queueTmdbRefetch").mockResolvedValue({
+      alreadyQueued: false,
+      queued: true,
+      refreshAfter: dueItem.refreshAfter!,
+    });
+    render(<TmdbStatusPage canMutate onNavigate={vi.fn()} />);
+
+    const currentRow = (await screen.findByText("Current Movie")).closest("tr");
+    expect(currentRow).not.toBeNull();
+    fireEvent.click(
+      within(currentRow!).getByRole("button", {
+        name: "Queue Current Movie for refetch",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(queueRefetch).toHaveBeenCalledWith("current-movie");
+      expect(loadQueue).toHaveBeenCalledTimes(1);
+    });
+    expect(loadOverview).toHaveBeenCalledTimes(1);
+    const refreshedRow = screen.getByText("Current Movie").closest("tr");
+    expect(within(refreshedRow!).getByText("Queued")).toBeVisible();
+    expect(
+      within(
+        screen.getByText("Pending", { selector: "p" }).parentElement!,
+      ).getByText("2"),
+    ).toBeVisible();
+    expect(
+      within(
+        screen.getByText("Current", { selector: "p" }).parentElement!,
+      ).getByText("0"),
+    ).toBeVisible();
+    const unlinkedRow = screen.getByText("Unlinked Movie").closest("tr");
+    expect(
+      within(unlinkedRow!).queryByRole("button", { name: /refetch/i }),
+    ).toBeNull();
+  });
+
+  it("keeps a current title actionable when queueing fails", async () => {
+    vi.spyOn(api, "tmdbRefreshOverview").mockResolvedValue({
+      queue: queue(),
+      summary,
+    });
+    vi.spyOn(api, "tmdbRefreshQueue").mockResolvedValue(queue());
+    vi.spyOn(api, "queueTmdbRefetch").mockRejectedValue(
+      new Error("Unable to queue title"),
+    );
+    render(<TmdbStatusPage canMutate onNavigate={vi.fn()} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Queue Current Movie for refetch",
+      }),
+    );
+
+    expect(await screen.findByText("Unable to queue title")).toBeVisible();
+    expect(
+      screen.getByRole("button", {
+        name: "Queue Current Movie for refetch",
+      }),
+    ).toBeEnabled();
   });
 
   it("shows schedule controls and selects a page without reloading the summary", async () => {

@@ -85,6 +85,7 @@ export function TmdbStatusPage({
   const [queue, setQueue] = useState<TmdbRefreshQueueResponse | null>(null);
   const [loading, setLoading] = useState(canMutate);
   const [refreshing, setRefreshing] = useState(false);
+  const [queueingMovieId, setQueueingMovieId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [watchingManualRun, setWatchingManualRun] = useState(false);
   const [updatingSchedule, setUpdatingSchedule] = useState(false);
@@ -282,6 +283,34 @@ export function TmdbStatusPage({
       page: 1,
       sort,
     }));
+  };
+  const queueRefetch = async (item: TmdbRefreshItem) => {
+    setQueueingMovieId(item.movieId);
+    setError(null);
+    try {
+      await api.queueTmdbRefetch(item.movieId);
+      setSummary((current) =>
+        current === null || item.state !== "current"
+          ? current
+          : {
+              ...current,
+              counts: {
+                ...current.counts,
+                current: Math.max(0, current.counts.current - 1),
+                pending: current.counts.pending + 1,
+              },
+            },
+      );
+      await loadQueue();
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Unable to queue the title for refetch",
+      );
+    } finally {
+      setQueueingMovieId(null);
+    }
   };
   const sortHeader = (label: string, sort: TmdbRefreshQueueQuery["sort"]) => {
     const active = queueQuery.sort === sort;
@@ -617,7 +646,7 @@ export function TmdbStatusPage({
 
       <Card aria-busy={refreshing} className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1180px] text-left text-sm">
+          <table className="w-full min-w-[1280px] text-left text-sm">
             <thead className="ui-label border-b border-highlight/15 bg-[#7a1d30] text-text-primary/80">
               <tr>
                 {sortHeader("Title", "title")}
@@ -627,6 +656,9 @@ export function TmdbStatusPage({
                 {sortHeader("Last attempt", "lastAttemptAt")}
                 {sortHeader("Refresh after", "refreshAfter")}
                 {sortHeader("Fetch contract", "contractId")}
+                <th className="px-5 py-4 font-semibold" scope="col">
+                  Action
+                </th>
               </tr>
             </thead>
             <tbody className="data-surface divide-y divide-border-subtle">
@@ -686,13 +718,42 @@ export function TmdbStatusPage({
                       </span>
                     )}
                   </td>
+                  <td className="px-5 py-4 text-text-muted">
+                    {item.state === "current" ? (
+                      <Button
+                        aria-label={`Queue ${item.title} for refetch`}
+                        className="min-h-9 px-3"
+                        disabled={
+                          refreshing || queueingMovieId === item.movieId
+                        }
+                        onClick={() => void queueRefetch(item)}
+                        variant="secondary"
+                      >
+                        <RefreshCw
+                          className={
+                            queueingMovieId === item.movieId
+                              ? "animate-spin"
+                              : undefined
+                          }
+                          size={15}
+                        />
+                        {queueingMovieId === item.movieId
+                          ? "Queueing…"
+                          : "Queue refetch"}
+                      </Button>
+                    ) : item.state === "unlinked" ? (
+                      "—"
+                    ) : (
+                      "Queued"
+                    )}
+                  </td>
                 </tr>
               ))}
               {!refreshing && queue.items.length === 0 && (
                 <tr>
                   <td
                     className="px-5 py-8 text-center text-text-muted"
-                    colSpan={7}
+                    colSpan={8}
                   >
                     No Library titles match these filters.
                   </td>

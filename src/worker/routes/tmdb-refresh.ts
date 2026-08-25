@@ -1,8 +1,9 @@
 import { zValidator } from "@hono/zod-validator";
 import type { Hono } from "hono";
 import { z } from "zod";
-import { now, type AppEnv } from "../env";
+import { newId, now, type AppEnv } from "../env";
 import { auditStatement, mutationActor } from "../middleware";
+import { getTmdbMetadataContractId } from "../../shared/tmdb-metadata-contract";
 import {
   claimTmdbRefresh,
   executeTmdbRefreshClaim,
@@ -96,6 +97,47 @@ export const registerTmdbRefreshRoutes = (app: Hono<AppEnv>) => {
     const actor = await mutationActor(c);
     if (!actor) return c.json({ error: "Authentication required" }, 401);
     return c.json(await getTmdbRefreshQueue(c.env, c.req.valid("query")));
+  });
+
+  app.post("/tmdb-refresh/items/:movieId/refetch", async (c) => {
+    const actor = await mutationActor(c);
+    if (!actor) return c.json({ error: "Authentication required" }, 401);
+
+    const movieId = c.req.param("movieId");
+    const timestamp = now();
+    const contractId = await getTmdbMetadataContractId();
+    const [updated, , stored] = await c.env.DB.batch([
+      c.env.DB.prepare(
+        `UPDATE movie_tmdb_data
+         SET refresh_after = ?
+         WHERE movie_id = ?
+           AND fetched_at IS NOT NULL
+           AND expired_at IS NULL
+           AND COALESCE(last_refresh_status, '') <> 'failed'
+           AND contract_id = ?
+           AND refresh_after > ?`,
+      ).bind(timestamp, movieId, contractId, timestamp),
+      c.env.DB.prepare(
+        `INSERT INTO audit_log
+         (id, entity_type, entity_id, action, actor_id, created_at, details_json)
+         SELECT ?, 'movie_tmdb_data', ?, 'refetch_requested', ?, ?, NULL
+         WHERE changes() > 0`,
+      ).bind(newId(), movieId, actor.id, timestamp),
+      c.env.DB.prepare(
+        `SELECT refresh_after
+         FROM movie_tmdb_data
+         WHERE movie_id = ?`,
+      ).bind(movieId),
+    ]);
+    const row = stored.results[0] as { refresh_after: string } | undefined;
+    if (!row) {
+      return c.json({ error: "TMDB-linked title not found" }, 404);
+    }
+    return c.json({
+      alreadyQueued: updated.meta.changes === 0,
+      queued: true as const,
+      refreshAfter: row.refresh_after,
+    });
   });
 
   app.patch(

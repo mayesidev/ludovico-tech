@@ -613,6 +613,98 @@ describe("TMDB refresh operations", () => {
     ).toEqual({ action: "run_requested" });
   });
 
+  it("queues one current title for refetch without changing stored metadata", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(timestamp));
+    await insertLinkedMovie();
+    const contractId = await getTmdbMetadataContractId();
+    const fetchedAt = "2026-08-23T01:30:00.000Z";
+    const expiresAt = "2027-02-14T01:30:00.000Z";
+    const originalRefreshAfter = "2027-01-20T01:30:00.000Z";
+    await env.DB.prepare(
+      `UPDATE movie_tmdb_data SET
+         title = 'Stored Provider Title',
+         fetched_at = ?,
+         refresh_after = ?,
+         expires_at = ?,
+         contract_id = ?,
+         last_refresh_status = 'succeeded'
+       WHERE movie_id = 'scheduled-status'`,
+    )
+      .bind(fetchedAt, originalRefreshAfter, expiresAt, contractId)
+      .run();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const app = createApp();
+
+    const queued = await app.fetch(
+      new Request(
+        "https://ludovico-tech.test/api/tmdb-refresh/items/scheduled-status/refetch",
+        { method: "POST" },
+      ),
+      bindings(),
+    );
+
+    expect(queued.status).toBe(200);
+    expect(await queued.json()).toEqual({
+      alreadyQueued: false,
+      queued: true,
+      refreshAfter: timestamp,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(
+      await env.DB.prepare(
+        `SELECT title, fetched_at, refresh_after, expires_at, contract_id,
+                last_refresh_status
+         FROM movie_tmdb_data
+         WHERE movie_id = 'scheduled-status'`,
+      ).first(),
+    ).toEqual({
+      contract_id: contractId,
+      expires_at: expiresAt,
+      fetched_at: fetchedAt,
+      last_refresh_status: "succeeded",
+      refresh_after: timestamp,
+      title: "Stored Provider Title",
+    });
+
+    const repeated = await app.fetch(
+      new Request(
+        "https://ludovico-tech.test/api/tmdb-refresh/items/scheduled-status/refetch",
+        { method: "POST" },
+      ),
+      bindings(),
+    );
+    expect(await repeated.json()).toEqual({
+      alreadyQueued: true,
+      queued: true,
+      refreshAfter: timestamp,
+    });
+    expect(
+      await env.DB.prepare(
+        `SELECT COUNT(*) AS count, MIN(actor_id) AS actor_id FROM audit_log
+         WHERE entity_type = 'movie_tmdb_data'
+           AND entity_id = 'scheduled-status'
+           AND action = 'refetch_requested'`,
+      ).first(),
+    ).toEqual({ actor_id: expect.any(String), count: 1 });
+
+    await insertUnlinkedMovie();
+    for (const movieId of ["unlinked-status", "missing-status"]) {
+      const missing = await app.fetch(
+        new Request(
+          `https://ludovico-tech.test/api/tmdb-refresh/items/${movieId}/refetch`,
+          { method: "POST" },
+        ),
+        bindings(),
+      );
+      expect(missing.status).toBe(404);
+      expect(await missing.json()).toEqual({
+        error: "TMDB-linked title not found",
+      });
+    }
+  });
+
   it("updates the automatic refresh schedule through audited controls", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(timestamp));
