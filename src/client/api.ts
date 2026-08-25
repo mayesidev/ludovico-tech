@@ -342,6 +342,14 @@ export const api = {
       `/api/tmdb-refresh/items?${parameters.toString()}`,
     );
   },
+  queueTmdbRefetch: (movieId: string) =>
+    request<{
+      alreadyQueued: boolean;
+      queued: true;
+      refreshAfter: string;
+    }>(`/api/tmdb-refresh/items/${encodeURIComponent(movieId)}/refetch`, {
+      method: "POST",
+    }),
   updateTmdbRefreshSchedule: (schedule: {
     batchSize?: number;
     enabled?: boolean;

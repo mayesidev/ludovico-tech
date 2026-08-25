@@ -1138,6 +1138,10 @@ describe("production authorization boundary", () => {
       ],
       ["/api/next", "POST"],
       ["/api/tmdb-refresh/run", "POST"],
+      [
+        "/api/tmdb-refresh/items/00000000-0000-4000-8000-000000000001/refetch",
+        "POST",
+      ],
       ["/api/tmdb-refresh/schedule", "PATCH", { enabled: false }],
     ];
     for (const [path, method, body] of mutations) {
