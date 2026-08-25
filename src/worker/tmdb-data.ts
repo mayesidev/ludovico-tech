@@ -143,6 +143,61 @@ export type TmdbCreditSnapshot = {
   position: number;
 };
 
+export const tmdbSharedEntityStatements = (
+  env: AppEnv["Bindings"],
+  results: TmdbMovieResult[],
+) => {
+  const collections = new Map<number, { fetchedAt: string; name: string }>();
+  const people = new Map<number, { fetchedAt: string; name: string }>();
+  for (const result of results) {
+    const data = tmdbMovieDetailSchema.parse(result.data);
+    if (
+      data.collection &&
+      (!collections.has(data.collection.id) ||
+        result.fetchedAt > collections.get(data.collection.id)!.fetchedAt)
+    ) {
+      collections.set(data.collection.id, {
+        fetchedAt: result.fetchedAt,
+        name: data.collection.name,
+      });
+    }
+    for (const person of [...data.cast, ...data.directors]) {
+      if (
+        !people.has(person.id) ||
+        result.fetchedAt > people.get(person.id)!.fetchedAt
+      ) {
+        people.set(person.id, {
+          fetchedAt: result.fetchedAt,
+          name: person.name,
+        });
+      }
+    }
+  }
+
+  return [
+    ...[...collections.entries()].map(([tmdbId, collection]) =>
+      env.DB.prepare(
+        `INSERT INTO tmdb_collections (tmdb_id, name, fetched_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(tmdb_id) DO UPDATE SET
+           name = excluded.name,
+           fetched_at = excluded.fetched_at
+         WHERE excluded.fetched_at > tmdb_collections.fetched_at`,
+      ).bind(tmdbId, collection.name, collection.fetchedAt),
+    ),
+    ...[...people.entries()].map(([tmdbId, person]) =>
+      env.DB.prepare(
+        `INSERT INTO tmdb_people (tmdb_id, name, fetched_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(tmdb_id) DO UPDATE SET
+           name = excluded.name,
+           fetched_at = excluded.fetched_at
+         WHERE excluded.fetched_at > tmdb_people.fetched_at`,
+      ).bind(tmdbId, person.name, person.fetchedAt),
+    ),
+  ];
+};
+
 export const getTmdbCreditSnapshots = async (
   env: AppEnv["Bindings"],
   movieIds: string[],
@@ -182,11 +237,14 @@ export const replaceTmdbDataStatements = async (
   movieId: string,
   result: TmdbMovieResult | null,
   options: {
+    attemptedAt?: string;
     existingCredits?: TmdbCreditSnapshot[];
     includeOrphanCleanup?: boolean;
+    includeSharedEntities?: boolean;
   } = {},
 ) => {
   const includeOrphanCleanup = options.includeOrphanCleanup ?? true;
+  const includeSharedEntities = options.includeSharedEntities ?? true;
   if (!result) {
     return [
       env.DB.prepare("DELETE FROM movie_credits WHERE movie_id = ?").bind(
@@ -233,33 +291,8 @@ export const replaceTmdbDataStatements = async (
   );
   const statements: D1PreparedStatement[] = [];
 
-  if (data.collection) {
-    statements.push(
-      env.DB.prepare(
-        `INSERT INTO tmdb_collections (tmdb_id, name, fetched_at)
-         VALUES (?, ?, ?)
-         ON CONFLICT(tmdb_id) DO UPDATE SET
-           name = excluded.name,
-           fetched_at = excluded.fetched_at
-         WHERE excluded.fetched_at >= tmdb_collections.fetched_at`,
-      ).bind(data.collection.id, data.collection.name, fetchedAt),
-    );
-  }
-
-  const people = new Map(
-    [...data.cast, ...data.directors].map((person) => [person.id, person]),
-  );
-  for (const person of people.values()) {
-    statements.push(
-      env.DB.prepare(
-        `INSERT INTO tmdb_people (tmdb_id, name, fetched_at)
-         VALUES (?, ?, ?)
-         ON CONFLICT(tmdb_id) DO UPDATE SET
-           name = excluded.name,
-           fetched_at = excluded.fetched_at
-         WHERE excluded.fetched_at >= tmdb_people.fetched_at`,
-      ).bind(person.id, person.name, fetchedAt),
-    );
+  if (includeSharedEntities) {
+    statements.push(...tmdbSharedEntityStatements(env, [result]));
   }
 
   statements.push(
@@ -297,7 +330,7 @@ export const replaceTmdbDataStatements = async (
       refreshAfter,
       expiresAt,
       contractId,
-      fetchedAt,
+      options.attemptedAt ?? fetchedAt,
     ),
   );
 
@@ -510,6 +543,14 @@ export const refreshDueTmdbData = async (
     personIds: [] as number[],
   };
 
+  const successfulResults = due.results.flatMap((row) => {
+    const result = cached.results.get(row.tmdb_id) ?? fetched.get(row.tmdb_id);
+    return result ? [result] : [];
+  });
+  persistenceStatements.push(
+    ...tmdbSharedEntityStatements(env, successfulResults),
+  );
+
   for (const row of due.results) {
     const result = cached.results.get(row.tmdb_id) ?? fetched.get(row.tmdb_id);
     const failure = failures.get(row.tmdb_id);
@@ -534,16 +575,11 @@ export const refreshDueTmdbData = async (
       report.refreshed += 1;
       persistenceStatements.push(
         ...(await replaceTmdbDataStatements(env, row.movie_id, result, {
+          attemptedAt: timestamp,
           existingCredits: creditSnapshots.get(row.movie_id) ?? [],
           includeOrphanCleanup: false,
+          includeSharedEntities: false,
         })),
-        env.DB.prepare(
-          `UPDATE movie_tmdb_data SET
-             last_refresh_attempt_at = ?,
-             last_refresh_status = 'succeeded',
-             last_refresh_error = NULL
-           WHERE movie_id = ?`,
-        ).bind(timestamp, row.movie_id),
       );
     } else if (failure) {
       report.attempted += 1;
