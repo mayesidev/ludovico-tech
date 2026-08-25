@@ -206,11 +206,18 @@ describe("TMDB refresh operations", () => {
       intervalMinutes: 360,
       lastAttempted: 1,
       lastFailed: 0,
+      lastProcessingRetried: false,
+      lastProcessingRowsRead: expect.any(Number),
+      lastProcessingRowsWritten: expect.any(Number),
       lastRefreshed: 1,
       lastRemaining: 0,
       nextRunAt: "2026-08-24T07:30:00.000Z",
       running: false,
     });
+    expect(status.summary.schedule.lastProcessingRowsRead).toBeGreaterThan(0);
+    expect(status.summary.schedule.lastProcessingRowsWritten).toBeGreaterThan(
+      0,
+    );
     expect(status.queue.items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

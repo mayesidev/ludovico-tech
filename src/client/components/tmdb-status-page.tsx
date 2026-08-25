@@ -509,7 +509,7 @@ export function TmdbStatusPage({
               Save schedule
             </Button>
           </form>
-          <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-5">
             <div>
               <dt className="ui-label text-text-muted">Next run</dt>
               <dd className="mt-1 text-text-primary">
@@ -536,7 +536,23 @@ export function TmdbStatusPage({
                 {schedule.lastRemaining}
               </dd>
             </div>
+            <div>
+              <dt className="ui-label text-text-muted">D1 processing</dt>
+              <dd className="mt-1 text-text-primary">
+                {schedule.lastProcessingRowsRead === null ||
+                schedule.lastProcessingRowsWritten === null
+                  ? "Not recorded"
+                  : `${schedule.lastProcessingRowsRead.toLocaleString()} read, ${schedule.lastProcessingRowsWritten.toLocaleString()} written`}
+              </dd>
+            </div>
           </dl>
+          <p className="mt-3 text-xs text-text-muted">
+            Refresh processing only; excludes scheduler, expiration maintenance,
+            and Manager&apos;s Office reads.
+            {schedule.lastProcessingRetried
+              ? " D1 retried at least one operation, so the totals reflect last attempts and may be lower than billed usage."
+              : ""}
+          </p>
           {(schedule.lastError || schedule.lastRateLimited) && (
             <p className="mt-4 text-sm text-danger">
               {schedule.lastError ?? "The last run was rate limited."}

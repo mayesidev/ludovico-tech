@@ -145,6 +145,9 @@ export type TmdbRefreshSchedule = {
   lastError: string | null;
   lastFailed: number;
   lastRateLimited: boolean;
+  lastProcessingRetried: boolean | null;
+  lastProcessingRowsRead: number | null;
+  lastProcessingRowsWritten: number | null;
   lastRefreshed: number;
   lastRemaining: number;
   lastStartedAt: string | null;

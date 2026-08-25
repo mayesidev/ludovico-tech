@@ -12,6 +12,11 @@ import {
   getTmdbMetadataContractId,
   tmdbMovieDetailSchema,
 } from "../shared/tmdb-metadata-contract";
+import {
+  recordD1BatchUsage,
+  recordD1Usage,
+  type D1ProcessingUsage,
+} from "./d1-usage";
 
 const REFRESH_AFTER_MS = 150 * 24 * 60 * 60 * 1000;
 const EXPIRES_AFTER_MS = 175 * 24 * 60 * 60 * 1000;
@@ -221,6 +226,7 @@ export const tmdbSharedEntityStatements = (
 export const getTmdbCreditSnapshots = async (
   env: AppEnv["Bindings"],
   movieIds: string[],
+  usage?: D1ProcessingUsage,
 ) => {
   const snapshots = new Map<string, TmdbCreditSnapshot[]>(
     movieIds.map((movieId) => [movieId, []]),
@@ -239,6 +245,7 @@ export const getTmdbCreditSnapshots = async (
       position: number;
       tmdb_person_id: number;
     }>();
+  recordD1Usage(usage, rows);
   for (const row of rows.results) {
     snapshots.get(row.movie_id)?.push({
       creditType: row.credit_type,
@@ -465,6 +472,7 @@ const refreshErrorMessage = (error: TmdbServiceError) => {
 export const countDueTmdbData = async (
   env: AppEnv["Bindings"],
   timestamp = new Date().toISOString(),
+  usage?: D1ProcessingUsage,
 ) => {
   const contractId = await getTmdbMetadataContractId();
   const result = await env.DB.prepare(
@@ -476,14 +484,16 @@ export const countDueTmdbData = async (
         OR (contract_id = ? AND refresh_after <= ?)`,
   )
     .bind(contractId, contractId, contractId, timestamp)
-    .first<{ count: number }>();
-  return result?.count ?? 0;
+    .all<{ count: number }>();
+  recordD1Usage(usage, result);
+  return result.results[0]?.count ?? 0;
 };
 
 export const refreshDueTmdbData = async (
   env: AppEnv["Bindings"],
   timestamp = new Date().toISOString(),
   batchSize = DEFAULT_TMDB_REFRESH_BATCH_SIZE,
+  usage?: D1ProcessingUsage,
 ): Promise<TmdbRefreshReport> => {
   const contractId = await getTmdbMetadataContractId();
   const due = await env.DB.prepare(
@@ -504,6 +514,7 @@ export const refreshDueTmdbData = async (
       tmdb_id: number;
       title: string | null;
     }>();
+  recordD1Usage(usage, due);
   const report: TmdbRefreshReport = {
     attempted: 0,
     failed: 0,
@@ -518,10 +529,11 @@ export const refreshDueTmdbData = async (
       tmdbId,
     })),
   );
-  const cached = await readTmdbMovieCacheBatch(env, lookups, timestamp);
+  const cached = await readTmdbMovieCacheBatch(env, lookups, timestamp, usage);
   const creditSnapshots = await getTmdbCreditSnapshots(
     env,
     due.results.map((row) => row.movie_id),
+    usage,
   );
 
   const fetched = new Map<number, TmdbMovieResult>();
@@ -662,6 +674,7 @@ export const refreshDueTmdbData = async (
   persistenceStatements.push(
     ...tmdbCandidateOrphanCleanupStatements(env, orphanCandidates),
   );
-  await env.DB.batch(persistenceStatements);
+  const persisted = await env.DB.batch(persistenceStatements);
+  recordD1BatchUsage(usage, persisted);
   return report;
 };
