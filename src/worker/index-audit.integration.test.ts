@@ -40,7 +40,40 @@ describe("D1 index alignment", () => {
     );
   });
 
-  it("uses the collection uniqueness index for ordered membership reads", async () => {
+  it("retains only the two required collection membership keys", async () => {
+    const indexes = (
+      await env.DB.prepare(
+        `SELECT il.name, il.origin, ii.seqno, ii.name AS column_name
+         FROM pragma_index_list('collection_movies') AS il
+         JOIN pragma_index_info(il.name) AS ii
+         ORDER BY il.name, ii.seqno`,
+      ).all<{
+        column_name: string;
+        name: string;
+        origin: "pk" | "u";
+        seqno: number;
+      }>()
+    ).results;
+    const definitions = new Map<
+      string,
+      { columns: string[]; origin: string }
+    >();
+    for (const index of indexes) {
+      const definition = definitions.get(index.name) ?? {
+        columns: [],
+        origin: index.origin,
+      };
+      definition.columns.push(index.column_name);
+      definitions.set(index.name, definition);
+    }
+
+    expect([...definitions.values()]).toEqual([
+      { columns: ["movie_id"], origin: "pk" },
+      { columns: ["collection_id", "position"], origin: "u" },
+    ]);
+  });
+
+  it("uses the collection-position key for ordered membership reads", async () => {
     const plan = await queryPlan(
       `SELECT movie_id, position FROM collection_movies
        WHERE collection_id = ? ORDER BY position`,
@@ -48,7 +81,7 @@ describe("D1 index alignment", () => {
     );
 
     expect(plan).toContain(
-      "SEARCH collection_movies USING INDEX sqlite_autoindex_collection_movies_3 (collection_id=?)",
+      "SEARCH collection_movies USING INDEX sqlite_autoindex_collection_movies_2 (collection_id=?)",
     );
     expect(plan.some((detail) => detail.includes("TEMP B-TREE"))).toBe(false);
   });
