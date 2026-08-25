@@ -79,6 +79,64 @@ export const tmdbCandidateOrphanCleanupStatements = (
   return statements;
 };
 
+export const purgeExpiredTmdbData = async (
+  env: AppEnv["Bindings"],
+  timestamp = new Date().toISOString(),
+) => {
+  const expired = await env.DB.prepare(
+    `SELECT movie_id, tmdb_collection_id
+     FROM movie_tmdb_data
+     WHERE expires_at IS NOT NULL
+       AND expires_at <= ?
+       AND expired_at IS NULL
+     ORDER BY expires_at, movie_id
+     LIMIT (
+       SELECT batch_size FROM tmdb_refresh_schedule WHERE id = 1
+     )`,
+  )
+    .bind(timestamp)
+    .all<{ movie_id: string; tmdb_collection_id: number | null }>();
+  const movieIds = expired.results.map((row) => row.movie_id);
+  if (movieIds.length === 0) return 0;
+
+  const creditSnapshots = await getTmdbCreditSnapshots(env, movieIds);
+  const orphanCandidates = {
+    collectionIds: expired.results.flatMap((row) =>
+      row.tmdb_collection_id === null ? [] : [row.tmdb_collection_id],
+    ),
+    personIds: movieIds.flatMap((movieId) =>
+      (creditSnapshots.get(movieId) ?? []).map((credit) => credit.personId),
+    ),
+  };
+  const placeholders = movieIds.map(() => "?").join(", ");
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE movie_tmdb_data SET
+         title = NULL,
+         release_date = NULL,
+         poster_path = NULL,
+         runtime_minutes = NULL,
+         tmdb_collection_id = NULL,
+         expired_at = ?
+       WHERE movie_id IN (${placeholders})
+         AND expires_at IS NOT NULL
+         AND expires_at <= ?
+         AND expired_at IS NULL`,
+    ).bind(timestamp, ...movieIds, timestamp),
+    env.DB.prepare(
+      `DELETE FROM movie_credits
+       WHERE movie_id IN (${placeholders})
+         AND EXISTS (
+           SELECT 1 FROM movie_tmdb_data
+           WHERE movie_tmdb_data.movie_id = movie_credits.movie_id
+             AND movie_tmdb_data.expired_at = ?
+         )`,
+    ).bind(...movieIds, timestamp),
+    ...tmdbCandidateOrphanCleanupStatements(env, orphanCandidates),
+  ]);
+  return movieIds.length;
+};
+
 export type TmdbCreditSnapshot = {
   creditType: "cast" | "director";
   personId: number;
@@ -224,7 +282,8 @@ export const replaceTmdbDataStatements = async (
          contract_id = excluded.contract_id,
          last_refresh_attempt_at = excluded.last_refresh_attempt_at,
          last_refresh_status = excluded.last_refresh_status,
-         last_refresh_error = excluded.last_refresh_error
+         last_refresh_error = excluded.last_refresh_error,
+         expired_at = NULL
        WHERE excluded.fetched_at >= COALESCE(movie_tmdb_data.fetched_at, '')`,
     ).bind(
       movieId,

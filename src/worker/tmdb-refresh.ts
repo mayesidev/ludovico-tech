@@ -1,6 +1,7 @@
 import type { AppEnv } from "./env";
 import {
   countDueTmdbData,
+  purgeExpiredTmdbData,
   refreshDueTmdbData,
   type TmdbRefreshReport,
 } from "./tmdb-data";
@@ -39,6 +40,7 @@ type ScheduleSummaryRow = ScheduleRow & {
   contract_stale_count: number | null;
   current_count: number | null;
   due_count: number | null;
+  expired_count: number | null;
   failed_count: number | null;
   linked_count: number;
   never_fetched_count: number | null;
@@ -49,6 +51,7 @@ type ScheduleSummaryRow = ScheduleRow & {
 type TmdbRefreshState =
   | "current"
   | "due"
+  | "expired"
   | "failed"
   | "never_fetched"
   | "unlinked"
@@ -192,7 +195,10 @@ export const runTmdbRefresh = async (
   env: AppEnv["Bindings"],
   options: { force?: boolean; timestamp?: string } = {},
 ): Promise<TmdbRefreshRunResult> => {
-  const claim = await claimTmdbRefresh(env, options.force, options.timestamp);
+  const timestamp = options.timestamp ?? new Date().toISOString();
+  const purged = await purgeExpiredTmdbData(env, timestamp);
+  if (purged > 0) console.info("Expired TMDB metadata purged", { purged });
+  const claim = await claimTmdbRefresh(env, options.force, timestamp);
   if (!claim) return { report: null, remaining: null, started: false };
   return executeTmdbRefreshClaim(env, claim);
 };
@@ -246,7 +252,8 @@ const getTmdbRefreshSummaryData = async (
        metadata_counts.failed_count,
        metadata_counts.never_fetched_count,
        metadata_counts.contract_stale_count,
-       metadata_counts.due_count
+       metadata_counts.due_count,
+       metadata_counts.expired_count
      FROM tmdb_refresh_schedule
      CROSS JOIN (
        SELECT COUNT(*) AS linked_count,
@@ -259,23 +266,31 @@ const getTmdbRefreshSummaryData = async (
           THEN 1 ELSE 0 END) AS pending_count,
          SUM(CASE
           WHEN COALESCE(last_refresh_status, '') <> 'failed'
+            AND expired_at IS NULL
             AND fetched_at IS NOT NULL
             AND refresh_after > ?
             AND contract_id = ?
           THEN 1 ELSE 0 END) AS current_count,
-         SUM(CASE WHEN last_refresh_status = 'failed' THEN 1 ELSE 0 END)
+         SUM(CASE
+          WHEN expired_at IS NULL AND last_refresh_status = 'failed'
+          THEN 1 ELSE 0 END)
            AS failed_count,
+         SUM(CASE WHEN expired_at IS NOT NULL THEN 1 ELSE 0 END)
+           AS expired_count,
          SUM(CASE
           WHEN COALESCE(last_refresh_status, '') <> 'failed'
+            AND expired_at IS NULL
             AND fetched_at IS NULL
           THEN 1 ELSE 0 END) AS never_fetched_count,
          SUM(CASE
           WHEN COALESCE(last_refresh_status, '') <> 'failed'
+            AND expired_at IS NULL
             AND fetched_at IS NOT NULL
             AND (contract_id IS NULL OR contract_id <> ?)
           THEN 1 ELSE 0 END) AS contract_stale_count,
          SUM(CASE
           WHEN COALESCE(last_refresh_status, '') <> 'failed'
+            AND expired_at IS NULL
             AND fetched_at IS NOT NULL
             AND contract_id = ?
             AND refresh_after <= ?
@@ -300,6 +315,7 @@ const getTmdbRefreshSummaryData = async (
     contract_stale: schedule.contract_stale_count ?? 0,
     current: schedule.current_count ?? 0,
     due: schedule.due_count ?? 0,
+    expired: schedule.expired_count ?? 0,
     failed: schedule.failed_count ?? 0,
     never_fetched: schedule.never_fetched_count ?? 0,
     unlinked: schedule.total_count - schedule.linked_count,
@@ -353,6 +369,7 @@ const tmdbRefreshQueueCte = `
       movie_tmdb_data.last_refresh_error,
       CASE
         WHEN movie_tmdb_data.movie_id IS NULL THEN 'unlinked'
+        WHEN movie_tmdb_data.expired_at IS NOT NULL THEN 'expired'
         WHEN movie_tmdb_data.last_refresh_status = 'failed' THEN 'failed'
         WHEN movie_tmdb_data.fetched_at IS NULL THEN 'never_fetched'
         WHEN movie_tmdb_data.contract_id IS NULL
@@ -365,12 +382,13 @@ const tmdbRefreshQueueCte = `
   ), queue AS (
     SELECT classified.*,
       CASE classified.state
-        WHEN 'failed' THEN 0
-        WHEN 'never_fetched' THEN 1
-        WHEN 'contract_stale' THEN 2
-        WHEN 'due' THEN 3
-        WHEN 'unlinked' THEN 4
-        ELSE 5
+        WHEN 'expired' THEN 0
+        WHEN 'failed' THEN 1
+        WHEN 'never_fetched' THEN 2
+        WHEN 'contract_stale' THEN 3
+        WHEN 'due' THEN 4
+        WHEN 'unlinked' THEN 5
+        ELSE 6
       END AS state_rank
     FROM classified
   )
@@ -404,12 +422,13 @@ const mapTmdbRefreshQueueRow = (item: TmdbRefreshQueueRow) => ({
 });
 
 const stateRank = {
-  failed: 0,
-  never_fetched: 1,
-  contract_stale: 2,
-  due: 3,
-  unlinked: 4,
-  current: 5,
+  expired: 0,
+  failed: 1,
+  never_fetched: 2,
+  contract_stale: 3,
+  due: 4,
+  unlinked: 5,
+  current: 6,
 } satisfies Record<TmdbRefreshState, number>;
 
 const stateQuery = (
@@ -439,22 +458,29 @@ const stateQuery = (
   }
 
   const predicates = {
-    failed: "movie_tmdb_data.last_refresh_status = 'failed'",
+    expired: "movie_tmdb_data.expired_at IS NOT NULL",
+    failed: `movie_tmdb_data.expired_at IS NULL
+      AND movie_tmdb_data.last_refresh_status = 'failed'`,
     never_fetched: `COALESCE(movie_tmdb_data.last_refresh_status, '') <> 'failed'
+      AND movie_tmdb_data.expired_at IS NULL
       AND movie_tmdb_data.fetched_at IS NULL`,
     contract_stale: `COALESCE(movie_tmdb_data.last_refresh_status, '') <> 'failed'
+      AND movie_tmdb_data.expired_at IS NULL
       AND movie_tmdb_data.fetched_at IS NOT NULL
       AND (movie_tmdb_data.contract_id IS NULL OR movie_tmdb_data.contract_id <> ?)`,
     due: `COALESCE(movie_tmdb_data.last_refresh_status, '') <> 'failed'
+      AND movie_tmdb_data.expired_at IS NULL
       AND movie_tmdb_data.fetched_at IS NOT NULL
       AND movie_tmdb_data.contract_id = ?
       AND movie_tmdb_data.refresh_after <= ?`,
     current: `COALESCE(movie_tmdb_data.last_refresh_status, '') <> 'failed'
+      AND movie_tmdb_data.expired_at IS NULL
       AND movie_tmdb_data.fetched_at IS NOT NULL
       AND movie_tmdb_data.contract_id = ?
       AND movie_tmdb_data.refresh_after > ?`,
   } as const;
   const bindings = {
+    expired: [] as Array<string>,
     failed: [] as Array<string>,
     never_fetched: [] as Array<string>,
     contract_stale: [currentContractId],
@@ -565,6 +591,7 @@ export const getTmdbRefreshQueue = async (
       `CASE state
          WHEN 'current' THEN 'Current'
          WHEN 'due' THEN 'Due'
+         WHEN 'expired' THEN 'Expired'
          WHEN 'failed' THEN 'Failed'
          WHEN 'never_fetched' THEN 'Never fetched'
          WHEN 'unlinked' THEN 'Not linked'
@@ -574,7 +601,7 @@ export const getTmdbRefreshQueue = async (
       "COALESCE(fetched_at, CASE WHEN state = 'unlinked' THEN '—' ELSE 'Never' END)",
       "COALESCE(last_refresh_attempt_at, '—')",
       `COALESCE(refresh_after,
-         CASE WHEN state IN ('due', 'never_fetched', 'contract_stale')
+         CASE WHEN state IN ('due', 'expired', 'never_fetched', 'contract_stale')
               THEN 'Due now' ELSE '—' END)`,
       "COALESCE(contract_id, '—')",
     ];
@@ -617,18 +644,26 @@ export const getTmdbRefreshQueue = async (
       },
       failed: {
         sql: `SELECT COUNT(*) AS total FROM movie_tmdb_data
-              WHERE last_refresh_status = 'failed'`,
+              WHERE expired_at IS NULL
+                AND last_refresh_status = 'failed'`,
+        bindings: [] as Array<string>,
+      },
+      expired: {
+        sql: `SELECT COUNT(*) AS total FROM movie_tmdb_data
+              WHERE expired_at IS NOT NULL`,
         bindings: [] as Array<string>,
       },
       never_fetched: {
         sql: `SELECT COUNT(*) AS total FROM movie_tmdb_data
               WHERE COALESCE(last_refresh_status, '') <> 'failed'
+                AND expired_at IS NULL
                 AND fetched_at IS NULL`,
         bindings: [] as Array<string>,
       },
       contract_stale: {
         sql: `SELECT COUNT(*) AS total FROM movie_tmdb_data
               WHERE COALESCE(last_refresh_status, '') <> 'failed'
+                AND expired_at IS NULL
                 AND fetched_at IS NOT NULL
                 AND (contract_id IS NULL
                      OR contract_id < ?
@@ -638,6 +673,7 @@ export const getTmdbRefreshQueue = async (
       due: {
         sql: `SELECT COUNT(*) AS total FROM movie_tmdb_data
               WHERE COALESCE(last_refresh_status, '') <> 'failed'
+                AND expired_at IS NULL
                 AND fetched_at IS NOT NULL
                 AND contract_id = ?
                 AND refresh_after <= ?`,
@@ -646,6 +682,7 @@ export const getTmdbRefreshQueue = async (
       current: {
         sql: `SELECT COUNT(*) AS total FROM movie_tmdb_data
               WHERE COALESCE(last_refresh_status, '') <> 'failed'
+                AND expired_at IS NULL
                 AND fetched_at IS NOT NULL
                 AND contract_id = ?
                 AND refresh_after > ?`,

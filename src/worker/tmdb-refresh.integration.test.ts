@@ -127,6 +127,48 @@ describe("TMDB refresh operations", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("purges hard-expired metadata even while automatic refresh is paused", async () => {
+    await insertLinkedMovie();
+    await env.DB.prepare(
+      `UPDATE movie_tmdb_data SET
+         title = 'Expired Provider Title',
+         fetched_at = '2026-01-01T00:00:00.000Z',
+         refresh_after = '2026-05-31T00:00:00.000Z',
+         expires_at = '2026-06-25T00:00:00.000Z',
+         last_refresh_status = 'failed',
+         last_refresh_error = 'TMDB could not be reached'
+       WHERE movie_id = 'scheduled-status'`,
+    ).run();
+    await env.DB.prepare(
+      `UPDATE tmdb_refresh_schedule
+       SET enabled = 0, next_run_at = '1970-01-01T00:00:00.000Z'
+       WHERE id = 1`,
+    ).run();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(runTmdbRefresh(bindings(), { timestamp })).resolves.toEqual({
+      report: null,
+      remaining: null,
+      started: false,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(
+      await env.DB.prepare(
+        `SELECT title, tmdb_id, expired_at
+         FROM movie_tmdb_data WHERE movie_id = 'scheduled-status'`,
+      ).first(),
+    ).toEqual({ expired_at: timestamp, title: null, tmdb_id: 42 });
+
+    const status = await refreshOverview();
+    expect(status.queue.items[0]).toMatchObject({
+      lastError: "TMDB could not be reached",
+      movieId: "scheduled-status",
+      state: "expired",
+    });
+    expect(status.summary.counts).toMatchObject({ failed: 0, pending: 1 });
+  });
+
   it("atomically prevents overlapping scheduled and manual claims", async () => {
     const [first, second] = await Promise.all([
       claimTmdbRefresh(bindings(), false, timestamp),

@@ -67,6 +67,7 @@ const queueInput = z.object({
       "all",
       "current",
       "due",
+      "expired",
       "failed",
       "never_fetched",
       "unlinked",

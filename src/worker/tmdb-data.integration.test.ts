@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getTmdbCreditSnapshots,
+  purgeExpiredTmdbData,
   refreshDueTmdbData,
   replaceTmdbDataStatements,
   type TmdbCreditSnapshot,
@@ -743,6 +744,80 @@ describe("scheduled TMDB enrichment refresh", () => {
         "SELECT tmdb_id FROM tmdb_collections WHERE tmdb_id IN (90, 92) ORDER BY tmdb_id",
       ).all(),
     ).toMatchObject({ results: [{ tmdb_id: 92 }] });
+  });
+
+  it("purges expired supplemental data while retaining Library data and the TMDB link", async () => {
+    await insertLinkedMovie("expired-metadata", 93);
+    const expired: TmdbMovieResult = {
+      data: {
+        cast: [{ id: 501, name: "Expired Actor" }],
+        collection: { id: 94, name: "Expired Collection" },
+        directors: [{ id: 502, name: "Expired Director" }],
+        id: 93,
+        posterPath: "/expired.jpg",
+        releaseDate: "2020-01-01",
+        runtimeMinutes: 121,
+        title: "Expired Provider Title",
+      },
+      fetchedAt: "2026-01-01T00:00:00.000Z",
+    };
+    await env.DB.batch(
+      await replaceTmdbDataStatements(env, "expired-metadata", expired),
+    );
+
+    await expect(purgeExpiredTmdbData(tmdbEnv(), timestamp)).resolves.toBe(1);
+
+    expect(
+      await env.DB.prepare(
+        `SELECT movies.title, movies.version,
+                movie_tmdb_data.tmdb_id, movie_tmdb_data.title AS tmdb_title,
+                movie_tmdb_data.release_date, movie_tmdb_data.poster_path,
+                movie_tmdb_data.runtime_minutes,
+                movie_tmdb_data.tmdb_collection_id,
+                movie_tmdb_data.expired_at
+         FROM movies
+         JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
+         WHERE movies.id = 'expired-metadata'`,
+      ).first(),
+    ).toEqual({
+      expired_at: timestamp,
+      poster_path: null,
+      release_date: null,
+      runtime_minutes: null,
+      title: "Library expired-metadata",
+      tmdb_collection_id: null,
+      tmdb_id: 93,
+      tmdb_title: null,
+      version: "Library Cut",
+    });
+    expect(
+      await env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM movie_credits WHERE movie_id = 'expired-metadata'",
+      ).first(),
+    ).toEqual({ count: 0 });
+    expect(
+      await env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM tmdb_people WHERE tmdb_id IN (501, 502)",
+      ).first(),
+    ).toEqual({ count: 0 });
+    expect(
+      await env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM tmdb_collections WHERE tmdb_id = 94",
+      ).first(),
+    ).toEqual({ count: 0 });
+
+    await env.DB.batch(
+      await replaceTmdbDataStatements(env, "expired-metadata", {
+        ...expired,
+        fetchedAt: timestamp,
+      }),
+    );
+    expect(
+      await env.DB.prepare(
+        `SELECT expired_at, title FROM movie_tmdb_data
+         WHERE movie_id = 'expired-metadata'`,
+      ).first(),
+    ).toEqual({ expired_at: null, title: "Expired Provider Title" });
   });
 });
 
