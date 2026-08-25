@@ -6,6 +6,7 @@ import {
   type TmdbRefreshReport,
 } from "./tmdb-data";
 import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
+import { createD1ProcessingUsage, type D1ProcessingUsage } from "./d1-usage";
 
 const SCHEDULE_ID = 1;
 const LEASE_MS = 20 * 60 * 1000;
@@ -31,6 +32,9 @@ type ScheduleRow = {
   last_rate_limited: number;
   last_refreshed_count: number;
   last_remaining_count: number;
+  last_processing_retried: number | null;
+  last_processing_rows_read: number | null;
+  last_processing_rows_written: number | null;
   last_started_at: string | null;
   lease_expires_at: string | null;
   next_run_at: string;
@@ -109,6 +113,7 @@ const finishClaim = async (
   claim: TmdbRefreshClaim,
   report: TmdbRefreshReport,
   remaining: number,
+  usage: D1ProcessingUsage,
 ) => {
   const completedAt = new Date().toISOString();
   const nextRunAt = addMilliseconds(
@@ -131,6 +136,9 @@ const finishClaim = async (
        last_failed_count = ?,
        last_remaining_count = ?,
        last_rate_limited = ?,
+       last_processing_rows_read = ?,
+       last_processing_rows_written = ?,
+       last_processing_retried = ?,
        last_error = ?,
        updated_at = ?
      WHERE id = ? AND lease_expires_at = ?`,
@@ -143,6 +151,9 @@ const finishClaim = async (
       report.failed,
       remaining,
       report.rateLimited ? 1 : 0,
+      usage.rowsRead,
+      usage.rowsWritten,
+      usage.retried ? 1 : 0,
       lastError,
       completedAt,
       SCHEDULE_ID,
@@ -151,13 +162,20 @@ const finishClaim = async (
     .run();
 };
 
-const failClaim = async (env: AppEnv["Bindings"], claim: TmdbRefreshClaim) => {
+const failClaim = async (
+  env: AppEnv["Bindings"],
+  claim: TmdbRefreshClaim,
+  usage: D1ProcessingUsage,
+) => {
   const completedAt = new Date().toISOString();
   await env.DB.prepare(
     `UPDATE tmdb_refresh_schedule SET
        next_run_at = ?,
        lease_expires_at = NULL,
        last_completed_at = ?,
+       last_processing_rows_read = ?,
+       last_processing_rows_written = ?,
+       last_processing_retried = ?,
        last_error = 'Refresh worker failed',
        updated_at = ?
      WHERE id = ? AND lease_expires_at = ?`,
@@ -165,6 +183,9 @@ const failClaim = async (env: AppEnv["Bindings"], claim: TmdbRefreshClaim) => {
     .bind(
       addMilliseconds(claim.startedAt, claim.intervalMinutes * 60 * 1000),
       completedAt,
+      usage.rowsRead,
+      usage.rowsWritten,
+      usage.retried ? 1 : 0,
       completedAt,
       SCHEDULE_ID,
       claim.leaseExpiresAt,
@@ -176,17 +197,23 @@ export const executeTmdbRefreshClaim = async (
   env: AppEnv["Bindings"],
   claim: TmdbRefreshClaim,
 ): Promise<TmdbRefreshRunResult> => {
+  const usage = createD1ProcessingUsage();
   try {
     const report = await refreshDueTmdbData(
       env,
       claim.startedAt,
       claim.batchSize,
+      usage,
     );
-    const remaining = await countDueTmdbData(env, new Date().toISOString());
-    await finishClaim(env, claim, report, remaining);
+    const remaining = await countDueTmdbData(
+      env,
+      new Date().toISOString(),
+      usage,
+    );
+    await finishClaim(env, claim, report, remaining, usage);
     return { report, remaining, started: true };
   } catch (error) {
-    await failClaim(env, claim);
+    await failClaim(env, claim, usage);
     throw error;
   }
 };
@@ -229,6 +256,12 @@ const mapSchedule = (schedule: ScheduleRow, timestamp: string) => ({
   lastError: schedule.last_error,
   lastFailed: schedule.last_failed_count,
   lastRateLimited: schedule.last_rate_limited === 1,
+  lastProcessingRetried:
+    schedule.last_processing_retried === null
+      ? null
+      : schedule.last_processing_retried === 1,
+  lastProcessingRowsRead: schedule.last_processing_rows_read,
+  lastProcessingRowsWritten: schedule.last_processing_rows_written,
   lastRefreshed: schedule.last_refreshed_count,
   lastRemaining: schedule.last_remaining_count,
   lastStartedAt: schedule.last_started_at,

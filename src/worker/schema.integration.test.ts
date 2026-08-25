@@ -480,13 +480,18 @@ describe("catalog schema", () => {
   it("persists one bounded internal TMDB refresh schedule", async () => {
     expect(
       await env.DB.prepare(
-        `SELECT enabled, interval_minutes, batch_size, next_run_at
+        `SELECT enabled, interval_minutes, batch_size, next_run_at,
+                last_processing_rows_read, last_processing_rows_written,
+                last_processing_retried
          FROM tmdb_refresh_schedule`,
       ).first(),
     ).toEqual({
       batch_size: 25,
       enabled: 1,
       interval_minutes: 360,
+      last_processing_retried: null,
+      last_processing_rows_read: null,
+      last_processing_rows_written: null,
       next_run_at: "1970-01-01T00:00:00.000Z",
     });
 
@@ -508,6 +513,12 @@ describe("catalog schema", () => {
     await expect(
       env.DB.prepare(
         "UPDATE tmdb_refresh_schedule SET batch_size = 51 WHERE id = 1",
+      ).run(),
+    ).rejects.toThrow();
+    await expect(
+      env.DB.prepare(
+        `UPDATE tmdb_refresh_schedule
+         SET last_processing_rows_read = -1 WHERE id = 1`,
       ).run(),
     ).rejects.toThrow();
     await expect(

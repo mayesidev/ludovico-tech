@@ -75,6 +75,9 @@ const summary: TmdbRefreshSummary = {
     lastError: null,
     lastFailed: 0,
     lastRateLimited: false,
+    lastProcessingRetried: false,
+    lastProcessingRowsRead: 1_234,
+    lastProcessingRowsWritten: 56,
     lastRefreshed: 1,
     lastRemaining: 1,
     lastStartedAt: "2026-08-24T00:59:00.000Z",
@@ -242,6 +245,10 @@ describe("TMDB refresh status page", () => {
     render(<TmdbStatusPage canMutate onNavigate={vi.fn()} />);
 
     expect(await screen.findByText(/every 5 hours 30 minutes/i)).toBeVisible();
+    expect(screen.getByText("1,234 read, 56 written")).toBeVisible();
+    expect(
+      screen.getByText(/excludes scheduler, expiration maintenance/),
+    ).toBeVisible();
     fireEvent.change(screen.getByLabelText("Manager's Office page"), {
       target: { value: "3" },
     });

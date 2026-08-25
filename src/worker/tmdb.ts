@@ -12,6 +12,7 @@ import {
   type TmdbCollection,
   type TmdbMovieDetail,
 } from "../shared/tmdb-metadata-contract";
+import { recordD1Usage, type D1ProcessingUsage } from "./d1-usage";
 
 const TMDB_API_ORIGIN = "https://api.themoviedb.org";
 const TMDB_MAX_REDIRECTS = 2;
@@ -140,6 +141,7 @@ export const readTmdbMovieCacheBatch = async (
   env: AppEnv["Bindings"],
   lookups: TmdbMovieCacheLookup[],
   timestamp = new Date().toISOString(),
+  usage?: D1ProcessingUsage,
 ) => {
   const results = new Map<number, TmdbMovieResult>();
   const invalidKeys: string[] = [];
@@ -160,6 +162,7 @@ export const readTmdbMovieCacheBatch = async (
       fetched_at: string;
       payload_json: string;
     }>();
+  recordD1Usage(usage, cached);
 
   for (const row of cached.results) {
     const lookup = lookupByKey.get(row.cache_key);
