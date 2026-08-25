@@ -6,7 +6,6 @@ import {
   getMovieDetail,
   getNowShowingDetail,
   getPosterReelMovies,
-  getRemainingCollectionMovies,
   getWatchedHistory,
   hasRemainingCollectionMovie,
   movieSelect,
@@ -25,20 +24,6 @@ import { replaceTmdbDataStatements } from "../tmdb-data";
 import { tmdbErrorResponse } from "./tmdb";
 
 export const registerMovieRoutes = (app: Hono<AppEnv>) => {
-  app.get("/movies", async (c) => {
-    const status = c.req.query("status") ?? "all";
-    const query =
-      status === "unwatched"
-        ? `${movieSelect} WHERE ratings.id IS NULL`
-        : status === "watched"
-          ? `${movieSelect} WHERE ratings.id IS NOT NULL`
-          : movieSelect;
-    const result = await c.env.DB.prepare(
-      `${query} ORDER BY movies.title COLLATE NOCASE`,
-    ).all<MovieRow>();
-    return c.json({ movies: result.results });
-  });
-
   app.get("/library", zValidator("query", libraryQueryInput), async (c) => {
     const input = c.req.valid("query");
     const filters: string[] = [];
@@ -147,19 +132,6 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     });
   });
 
-  app.get("/collections", async (c) => {
-    const result = await c.env.DB.prepare(
-      `SELECT collections.*, COUNT(movies.id) AS movie_count,
-      SUM(CASE WHEN ratings.id IS NOT NULL THEN 1 ELSE 0 END) AS watched_count
-     FROM collections
-     LEFT JOIN collection_movies ON collection_movies.collection_id = collections.id
-     LEFT JOIN movies ON movies.id = collection_movies.movie_id
-     LEFT JOIN ratings ON ratings.movie_id = movies.id
-     GROUP BY collections.id ORDER BY collections.name COLLATE NOCASE`,
-    ).all();
-    return c.json({ collections: result.results });
-  });
-
   app.get("/collections/:id", async (c) => {
     const collection = await c.env.DB.prepare(
       "SELECT id, name, order_confirmed, created_at, updated_at FROM collections WHERE id = ?",
@@ -197,18 +169,6 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       ).values(),
     ].sort((left, right) => left.name.localeCompare(right.name));
     return c.json({ collection, movies: movies.results, tmdbCollections });
-  });
-
-  app.get("/now-showing", async (c) => {
-    const current = await getNowShowingDetail(c.env);
-    if (!current) return c.json({ nowShowing: null });
-    const remaining = current.collection_id
-      ? await getRemainingCollectionMovies(c.env, current.collection_id)
-      : [];
-    return c.json({
-      nowShowing: current,
-      remainingCollectionMovies: remaining,
-    });
   });
 
   app.get("/home", async (c) => {

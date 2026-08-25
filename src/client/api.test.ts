@@ -14,9 +14,7 @@ describe("client API", () => {
     await api.health();
     await api.authMe();
     await api.logout();
-    await api.nowShowing();
     await api.home();
-    await api.movies("watched");
     await api.library({
       direction: "desc",
       page: 2,
@@ -40,7 +38,6 @@ describe("client API", () => {
     await api.deleteMovie("movie-id");
     await api.tmdbSearch("A movie & sequel");
     await api.tmdbMovie(42);
-    await api.tmdbRefreshSummary();
     await api.tmdbRefreshRunStatus();
     await api.tmdbRefreshOverview({
       dateSearch: "",
@@ -70,9 +67,7 @@ describe("client API", () => {
       "/api/health",
       "/api/auth/me",
       "/api/auth/logout",
-      "/api/now-showing",
       "/api/home",
-      "/api/movies?status=watched",
       "/api/library?direction=desc&page=2&pageSize=25&search=Movie+%26+sequel&sort=rating&status=watched",
       "/api/collections/collection-id",
       "/api/roll",
@@ -84,23 +79,22 @@ describe("client API", () => {
       "/api/movies/movie-id",
       "/api/tmdb/search?query=A%20movie%20%26%20sequel",
       "/api/tmdb/movies/42",
-      "/api/tmdb-refresh/summary",
       "/api/tmdb-refresh/run-status",
       "/api/tmdb-refresh/overview?dateSearch=&direction=asc&page=1&pageSize=50&search=&sort=state&state=all",
       "/api/tmdb-refresh/items?dateSearch=2026-08-23T18%3A45%3A00.000Z&direction=desc&page=2&pageSize=25&search=Current&sort=fetchedAt&state=current",
       "/api/tmdb-refresh/schedule",
       "/api/tmdb-refresh/run",
     ]);
-    expect(fetchMock.mock.calls[10]?.[1]?.method).toBe("POST");
-    expect(JSON.parse(String(fetchMock.mock.calls[10]?.[1]?.body))).toEqual({
+    expect(fetchMock.mock.calls[8]?.[1]?.method).toBe("POST");
+    expect(JSON.parse(String(fetchMock.mock.calls[8]?.[1]?.body))).toEqual({
       phrase: "Custom phrase",
       score: 4.5,
     });
-    expect(fetchMock.mock.calls[11]?.[1]).toMatchObject({
+    expect(fetchMock.mock.calls[9]?.[1]).toMatchObject({
       body: JSON.stringify({ movieIds: ["first", "second"] }),
       method: "POST",
     });
-    expect(fetchMock.mock.calls[12]?.[1]).toMatchObject({
+    expect(fetchMock.mock.calls[10]?.[1]).toMatchObject({
       body: JSON.stringify({
         collectionName: "Saga",
         imdbId: "tt0117509",
@@ -109,16 +103,16 @@ describe("client API", () => {
       }),
       method: "POST",
     });
-    expect(fetchMock.mock.calls[13]?.[1]).toMatchObject({
+    expect(fetchMock.mock.calls[11]?.[1]).toMatchObject({
       body: JSON.stringify({ imdbId: null, title: "New title" }),
       method: "PATCH",
     });
-    expect(fetchMock.mock.calls[14]?.[1]).toMatchObject({ method: "DELETE" });
-    expect(fetchMock.mock.calls[21]?.[1]).toMatchObject({
+    expect(fetchMock.mock.calls[12]?.[1]).toMatchObject({ method: "DELETE" });
+    expect(fetchMock.mock.calls[18]?.[1]).toMatchObject({
       body: JSON.stringify({ batchSize: 50, intervalMinutes: 360 }),
       method: "PATCH",
     });
-    expect(fetchMock.mock.calls[22]?.[1]).toMatchObject({ method: "POST" });
+    expect(fetchMock.mock.calls[19]?.[1]).toMatchObject({ method: "POST" });
   });
 
   it("returns parsed JSON and preserves a safe HTTP error status", async () => {
@@ -145,7 +139,7 @@ describe("client API", () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response("not json", { status: 502 }),
     );
-    await expect(api.nowShowing()).rejects.toMatchObject({
+    await expect(api.home()).rejects.toMatchObject({
       message: "Something went wrong",
       status: 502,
     });

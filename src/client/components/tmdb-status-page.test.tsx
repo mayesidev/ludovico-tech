@@ -375,7 +375,6 @@ describe("TMDB refresh status page", () => {
 
   it("does not request operational data for an anonymous visitor", () => {
     const loadOverview = vi.spyOn(api, "tmdbRefreshOverview");
-    const loadSummary = vi.spyOn(api, "tmdbRefreshSummary");
     const loadRunStatus = vi.spyOn(api, "tmdbRefreshRunStatus");
     const loadQueue = vi.spyOn(api, "tmdbRefreshQueue");
     render(<TmdbStatusPage canMutate={false} onNavigate={vi.fn()} />);
@@ -385,7 +384,6 @@ describe("TMDB refresh status page", () => {
     ).toBeVisible();
     expect(screen.getByText(/Sign in to view/)).toBeVisible();
     expect(loadOverview).not.toHaveBeenCalled();
-    expect(loadSummary).not.toHaveBeenCalled();
     expect(loadRunStatus).not.toHaveBeenCalled();
     expect(loadQueue).not.toHaveBeenCalled();
   });

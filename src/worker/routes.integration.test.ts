@@ -109,7 +109,7 @@ describe("production runtime configuration", () => {
       version: "v5.0.3",
     });
 
-    const catalog = await request("/api/movies", bindings);
+    const catalog = await request("/api/library", bindings);
     expect(catalog.status).toBe(503);
     expect(await catalog.json()).toMatchObject({ maintenance: true });
   });
@@ -894,7 +894,7 @@ describe("TMDB routes and metadata attachment", () => {
     });
 
     const compactList = (await (
-      await request("/api/movies", session.bindings)
+      await request("/api/library", session.bindings)
     ).json()) as { movies: Array<Record<string, unknown>> };
     const compactMovie = compactList.movies.find(
       (candidate) => candidate.id === movie.id,
@@ -909,7 +909,7 @@ describe("TMDB routes and metadata attachment", () => {
     )
       .bind(String(movie.id), String(movie.id))
       .run();
-    const current = await request("/api/now-showing", session.bindings);
+    const current = await request("/api/home", session.bindings);
     expect(await current.json()).toMatchObject({
       nowShowing: {
         cast: [
@@ -1073,20 +1073,19 @@ describe("TMDB routes and metadata attachment", () => {
 describe("production authorization boundary", () => {
   it("keeps public reads open and rejects every anonymous domain mutation", async () => {
     const bindings = productionEnv({ ALLOWED_EMAILS: invitedEmail });
-    const publicReads = [
-      "/api/movies",
-      "/api/library",
-      "/api/collections",
-      "/api/now-showing",
-      "/api/home",
-      "/api/auth/me",
-    ];
+    const publicReads = ["/api/library", "/api/home", "/api/auth/me"];
     for (const path of publicReads) {
       expect((await request(path, bindings)).status).toBe(200);
     }
-    expect((await request("/api/tmdb-refresh/summary", bindings)).status).toBe(
-      401,
-    );
+    const retiredReads = [
+      "/api/movies",
+      "/api/collections",
+      "/api/now-showing",
+      "/api/tmdb-refresh/summary",
+    ];
+    for (const path of retiredReads) {
+      expect((await request(path, bindings)).status).toBe(404);
+    }
     expect((await request("/api/tmdb-refresh/overview", bindings)).status).toBe(
       401,
     );

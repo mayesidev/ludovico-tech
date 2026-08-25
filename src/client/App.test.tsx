@@ -78,7 +78,6 @@ const arrange = (auth: AuthState) => {
   vi.spyOn(api, "movie").mockResolvedValue({
     movie: { ...movie, cast: [], directors: [] },
   });
-  vi.spyOn(api, "movies").mockResolvedValue({ movies: [movie] });
   vi.spyOn(api, "library").mockResolvedValue({
     counts: { total: 1, unwatched: 1 },
     movies: [movie],
@@ -124,14 +123,12 @@ describe("application authorization presentation", () => {
     expect(screen.queryByRole("button", { name: "Choose a Movie" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add a Movie" })).toBeNull();
     expect(api.home).toHaveBeenCalledOnce();
-    expect(api.movies).not.toHaveBeenCalled();
 
     const library = screen.getByRole("link", { name: "Library" });
     await user.click(library);
     expect(window.location.pathname).toBe("/library");
     expect(library).toHaveAttribute("aria-current", "page");
     expect(api.library).toHaveBeenCalledOnce();
-    expect(api.movies).not.toHaveBeenCalled();
     await user.click(screen.getByRole("link", { name: "Test Movie" }));
     expect(window.location.pathname).toBe("/movies/movie-id");
     expect(
@@ -370,7 +367,6 @@ describe("application authorization presentation", () => {
       "href",
       "https://www.themoviedb.org/movie/603",
     );
-    expect(api.movies).not.toHaveBeenCalled();
     expect(api.home).not.toHaveBeenCalled();
 
     window.history.pushState(null, "", "/movies/missing-id");
@@ -485,7 +481,6 @@ describe("application authorization presentation", () => {
       await screen.findByRole("heading", { level: 1, name: "Test Saga" }),
     ).toBeVisible();
     expect(api.collection).toHaveBeenCalledWith("collection-id");
-    expect(api.movies).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Save Order" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(

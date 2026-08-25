@@ -562,18 +562,22 @@ describe("TMDB refresh operations", () => {
     await waitOnExecutionContext(executionContext);
 
     const statusResponse = await createApp().fetch(
-      new Request("https://ludovico-tech.test/api/tmdb-refresh/summary"),
+      new Request("https://ludovico-tech.test/api/tmdb-refresh/overview"),
       bindings(),
     );
-    const status = (await statusResponse.json()) as {
-      counts: { current: number; pending: number };
-      schedule: {
-        enabled: boolean;
-        lastRefreshed: number;
-        nextRunAt: string;
-        running: boolean;
-      };
-    };
+    const status = (
+      (await statusResponse.json()) as {
+        summary: {
+          counts: { current: number; pending: number };
+          schedule: {
+            enabled: boolean;
+            lastRefreshed: number;
+            nextRunAt: string;
+            running: boolean;
+          };
+        };
+      }
+    ).summary;
     expect(statusResponse.status).toBe(200);
     expect(status).toMatchObject({
       counts: { current: 1, pending: 0 },

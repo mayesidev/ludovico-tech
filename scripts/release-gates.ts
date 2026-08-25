@@ -8,6 +8,8 @@ const deploymentOrigins = {
   production: "https://ludovicotech.com",
   staging: "https://staging.ludovicotech.com",
 } as const;
+const deploymentSmokePath =
+  "/api/library?direction=asc&page=1&pageSize=25&search=&sort=title&status=all";
 
 type DeploymentEnvironment = keyof typeof deploymentOrigins;
 
@@ -214,17 +216,26 @@ export const verifyDeployment = async (
         throw new Error("Deployment health metadata does not match release");
       }
 
-      const catalog = record(
+      const library = record(
         await json(
-          await fetcher(new URL("/api/movies", origin), {
+          await fetcher(new URL(deploymentSmokePath, origin), {
             cache: "no-store",
             redirect: "error",
           }),
         ),
-        "Deployment catalog response is invalid",
+        "Deployment library response is invalid",
       );
-      if (!Array.isArray(catalog.movies)) {
-        throw new Error("Deployment catalog smoke check failed");
+      const pagination = record(
+        library.pagination,
+        "Deployment library pagination is invalid",
+      );
+      if (
+        !Array.isArray(library.movies) ||
+        library.movies.length > 25 ||
+        pagination.page !== 1 ||
+        pagination.pageSize !== 25
+      ) {
+        throw new Error("Deployment library smoke check failed");
       }
       return;
     } catch (error) {
@@ -280,10 +291,13 @@ export const verifyMaintenanceDeployment = async (
         );
       }
 
-      const catalogResponse = await fetcher(new URL("/api/movies", origin), {
-        cache: "no-store",
-        redirect: "error",
-      });
+      const catalogResponse = await fetcher(
+        new URL(deploymentSmokePath, origin),
+        {
+          cache: "no-store",
+          redirect: "error",
+        },
+      );
       const catalog = record(
         await responseJson(catalogResponse),
         "Maintenance catalog response is invalid",
