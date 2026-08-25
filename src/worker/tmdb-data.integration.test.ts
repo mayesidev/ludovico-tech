@@ -431,7 +431,7 @@ describe("scheduled TMDB enrichment refresh", () => {
     );
   });
 
-  it("bulk reads mixed cache hits and commits the claim in one batch", async () => {
+  it("uses a freshness-only write for an unchanged cached snapshot", async () => {
     await insertLinkedMovie("cached-title", 71);
     const fetchMock = vi
       .fn()
@@ -480,7 +480,12 @@ describe("scheduled TMDB enrichment refresh", () => {
       tracked.preparedQueries.filter((query) =>
         query.trimStart().startsWith("UPDATE movie_tmdb_data SET"),
       ),
-    ).toHaveLength(0);
+    ).toEqual([expect.not.stringContaining("tmdb_collection_id =")]);
+    expect(
+      tracked.preparedQueries.filter((query) =>
+        query.includes("INSERT INTO movie_tmdb_data"),
+      ),
+    ).toHaveLength(1);
   });
 
   it("records provider failures without discarding successful titles", async () => {
