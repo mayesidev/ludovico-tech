@@ -163,7 +163,12 @@ describe("deployed release verification", () => {
           version: releaseTag,
         }),
       )
-      .mockResolvedValueOnce(Response.json({ movies: [] }));
+      .mockResolvedValueOnce(
+        Response.json({
+          movies: [],
+          pagination: { page: 1, pageSize: 25 },
+        }),
+      );
     const sleep = vi.fn().mockResolvedValue(undefined);
 
     await verifyDeployment(
@@ -184,7 +189,10 @@ describe("deployed release verification", () => {
     );
     expect(fetcher).toHaveBeenNthCalledWith(
       3,
-      new URL("/api/movies", baseUrl),
+      new URL(
+        "/api/library?direction=asc&page=1&pageSize=25&search=&sort=title&status=all",
+        baseUrl,
+      ),
       { cache: "no-store", redirect: "error" },
     );
   });
@@ -211,7 +219,12 @@ describe("deployed release verification", () => {
       .mockResolvedValueOnce(Response.json(previousRelease))
       .mockResolvedValueOnce(Response.json(previousRelease))
       .mockResolvedValueOnce(Response.json(currentRelease))
-      .mockResolvedValueOnce(Response.json({ movies: [] }));
+      .mockResolvedValueOnce(
+        Response.json({
+          movies: [],
+          pagination: { page: 1, pageSize: 25 },
+        }),
+      );
     const sleep = vi.fn().mockResolvedValue(undefined);
 
     await verifyDeployment(
@@ -324,7 +337,10 @@ describe("maintenance release verification", () => {
     );
     expect(fetcher).toHaveBeenNthCalledWith(
       2,
-      new URL("/api/movies", baseUrl),
+      new URL(
+        "/api/library?direction=asc&page=1&pageSize=25&search=&sort=title&status=all",
+        baseUrl,
+      ),
       { cache: "no-store", redirect: "error" },
     );
   });

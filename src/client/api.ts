@@ -90,10 +90,6 @@ export type LibraryResponse = {
   };
 };
 
-export type NowShowingResponse = {
-  nowShowing: NowShowing | null;
-  remainingCollectionMovies: Movie[];
-};
 export type TmdbResult = {
   id: number;
   title: string;
@@ -253,10 +249,7 @@ export const api = {
   authMe: () => request<AuthState>("/api/auth/me"),
   logout: () =>
     request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
-  nowShowing: () => request<NowShowingResponse>("/api/now-showing"),
   home: () => request<HomeResponse>("/api/home"),
-  movies: (status = "all") =>
-    request<{ movies: Movie[] }>(`/api/movies?status=${status}`),
   library: (query: LibraryQuery) => {
     const parameters = new URLSearchParams({
       direction: query.direction,
@@ -332,8 +325,6 @@ export const api = {
     ),
   tmdbMovie: (id: number) =>
     request<{ movie: TmdbMovieDetail }>(`/api/tmdb/movies/${id}`),
-  tmdbRefreshSummary: () =>
-    request<TmdbRefreshSummary>("/api/tmdb-refresh/summary"),
   tmdbRefreshRunStatus: () =>
     request<TmdbRefreshRunStatus>("/api/tmdb-refresh/run-status"),
   tmdbRefreshOverview: (query: TmdbRefreshQueueQuery) => {

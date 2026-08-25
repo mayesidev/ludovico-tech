@@ -30,7 +30,7 @@ describe("Ludovico Tech Worker routes", () => {
       commit: "unknown",
     });
 
-    const catalog = await request<{ movies: unknown[] }>("/api/movies");
+    const catalog = await request<{ movies: unknown[] }>("/api/library");
     expect(catalog.response.status).toBe(200);
     expect(catalog.body.movies).toEqual([]);
   });
@@ -264,10 +264,10 @@ describe("Ludovico Tech Worker routes", () => {
     expect(rated.body.movie.watched_at).toEqual(expect.any(String));
 
     const watched = await request<{ movies: Array<{ id: string }> }>(
-      "/api/movies?status=watched",
+      "/api/library?status=watched",
     );
     const unwatched = await request<{ movies: Array<{ id: string }> }>(
-      "/api/movies?status=unwatched",
+      "/api/library?status=unwatched",
     );
     expect(watched.body.movies.map((movie) => movie.id)).toEqual([
       added.body.movie.id,
@@ -313,7 +313,7 @@ describe("Ludovico Tech Worker routes", () => {
 
     const collectionId = (
       await request<{ movies: Array<{ id: string; collection_id: string }> }>(
-        "/api/movies",
+        "/api/library",
       )
     ).body.movies[0].collection_id;
     const ordered = await request<{
@@ -485,13 +485,13 @@ describe("Ludovico Tech Worker routes", () => {
     });
 
     const all = await request<{ movies: Array<{ id: string }> }>(
-      "/api/movies?status=all",
+      "/api/library?status=all",
     );
     const watched = await request<{ movies: Array<{ id: string }> }>(
-      "/api/movies?status=watched",
+      "/api/library?status=watched",
     );
     const unwatched = await request<{ movies: Array<{ id: string }> }>(
-      "/api/movies?status=unwatched",
+      "/api/library?status=unwatched",
     );
 
     expect(all.body.movies.map((movie) => movie.id).sort()).toEqual(
@@ -758,7 +758,7 @@ describe("Ludovico Tech Worker routes", () => {
     });
     const catalog = await request<{
       movies: Array<{ collection_id: string; id: string }>;
-    }>("/api/movies");
+    }>("/api/library");
     const collectionId = catalog.body.movies[0].collection_id;
     const orderPath = `/api/collections/${collectionId}/order`;
 

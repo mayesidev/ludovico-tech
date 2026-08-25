@@ -580,7 +580,7 @@ describe("catalog schema", () => {
       .run();
 
     const response = await createApp().fetch(
-      new Request("https://ludovico-tech.test/api/movies"),
+      new Request("https://ludovico-tech.test/api/library"),
       env,
     );
     const body = (await response.json()) as {
