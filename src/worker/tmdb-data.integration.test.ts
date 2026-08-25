@@ -466,6 +466,21 @@ describe("scheduled TMDB enrichment refresh", () => {
         query.includes("SELECT movie_id, tmdb_person_id, credit_type"),
       ),
     ).toHaveLength(1);
+    expect(
+      tracked.preparedQueries.filter((query) =>
+        query.includes("INSERT INTO tmdb_people"),
+      ),
+    ).toHaveLength(2);
+    expect(
+      tracked.preparedQueries.filter((query) =>
+        query.includes("INSERT INTO tmdb_collections"),
+      ),
+    ).toHaveLength(1);
+    expect(
+      tracked.preparedQueries.filter((query) =>
+        query.trimStart().startsWith("UPDATE movie_tmdb_data SET"),
+      ),
+    ).toHaveLength(0);
   });
 
   it("records provider failures without discarding successful titles", async () => {
