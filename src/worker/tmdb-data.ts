@@ -31,23 +31,6 @@ const currentSnapshotCondition = `EXISTS (
   WHERE movie_id = ? AND tmdb_id = ? AND fetched_at = ?
 )`;
 
-export const tmdbOrphanCleanupStatements = (env: AppEnv["Bindings"]) => [
-  env.DB.prepare(
-    `DELETE FROM tmdb_people
-     WHERE NOT EXISTS (
-       SELECT 1 FROM movie_credits
-       WHERE movie_credits.tmdb_person_id = tmdb_people.tmdb_id
-     )`,
-  ),
-  env.DB.prepare(
-    `DELETE FROM tmdb_collections
-     WHERE NOT EXISTS (
-       SELECT 1 FROM movie_tmdb_data
-       WHERE movie_tmdb_data.tmdb_collection_id = tmdb_collections.tmdb_id
-     )`,
-  ),
-];
-
 const uniqueIds = (ids: number[]) => [...new Set(ids)];
 
 export const tmdbCandidateOrphanCleanupStatements = (
@@ -265,6 +248,7 @@ export const replaceTmdbDataStatements = async (
   result: TmdbMovieResult | null,
   options: {
     attemptedAt?: string;
+    existingCollectionId?: number | null;
     existingCredits?: TmdbCreditSnapshot[];
     existingSnapshot?: TmdbStoredSnapshot;
     includeOrphanCleanup?: boolean;
@@ -273,6 +257,30 @@ export const replaceTmdbDataStatements = async (
 ) => {
   const includeOrphanCleanup = options.includeOrphanCleanup ?? true;
   const includeSharedEntities = options.includeSharedEntities ?? true;
+  const existingCredits =
+    options.existingCredits ??
+    (result !== null || includeOrphanCleanup
+      ? ((await getTmdbCreditSnapshots(env, [movieId])).get(movieId) ?? [])
+      : []);
+  const existingCollectionId = !includeOrphanCleanup
+    ? null
+    : options.existingSnapshot
+      ? options.existingSnapshot.collectionId
+      : options.existingCollectionId !== undefined
+        ? options.existingCollectionId
+        : ((
+            await env.DB.prepare(
+              `SELECT tmdb_collection_id
+               FROM movie_tmdb_data
+               WHERE movie_id = ?`,
+            )
+              .bind(movieId)
+              .first<{ tmdb_collection_id: number | null }>()
+          )?.tmdb_collection_id ?? null);
+  const orphanCandidates = {
+    collectionIds: existingCollectionId === null ? [] : [existingCollectionId],
+    personIds: existingCredits.map((credit) => credit.personId),
+  };
   if (!result) {
     return [
       env.DB.prepare("DELETE FROM movie_credits WHERE movie_id = ?").bind(
@@ -281,7 +289,9 @@ export const replaceTmdbDataStatements = async (
       env.DB.prepare("DELETE FROM movie_tmdb_data WHERE movie_id = ?").bind(
         movieId,
       ),
-      ...(includeOrphanCleanup ? tmdbOrphanCleanupStatements(env) : []),
+      ...(includeOrphanCleanup
+        ? tmdbCandidateOrphanCleanupStatements(env, orphanCandidates)
+        : []),
     ];
   }
 
@@ -290,10 +300,6 @@ export const replaceTmdbDataStatements = async (
   const contractId = await getTmdbMetadataContractId();
   const refreshAfter = addMilliseconds(fetchedAt, REFRESH_AFTER_MS);
   const expiresAt = addMilliseconds(fetchedAt, EXPIRES_AFTER_MS);
-  const existingCredits =
-    options.existingCredits ??
-    (await getTmdbCreditSnapshots(env, [movieId])).get(movieId) ??
-    [];
   const desiredCredits: TmdbCreditSnapshot[] = [
     ...data.cast.map((person, index) => ({
       creditType: "cast" as const,
@@ -428,7 +434,9 @@ export const replaceTmdbDataStatements = async (
     );
   }
   if (includeOrphanCleanup) {
-    statements.push(...tmdbOrphanCleanupStatements(env));
+    statements.push(
+      ...tmdbCandidateOrphanCleanupStatements(env, orphanCandidates),
+    );
   }
   return statements;
 };

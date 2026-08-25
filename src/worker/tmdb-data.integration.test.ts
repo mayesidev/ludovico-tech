@@ -19,7 +19,7 @@ const tmdbEnv = () =>
   }) as AppEnv["Bindings"];
 
 const trackOrphanCleanup = () => {
-  let prepared = 0;
+  const preparedQueries: string[] = [];
   const bindings = tmdbEnv();
   return {
     bindings: {
@@ -32,13 +32,14 @@ const trackOrphanCleanup = () => {
             query.includes("DELETE FROM tmdb_people") ||
             query.includes("DELETE FROM tmdb_collections")
           ) {
-            prepared += 1;
+            preparedQueries.push(query);
           }
           return bindings.DB.prepare(query);
         },
       } as D1Database,
     } as AppEnv["Bindings"],
-    prepared: () => prepared,
+    prepared: () => preparedQueries.length,
+    preparedQueries,
   };
 };
 
@@ -775,6 +776,110 @@ describe("scheduled TMDB enrichment refresh", () => {
         "SELECT tmdb_id FROM tmdb_collections WHERE tmdb_id IN (90, 92) ORDER BY tmdb_id",
       ).all(),
     ).toMatchObject({ results: [{ tmdb_id: 92 }] });
+  });
+
+  it("bounds direct replacement cleanup to the affected title's prior references", async () => {
+    await insertLinkedMovie("direct-candidate", 95);
+    await insertLinkedMovie("direct-shared", 96);
+    const candidate: TmdbMovieResult = {
+      data: {
+        cast: [
+          { id: 601, name: "Shared Person" },
+          { id: 602, name: "Abandoned Person" },
+        ],
+        collection: { id: 100, name: "Abandoned Collection" },
+        directors: [],
+        id: 95,
+        posterPath: null,
+        releaseDate: null,
+        runtimeMinutes: null,
+        title: "Direct Candidate",
+      },
+      fetchedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const shared: TmdbMovieResult = {
+      data: {
+        cast: [{ id: 601, name: "Shared Person" }],
+        collection: { id: 101, name: "Shared Collection" },
+        directors: [],
+        id: 96,
+        posterPath: null,
+        releaseDate: null,
+        runtimeMinutes: null,
+        title: "Direct Shared",
+      },
+      fetchedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const initial = trackOrphanCleanup();
+    await initial.bindings.DB.batch(
+      await replaceTmdbDataStatements(
+        initial.bindings,
+        "direct-candidate",
+        candidate,
+      ),
+    );
+    expect(initial.prepared()).toBe(0);
+    await env.DB.batch(
+      await replaceTmdbDataStatements(env, "direct-shared", shared),
+    );
+
+    const replacement: TmdbMovieResult = {
+      data: {
+        ...candidate.data,
+        cast: [{ id: 603, name: "Replacement Person" }],
+        collection: { id: 102, name: "Replacement Collection" },
+        title: "Direct Replacement",
+      },
+      fetchedAt: timestamp,
+    };
+    const relink = trackOrphanCleanup();
+    await relink.bindings.DB.batch(
+      await replaceTmdbDataStatements(
+        relink.bindings,
+        "direct-candidate",
+        replacement,
+      ),
+    );
+
+    expect(relink.prepared()).toBe(2);
+    expect(relink.preparedQueries).toEqual([
+      expect.stringContaining("WHERE tmdb_id IN"),
+      expect.stringContaining("WHERE tmdb_id IN"),
+    ]);
+    expect(
+      await env.DB.prepare(
+        "SELECT tmdb_id FROM tmdb_people WHERE tmdb_id IN (601, 602, 603) ORDER BY tmdb_id",
+      ).all(),
+    ).toMatchObject({ results: [{ tmdb_id: 601 }, { tmdb_id: 603 }] });
+    expect(
+      await env.DB.prepare(
+        "SELECT tmdb_id FROM tmdb_collections WHERE tmdb_id IN (100, 101, 102) ORDER BY tmdb_id",
+      ).all(),
+    ).toMatchObject({ results: [{ tmdb_id: 101 }, { tmdb_id: 102 }] });
+
+    const unlink = trackOrphanCleanup();
+    await unlink.bindings.DB.batch(
+      await replaceTmdbDataStatements(
+        unlink.bindings,
+        "direct-candidate",
+        null,
+      ),
+    );
+    expect(unlink.prepared()).toBe(2);
+    expect(unlink.preparedQueries).toEqual([
+      expect.stringContaining("WHERE tmdb_id IN"),
+      expect.stringContaining("WHERE tmdb_id IN"),
+    ]);
+    expect(
+      await env.DB.prepare(
+        "SELECT tmdb_id FROM tmdb_people WHERE tmdb_id IN (601, 603) ORDER BY tmdb_id",
+      ).all(),
+    ).toMatchObject({ results: [{ tmdb_id: 601 }] });
+    expect(
+      await env.DB.prepare(
+        "SELECT tmdb_id FROM tmdb_collections WHERE tmdb_id IN (101, 102) ORDER BY tmdb_id",
+      ).all(),
+    ).toMatchObject({ results: [{ tmdb_id: 101 }] });
   });
 
   it("purges expired supplemental data while retaining Library data and the TMDB link", async () => {

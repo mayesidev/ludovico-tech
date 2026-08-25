@@ -544,6 +544,43 @@ describe("Ludovico Tech Worker routes", () => {
     const collectionId = candidate.body.movie.collection_id;
     await env.DB.batch([
       env.DB.prepare(
+        `INSERT INTO tmdb_collections (tmdb_id, name, fetched_at)
+         VALUES (9000, 'Deletion Provider Collection', datetime('now'))`,
+      ),
+      env.DB.prepare(
+        `INSERT INTO tmdb_people (tmdb_id, name, fetched_at)
+         VALUES (9001, 'Deletion Candidate Person', datetime('now'))`,
+      ),
+      env.DB.prepare(
+        `INSERT INTO tmdb_people (tmdb_id, name, fetched_at)
+         VALUES (9002, 'Deletion Shared Person', datetime('now'))`,
+      ),
+      env.DB.prepare(
+        `INSERT INTO movie_tmdb_data
+         (movie_id, tmdb_id, tmdb_collection_id, refresh_after)
+         VALUES (?, 9001, 9000, '1970-01-01T00:00:00.000Z')`,
+      ).bind(candidate.body.movie.id),
+      env.DB.prepare(
+        `INSERT INTO movie_tmdb_data
+         (movie_id, tmdb_id, tmdb_collection_id, refresh_after)
+         VALUES (?, 9002, 9000, '1970-01-01T00:00:00.000Z')`,
+      ).bind(sibling.body.movie.id),
+      env.DB.prepare(
+        `INSERT INTO movie_credits
+         (movie_id, tmdb_person_id, credit_type, position)
+         VALUES (?, 9001, 'cast', 1)`,
+      ).bind(candidate.body.movie.id),
+      env.DB.prepare(
+        `INSERT INTO movie_credits
+         (movie_id, tmdb_person_id, credit_type, position)
+         VALUES (?, 9002, 'cast', 2)`,
+      ).bind(candidate.body.movie.id),
+      env.DB.prepare(
+        `INSERT INTO movie_credits
+         (movie_id, tmdb_person_id, credit_type, position)
+         VALUES (?, 9002, 'cast', 1)`,
+      ).bind(sibling.body.movie.id),
+      env.DB.prepare(
         `INSERT INTO movie_import_sources
          (source_key, movie_id, source_row, submitted_at, prior_viewed, imported_at)
          VALUES ('delete-source', ?, 1, datetime('now'), 0, datetime('now'))`,
@@ -606,6 +643,16 @@ describe("Ludovico Tech Worker routes", () => {
         .bind(candidate.body.movie.id)
         .first(),
     ).toEqual({ action: "deleted" });
+    expect(
+      await env.DB.prepare(
+        "SELECT tmdb_id FROM tmdb_people WHERE tmdb_id IN (9001, 9002) ORDER BY tmdb_id",
+      ).all(),
+    ).toMatchObject({ results: [{ tmdb_id: 9002 }] });
+    expect(
+      await env.DB.prepare(
+        "SELECT tmdb_id FROM tmdb_collections WHERE tmdb_id = 9000",
+      ).first(),
+    ).toEqual({ tmdb_id: 9000 });
 
     const orphaned = await request(`/api/movies/${sibling.body.movie.id}`, {
       method: "DELETE",
@@ -615,6 +662,16 @@ describe("Ludovico Tech Worker routes", () => {
       await env.DB.prepare("SELECT id FROM collections WHERE id = ?")
         .bind(collectionId)
         .first(),
+    ).toBeNull();
+    expect(
+      await env.DB.prepare(
+        "SELECT tmdb_id FROM tmdb_people WHERE tmdb_id = 9002",
+      ).first(),
+    ).toBeNull();
+    expect(
+      await env.DB.prepare(
+        "SELECT tmdb_id FROM tmdb_collections WHERE tmdb_id = 9000",
+      ).first(),
     ).toBeNull();
 
     const watched = await request<{ movie: { id: string } }>("/api/movies", {

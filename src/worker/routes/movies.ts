@@ -20,7 +20,11 @@ import {
 } from "../schemas";
 import { newId, normalizeTitle, now } from "../env";
 import { getTmdbMovie, type TmdbMovieResult } from "../tmdb";
-import { replaceTmdbDataStatements } from "../tmdb-data";
+import {
+  getTmdbCreditSnapshots,
+  replaceTmdbDataStatements,
+  tmdbCandidateOrphanCleanupStatements,
+} from "../tmdb-data";
 import { tmdbErrorResponse } from "./tmdb";
 
 export const registerMovieRoutes = (app: Hono<AppEnv>) => {
@@ -310,7 +314,10 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
 
     if (tmdbResult) {
       statements.push(
-        ...(await replaceTmdbDataStatements(c.env, id, tmdbResult)),
+        ...(await replaceTmdbDataStatements(c.env, id, tmdbResult, {
+          existingCollectionId: null,
+          existingCredits: [],
+        })),
       );
       if (version !== null) {
         statements.push(
@@ -513,7 +520,10 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       movieId,
     );
     const replaceTmdb = tmdbChangeRequested
-      ? await replaceTmdbDataStatements(c.env, movieId, tmdbResult)
+      ? await replaceTmdbDataStatements(c.env, movieId, tmdbResult, {
+          existingCollectionId: existing.tmdb_collection_id,
+          existingCredits: existing.tmdb_id === null ? [] : undefined,
+        })
       : [];
     const statements: D1PreparedStatement[] =
       tmdbChangeRequested && tmdbResult
@@ -623,6 +633,10 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
 
     const timestamp = now();
     const auditId = newId();
+    const existingCredits =
+      existing.tmdb_id === null
+        ? []
+        : ((await getTmdbCreditSnapshots(c.env, [movieId])).get(movieId) ?? []);
     const statements: D1PreparedStatement[] = [
       c.env.DB.prepare(
         `INSERT INTO audit_log
@@ -657,13 +671,13 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         `DELETE FROM movies WHERE id = ?
          AND EXISTS (SELECT 1 FROM audit_log WHERE id = ?)`,
       ).bind(movieId, auditId),
-      c.env.DB.prepare(
-        `DELETE FROM tmdb_people
-         WHERE NOT EXISTS (
-           SELECT 1 FROM movie_credits
-           WHERE movie_credits.tmdb_person_id = tmdb_people.tmdb_id
-         )`,
-      ),
+      ...tmdbCandidateOrphanCleanupStatements(c.env, {
+        collectionIds:
+          existing.tmdb_collection_id === null
+            ? []
+            : [existing.tmdb_collection_id],
+        personIds: existingCredits.map((credit) => credit.personId),
+      }),
     ];
     if (existing.collection_id) {
       statements.push(
