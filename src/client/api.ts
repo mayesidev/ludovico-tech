@@ -171,10 +171,6 @@ export type TmdbRefreshSummary = {
 
 export type TmdbRefreshRunStatus = { schedule: TmdbRefreshSchedule };
 
-export type TmdbRefreshStatus = TmdbRefreshSummary & {
-  items: TmdbRefreshItem[];
-};
-
 export type TmdbRefreshQueueQuery = {
   dateSearch: string;
   direction: "asc" | "desc";
@@ -335,7 +331,6 @@ export const api = {
     ),
   tmdbMovie: (id: number) =>
     request<{ movie: TmdbMovieDetail }>(`/api/tmdb/movies/${id}`),
-  tmdbRefreshStatus: () => request<TmdbRefreshStatus>("/api/tmdb-refresh"),
   tmdbRefreshSummary: () =>
     request<TmdbRefreshSummary>("/api/tmdb-refresh/summary"),
   tmdbRefreshRunStatus: () =>
