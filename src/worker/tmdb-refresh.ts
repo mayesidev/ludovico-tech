@@ -622,13 +622,12 @@ const getStateSortedTmdbRefreshQueue = async (
   stateCounts: TmdbRefreshStateCounts,
   timestamp: string,
 ) => {
-  const states = (
+  const states =
     input.state === "all"
       ? (Object.keys(stateRank) as Array<TmdbRefreshState>).sort(
           (left, right) => stateRank[left] - stateRank[right],
         )
-      : [input.state]
-  );
+      : [input.state];
   if (input.state === "all" && input.direction === "desc") states.reverse();
   const total = states.reduce((sum, state) => sum + stateCounts[state], 0);
   const totalPages = Math.max(1, Math.ceil(total / input.pageSize));
