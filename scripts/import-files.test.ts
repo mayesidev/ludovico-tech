@@ -15,10 +15,15 @@ describe("generated import files", () => {
     writeImportArtifacts(
       directory,
       [{ filename: "chunk-0001.sql", sql: "SELECT 1;\n" }],
-      { collections: 0, movies: 1, ratings: 0, sources: 1 },
+      {
+        collectionMemberships: 0,
+        collections: 0,
+        movies: 1,
+        ratings: 0,
+        tmdbLinks: 0,
+      },
       "2026-08-06T20:00:00.000Z",
       [],
-      { artifactType: "catalog_import", nowShowingStatus: "empty" },
     );
 
     expect(readdirSync(directory).sort()).toEqual([
@@ -33,7 +38,7 @@ describe("generated import files", () => {
     expect(
       JSON.parse(readFileSync(join(directory, "manifest.json"), "utf8")),
     ).toMatchObject({
-      artifactSchemaVersion: 2,
+      artifactSchemaVersion: 3,
       artifactType: "catalog_import",
       chunks: [
         {
@@ -41,6 +46,13 @@ describe("generated import files", () => {
           sha256: createHash("sha256").update("SELECT 1;\n").digest("hex"),
         },
       ],
+      counts: {
+        collectionMemberships: 0,
+        collections: 0,
+        movies: 1,
+        ratings: 0,
+        tmdbLinks: 0,
+      },
       nowShowingStatus: "empty",
     });
   });

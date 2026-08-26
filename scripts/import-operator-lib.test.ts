@@ -33,51 +33,34 @@ afterEach(() => {
   }
 });
 
-const createArtifactBundle = () => {
-  const root = temporaryDirectory();
-  const catalogDirectory = join(root, "catalog");
-  const metadataDirectory = join(root, "metadata");
+const createArtifact = () => {
+  const directory = temporaryDirectory();
   writeImportArtifacts(
-    catalogDirectory,
+    directory,
     [
       { filename: "chunk-0001.sql", sql: "SELECT 'catalog one';\n" },
       { filename: "chunk-0002.sql", sql: "SELECT 'catalog two';\n" },
     ],
-    { collections: 1, movies: 2, ratings: 1, sources: 2 },
-    "2026-08-10T12:00:00.000Z",
-    [{ code: "COLLECTION_INDICATOR_UNCERTAIN", row: 2, severity: "warning" }],
-    { artifactType: "catalog_import", nowShowingStatus: "ready" },
-  );
-  writeImportArtifacts(
-    metadataDirectory,
-    [{ filename: "chunk-0001.sql", sql: "SELECT 'metadata';\n" }],
-    { collections: 0, movies: 1, ratings: 0, sources: 0 },
-    "2026-08-10T12:00:00.000Z",
+    {
+      collectionMemberships: 2,
+      collections: 1,
+      movies: 2,
+      ratings: 1,
+      tmdbLinks: 1,
+    },
+    "2026-08-25T12:00:00.000Z",
     [],
-    { artifactType: "tmdb_metadata", nowShowingStatus: null },
   );
-  return { catalogDirectory, metadataDirectory };
-};
-
-const loadSyntheticBundle = () => {
-  const directories = createArtifactBundle();
-  return {
-    ...directories,
-    bundle: loadImportBundle(
-      directories.catalogDirectory,
-      directories.metadataDirectory,
-    ),
-  };
+  return directory;
 };
 
 const productionOptions = (
-  directories: ReturnType<typeof createArtifactBundle>,
+  catalogDirectory: string,
 ): ImportOperatorOptions => ({
-  catalogDirectory: directories.catalogDirectory,
+  catalogDirectory,
   database: "ludovico-tech-production",
   environment: "production",
   execute: true,
-  metadataDirectory: directories.metadataDirectory,
   persistTo: null,
 });
 
@@ -87,12 +70,12 @@ const d1Response = (results: Array<Record<string, unknown>>) =>
 const summary = (overrides: Record<string, unknown> = {}) =>
   d1Response([
     {
+      collection_memberships: 0,
       collections: 0,
       movies: 0,
       now_showing_status: "empty",
       ratings: 0,
-      sources: 0,
-      tmdb_movies: 0,
+      tmdb_links: 0,
       ...overrides,
     },
   ]);
@@ -104,184 +87,154 @@ const migrationResponse = () =>
       .map((name) => ({ name })),
   );
 
-describe("private import artifact preflight", () => {
-  it("loads only a complete, ordered, checksummed artifact pair", () => {
-    const { bundle } = loadSyntheticBundle();
-
+describe("catalog import artifact preflight", () => {
+  it("loads only a complete ordered checksummed artifact", () => {
+    const bundle = loadImportBundle(createArtifact());
     expect(bundle.catalog.chunks.map((chunk) => chunk.filename)).toEqual([
       "chunk-0001.sql",
       "chunk-0002.sql",
     ]);
     expect(importPreflightSummary(bundle)).toBe(
-      "Preflight passed: 2 catalog chunks, 1 metadata chunk, 2 movies, 1 collection, 1 rating; diagnostics: COLLECTION_INDICATOR_UNCERTAIN",
+      "Preflight passed: 2 catalog chunks, 2 movies, 1 collection, 2 collection memberships, 1 rating, 1 TMDB link",
     );
   });
 
-  it("accepts a catalog-only import for Worker-managed TMDB enrichment", () => {
-    const { catalogDirectory } = createArtifactBundle();
-    const bundle = loadImportBundle(catalogDirectory);
-
-    expect(bundle.metadata).toBeNull();
-    expect(importPreflightSummary(bundle)).toBe(
-      "Preflight passed: 2 catalog chunks, 2 movies, 1 collection, 1 rating; diagnostics: COLLECTION_INDICATOR_UNCERTAIN",
-    );
-  });
-
-  it("rejects a chunk whose private contents changed after generation", () => {
-    const directories = createArtifactBundle();
-    writeFileSync(
-      join(directories.catalogDirectory, "chunk-0001.sql"),
-      "SELECT 'changed';\n",
+  it("rejects changed, missing, or out-of-order chunks", () => {
+    const changed = createArtifact();
+    writeFileSync(join(changed, "chunk-0001.sql"), "SELECT 'changed';\n");
+    expect(() => loadImportBundle(changed)).toThrow(
+      "catalog_import chunk chunk-0001.sql failed its checksum",
     );
 
-    expect(() =>
-      loadImportBundle(
-        directories.catalogDirectory,
-        directories.metadataDirectory,
-      ),
-    ).toThrow("catalog_import chunk chunk-0001.sql failed its checksum");
-  });
+    const missing = createArtifact();
+    rmSync(join(missing, "chunk-0002.sql"));
+    expect(() => loadImportBundle(missing)).toThrow(
+      "catalog_import chunks do not match the manifest",
+    );
 
-  it("rejects out-of-order manifest chunks", () => {
-    const directories = createArtifactBundle();
-    const manifestPath = join(directories.catalogDirectory, "manifest.json");
+    const reordered = createArtifact();
+    const manifestPath = join(reordered, "manifest.json");
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
       chunks: unknown[];
     };
     manifest.chunks.reverse();
     writeFileSync(manifestPath, JSON.stringify(manifest));
-
-    expect(() =>
-      loadImportBundle(
-        directories.catalogDirectory,
-        directories.metadataDirectory,
-      ),
-    ).toThrow("catalog_import chunk sequence is not contiguous");
-  });
-
-  it("rejects a chunk file that is not declared by the manifest", () => {
-    const directories = createArtifactBundle();
-    writeFileSync(
-      join(directories.catalogDirectory, "chunk-0003.sql"),
-      "SELECT 'undeclared';\n",
+    expect(() => loadImportBundle(reordered)).toThrow(
+      "catalog_import chunk sequence is not contiguous",
     );
-
-    expect(() =>
-      loadImportBundle(
-        directories.catalogDirectory,
-        directories.metadataDirectory,
-      ),
-    ).toThrow("catalog_import chunks do not match the manifest");
   });
 
-  it("rejects an invalid or failed validation report", () => {
-    const directories = createArtifactBundle();
+  it("rejects obsolete artifact and provider-metadata contracts", () => {
+    for (const mutation of [
+      (manifest: Record<string, unknown>) => {
+        manifest.artifactSchemaVersion = 2;
+      },
+      (manifest: Record<string, unknown>) => {
+        manifest.artifactType = "tmdb_metadata";
+      },
+      (manifest: Record<string, unknown>) => {
+        manifest.nowShowingStatus = "ready";
+      },
+    ]) {
+      const directory = createArtifact();
+      const path = join(directory, "manifest.json");
+      const manifest = JSON.parse(readFileSync(path, "utf8")) as Record<
+        string,
+        unknown
+      >;
+      mutation(manifest);
+      writeFileSync(path, JSON.stringify(manifest));
+      expect(() => loadImportBundle(directory)).toThrow(
+        "catalog_import manifest is invalid",
+      );
+    }
+  });
+
+  it("rejects failed validation and inconsistent durable counts", () => {
+    const invalidReport = createArtifact();
     writeFileSync(
-      join(directories.catalogDirectory, "validation-report.json"),
+      join(invalidReport, "validation-report.json"),
       JSON.stringify({
-        diagnostics: [{ code: "SOURCE_EMPTY", row: null, severity: "error" }],
-        schemaVersion: 3,
+        diagnostics: [{ code: "INVALID_TITLE", row: 2, severity: "error" }],
+        schemaVersion: 1,
         valid: false,
       }),
     );
+    expect(() => loadImportBundle(invalidReport)).toThrow(
+      "catalog_import validation report is invalid or failed",
+    );
 
-    expect(() =>
-      loadImportBundle(
-        directories.catalogDirectory,
-        directories.metadataDirectory,
-      ),
-    ).toThrow("catalog_import validation report is invalid or failed");
-  });
-
-  it("rejects an obsolete catalog artifact that can restore pending order", () => {
-    const directories = createArtifactBundle();
-    const manifestPath = join(directories.catalogDirectory, "manifest.json");
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<
-      string,
-      unknown
-    >;
-    manifest.artifactSchemaVersion = 1;
-    manifest.nowShowingStatus = "pending_order";
-    writeFileSync(manifestPath, JSON.stringify(manifest));
-
-    expect(() =>
-      loadImportBundle(
-        directories.catalogDirectory,
-        directories.metadataDirectory,
-      ),
-    ).toThrow("catalog_import manifest is invalid");
+    const invalidCounts = createArtifact();
+    const path = join(invalidCounts, "manifest.json");
+    const manifest = JSON.parse(readFileSync(path, "utf8")) as {
+      counts: { tmdbLinks: number };
+    };
+    manifest.counts.tmdbLinks = 3;
+    writeFileSync(path, JSON.stringify(manifest));
+    expect(() => loadImportBundle(invalidCounts)).toThrow(
+      "Import artifact counts are inconsistent",
+    );
   });
 });
 
-describe("private import target confirmation", () => {
-  const requiredArguments = [
-    "--environment",
-    "production",
-    "--database",
-    "ludovico-tech-production",
-    "--catalog",
-    "private-catalog",
-    "--metadata",
-    "private-metadata",
-  ];
-
-  it("defaults to a no-contact preflight", () => {
-    expect(parseImportOperatorArguments(requiredArguments)).toMatchObject({
-      database: "ludovico-tech-production",
-      environment: "production",
-      execute: false,
-    });
-  });
-
-  it("does not require a TMDB metadata artifact", () => {
-    expect(
-      parseImportOperatorArguments(
-        requiredArguments.slice(0, requiredArguments.indexOf("--metadata")),
-      ),
-    ).toMatchObject({
-      execute: false,
-      metadataDirectory: null,
-    });
-  });
-
-  it("rejects a database name that does not exactly match the environment", () => {
-    expect(() =>
-      parseImportOperatorArguments(
-        requiredArguments.map((value) =>
-          value === "ludovico-tech-production"
-            ? "ludovico-tech-staging"
-            : value,
-        ),
-      ),
-    ).toThrow("Database confirmation must be ludovico-tech-production");
-  });
-
-  it("requires isolated persistence for a local execution", () => {
+describe("catalog import target confirmation", () => {
+  it("requires an exact known environment and database pair", () => {
     expect(() =>
       parseImportOperatorArguments([
-        ...requiredArguments.map((value) =>
-          value === "production"
-            ? "development"
-            : value === "ludovico-tech-production"
-              ? "ludovico-tech-development"
-              : value,
-        ),
+        "--environment",
+        "production",
+        "--database",
+        "ludovico-tech-staging",
+        "--catalog",
+        "artifact",
+      ]),
+    ).toThrow("Database confirmation must be ludovico-tech-production");
+    expect(() =>
+      parseImportOperatorArguments([
+        "--environment",
+        "unknown",
+        "--database",
+        "ludovico-tech-unknown",
+        "--catalog",
+        "artifact",
+      ]),
+    ).toThrow("Environment unknown is not configured for catalog imports");
+  });
+
+  it("requires isolated persistence for local execution", () => {
+    expect(() =>
+      parseImportOperatorArguments([
+        "--environment",
+        "development",
+        "--database",
+        "ludovico-tech-development",
+        "--catalog",
+        "artifact",
         "--execute",
       ]),
-    ).toThrow(
-      "Development execution requires an isolated --persist-to directory",
-    );
+    ).toThrow("Development execution requires an isolated --persist-to");
+  });
+
+  it("rejects removed metadata and unknown options", () => {
+    expect(() =>
+      parseImportOperatorArguments([
+        "--environment",
+        "production",
+        "--database",
+        "ludovico-tech-production",
+        "--catalog",
+        "artifact",
+        "--metadata",
+        "provider-artifact",
+      ]),
+    ).toThrow("Unknown or repeated option --metadata");
   });
 });
 
-describe("private import execution", () => {
-  it("applies a catalog without requiring a metadata phase", async () => {
-    const directories = createArtifactBundle();
-    const bundle = loadImportBundle(directories.catalogDirectory);
-    const options = {
-      ...productionOptions(directories),
-      metadataDirectory: null,
-    };
+describe("catalog import execution", () => {
+  it("verifies migrations and emptiness before applying and verifies every durable count", async () => {
+    const directory = createArtifact();
+    const bundle = loadImportBundle(directory);
     const calls: Array<{ arguments_: string[]; executable: string }> = [];
     let summaryCall = 0;
     const runner: CommandRunner = async (executable, arguments_) => {
@@ -295,48 +248,11 @@ describe("private import execution", () => {
         return summaryCall === 1
           ? summary()
           : summary({
+              collection_memberships: 2,
               collections: 1,
               movies: 2,
-              now_showing_status: "ready",
               ratings: 1,
-              sources: 2,
-            });
-      }
-      return "[]";
-    };
-
-    await executeImportBundle(bundle, options, runner, vi.fn());
-
-    expect(
-      calls.filter((call) => call.arguments_.includes("--file")),
-    ).toHaveLength(2);
-  });
-
-  it("verifies the target, applies catalog before metadata, and verifies counts", async () => {
-    const directories = createArtifactBundle();
-    const bundle = loadImportBundle(
-      directories.catalogDirectory,
-      directories.metadataDirectory,
-    );
-    const calls: Array<{ arguments_: string[]; executable: string }> = [];
-    let summaryCall = 0;
-    const runner: CommandRunner = async (executable, arguments_) => {
-      calls.push({ arguments_, executable });
-      if (arguments_.length === 1) return "";
-      if (arguments_.includes("SELECT name FROM d1_migrations ORDER BY id")) {
-        return migrationResponse();
-      }
-      if (arguments_.includes("--command")) {
-        summaryCall += 1;
-        return summaryCall === 1
-          ? summary()
-          : summary({
-              collections: 1,
-              movies: 2,
-              now_showing_status: "ready",
-              ratings: 1,
-              sources: 2,
-              tmdb_movies: 1,
+              tmdb_links: 1,
             });
       }
       return "[]";
@@ -345,92 +261,133 @@ describe("private import execution", () => {
 
     await executeImportBundle(
       bundle,
-      productionOptions(directories),
+      productionOptions(directory),
       runner,
       log,
     );
 
     expect(calls[0]).toEqual({
-      arguments_: ["config:check:production"],
+      arguments_: ["config:check"],
       executable: "pnpm",
     });
-    const fileCalls = calls.filter((call) =>
-      call.arguments_.includes("--file"),
-    );
     expect(
-      fileCalls.map((call) =>
-        basename(call.arguments_[call.arguments_.indexOf("--file") + 1]),
-      ),
-    ).toEqual(["chunk-0001.sql", "chunk-0002.sql", "chunk-0001.sql"]);
-    for (const call of calls.slice(1)) {
-      expect(call.arguments_).toEqual(
-        expect.arrayContaining([
-          "--remote",
-          "--env",
-          "production",
-          "--experimental-auto-create=false",
-          "--experimental-provision=false",
-        ]),
-      );
-    }
+      calls.filter((call) => call.arguments_.includes("--file")),
+    ).toHaveLength(2);
+    expect(
+      calls
+        .filter((call) => call.arguments_.includes("--file"))
+        .map((call) => basename(call.arguments_.at(-1) as string)),
+    ).toEqual(["chunk-0001.sql", "chunk-0002.sql"]);
     expect(log).toHaveBeenLastCalledWith(
-      "Verified 2 movies, 1 collections, and 1 ratings",
+      "Verified 2 movies, 1 collection, 2 collection memberships, 1 rating, and 1 TMDB link",
     );
   });
 
-  it("refuses to apply any chunk to a non-empty target", async () => {
-    const { bundle, ...directories } = loadSyntheticBundle();
-    const runner = vi.fn<CommandRunner>(async (_executable, arguments_) => {
+  it("does not contact the database during preflight", async () => {
+    const directory = createArtifact();
+    const options = { ...productionOptions(directory), execute: false };
+    const runner = vi.fn<CommandRunner>();
+    await executeImportBundle(
+      loadImportBundle(directory),
+      options,
+      runner,
+      vi.fn(),
+    );
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("stops before writes when migrations or empty-target checks fail", async () => {
+    const directory = createArtifact();
+    const bundle = loadImportBundle(directory);
+    const missingMigration: CommandRunner = async (_executable, arguments_) => {
+      if (arguments_.length === 1) return "";
+      if (arguments_.includes("SELECT name FROM d1_migrations ORDER BY id")) {
+        return d1Response([]);
+      }
+      return summary();
+    };
+    await expect(
+      executeImportBundle(
+        bundle,
+        productionOptions(directory),
+        missingMigration,
+        vi.fn(),
+      ),
+    ).rejects.toThrow("Migration verification failed");
+
+    const occupied: CommandRunner = async (_executable, arguments_) => {
       if (arguments_.length === 1) return "";
       if (arguments_.includes("SELECT name FROM d1_migrations ORDER BY id")) {
         return migrationResponse();
       }
       return summary({ movies: 1 });
-    });
-
+    };
     await expect(
       executeImportBundle(
         bundle,
-        productionOptions(directories),
-        runner,
+        productionOptions(directory),
+        occupied,
         vi.fn(),
       ),
     ).rejects.toThrow("not an empty migrated import target");
-    expect(
-      runner.mock.calls.some(([, arguments_]) => arguments_.includes("--file")),
-    ).toBe(false);
   });
 
-  it("reports a public-safe stop instruction after a partial failure", async () => {
-    const { bundle, ...directories } = loadSyntheticBundle();
-    const privateProviderMessage = "private source heading and value";
-    const runner: CommandRunner = async (_executable, arguments_) => {
+  it("reports a stop condition after a write or postcheck failure", async () => {
+    const directory = createArtifact();
+    const bundle = loadImportBundle(directory);
+    let summaryCall = 0;
+    const failedChunk: CommandRunner = async (_executable, arguments_) => {
       if (arguments_.length === 1) return "";
       if (arguments_.includes("SELECT name FROM d1_migrations ORDER BY id")) {
         return migrationResponse();
       }
-      if (arguments_.includes("--file")) {
-        throw new Error(privateProviderMessage);
-      }
-      return summary();
+      if (arguments_.includes("--command")) return summary();
+      throw new Error("write failed");
     };
-
-    let caught: unknown;
-    try {
-      await executeImportBundle(
+    await expect(
+      executeImportBundle(
         bundle,
-        productionOptions(directories),
+        productionOptions(directory),
+        failedChunk,
+        vi.fn(),
+      ),
+    ).rejects.toThrow("do not rerun against this target");
+
+    const failedPostcheck: CommandRunner = async (_executable, arguments_) => {
+      if (arguments_.length === 1) return "";
+      if (arguments_.includes("SELECT name FROM d1_migrations ORDER BY id")) {
+        return migrationResponse();
+      }
+      if (arguments_.includes("--command")) {
+        summaryCall += 1;
+        return summaryCall === 1 ? summary() : summary({ movies: 2 });
+      }
+      return "[]";
+    };
+    await expect(
+      executeImportBundle(
+        bundle,
+        productionOptions(directory),
+        failedPostcheck,
+        vi.fn(),
+      ),
+    ).rejects.toThrow("Post-import database verification failed; do not rerun");
+  });
+
+  it("maps command failures to public-safe operator errors", async () => {
+    const directory = createArtifact();
+    const runner: CommandRunner = async () => {
+      throw new Error("private command detail");
+    };
+    await expect(
+      executeImportBundle(
+        loadImportBundle(directory),
+        productionOptions(directory),
         runner,
         vi.fn(),
-      );
-    } catch (error) {
-      caught = error;
-    }
-
-    expect(caught).toBeInstanceOf(ImportOperatorError);
-    expect(String(caught)).toContain(
-      "do not rerun against this target without a reviewed pre-release reset",
+      ),
+    ).rejects.toEqual(
+      new ImportOperatorError("Target configuration validation failed"),
     );
-    expect(String(caught)).not.toContain(privateProviderMessage);
   });
 });
