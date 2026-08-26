@@ -43,15 +43,12 @@ describe("Ludovico Tech Worker routes", () => {
     await env.DB.batch([
       ...movies.map((movie, index) =>
         env.DB.prepare(
-          `INSERT INTO movies
-           (id, title, title_normalized, added_at, updated_at)
-           VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO movies (id, title, added_at)
+           VALUES (?, ?, ?)`,
         ).bind(
           movie.id,
           movie.title,
-          movie.title.toLowerCase(),
           `2026-08-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
-          "2026-08-24T00:00:00.000Z",
         ),
       ),
       ...movies.map((movie, index) =>
@@ -63,13 +60,10 @@ describe("Ludovico Tech Worker routes", () => {
       ),
       ...movies.slice(0, 6).map((movie, index) =>
         env.DB.prepare(
-          `INSERT INTO ratings
-           (id, movie_id, recorded_at, watched_at, score, phrase, source)
-           VALUES (?, ?, ?, ?, ?, ?, 'application')`,
+          `INSERT INTO ratings (movie_id, watched_at, score, phrase)
+           VALUES (?, ?, ?, ?)`,
         ).bind(
-          `home-rating-${index}`,
           movie.id,
-          `2026-08-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
           `2026-08-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
           index / 2,
           `History ${index}`,
@@ -113,26 +107,18 @@ describe("Ludovico Tech Worker routes", () => {
     await env.DB.batch([
       ...movies.map((movie, index) =>
         env.DB.prepare(
-          `INSERT INTO movies
-           (id, title, title_normalized, added_at, updated_at)
-           VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO movies (id, title, added_at)
+           VALUES (?, ?, ?)`,
         ).bind(
           movie.id,
           movie.title,
-          movie.title.toLowerCase(),
           `2026-07-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
-          "2026-08-24T00:00:00.000Z",
         ),
       ),
       env.DB.prepare(
-        `INSERT INTO ratings
-         (id, movie_id, recorded_at, watched_at, score, phrase, source)
-         VALUES ('library-zero-rating', ?, ?, ?, 0, 'Zero elements', 'application')`,
-      ).bind(
-        movies[29].id,
-        "2026-08-24T00:00:00.000Z",
-        "2026-08-24T00:00:00.000Z",
-      ),
+        `INSERT INTO ratings (movie_id, watched_at, score, phrase)
+         VALUES (?, ?, 0, 'Zero elements')`,
+      ).bind(movies[29].id, "2026-08-24T00:00:00.000Z"),
       env.DB.prepare(
         `INSERT INTO movie_tmdb_data
          (movie_id, tmdb_id, release_date, refresh_after)
@@ -581,11 +567,6 @@ describe("Ludovico Tech Worker routes", () => {
          VALUES (?, 9002, 'cast', 1)`,
       ).bind(sibling.body.movie.id),
       env.DB.prepare(
-        `INSERT INTO movie_import_sources
-         (source_key, movie_id, source_row, submitted_at, prior_viewed, imported_at)
-         VALUES ('delete-source', ?, 1, datetime('now'), 0, datetime('now'))`,
-      ).bind(candidate.body.movie.id),
-      env.DB.prepare(
         `INSERT INTO rolls
          (id, rolled_movie_id, actual_movie_id, collection_id, created_at)
          VALUES ('delete-roll', ?, ?, ?, datetime('now'))`,
@@ -610,11 +591,6 @@ describe("Ludovico Tech Worker routes", () => {
       await env.DB.prepare("SELECT id FROM movies WHERE id = ?")
         .bind(candidate.body.movie.id)
         .first(),
-    ).toBeNull();
-    expect(
-      await env.DB.prepare(
-        "SELECT source_key FROM movie_import_sources WHERE source_key = 'delete-source'",
-      ).first(),
     ).toBeNull();
     expect(
       await env.DB.prepare(

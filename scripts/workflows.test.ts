@@ -52,7 +52,7 @@ describe("complete CI and deployment gates", () => {
     );
   });
 
-  it("deploys exact releases to isolated staging only when provisioned", () => {
+  it("cuts over exact staging releases behind verified maintenance mode", () => {
     const source = workflow("deploy-staging.yml");
     const nodeSetup = source.indexOf("Set up Node.js");
     const tagValidation = source.indexOf("validate-tag");
@@ -61,9 +61,15 @@ describe("complete CI and deployment gates", () => {
     );
     const configGate = source.indexOf("pnpm config:check:staging");
     const build = source.indexOf("pnpm build:staging");
+    const maintenanceDeploy = source.indexOf(
+      "Deploy exact release in maintenance mode",
+    );
+    const maintenanceGate = source.indexOf(
+      "Verify maintenance mode owns staging traffic",
+    );
     const migration = source.indexOf("wrangler d1 migrations apply DB");
     const migrationGate = source.indexOf("check-migrations");
-    const deploy = source.indexOf("wrangler deploy \\");
+    const deploy = source.indexOf("Deploy exact release commit");
     const smoke = source.indexOf(
       '"$STAGING_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" staging',
       deploy,
@@ -83,7 +89,9 @@ describe("complete CI and deployment gates", () => {
       '"$STAGING_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" staging',
     );
     expect(source).toContain("Required staging secret %s is not configured");
-    expect(source).toContain('--secrets-file "$secrets_file"');
+    expect(source).toContain(
+      '--secrets-file "$RUNNER_TEMP/staging-secrets.json"',
+    );
     expect(source).toContain(
       "TMDB_READ_ACCESS_TOKEN: ${{ secrets.TMDB_READ_ACCESS_TOKEN }}",
     );
@@ -99,11 +107,17 @@ describe("complete CI and deployment gates", () => {
     expect(configGate).toBeGreaterThan(tagValidation);
     expect(releaseCheckout).toBeGreaterThan(tagValidation);
     expect(build).toBeGreaterThan(configGate);
+    expect(maintenanceDeploy).toBeGreaterThan(build);
+    expect(maintenanceGate).toBeGreaterThan(maintenanceDeploy);
     expect(migration).toBeGreaterThan(releaseCheckout);
-    expect(migration).toBeGreaterThan(build);
+    expect(migration).toBeGreaterThan(maintenanceGate);
     expect(migrationGate).toBeGreaterThan(migration);
     expect(deploy).toBeGreaterThan(migrationGate);
     expect(smoke).toBeGreaterThan(deploy);
+    expect(source).toContain('--var "MAINTENANCE_MODE:true"');
+    expect(source).toContain('--var "MAINTENANCE_MODE:false"');
+    expect(source).toContain("verify-maintenance");
+    expect(source).toContain("steps.maintenance.outcome == 'success'");
   });
 
   it("cuts over an exact release behind verified maintenance mode", () => {

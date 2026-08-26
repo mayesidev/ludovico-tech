@@ -68,15 +68,12 @@ const trackDatabaseCalls = () => {
 
 const insertLinkedMovie = async (id: string, tmdbId: number) => {
   await env.DB.prepare(
-    `INSERT INTO movies
-     (id, title, title_normalized, added_at, updated_at, imdb_id)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO movies (id, title, added_at, imdb_id)
+     VALUES (?, ?, ?, ?)`,
   )
     .bind(
       id,
       `Library ${id}`,
-      `library ${id}`,
-      "2026-01-01T00:00:00.000Z",
       "2026-01-01T00:00:00.000Z",
       `tt${String(tmdbId).padStart(7, "0")}`,
     )
@@ -178,18 +175,10 @@ describe("scheduled TMDB enrichment refresh", () => {
       .bind("library-collection", "scheduled-movie")
       .run();
     await env.DB.prepare(
-      `INSERT INTO ratings
-       (id, movie_id, recorded_at, watched_at, score, phrase, source)
-       VALUES (?, ?, ?, ?, ?, ?, 'application')`,
+      `INSERT INTO ratings (movie_id, watched_at, score, phrase)
+       VALUES (?, ?, ?, ?)`,
     )
-      .bind(
-        "scheduled-rating",
-        "scheduled-movie",
-        timestamp,
-        timestamp,
-        4.5,
-        "Library rating",
-      )
+      .bind("scheduled-movie", timestamp, 4.5, "Library rating")
       .run();
     const fetchMock = vi.fn().mockResolvedValue(responseFor(42));
     vi.stubGlobal("fetch", fetchMock);
@@ -637,11 +626,10 @@ describe("scheduled TMDB enrichment refresh", () => {
 
   it("does not synthesize TMDB links from Library records", async () => {
     await env.DB.prepare(
-      `INSERT INTO movies
-       (id, title, title_normalized, added_at, updated_at)
-       VALUES ('library-only', 'Library Only', 'library only', ?, ?)`,
+      `INSERT INTO movies (id, title, added_at)
+       VALUES ('library-only', 'Library Only', ?)`,
     )
-      .bind(timestamp, timestamp)
+      .bind(timestamp)
       .run();
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);

@@ -17,10 +17,10 @@ const request = (path: string, body?: unknown, method = "POST") =>
 
 const insertMovie = async (id: string, title: string) => {
   await env.DB.prepare(
-    `INSERT INTO movies (id, title, title_normalized, added_at, updated_at)
-     VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO movies (id, title, added_at)
+     VALUES (?, ?, ?)`,
   )
-    .bind(id, title, title.toLowerCase(), timestamp, timestamp)
+    .bind(id, title, timestamp)
     .run();
 };
 
@@ -84,7 +84,7 @@ describe("atomic catalog mutations", () => {
     });
 
     const rating = await env.DB.prepare(
-      "SELECT id FROM ratings WHERE movie_id = ?",
+      "SELECT movie_id FROM ratings WHERE movie_id = ?",
     )
       .bind(movieId)
       .first();
@@ -273,17 +273,9 @@ describe("atomic catalog mutations", () => {
         "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
       ).bind(collectionId, nextId, 2),
       env.DB.prepare(
-        `INSERT INTO ratings
-         (id, movie_id, recorded_at, watched_at, score, phrase, source)
-         VALUES (?, ?, ?, ?, ?, ?, 'application')`,
-      ).bind(
-        "30000000-0000-4000-8000-000000000004",
-        currentId,
-        timestamp,
-        timestamp,
-        4,
-        "Ready to continue",
-      ),
+        `INSERT INTO ratings (movie_id, watched_at, score, phrase)
+         VALUES (?, ?, ?, ?)`,
+      ).bind(currentId, timestamp, 4, "Ready to continue"),
       env.DB.prepare(
         `UPDATE now_showing
          SET movie_id = ?, rolled_movie_id = ?, collection_id = ?,

@@ -27,7 +27,6 @@ describe("D1 index alignment", () => {
       expect.arrayContaining([
         "idx_auth_sessions_expires_at",
         "idx_movie_credits_person",
-        "idx_movie_import_sources_movie",
         "idx_movie_tmdb_data_collection",
         "idx_movie_tmdb_data_due_queue",
         "idx_movie_tmdb_data_expiration",
@@ -86,38 +85,16 @@ describe("D1 index alignment", () => {
     expect(plan.some((detail) => detail.includes("TEMP B-TREE"))).toBe(false);
   });
 
-  it("uses the unique IMDb lookup and indexes imported rows for cascades", async () => {
+  it("uses the unique IMDb lookup", async () => {
     const plan = await queryPlan(
-      `SELECT id FROM movies
-       WHERE imdb_id = ? AND title_normalized = ? LIMIT 1`,
-      ["tt0000001", "normalized title"],
+      "SELECT id FROM movies WHERE imdb_id = ? LIMIT 1",
+      ["tt0000001"],
     );
 
     expect(plan).toContain(
       "SEARCH movies USING INDEX sqlite_autoindex_movies_2 (imdb_id=?)",
     );
     expect(plan.some((detail) => detail.startsWith("SCAN "))).toBe(false);
-
-    const importIndex = (
-      await env.DB.prepare(
-        "PRAGMA index_info(idx_movie_import_sources_movie)",
-      ).all<{ name: string }>()
-    ).results.map(({ name }) => name);
-    const importForeignKeys = (
-      await env.DB.prepare(
-        "PRAGMA foreign_key_list(movie_import_sources)",
-      ).all<{ from: string; on_delete: string; table: string }>()
-    ).results;
-    expect(importIndex).toEqual(["movie_id"]);
-    expect(importForeignKeys).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          from: "movie_id",
-          on_delete: "CASCADE",
-          table: "movies",
-        }),
-      ]),
-    );
   });
 
   it("searches selective expiry, cleanup, and catalog paths", async () => {
@@ -210,7 +187,7 @@ describe("D1 index alignment", () => {
        LEFT JOIN collection_movies
          ON collection_movies.movie_id = movies.id
        LEFT JOIN ratings ON ratings.movie_id = movies.id
-       WHERE ratings.id IS NULL AND movies.rowid >= ?
+       WHERE ratings.movie_id IS NULL AND movies.rowid >= ?
        ORDER BY movies.rowid ASC LIMIT 1`,
       [1],
     );

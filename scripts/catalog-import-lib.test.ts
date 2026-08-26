@@ -39,8 +39,11 @@ describe("catalog import template", () => {
       tmdbLinks: 0,
     });
     expect(plan.statements.join("\n")).toContain(importedAt);
+    expect(plan.statements[0]).toMatch(
+      /^INSERT INTO movies \(id, title, added_at\) VALUES /,
+    );
     expect(plan.statements.join("\n")).not.toMatch(
-      /movie_import_sources|prior_viewed|now_showing/,
+      /movie_import_sources|prior_viewed|title_normalized|added_by|updated_by|now_showing/,
     );
   });
 
@@ -65,9 +68,12 @@ describe("catalog import template", () => {
     });
     expect(sql).toContain("INSERT INTO movie_tmdb_data");
     expect(sql).toContain("(movie_id, tmdb_id, refresh_after)");
+    expect(sql).toContain(
+      "INSERT INTO ratings (movie_id, watched_at, score, phrase)",
+    );
     expect(sql).toContain("'1970-01-01T00:00:00.000Z'");
     expect(sql).not.toMatch(
-      /poster_path|runtime_minutes|tmdb_collections|tmdb_people|movie_credits|fetched_at|contract_id/,
+      /poster_path|runtime_minutes|tmdb_collections|tmdb_people|movie_credits|fetched_at|contract_id|recorded_at|recorded_by|legacy_import/,
     );
   });
 
