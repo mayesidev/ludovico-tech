@@ -176,7 +176,7 @@ export const getRemainingCollectionMovies = async (
 ) => {
   const result = await env.DB.prepare(
     `${movieSelect}
-       WHERE collection_movies.collection_id = ? AND ratings.id IS NULL
+       WHERE collection_movies.collection_id = ? AND ratings.movie_id IS NULL
        ORDER BY
          CASE WHEN collections.order_confirmed = 1 THEN collection_movies.position END ASC,
          CASE WHEN collections.order_confirmed = 0 THEN movies.added_at END ASC,
@@ -238,13 +238,13 @@ const getRandomHomeMovieSlice = async (
 export const getWatchedHistory = async (env: AppEnv["Bindings"]) => {
   const latest = await env.DB.prepare(
     `${homeMovieSelect}
-     WHERE ratings.id IS NOT NULL AND ratings.watched_at IS NOT NULL
+     WHERE ratings.movie_id IS NOT NULL AND ratings.watched_at IS NOT NULL
      ORDER BY ratings.watched_at DESC, ratings.movie_id ASC
      LIMIT 1`,
   ).first<HomeMovieRow>();
   const previous = await getRandomHomeMovieSlice(
     env,
-    `ratings.id IS NOT NULL${latest ? " AND movies.id <> ?" : ""}`,
+    `ratings.movie_id IS NOT NULL${latest ? " AND movies.id <> ?" : ""}`,
     latest ? [latest.id] : [],
     latest ? 3 : 4,
   );
@@ -261,7 +261,7 @@ export const getRandomUnwatchedMovie = async (env: AppEnv["Bindings"]) => {
     LEFT JOIN ratings ON ratings.movie_id = movies.id`;
   const afterPivot = await env.DB.prepare(
     `${select}
-     WHERE ratings.id IS NULL AND movies.rowid >= ?
+     WHERE ratings.movie_id IS NULL AND movies.rowid >= ?
      ORDER BY movies.rowid ASC LIMIT 1`,
   )
     .bind(pivot)
@@ -269,7 +269,7 @@ export const getRandomUnwatchedMovie = async (env: AppEnv["Bindings"]) => {
   if (afterPivot) return afterPivot;
   return env.DB.prepare(
     `${select}
-     WHERE ratings.id IS NULL AND movies.rowid < ?
+     WHERE ratings.movie_id IS NULL AND movies.rowid < ?
      ORDER BY movies.rowid ASC LIMIT 1`,
   )
     .bind(pivot)
@@ -297,7 +297,7 @@ export const hasRemainingCollectionMovie = async (
       `SELECT 1
        FROM collection_movies
        LEFT JOIN ratings ON ratings.movie_id = collection_movies.movie_id
-       WHERE collection_movies.collection_id = ? AND ratings.id IS NULL
+       WHERE collection_movies.collection_id = ? AND ratings.movie_id IS NULL
        LIMIT 1`,
     )
       .bind(collectionId)

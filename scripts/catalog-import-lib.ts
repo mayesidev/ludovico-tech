@@ -459,7 +459,7 @@ export const buildCatalogImportPlan = (
   for (const movie of movies) {
     const movieId = movieIds.get(normalizeTitle(movie.title)) as string;
     movieRows.push(
-      `(${sql(movieId)}, ${sql(movie.title)}, ${sql(normalizeTitle(movie.title))}, ${sql(movie.addedAt ?? importedAt)}, ${sql(importedAt)})`,
+      `(${sql(movieId)}, ${sql(movie.title)}, ${sql(movie.addedAt ?? importedAt)})`,
     );
     if (movie.tmdbId !== null) {
       tmdbRows.push(
@@ -468,11 +468,7 @@ export const buildCatalogImportPlan = (
     }
   }
   statements.push(
-    ...batchedInsert(
-      "movies",
-      ["id", "title", "title_normalized", "added_at", "updated_at"],
-      movieRows,
-    ),
+    ...batchedInsert("movies", ["id", "title", "added_at"], movieRows),
     ...batchedInsert(
       "movie_tmdb_data",
       ["movie_id", "tmdb_id", "refresh_after"],
@@ -509,21 +505,13 @@ export const buildCatalogImportPlan = (
     if (!movie.rating) continue;
     const movieId = movieIds.get(normalizeTitle(movie.title)) as string;
     ratingRows.push(
-      `(${sql(crypto.randomUUID())}, ${sql(movieId)}, ${sql(importedAt)}, NULL, ${movie.rating.score}, ${sql(movie.rating.phrase)}, 'legacy_import')`,
+      `(${sql(movieId)}, NULL, ${movie.rating.score}, ${sql(movie.rating.phrase)})`,
     );
   }
   statements.push(
     ...batchedInsert(
       "ratings",
-      [
-        "id",
-        "movie_id",
-        "recorded_at",
-        "watched_at",
-        "score",
-        "phrase",
-        "source",
-      ],
+      ["movie_id", "watched_at", "score", "phrase"],
       ratingRows,
     ),
   );

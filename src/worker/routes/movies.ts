@@ -32,8 +32,9 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     const input = c.req.valid("query");
     const filters: string[] = [];
     const bindings: Array<string | number> = [];
-    if (input.status === "watched") filters.push("ratings.id IS NOT NULL");
-    if (input.status === "unwatched") filters.push("ratings.id IS NULL");
+    if (input.status === "watched")
+      filters.push("ratings.movie_id IS NOT NULL");
+    if (input.status === "unwatched") filters.push("ratings.movie_id IS NULL");
     if (input.search) {
       const pattern = `%${input.search.replace(/[\\%_]/g, "\\$&")}%`;
       filters.push(`(
@@ -49,7 +50,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     const where = filters.length > 0 ? `WHERE ${filters.join(" AND ")}` : "";
     const globalCounts = await c.env.DB.prepare(
       `SELECT COUNT(*) AS total,
-        SUM(CASE WHEN ratings.id IS NULL THEN 1 ELSE 0 END) AS unwatched
+        SUM(CASE WHEN ratings.movie_id IS NULL THEN 1 ELSE 0 END) AS unwatched
        FROM movies
        LEFT JOIN ratings ON ratings.movie_id = movies.id`,
     ).first<{ total: number; unwatched: number | null }>();
@@ -296,20 +297,9 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
 
     statements.push(
       c.env.DB.prepare(
-        `INSERT INTO movies
-         (id, title, title_normalized, added_at, added_by, updated_at, updated_by,
-          imdb_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(
-        id,
-        title,
-        normalizeTitle(title),
-        timestamp,
-        actor.id,
-        timestamp,
-        actor.id,
-        input.imdbId ?? null,
-      ),
+        `INSERT INTO movies (id, title, added_at, imdb_id)
+         VALUES (?, ?, ?, ?)`,
+      ).bind(id, title, timestamp, input.imdbId ?? null),
     );
 
     if (tmdbResult) {
@@ -500,9 +490,6 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     const updateMovie = c.env.DB.prepare(
       `UPDATE movies SET
            title = ?,
-           title_normalized = ?,
-           updated_at = ?,
-           updated_by = ?,
            imdb_id = ?,
            version = ?,
            version_runtime = ?,
@@ -510,9 +497,6 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
          WHERE id = ?`,
     ).bind(
       title,
-      normalizeTitle(title),
-      timestamp,
-      actor.id,
       resolvedImdbId,
       version,
       versionRuntime,
@@ -572,7 +556,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
                 JOIN movies ON movies.id = collection_movies.movie_id
                 LEFT JOIN ratings ON ratings.movie_id = movies.id
                 JOIN collections ON collections.id = collection_movies.collection_id
-                WHERE collection_movies.collection_id = ? AND ratings.id IS NULL
+                WHERE collection_movies.collection_id = ? AND ratings.movie_id IS NULL
                 ORDER BY
                   CASE WHEN collections.order_confirmed = 1 THEN collection_movies.position END ASC,
                   CASE WHEN collections.order_confirmed = 0 THEN movies.added_at END ASC,
@@ -645,7 +629,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
          WHERE EXISTS (
            SELECT 1 FROM movies
            LEFT JOIN ratings ON ratings.movie_id = movies.id
-           WHERE movies.id = ? AND ratings.id IS NULL
+           WHERE movies.id = ? AND ratings.movie_id IS NULL
          )`,
       ).bind(
         auditId,
@@ -710,20 +694,12 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     const timestamp = now();
     await c.env.DB.batch([
       c.env.DB.prepare(
-        `INSERT INTO ratings (id, movie_id, recorded_at, watched_at, score, phrase, source, recorded_by)
-         VALUES (?, ?, ?, ?, ?, ?, 'application', ?)
-         ON CONFLICT(movie_id) DO UPDATE SET recorded_at = excluded.recorded_at,
-         watched_at = COALESCE(ratings.watched_at, excluded.watched_at), score = excluded.score,
-         phrase = excluded.phrase, source = excluded.source, recorded_by = excluded.recorded_by`,
-      ).bind(
-        newId(),
-        movieId,
-        timestamp,
-        timestamp,
-        input.score,
-        input.phrase,
-        actor.id,
-      ),
+        `INSERT INTO ratings (movie_id, watched_at, score, phrase)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(movie_id) DO UPDATE SET
+         watched_at = COALESCE(ratings.watched_at, excluded.watched_at),
+         score = excluded.score, phrase = excluded.phrase`,
+      ).bind(movieId, timestamp, input.score, input.phrase),
       c.env.DB.prepare(
         "UPDATE now_showing SET status = 'watched', updated_at = ? WHERE id = 1 AND movie_id = ?",
       ).bind(timestamp, movieId),

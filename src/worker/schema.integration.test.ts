@@ -4,16 +4,10 @@ import { createApp } from "./index";
 
 const insertMovie = async (id: string, title = id) => {
   await env.DB.prepare(
-    `INSERT INTO movies (id, title, title_normalized, added_at, updated_at)
-     VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO movies (id, title, added_at)
+     VALUES (?, ?, ?)`,
   )
-    .bind(
-      id,
-      title,
-      title.toLowerCase(),
-      "2026-08-06T00:00:00.000Z",
-      "2026-08-06T00:00:00.000Z",
-    )
+    .bind(id, title, "2026-08-06T00:00:00.000Z")
     .run();
 };
 
@@ -43,34 +37,18 @@ describe("catalog schema", () => {
   it("enforces one shared half-point rating with a required phrase", async () => {
     await insertMovie("movie-valid-rating");
     await env.DB.prepare(
-      `INSERT INTO ratings
-       (id, movie_id, recorded_at, score, phrase, source)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ratings (movie_id, score, phrase)
+       VALUES (?, ?, ?)`,
     )
-      .bind(
-        "rating-valid",
-        "movie-valid-rating",
-        "2026-08-06T00:00:00.000Z",
-        4.5,
-        "Four and a half tiny hats",
-        "application",
-      )
+      .bind("movie-valid-rating", 4.5, "Four and a half tiny hats")
       .run();
 
     await expect(
       env.DB.prepare(
-        `INSERT INTO ratings
-         (id, movie_id, recorded_at, score, phrase, source)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO ratings (movie_id, score, phrase)
+         VALUES (?, ?, ?)`,
       )
-        .bind(
-          "rating-duplicate",
-          "movie-valid-rating",
-          "2026-08-06T00:00:00.000Z",
-          3,
-          "A second opinion",
-          "application",
-        )
+        .bind("movie-valid-rating", 3, "A second opinion")
         .run(),
     ).rejects.toThrow();
 
@@ -79,18 +57,10 @@ describe("catalog schema", () => {
       await insertMovie(movieId);
       await expect(
         env.DB.prepare(
-          `INSERT INTO ratings
-           (id, movie_id, recorded_at, score, phrase, source)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO ratings (movie_id, score, phrase)
+           VALUES (?, ?, ?)`,
         )
-          .bind(
-            `rating-invalid-score-${index}`,
-            movieId,
-            "2026-08-06T00:00:00.000Z",
-            score,
-            "Invalid score",
-            "application",
-          )
+          .bind(movieId, score, "Invalid score")
           .run(),
       ).rejects.toThrow();
     }
@@ -98,18 +68,10 @@ describe("catalog schema", () => {
     await insertMovie("movie-blank-phrase");
     await expect(
       env.DB.prepare(
-        `INSERT INTO ratings
-         (id, movie_id, recorded_at, score, phrase, source)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO ratings (movie_id, score, phrase)
+         VALUES (?, ?, ?)`,
       )
-        .bind(
-          "rating-blank-phrase",
-          "movie-blank-phrase",
-          "2026-08-06T00:00:00.000Z",
-          0,
-          "   ",
-          "application",
-        )
+        .bind("movie-blank-phrase", 0, "   ")
         .run(),
     ).rejects.toThrow();
   });
@@ -269,67 +231,6 @@ describe("catalog schema", () => {
         "SELECT name FROM tmdb_people WHERE tmdb_id = 101",
       ).first(),
     ).toEqual({ name: "Shared Person" });
-  });
-
-  it("migrates a pending collection selection to the earliest-added unwatched movie", async () => {
-    await env.DB.prepare(
-      `INSERT INTO collections
-       (id, name, name_normalized, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?)`,
-    )
-      .bind(
-        "collection-default-order",
-        "Default Order Collection",
-        "default order collection",
-        "2026-08-06T00:00:00.000Z",
-        "2026-08-06T00:00:00.000Z",
-      )
-      .run();
-    await insertMovie("movie-added-later");
-    await insertMovie("movie-added-earlier");
-    await env.DB.batch([
-      env.DB.prepare("UPDATE movies SET added_at = ? WHERE id = ?").bind(
-        "2026-08-02T00:00:00.000Z",
-        "movie-added-later",
-      ),
-      env.DB.prepare("UPDATE movies SET added_at = ? WHERE id = ?").bind(
-        "2026-08-01T00:00:00.000Z",
-        "movie-added-earlier",
-      ),
-      env.DB.prepare(
-        "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
-      ).bind("collection-default-order", "movie-added-later", 1),
-      env.DB.prepare(
-        "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
-      ).bind("collection-default-order", "movie-added-earlier", 2),
-      env.DB.prepare(
-        `UPDATE now_showing
-         SET movie_id = ?, rolled_movie_id = ?, collection_id = ?, status = 'pending_order'
-         WHERE id = 1`,
-      ).bind(
-        "movie-added-later",
-        "movie-added-later",
-        "collection-default-order",
-      ),
-    ]);
-
-    const migration = env.TEST_MIGRATIONS.find(
-      (candidate) => candidate.name === "0005_default_collection_order.sql",
-    );
-    expect(migration).toBeDefined();
-    for (const query of migration?.queries ?? []) {
-      await env.DB.prepare(query).run();
-    }
-
-    expect(
-      await env.DB.prepare(
-        "SELECT movie_id, rolled_movie_id, status FROM now_showing WHERE id = 1",
-      ).first(),
-    ).toEqual({
-      movie_id: "movie-added-earlier",
-      rolled_movie_id: "movie-added-later",
-      status: "ready",
-    });
   });
 
   it("allows only positive normalized TMDB runtimes when known", async () => {
@@ -570,25 +471,17 @@ describe("catalog schema", () => {
     expect(usesTemporarySort).toBe(false);
   });
 
-  it("keeps source provenance and actor identifiers out of public movie DTOs", async () => {
+  it("removes obsolete provenance from storage and public movie DTOs", async () => {
     await insertMovie("movie-public", "Public Movie");
     await env.DB.prepare("UPDATE movies SET imdb_id = ? WHERE id = ?")
       .bind("tt0117509", "movie-public")
       .run();
-    await env.DB.prepare(
-      `INSERT INTO movie_import_sources
-       (source_key, movie_id, source_row, submitted_at, prior_viewed, imported_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-    )
-      .bind(
-        "private-source-key",
-        "movie-public",
-        2,
-        "2026-08-06T00:00:00.000Z",
-        1,
-        "2026-08-06T00:00:00.000Z",
-      )
-      .run();
+    const tables = await env.DB.prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table'",
+    ).all<{ name: string }>();
+    expect(tables.results.map(({ name }) => name)).not.toContain(
+      "movie_import_sources",
+    );
 
     const response = await createApp().fetch(
       new Request("https://ludovico-tech.test/api/library"),

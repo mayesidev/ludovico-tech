@@ -37,8 +37,7 @@ describe("catalog import", () => {
          (SELECT COUNT(*) FROM collections) AS collections,
          (SELECT COUNT(*) FROM collection_movies) AS collection_memberships,
          (SELECT COUNT(*) FROM ratings) AS ratings,
-         (SELECT COUNT(*) FROM movie_tmdb_data) AS tmdb_links,
-         (SELECT COUNT(*) FROM movie_import_sources) AS obsolete_sources`,
+         (SELECT COUNT(*) FROM movie_tmdb_data) AS tmdb_links`,
     ).first();
 
     expect(plan.counts).toEqual({
@@ -52,7 +51,6 @@ describe("catalog import", () => {
       collection_memberships: 2,
       collections: 1,
       movies: 2,
-      obsolete_sources: 0,
       ratings: 1,
       tmdb_links: 1,
     });
@@ -61,8 +59,7 @@ describe("catalog import", () => {
   it("defaults only the import-owned timestamps", async () => {
     await importSyntheticCatalog();
     const rows = await env.DB.prepare(
-      `SELECT movies.title, movies.added_at, ratings.recorded_at,
-              ratings.watched_at
+      `SELECT movies.title, movies.added_at, ratings.watched_at
        FROM movies
        LEFT JOIN ratings ON ratings.movie_id = movies.id
        ORDER BY movies.title`,
@@ -71,13 +68,11 @@ describe("catalog import", () => {
     expect(rows.results).toEqual([
       {
         added_at: "2026-08-01T10:30:00.000Z",
-        recorded_at: importedAt,
         title: "Synthetic Movie One",
         watched_at: null,
       },
       {
         added_at: importedAt,
-        recorded_at: null,
         title: "Synthetic Movie Two",
         watched_at: null,
       },

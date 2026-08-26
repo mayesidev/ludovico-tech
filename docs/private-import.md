@@ -34,8 +34,8 @@ or unknown timestamps.
 
 ## Preflight and import
 
-The command start time defaults blank `added_at` values and records imported
-ratings; it does not invent watch times.
+The command start time defaults blank `added_at` values. Imported ratings create
+watched state without inventing watch times.
 
 ```sh
 pnpm import:catalog -- \

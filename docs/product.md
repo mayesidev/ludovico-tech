@@ -16,8 +16,8 @@ one group viewing state.
   TMDB's narrower collection without changing the local grouping.
 - Rolling any collection member queues its first unwatched ordered member. After
   rating it, members may continue the collection or return to a fresh random roll.
-- TMDB supplies application metadata. Legacy IMDb identifiers are optional,
-  fallible import references rather than application identity.
+- TMDB supplies application metadata. IMDb identifiers are optional external
+  links rather than application identity.
 - A confirmed TMDB movie stores up to five top-billed cast members and up to
   three directors by TMDB person ID and name. Their names appear on Now Showing
   and Movie Details; missing credits are omitted.
@@ -25,14 +25,12 @@ one group viewing state.
   version runtime, and reference URL. The version is appended to displayed
   movie titles in parentheses. Its runtime is displayed when present;
   otherwise the TMDB runtime remains authoritative.
-- Submitted title and collection information outrank a conflicting legacy external
-  identifier during import.
-- The application must run from empty migrations. Loading a legacy catalog is an
+- The application must run from empty migrations. Loading an existing catalog is an
   optional operator action, never a bootstrap or test dependency.
-- An optional legacy import may restore the current unwatched selection. It does
+- An optional catalog import may restore the current unwatched selection. It does
   not invent an unknown roll, actor, audit event, or selection time.
-- Legacy title-submission time may establish when a movie was added. A manually
-  entered legacy rating establishes watched state but not an unknown watch time.
+- A known prior addition time may establish when an imported movie was added. An
+  imported rating establishes watched state but not an unknown watch time.
 
 Behavioral details belong in named tests, schemas, migrations, and runtime code.
 Environment and delivery mechanics belong in checked-in configuration, validators,

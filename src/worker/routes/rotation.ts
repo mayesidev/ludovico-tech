@@ -114,7 +114,7 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
       const input = c.req.valid("json");
       const members = await c.env.DB.prepare(
         `SELECT collection_movies.movie_id AS id,
-         CASE WHEN ratings.id IS NULL THEN 0 ELSE 1 END AS watched
+         CASE WHEN ratings.movie_id IS NULL THEN 0 ELSE 1 END AS watched
          FROM collection_movies
          LEFT JOIN ratings ON ratings.movie_id = collection_movies.movie_id
          WHERE collection_movies.collection_id = ?`,

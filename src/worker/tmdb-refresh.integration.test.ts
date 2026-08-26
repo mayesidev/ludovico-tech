@@ -45,11 +45,10 @@ const refreshOverview = () =>
 
 const insertLinkedMovie = async () => {
   await env.DB.prepare(
-    `INSERT INTO movies
-     (id, title, title_normalized, added_at, updated_at)
-     VALUES ('scheduled-status', 'Library Title', 'library title', ?, ?)`,
+    `INSERT INTO movies (id, title, added_at)
+     VALUES ('scheduled-status', 'Library Title', ?)`,
   )
-    .bind(timestamp, timestamp)
+    .bind(timestamp)
     .run();
   await env.DB.prepare(
     `INSERT INTO movie_tmdb_data
@@ -60,11 +59,10 @@ const insertLinkedMovie = async () => {
 
 const insertUnlinkedMovie = async () => {
   await env.DB.prepare(
-    `INSERT INTO movies
-     (id, title, title_normalized, added_at, updated_at)
-     VALUES ('unlinked-status', 'Unlinked Title', 'unlinked title', ?, ?)`,
+    `INSERT INTO movies (id, title, added_at)
+     VALUES ('unlinked-status', 'Unlinked Title', ?)`,
   )
-    .bind(timestamp, timestamp)
+    .bind(timestamp)
     .run();
 };
 
@@ -240,11 +238,10 @@ describe("TMDB refresh operations", () => {
 
   it("refreshes a mismatched contract even before its time window is due", async () => {
     await env.DB.prepare(
-      `INSERT INTO movies
-       (id, title, title_normalized, added_at, updated_at)
-       VALUES ('stale-contract', 'Stale Contract', 'stale contract', ?, ?)`,
+      `INSERT INTO movies (id, title, added_at)
+       VALUES ('stale-contract', 'Stale Contract', ?)`,
     )
-      .bind(timestamp, timestamp)
+      .bind(timestamp)
       .run();
     await env.DB.prepare(
       `INSERT INTO movie_tmdb_data
@@ -291,16 +288,9 @@ describe("TMDB refresh operations", () => {
     await env.DB.batch(
       movies.map((movie) =>
         env.DB.prepare(
-          `INSERT INTO movies
-           (id, title, title_normalized, added_at, updated_at)
-           VALUES (?, ?, ?, ?, ?)`,
-        ).bind(
-          movie.id,
-          movie.title,
-          movie.title.toLowerCase(),
-          timestamp,
-          timestamp,
-        ),
+          `INSERT INTO movies (id, title, added_at)
+           VALUES (?, ?, ?)`,
+        ).bind(movie.id, movie.title, timestamp),
       ),
     );
     await env.DB.prepare(
