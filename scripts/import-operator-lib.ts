@@ -2,17 +2,19 @@ import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { z } from "zod";
+import { CATALOG_IMPORT_SCHEMA_VERSION } from "./catalog-import-lib";
 import { IMPORT_ARTIFACT_SCHEMA_VERSION } from "./import-files";
-import { INTERMEDIATE_SCHEMA_VERSION } from "./import-sheet-lib";
 import { assertReleaseMigrationsApplied } from "./release-gates";
+import { parseWranglerConfig } from "./validate-cloudflare-config-lib";
 
 const countSchema = z.number().int().nonnegative();
 const countsSchema = z
   .object({
+    collectionMemberships: countSchema,
     collections: countSchema,
     movies: countSchema,
     ratings: countSchema,
-    sources: countSchema,
+    tmdbLinks: countSchema,
   })
   .strict();
 const chunkSchema = z
@@ -28,46 +30,33 @@ const importedAtSchema = z.string().refine((value) => {
     return false;
   }
 });
-const manifestBase = z
+const catalogManifestSchema = z
   .object({
     artifactSchemaVersion: z.literal(IMPORT_ARTIFACT_SCHEMA_VERSION),
+    artifactType: z.literal("catalog_import"),
     chunks: z.array(chunkSchema).min(1),
     counts: countsSchema,
     importedAt: importedAtSchema,
-    schemaVersion: z.literal(INTERMEDIATE_SCHEMA_VERSION),
+    nowShowingStatus: z.literal("empty"),
+    schemaVersion: z.literal(CATALOG_IMPORT_SCHEMA_VERSION),
   })
   .strict();
-const catalogManifestSchema = manifestBase.extend({
-  artifactType: z.literal("catalog_import"),
-  nowShowingStatus: z.enum(["empty", "ready"]),
-});
-const metadataManifestSchema = manifestBase.extend({
-  artifactType: z.literal("tmdb_metadata"),
-  nowShowingStatus: z.null(),
-});
 const diagnosticSchema = z
   .object({
     code: z.string().regex(/^[A-Z][A-Z0-9_]{0,63}$/),
-    row: z.number().int().min(2).nullable(),
-    severity: z.enum(["error", "warning"]),
+    row: z.number().int().min(1).nullable(),
+    severity: z.literal("error"),
   })
   .strict();
 const validationReportSchema = z
   .object({
-    diagnostics: z.array(diagnosticSchema),
-    schemaVersion: z.literal(INTERMEDIATE_SCHEMA_VERSION),
+    diagnostics: z.array(diagnosticSchema).length(0),
+    schemaVersion: z.literal(CATALOG_IMPORT_SCHEMA_VERSION),
     valid: z.literal(true),
   })
-  .strict()
-  .refine(
-    (report) =>
-      !report.diagnostics.some((diagnostic) => diagnostic.severity === "error"),
-  );
+  .strict();
 
 type CatalogManifest = z.infer<typeof catalogManifestSchema>;
-type MetadataManifest = z.infer<typeof metadataManifestSchema>;
-type ImportManifest = CatalogManifest | MetadataManifest;
-type ArtifactType = ImportManifest["artifactType"];
 
 export class ImportOperatorError extends Error {
   constructor(message: string) {
@@ -76,15 +65,13 @@ export class ImportOperatorError extends Error {
   }
 }
 
-type LoadedArtifact<TManifest extends ImportManifest> = {
+type LoadedCatalogArtifact = {
   chunks: Array<{ filename: string; path: string }>;
-  diagnosticCodes: string[];
-  manifest: TManifest;
+  manifest: CatalogManifest;
 };
 
 export type ImportBundle = {
-  catalog: LoadedArtifact<CatalogManifest>;
-  metadata: LoadedArtifact<MetadataManifest> | null;
+  catalog: LoadedCatalogArtifact;
 };
 
 const readJson = (path: string, label: string) => {
@@ -97,40 +84,34 @@ const readJson = (path: string, label: string) => {
 
 const expectedChunkFilename = (index: number) =>
   `chunk-${String(index + 1).padStart(4, "0")}.sql`;
+const formatCount = (value: number, singular: string) =>
+  `${value} ${singular}${value === 1 ? "" : "s"}`;
 
-const loadArtifact = <TManifest extends ImportManifest>(
-  directoryArgument: string,
-  artifactType: ArtifactType,
-): LoadedArtifact<TManifest> => {
-  const directory = resolve(directoryArgument);
-  const manifestSource = readJson(
-    join(directory, "manifest.json"),
-    `${artifactType} manifest`,
+export const loadImportBundle = (catalogDirectory: string): ImportBundle => {
+  const directory = resolve(catalogDirectory);
+  const parsedManifest = catalogManifestSchema.safeParse(
+    readJson(join(directory, "manifest.json"), "catalog_import manifest"),
   );
-  const parsedManifest =
-    artifactType === "catalog_import"
-      ? catalogManifestSchema.safeParse(manifestSource)
-      : metadataManifestSchema.safeParse(manifestSource);
   if (!parsedManifest.success) {
-    throw new ImportOperatorError(`${artifactType} manifest is invalid`);
+    throw new ImportOperatorError("catalog_import manifest is invalid");
   }
-  const manifest = parsedManifest.data as TManifest;
+  const manifest = parsedManifest.data;
   const report = validationReportSchema.safeParse(
     readJson(
       join(directory, "validation-report.json"),
-      `${artifactType} validation report`,
+      "catalog_import validation report",
     ),
   );
   if (!report.success) {
     throw new ImportOperatorError(
-      `${artifactType} validation report is invalid or failed`,
+      "catalog_import validation report is invalid or failed",
     );
   }
 
   for (const [index, chunk] of manifest.chunks.entries()) {
     if (chunk.filename !== expectedChunkFilename(index)) {
       throw new ImportOperatorError(
-        `${artifactType} chunk sequence is not contiguous`,
+        "catalog_import chunk sequence is not contiguous",
       );
     }
   }
@@ -141,13 +122,13 @@ const loadArtifact = <TManifest extends ImportManifest>(
       .filter((filename) => /^chunk-\d{4}\.sql$/.test(filename))
       .sort();
   } catch {
-    throw new ImportOperatorError(`${artifactType} directory is unavailable`);
+    throw new ImportOperatorError("catalog_import directory is unavailable");
   }
   if (
     JSON.stringify(directoryFilenames) !== JSON.stringify(manifestFilenames)
   ) {
     throw new ImportOperatorError(
-      `${artifactType} chunks do not match the manifest`,
+      "catalog_import chunks do not match the manifest",
     );
   }
 
@@ -158,66 +139,62 @@ const loadArtifact = <TManifest extends ImportManifest>(
       source = readFileSync(path, "utf8");
     } catch {
       throw new ImportOperatorError(
-        `${artifactType} chunk ${chunk.filename} is unavailable`,
+        `catalog_import chunk ${chunk.filename} is unavailable`,
       );
     }
     if (createHash("sha256").update(source).digest("hex") !== chunk.sha256) {
       throw new ImportOperatorError(
-        `${artifactType} chunk ${chunk.filename} failed its checksum`,
+        `catalog_import chunk ${chunk.filename} failed its checksum`,
       );
     }
     return { filename: chunk.filename, path };
   });
 
-  return {
-    chunks,
-    diagnosticCodes: [
-      ...new Set(report.data.diagnostics.map((diagnostic) => diagnostic.code)),
-    ].sort(),
-    manifest,
-  };
-};
-
-export const loadImportBundle = (
-  catalogDirectory: string,
-  metadataDirectory: string | null = null,
-): ImportBundle => {
-  const catalog = loadArtifact<CatalogManifest>(
-    catalogDirectory,
-    "catalog_import",
-  );
-  const metadata = metadataDirectory
-    ? loadArtifact<MetadataManifest>(metadataDirectory, "tmdb_metadata")
-    : null;
+  const counts = manifest.counts;
   if (
-    catalog.manifest.counts.movies < 1 ||
-    catalog.manifest.counts.sources < catalog.manifest.counts.movies ||
-    catalog.manifest.counts.ratings > catalog.manifest.counts.movies ||
-    catalog.manifest.counts.collections > catalog.manifest.counts.movies ||
-    (metadata !== null &&
-      (metadata.manifest.counts.collections !== 0 ||
-        metadata.manifest.counts.ratings !== 0 ||
-        metadata.manifest.counts.sources !== 0 ||
-        metadata.manifest.counts.movies > catalog.manifest.counts.movies))
+    counts.movies < 1 ||
+    counts.ratings > counts.movies ||
+    counts.collections > counts.movies ||
+    counts.collectionMemberships > counts.movies ||
+    counts.collectionMemberships < counts.collections ||
+    counts.tmdbLinks > counts.movies
   ) {
     throw new ImportOperatorError("Import artifact counts are inconsistent");
   }
-  return { catalog, metadata };
+
+  return { catalog: { chunks, manifest } };
 };
 
-export type ImportEnvironment = "development" | "production" | "staging";
+export type ImportEnvironment = string;
 
 export type ImportOperatorOptions = {
   catalogDirectory: string;
   database: string;
   environment: ImportEnvironment;
   execute: boolean;
-  metadataDirectory: string | null;
   persistTo: string | null;
 };
 
-const expectedDatabase = (environment: ImportEnvironment) =>
-  `ludovico-tech-${environment}`;
+const configuredDatabase = (environment: string) => {
+  try {
+    const config = parseWranglerConfig(
+      readFileSync(resolve("wrangler.jsonc"), "utf8"),
+    );
+    const databases = config.env?.[environment]?.d1_databases ?? [];
+    if (
+      databases.length !== 1 ||
+      databases[0]?.binding !== "DB" ||
+      !databases[0].database_name
+    ) {
+      throw new Error();
+    }
+    return databases[0].database_name;
+  } catch {
+    throw new ImportOperatorError(
+      `Environment ${environment} is not configured for catalog imports`,
+    );
+  }
+};
 
 export const parseImportOperatorArguments = (
   arguments_: string[],
@@ -228,15 +205,15 @@ export const parseImportOperatorArguments = (
     "--catalog",
     "--database",
     "--environment",
-    "--metadata",
     "--persist-to",
   ]);
   for (let index = 0; index < arguments_.length; index += 1) {
     const argument = arguments_[index];
     if (argument === "--") continue;
     if (argument === "--execute") {
-      if (execute)
+      if (execute) {
         throw new ImportOperatorError("--execute was provided twice");
+      }
       execute = true;
       continue;
     }
@@ -254,22 +231,13 @@ export const parseImportOperatorArguments = (
   const environment = values.get("--environment");
   const database = values.get("--database");
   const catalogDirectory = values.get("--catalog");
-  if (
-    environment !== "development" &&
-    environment !== "staging" &&
-    environment !== "production"
-  ) {
-    throw new ImportOperatorError(
-      "--environment must be development, staging, or production",
-    );
+  if (!environment || !/^[a-z][a-z0-9-]{0,62}$/.test(environment)) {
+    throw new ImportOperatorError("--environment is missing or invalid");
   }
-  if (
-    !database ||
-    !catalogDirectory ||
-    database !== expectedDatabase(environment)
-  ) {
+  const expectedDatabase = configuredDatabase(environment);
+  if (!database || !catalogDirectory || database !== expectedDatabase) {
     throw new ImportOperatorError(
-      `Database confirmation must be ${expectedDatabase(environment)}`,
+      `Database confirmation must be ${expectedDatabase}`,
     );
   }
   const persistTo = values.get("--persist-to") ?? null;
@@ -288,7 +256,6 @@ export const parseImportOperatorArguments = (
     database,
     environment,
     execute,
-    metadataDirectory: values.get("--metadata") ?? null,
     persistTo,
   };
 };
@@ -299,20 +266,20 @@ export type CommandRunner = (
 ) => Promise<string>;
 
 type DatabaseSummary = {
+  collectionMemberships: number;
   collections: number;
   movies: number;
   nowShowingStatus: "empty" | "ready" | "watched";
   ratings: number;
-  sources: number;
-  tmdbMovies: number;
+  tmdbLinks: number;
 };
 
 const databaseSummaryQuery = `SELECT
   (SELECT COUNT(*) FROM movies) AS movies,
   (SELECT COUNT(*) FROM collections) AS collections,
+  (SELECT COUNT(*) FROM collection_movies) AS collection_memberships,
   (SELECT COUNT(*) FROM ratings) AS ratings,
-  (SELECT COUNT(*) FROM movie_import_sources) AS sources,
-  (SELECT COUNT(*) FROM movie_tmdb_data) AS tmdb_movies,
+  (SELECT COUNT(*) FROM movie_tmdb_data) AS tmdb_links,
   (SELECT status FROM now_showing WHERE id = 1) AS now_showing_status`;
 const migrationsQuery = "SELECT name FROM d1_migrations ORDER BY id";
 
@@ -328,12 +295,12 @@ const d1ResponseSchema = z
   .length(1);
 const summaryRowSchema = z
   .object({
+    collection_memberships: countSchema,
     collections: countSchema,
     movies: countSchema,
     now_showing_status: z.enum(["empty", "ready", "watched"]),
     ratings: countSchema,
-    sources: countSchema,
-    tmdb_movies: countSchema,
+    tmdb_links: countSchema,
   })
   .passthrough();
 
@@ -356,22 +323,22 @@ const parseDatabaseSummary = (source: string): DatabaseSummary => {
     );
   }
   return {
+    collectionMemberships: row.data.collection_memberships,
     collections: row.data.collections,
     movies: row.data.movies,
     nowShowingStatus: row.data.now_showing_status,
     ratings: row.data.ratings,
-    sources: row.data.sources,
-    tmdbMovies: row.data.tmdb_movies,
+    tmdbLinks: row.data.tmdb_links,
   };
 };
 
 const assertEmptyDatabase = (summary: DatabaseSummary) => {
   if (
+    summary.collectionMemberships !== 0 ||
     summary.collections !== 0 ||
     summary.movies !== 0 ||
     summary.ratings !== 0 ||
-    summary.sources !== 0 ||
-    summary.tmdbMovies !== 0 ||
+    summary.tmdbLinks !== 0 ||
     summary.nowShowingStatus !== "empty"
   ) {
     throw new ImportOperatorError(
@@ -386,15 +353,15 @@ const assertImportedDatabase = (
 ) => {
   const expected = bundle.catalog.manifest.counts;
   if (
+    summary.collectionMemberships !== expected.collectionMemberships ||
     summary.collections !== expected.collections ||
     summary.movies !== expected.movies ||
     summary.ratings !== expected.ratings ||
-    summary.sources !== expected.sources ||
-    summary.tmdbMovies !== (bundle.metadata?.manifest.counts.movies ?? 0) ||
-    summary.nowShowingStatus !== bundle.catalog.manifest.nowShowingStatus
+    summary.tmdbLinks !== expected.tmdbLinks ||
+    summary.nowShowingStatus !== "empty"
   ) {
     throw new ImportOperatorError(
-      "Post-import database verification did not match the manifests",
+      "Post-import database verification did not match the manifest",
     );
   }
 };
@@ -456,14 +423,13 @@ export const executeImportBundle = async (
   log: (message: string) => void,
 ) => {
   if (!options.execute) return;
-  const configCommand =
-    options.environment === "development"
-      ? "config:check"
-      : `config:check:${options.environment}`;
+  if (configuredDatabase(options.environment) !== options.database) {
+    throw new ImportOperatorError("Target configuration validation failed");
+  }
   await runSafely(
     runner,
     "pnpm",
-    [configCommand],
+    ["config:check"],
     "Target configuration validation failed",
   );
 
@@ -473,10 +439,11 @@ export const executeImportBundle = async (
     ["--command", migrationsQuery],
     "Migration verification failed",
   );
-  let migrations: unknown;
   try {
-    migrations = JSON.parse(migrationsSource) as unknown;
-    assertReleaseMigrationsApplied(migrationNames(), migrations);
+    assertReleaseMigrationsApplied(
+      migrationNames(),
+      JSON.parse(migrationsSource) as unknown,
+    );
   } catch {
     throw new ImportOperatorError("Migration verification failed");
   }
@@ -489,26 +456,21 @@ export const executeImportBundle = async (
   );
   assertEmptyDatabase(parseDatabaseSummary(beforeSource));
 
-  const artifacts: Array<
-    LoadedArtifact<CatalogManifest> | LoadedArtifact<MetadataManifest>
-  > = bundle.metadata ? [bundle.catalog, bundle.metadata] : [bundle.catalog];
-  for (const artifact of artifacts) {
-    for (const [index, chunk] of artifact.chunks.entries()) {
-      log(
-        `Applying ${artifact.manifest.artifactType} ${chunk.filename} (${index + 1}/${artifact.chunks.length})`,
+  for (const [index, chunk] of bundle.catalog.chunks.entries()) {
+    log(
+      `Applying catalog_import ${chunk.filename} (${index + 1}/${bundle.catalog.chunks.length})`,
+    );
+    try {
+      await runWrangler(
+        runner,
+        options,
+        ["--file", chunk.path],
+        "Import chunk failed",
       );
-      try {
-        await runWrangler(
-          runner,
-          options,
-          ["--file", chunk.path],
-          "Import chunk failed",
-        );
-      } catch {
-        throw new ImportOperatorError(
-          `${artifact.manifest.artifactType} ${chunk.filename} failed; do not rerun against this target without a reviewed pre-release reset`,
-        );
-      }
+    } catch {
+      throw new ImportOperatorError(
+        `catalog_import ${chunk.filename} failed; do not rerun against this target without a reviewed pre-release reset`,
+      );
     }
   }
 
@@ -525,23 +487,13 @@ export const executeImportBundle = async (
       "Post-import database verification failed; do not rerun against this target without review",
     );
   }
+  const counts = bundle.catalog.manifest.counts;
   log(
-    `Verified ${bundle.catalog.manifest.counts.movies} movies, ${bundle.catalog.manifest.counts.collections} collections, and ${bundle.catalog.manifest.counts.ratings} ratings`,
+    `Verified ${formatCount(counts.movies, "movie")}, ${formatCount(counts.collections, "collection")}, ${formatCount(counts.collectionMemberships, "collection membership")}, ${formatCount(counts.ratings, "rating")}, and ${formatCount(counts.tmdbLinks, "TMDB link")}`,
   );
 };
 
 export const importPreflightSummary = (bundle: ImportBundle) => {
-  const diagnosticCodes = [
-    ...new Set([
-      ...bundle.catalog.diagnosticCodes,
-      ...(bundle.metadata?.diagnosticCodes ?? []),
-    ]),
-  ].sort();
   const counts = bundle.catalog.manifest.counts;
-  const count = (value: number, singular: string) =>
-    `${value} ${singular}${value === 1 ? "" : "s"}`;
-  const metadataSummary = bundle.metadata
-    ? `, ${count(bundle.metadata.chunks.length, "metadata chunk")}`
-    : "";
-  return `Preflight passed: ${count(bundle.catalog.chunks.length, "catalog chunk")}${metadataSummary}, ${count(counts.movies, "movie")}, ${count(counts.collections, "collection")}, ${count(counts.ratings, "rating")}${diagnosticCodes.length ? `; diagnostics: ${diagnosticCodes.join(", ")}` : ""}`;
+  return `Preflight passed: ${formatCount(bundle.catalog.chunks.length, "catalog chunk")}, ${formatCount(counts.movies, "movie")}, ${formatCount(counts.collections, "collection")}, ${formatCount(counts.collectionMemberships, "collection membership")}, ${formatCount(counts.ratings, "rating")}, ${formatCount(counts.tmdbLinks, "TMDB link")}`;
 };

@@ -22,14 +22,11 @@ const runCommand: CommandRunner = (executable, arguments_) =>
   });
 
 const usage =
-  "Usage: pnpm import:apply -- --environment <development|staging|production> --database <exact-name> --catalog <directory> [--metadata <directory>] [--persist-to <directory>] [--execute]";
+  "Usage: pnpm import:apply -- --environment <configured-environment> --database <exact-name> --catalog <directory> [--persist-to <directory>] [--execute]";
 
 const main = async () => {
   const options = parseImportOperatorArguments(process.argv.slice(2));
-  const bundle = loadImportBundle(
-    options.catalogDirectory,
-    options.metadataDirectory,
-  );
+  const bundle = loadImportBundle(options.catalogDirectory);
   console.log(importPreflightSummary(bundle));
   if (!options.execute) {
     console.log("No database was contacted; add --execute after review");

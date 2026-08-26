@@ -1,316 +1,150 @@
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import {
-  buildImportPlan,
-  buildTmdbMetadataPlan,
+  buildCatalogImportPlan,
+  parseCatalogCsv,
   renderSqlChunks,
-  type GeneralizedImportDocument,
-  type TmdbReconciliationDocument,
-} from "../../scripts/import-sheet-lib";
+} from "../../scripts/catalog-import-lib";
 
-const syntheticCatalog: GeneralizedImportDocument = {
-  collectionOrders: [],
-  nowShowingSourceRow: 3,
-  rows: [
-    {
-      collectionIndicated: true,
-      collectionName: "Synthetic Saga",
-      legacyImdbId: "tt1234567",
-      priorViewed: true,
-      rating: { phrase: "A synthetic delight", score: 4.5 },
-      sourceRow: 2,
-      submittedAt: "2026-08-01T10:30:00.000Z",
-      title: "Synthetic Movie One",
-    },
-    {
-      collectionIndicated: true,
-      collectionName: "Synthetic Saga",
-      legacyImdbId: "tt1234568",
-      priorViewed: false,
-      rating: null,
-      sourceRow: 3,
-      submittedAt: "2026-08-02T10:30:00.000Z",
-      title: "Synthetic Movie Two",
-    },
-  ],
-  schemaVersion: 3,
-  validated: true,
-};
-
-const worker = exports.default;
-
-const syntheticReconciliation: TmdbReconciliationDocument = {
-  complete: true,
-  generatedAt: "2026-08-10T10:00:00.000Z",
-  matches: [
-    {
-      cast: [{ id: 101, name: "Synthetic Actor" }],
-      directors: [{ id: 201, name: "Synthetic Director" }],
-      legacyImdbId: "tt1234568",
-      posterPath: "/synthetic-two.jpg",
-      providerTitleNormalized: "synthetic movie two",
-      releaseDate: "2024-01-02",
-      runtimeMinutes: 123,
-      sourceTitleNormalized: "synthetic movie two",
-      tmdbCollectionId: 7,
-      tmdbCollectionName: "Synthetic Collection",
-      tmdbId: 42,
-    },
-  ],
-  schemaVersion: 4,
-};
-
-const request = async <T>(path: string, init?: RequestInit) => {
-  const response = await worker.fetch(
-    new Request(`https://ludovico-tech.test${path}`, {
-      headers: { "Content-Type": "application/json", ...init?.headers },
-      ...init,
-    }),
-  );
-  return { body: (await response.json()) as T, response };
-};
+const importedAt = "2026-08-25T12:00:00.000Z";
+const source = `title,added_at,rating_score,rating_phrase,collection,collection_position,tmdb_id
+Synthetic Movie One,2026-08-01T10:30:00.000Z,4.5,A synthetic delight,Synthetic Saga,1,
+Synthetic Movie Two,,,,Synthetic Saga,2,42
+`;
 
 const importSyntheticCatalog = async (executions = 1) => {
-  const plan = await buildImportPlan(
-    syntheticCatalog,
-    "2026-08-06T20:00:00.000Z",
-  );
-  const chunks = renderSqlChunks(plan.statements, 3);
+  const parsed = parseCatalogCsv(source);
+  expect(parsed.diagnostics).toEqual([]);
+  const plan = await buildCatalogImportPlan(parsed.seed, importedAt);
   for (let execution = 0; execution < executions; execution += 1) {
-    for (const chunk of chunks) await env.DB.exec(chunk.sql);
+    for (const chunk of renderSqlChunks(plan.statements, 3)) {
+      await env.DB.exec(chunk.sql);
+    }
   }
   return plan;
 };
 
-describe("generalized catalog import", () => {
-  it("executes every generated chunk idempotently", async () => {
+describe("catalog import", () => {
+  it("writes only durable catalog state and is idempotent", async () => {
     const plan = await importSyntheticCatalog(2);
-    const movies = await env.DB.prepare(
-      "SELECT COUNT(*) AS count FROM movies",
-    ).first<{ count: number }>();
-    const sources = await env.DB.prepare(
-      "SELECT COUNT(*) AS count FROM movie_import_sources",
-    ).first<{ count: number }>();
-    const collections = await env.DB.prepare(
-      "SELECT COUNT(*) AS count FROM collections",
-    ).first<{ count: number }>();
-    const ratingCount = await env.DB.prepare(
-      "SELECT COUNT(*) AS count FROM ratings",
-    ).first<{ count: number }>();
-
-    expect({
-      collections: collections?.count,
-      movies: movies?.count,
-      ratings: ratingCount?.count,
-      sources: sources?.count,
-    }).toEqual(plan.counts);
-  });
-
-  it("keeps submission time as added time without inventing a legacy watch time", async () => {
-    await importSyntheticCatalog();
-    const importedMovie = await env.DB.prepare(
-      `SELECT movies.added_at, ratings.phrase, ratings.recorded_at,
-              ratings.score, ratings.watched_at
-       FROM movies
-       INNER JOIN ratings ON ratings.movie_id = movies.id`,
-    ).first<{
-      added_at: string;
-      phrase: string;
-      recorded_at: string;
-      score: number;
-      watched_at: string | null;
-    }>();
-
-    expect(importedMovie).toEqual({
-      added_at: "2026-08-01T10:30:00.000Z",
-      phrase: "A synthetic delight",
-      recorded_at: "2026-08-06T20:00:00.000Z",
-      score: 4.5,
-      watched_at: null,
-    });
-  });
-
-  it("leaves external identity and collection order unconfirmed", async () => {
-    await importSyntheticCatalog();
-    const tmdbLinkCount = await env.DB.prepare(
-      "SELECT COUNT(*) AS count FROM movie_tmdb_data",
-    ).first<{ count: number }>();
-    const collection = await env.DB.prepare(
-      "SELECT order_confirmed FROM collections",
-    ).first<{ order_confirmed: number }>();
-
-    expect(tmdbLinkCount?.count).toBe(0);
-    expect(collection?.order_confirmed).toBe(0);
-  });
-
-  it("applies a confirmed external match idempotently to an existing import", async () => {
-    await importSyntheticCatalog();
-    const plan = await buildImportPlan(
-      syntheticCatalog,
-      "2026-08-10T11:00:00.000Z",
-      syntheticReconciliation,
-    );
-    for (const chunk of renderSqlChunks(plan.statements, 3)) {
-      await env.DB.exec(chunk.sql);
-      await env.DB.exec(chunk.sql);
-    }
-
-    const movie = await env.DB.prepare(
-      "SELECT title FROM movies WHERE imdb_id = ?",
-    )
-      .bind("tt1234568")
-      .first();
-    const enrichment = await env.DB.prepare(
-      `SELECT movie_tmdb_data.tmdb_id, movie_tmdb_data.contract_id,
-              movie_tmdb_data.release_date, movie_tmdb_data.poster_path,
-              movie_tmdb_data.runtime_minutes, movie_tmdb_data.fetched_at,
-              movie_tmdb_data.tmdb_collection_id,
-              movie_tmdb_data.refresh_after,
-              tmdb_collections.name AS collection_name
-       FROM movie_tmdb_data
-       LEFT JOIN tmdb_collections
-         ON tmdb_collections.tmdb_id = movie_tmdb_data.tmdb_collection_id
-       WHERE movie_tmdb_data.movie_id = (
-         SELECT id FROM movies WHERE imdb_id = ?
-       )`,
-    )
-      .bind("tt1234568")
-      .first();
-
-    expect(plan.diagnostics).toEqual([]);
-    expect(movie).toEqual({
-      title: "Synthetic Movie Two",
-    });
-    expect(enrichment).toEqual({
-      collection_name: "Synthetic Collection",
-      contract_id: null,
-      fetched_at: "2026-08-10T10:00:00.000Z",
-      poster_path: "/synthetic-two.jpg",
-      release_date: "2024-01-02",
-      refresh_after: "1970-01-01T00:00:00.000Z",
-      runtime_minutes: 123,
-      tmdb_collection_id: 7,
-      tmdb_id: 42,
-    });
-  });
-
-  it("updates metadata without replaying structure after a collection label changes", async () => {
-    await importSyntheticCatalog();
-    const correctedCatalog: GeneralizedImportDocument = {
-      ...syntheticCatalog,
-      rows: syntheticCatalog.rows.map((movie) => ({
-        ...movie,
-        collectionName: "Corrected Synthetic Saga",
-      })),
-    };
-    const plan = buildTmdbMetadataPlan(
-      correctedCatalog,
-      syntheticReconciliation,
-      "2026-08-10T11:00:00.000Z",
-    );
-    for (const chunk of renderSqlChunks(plan.statements, 1)) {
-      await env.DB.exec(chunk.sql);
-      await env.DB.exec(chunk.sql);
-    }
-
     const counts = await env.DB.prepare(
-      `SELECT (SELECT COUNT(*) FROM movies) AS movies,
-              (SELECT COUNT(*) FROM collections) AS collections,
-              (SELECT COUNT(*) FROM ratings) AS ratings,
-              (SELECT COUNT(*) FROM movie_import_sources) AS sources`,
+      `SELECT
+         (SELECT COUNT(*) FROM movies) AS movies,
+         (SELECT COUNT(*) FROM collections) AS collections,
+         (SELECT COUNT(*) FROM collection_movies) AS collection_memberships,
+         (SELECT COUNT(*) FROM ratings) AS ratings,
+         (SELECT COUNT(*) FROM movie_tmdb_data) AS tmdb_links,
+         (SELECT COUNT(*) FROM movie_import_sources) AS obsolete_sources`,
     ).first();
-    const linked = await env.DB.prepare(
-      `SELECT movies.title, movie_tmdb_data.tmdb_id
-       FROM movies
-       LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
-       WHERE movies.imdb_id = ?`,
-    )
-      .bind("tt1234568")
-      .first();
 
-    expect(plan.statements.join("\n")).toContain("movie_credits");
-    expect(counts).toEqual({
+    expect(plan.counts).toEqual({
+      collectionMemberships: 2,
       collections: 1,
       movies: 2,
       ratings: 1,
-      sources: 2,
+      tmdbLinks: 1,
     });
-    expect(linked).toEqual({ title: "Synthetic Movie Two", tmdb_id: 42 });
+    expect(counts).toEqual({
+      collection_memberships: 2,
+      collections: 1,
+      movies: 2,
+      obsolete_sources: 0,
+      ratings: 1,
+      tmdb_links: 1,
+    });
   });
 
-  it("restores the active collection selection ready to rate without fabricated roll history", async () => {
-    await importSyntheticCatalog(2);
-    const current = await env.DB.prepare(
-      `SELECT now_showing.rolled_movie_id, now_showing.rolled_at,
-              now_showing.status, movies.title, collections.name AS collection_name
-       FROM now_showing
-       LEFT JOIN movies ON movies.id = now_showing.movie_id
-       LEFT JOIN collections ON collections.id = now_showing.collection_id
-       WHERE now_showing.id = 1`,
-    ).first();
-    const rollCount = await env.DB.prepare(
-      "SELECT COUNT(*) AS count FROM rolls",
-    ).first<{ count: number }>();
-    const auditCount = await env.DB.prepare(
-      "SELECT COUNT(*) AS count FROM audit_log",
-    ).first<{ count: number }>();
-
-    expect(current).toEqual({
-      collection_name: "Synthetic Saga",
-      rolled_at: null,
-      rolled_movie_id: null,
-      status: "ready",
-      title: "Synthetic Movie Two",
-    });
-    expect(rollCount?.count).toBe(0);
-    expect(auditCount?.count).toBe(0);
-  });
-
-  it("confirms and rates a collection selection with stable imported IDs", async () => {
+  it("defaults only the import-owned timestamps", async () => {
     await importSyntheticCatalog();
-    const members = await env.DB.prepare(
-      `SELECT collections.id AS collection_id, movies.id,
-              CASE WHEN ratings.id IS NULL THEN 0 ELSE 1 END AS watched
-       FROM collection_movies
-       JOIN collections ON collections.id = collection_movies.collection_id
-       JOIN movies ON movies.id = collection_movies.movie_id
+    const rows = await env.DB.prepare(
+      `SELECT movies.title, movies.added_at, ratings.recorded_at,
+              ratings.watched_at
+       FROM movies
        LEFT JOIN ratings ON ratings.movie_id = movies.id
-       ORDER BY collection_movies.position`,
-    ).all<{ collection_id: string; id: string; watched: number }>();
-    const collectionId = members.results[0]?.collection_id;
-    const unwatchedId = members.results.find((movie) => !movie.watched)?.id;
+       ORDER BY movies.title`,
+    ).all();
 
-    expect(collectionId).toMatch(/^collection_/);
-    expect(members.results.map((movie) => movie.id)).toEqual([
-      expect.stringMatching(/^movie_/),
-      expect.stringMatching(/^movie_/),
+    expect(rows.results).toEqual([
+      {
+        added_at: "2026-08-01T10:30:00.000Z",
+        recorded_at: importedAt,
+        title: "Synthetic Movie One",
+        watched_at: null,
+      },
+      {
+        added_at: importedAt,
+        recorded_at: null,
+        title: "Synthetic Movie Two",
+        watched_at: null,
+      },
     ]);
-    expect(unwatchedId).toEqual(expect.stringMatching(/^movie_/));
+  });
 
-    const ordered = await request<{
-      nowShowing: { movie_id: string; status: string };
-    }>(`/api/collections/${collectionId}/order`, {
-      body: JSON.stringify({
-        movieIds: members.results.map((movie) => movie.id),
-      }),
-      method: "POST",
-    });
-    expect(ordered.response.status).toBe(200);
-    expect(ordered.body.nowShowing).toMatchObject({
-      movie_id: unwatchedId,
-      status: "ready",
-    });
+  it("queues TMDB backfill without importing provider data", async () => {
+    await importSyntheticCatalog();
+    const link = await env.DB.prepare(
+      `SELECT movie_tmdb_data.tmdb_id, movie_tmdb_data.title,
+              movie_tmdb_data.release_date, movie_tmdb_data.poster_path,
+              movie_tmdb_data.runtime_minutes,
+              movie_tmdb_data.tmdb_collection_id,
+              movie_tmdb_data.fetched_at, movie_tmdb_data.refresh_after,
+              movie_tmdb_data.contract_id
+       FROM movie_tmdb_data`,
+    ).first();
+    const providerRows = await env.DB.prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM tmdb_people) AS people,
+         (SELECT COUNT(*) FROM tmdb_collections) AS collections,
+         (SELECT COUNT(*) FROM movie_credits) AS credits`,
+    ).first();
 
-    const rated = await request<{
-      nowShowing: { movie_id: string; status: string };
-    }>(`/api/movies/${unwatchedId}/rate`, {
-      body: JSON.stringify({ phrase: "Imported workflow works", score: 4 }),
-      method: "POST",
+    expect(link).toEqual({
+      contract_id: null,
+      fetched_at: null,
+      poster_path: null,
+      refresh_after: "1970-01-01T00:00:00.000Z",
+      release_date: null,
+      runtime_minutes: null,
+      title: null,
+      tmdb_collection_id: null,
+      tmdb_id: 42,
     });
-    expect(rated.response.status).toBe(200);
-    expect(rated.body.nowShowing).toMatchObject({
-      movie_id: unwatchedId,
-      status: "watched",
+    expect(providerRows).toEqual({ collections: 0, credits: 0, people: 0 });
+  });
+
+  it("leaves selection and history to the application", async () => {
+    await importSyntheticCatalog();
+    const state = await env.DB.prepare(
+      `SELECT now_showing.status,
+              (SELECT COUNT(*) FROM rolls) AS rolls,
+              (SELECT COUNT(*) FROM audit_log) AS audit_entries
+       FROM now_showing WHERE id = 1`,
+    ).first();
+    expect(state).toEqual({
+      audit_entries: 0,
+      rolls: 0,
+      status: "empty",
     });
+  });
+
+  it("exposes rating existence as watched state", async () => {
+    await importSyntheticCatalog();
+    const response = await exports.default.fetch(
+      new Request("https://ludovico-tech.test/api/library"),
+    );
+    const body = (await response.json()) as {
+      movies: Array<{ rating_score: number | null; title: string }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(
+      body.movies.map((movie) => ({
+        title: movie.title,
+        watched: movie.rating_score !== null,
+      })),
+    ).toEqual([
+      { title: "Synthetic Movie One", watched: true },
+      { title: "Synthetic Movie Two", watched: false },
+    ]);
   });
 });

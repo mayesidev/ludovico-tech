@@ -1,95 +1,72 @@
-# Optional private catalog import
+# Catalog import
 
-Use this only for a selected private legacy export. The application does not need
-the source artifact to start. Source files, corrections, generalized intermediates,
-reports, and generated SQL stay under ignored `data/` paths.
+Use the catalog importer to seed an empty, migrated Ludovico Tech database from
+an existing library. Source CSV files, generated SQL, validation reports, and
+other private artifacts must remain under ignored `data/` paths.
 
-Never paste source headings or values into logs, commits, issues, or pull requests.
-The positional source contract, public-safe intermediate types, validation, and
-diagnostic codes are defined in
-[`scripts/import-sheet-lib.ts`](../scripts/import-sheet-lib.ts) and its synthetic
-tests. Sanitization and generation do not call external services; only the
-explicit reconciliation stage does.
+Never paste private catalog values into logs, commits, issues, or pull requests.
+Validation reports contain only public-safe diagnostic codes and CSV row numbers.
 
-## Sanitize
+## Prepare the CSV
 
-```sh
-pnpm import:sanitize -- \
-  data/private-source.csv \
-  data/sanitized-import-v1.json \
-  data/sanitization-report-v1.json \
-  data/import-corrections-v1.json
-```
+The supported columns are defined by
+[`catalog-import-template.csv`](catalog-import-template.csv). The header may use
+any supported subset in any order, but it must include `title`. Unknown or
+duplicate columns are rejected. A CSV containing only a `title` column is a
+complete valid import.
 
-The correction file is optional. Its accepted public-safe shape is enforced by
-`parseImportCorrectionsJson` and the sanitizer tests. Resolve blocking diagnostics
-in a private source or correction file and rerun sanitization; do not weaken the
-validator.
+| Column                | Requirement                                                         | Application behavior                                                                  |
+| --------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `title`               | Required; 1–200 characters                                          | Creates the movie title.                                                              |
+| `added_at`            | Optional ISO 8601 UTC timestamp                                     | Preserves a known library addition time. The explicit import time is used when blank. |
+| `rating_score`        | Optional; paired with `rating_phrase`; 0–5 in half-point increments | Creates a rating and therefore marks the title watched.                               |
+| `rating_phrase`       | Optional; paired with `rating_score`; 1–120 characters              | Creates the rating phrase.                                                            |
+| `collection`          | Optional; 1–200 characters                                          | Creates local collection membership.                                                  |
+| `collection_position` | Optional; requires `collection`                                     | Confirms collection order when every member has one unique contiguous position.       |
+| `tmdb_id`             | Optional positive integer; unique in the import                     | Creates only a TMDB link due for application-managed backfill.                        |
 
-## Reconcile external metadata (optional)
-
-```sh
-pnpm import:reconcile -- \
-  data/sanitized-import-v1.json \
-  data/tmdb-reconciliation-v1.json \
-  data/tmdb-reconciliation-report-v1.json \
-  data/tmdb-reconciliation-cache-v1.json
-```
-
-This manual stage calls TMDB sequentially and caches each sanitized lookup. It
-confirms only one exact normalized title match. Conflicts remain unlinked for
-private review, and an interrupted run resumes from its cache.
+The importer rejects duplicate normalized titles, duplicate TMDB IDs, partial
+ratings, and partial or non-contiguous collection ordering. It does
+not accept IMDb IDs, Now Showing state, prior-viewed flags, source provenance,
+provider metadata, users, sessions, rolls, audit events, or unknown timestamps.
 
 ## Generate
 
-Choose and retain one explicit UTC import time:
+Choose and retain one explicit UTC import time. It defaults blank `added_at`
+values and records imported ratings; it does not invent watch times.
 
 ```sh
 pnpm import:generate -- \
-  data/sanitized-import-v1.json \
-  data/generated-import-v1 \
-  2026-08-08T00:00:00.000Z \
-  data/tmdb-reconciliation-v1.json
+  data/catalog.csv \
+  data/generated-catalog \
+  2026-08-25T12:00:00.000Z
 ```
 
-The reconciliation argument is optional. The generator records the artifact
-type, ordered chunks, checksums, expected counts, and Now Showing state in the
-manifest.
-
-For an already-imported environment, generate an update-only metadata artifact
-instead of replaying the structural import:
-
-```sh
-pnpm import:metadata -- \
-  data/sanitized-import-v1.json \
-  data/tmdb-reconciliation-v1.json \
-  data/generated-tmdb-metadata-v1 \
-  2026-08-10T00:00:00.000Z
-```
-
-Its manifest is labeled `tmdb_metadata`; its chunks update confirmed movie
-metadata without inserting or changing catalog structure, ratings, or queue state.
+Generation performs no network requests. It writes ordered SQL chunks, a
+checksummed manifest with expected durable row counts, and a validation report.
+TMDB IDs create only link rows queued for the application's normal TMDB refresh.
 
 ## Preflight and apply
 
-Preflight validates both artifacts without contacting a database:
+Preflight validates the artifact without contacting a database:
 
 ```sh
 pnpm import:apply -- \
   --environment production \
   --database ludovico-tech-production \
-  --catalog data/generated-import-v1 \
-  --metadata data/generated-tmdb-metadata-v1
+  --catalog data/generated-catalog
 ```
 
-Review that summary before adding `--execute`. Execution validates the checked-in
+Review the summary before adding `--execute`. Execution validates the checked-in
 environment configuration and applied migrations, requires an empty migrated
-target, applies catalog chunks before metadata chunks, and verifies generalized
-counts and Now Showing state afterward. The database confirmation must exactly
-match the selected environment.
+target, applies the catalog chunks, and verifies exact movie, collection,
+membership, rating, TMDB-link, and empty Now Showing state afterward. The
+database confirmation must exactly match the selected environment.
+Import targets are resolved from the checked-in Wrangler environment and its
+single `DB` binding rather than from an importer-specific environment list.
 
-Exercise the command first against a newly migrated, isolated local database. Use
-the same persistence directory for migration and import:
+Exercise the artifact first against a newly migrated isolated local database.
+Use the same persistence directory for migration and import:
 
 ```sh
 pnpm exec wrangler d1 migrations apply ludovico-tech-development \
@@ -97,13 +74,11 @@ pnpm exec wrangler d1 migrations apply ludovico-tech-development \
 pnpm import:apply -- \
   --environment development \
   --database ludovico-tech-development \
-  --catalog data/generated-import-v1 \
-  --metadata data/generated-tmdb-metadata-v1 \
+  --catalog data/generated-catalog \
   --persist-to <isolated-directory> \
   --execute
 ```
 
-Do not run private imports in CI or as part of application deployment. Any remote
+Do not run private imports in CI or as part of application deployment. A remote
 import is a separate reviewed operator action. If a chunk or post-import check
-fails, stop: do not blindly replay the artifact. Review and reset or recreate the
-unreleased target before trying again.
+fails, stop and review the unreleased target before resetting or retrying it.

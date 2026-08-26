@@ -1,86 +1,46 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-  buildImportPlan,
-  parseIntermediateJson,
-  parseTmdbReconciliationJson,
+  buildCatalogImportPlan,
+  parseCatalogCsv,
   renderSqlChunks,
-  type ImportDiagnostic,
-} from "./import-sheet-lib";
+} from "./catalog-import-lib";
 import {
   clearGeneratedImportFiles,
   writeImportArtifacts,
   writeValidationReport,
 } from "./import-files";
 
-const [inputArgument, outputArgument, importedAt, reconciliationArgument] =
-  process.argv.slice(2).filter((argument) => argument !== "--");
+const [inputArgument, outputArgument, importedAt] = process.argv
+  .slice(2)
+  .filter((argument) => argument !== "--");
 
 if (!inputArgument || !outputArgument || !importedAt) {
   console.error(
-    "Usage: pnpm import:generate -- <intermediate.json> <output-directory> <imported-at-iso> [reconciliation.json]",
+    "Usage: pnpm import:generate -- <catalog.csv> <output-directory> <imported-at-iso>",
   );
   process.exitCode = 2;
 } else {
   const outputDirectory = resolve(outputArgument);
-  const document = parseIntermediateJson(
-    readFileSync(resolve(inputArgument), "utf8"),
-  );
-  let diagnostics: ImportDiagnostic[];
+  const parsed = parseCatalogCsv(readFileSync(resolve(inputArgument), "utf8"));
+  const plan = parsed.diagnostics.length
+    ? null
+    : await buildCatalogImportPlan(parsed.seed, importedAt);
+  const diagnostics = [...parsed.diagnostics, ...(plan?.diagnostics ?? [])];
 
-  if (!document) {
-    diagnostics = [
-      {
-        code: "INTERMEDIATE_SCHEMA_INVALID",
-        row: null,
-        severity: "error",
-      },
-    ];
+  if (diagnostics.length === 0 && plan) {
+    const chunks = renderSqlChunks(plan.statements);
+    writeImportArtifacts(
+      outputDirectory,
+      chunks,
+      plan.counts,
+      importedAt,
+      diagnostics,
+    );
+    console.log(
+      `Generated ${chunks.length} chunks for ${plan.counts.movies} movies`,
+    );
   } else {
-    const reconciliation = reconciliationArgument
-      ? parseTmdbReconciliationJson(
-          readFileSync(resolve(reconciliationArgument), "utf8"),
-        )
-      : null;
-    const plan =
-      reconciliationArgument && !reconciliation
-        ? {
-            counts: { collections: 0, movies: 0, ratings: 0, sources: 0 },
-            diagnostics: [
-              {
-                code: "TMDB_RECONCILIATION_INVALID" as const,
-                row: null,
-                severity: "error" as const,
-              },
-            ],
-            nowShowingStatus: null,
-            statements: [],
-          }
-        : await buildImportPlan(document, importedAt, reconciliation);
-    diagnostics = plan.diagnostics;
-    if (!diagnostics.some((item) => item.severity === "error")) {
-      if (plan.nowShowingStatus === null) {
-        throw new Error("Valid import plan omitted Now Showing state");
-      }
-      const chunks = renderSqlChunks(plan.statements);
-      writeImportArtifacts(
-        outputDirectory,
-        chunks,
-        plan.counts,
-        importedAt,
-        diagnostics,
-        {
-          artifactType: "catalog_import",
-          nowShowingStatus: plan.nowShowingStatus,
-        },
-      );
-      console.log(
-        `Generated ${chunks.length} chunks for ${plan.counts.movies} movies and ${plan.counts.sources} source rows`,
-      );
-    }
-  }
-
-  if (diagnostics.some((item) => item.severity === "error")) {
     clearGeneratedImportFiles(outputDirectory);
     writeValidationReport(outputDirectory, diagnostics);
     console.error("Import validation failed; inspect the private report");

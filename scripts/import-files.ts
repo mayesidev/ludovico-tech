@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -5,29 +6,18 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { createHash } from "node:crypto";
 import { join } from "node:path";
 import {
-  INTERMEDIATE_SCHEMA_VERSION,
-  type ImportCounts,
-  type ImportDiagnostic,
+  CATALOG_IMPORT_SCHEMA_VERSION,
+  type CatalogImportCounts,
+  type CatalogImportDiagnostic,
   type SqlChunk,
-} from "./import-sheet-lib";
+} from "./catalog-import-lib";
 
 const generatedFilename =
   /^(?:chunk-\d{4}\.sql|manifest\.json|validation-report\.json)$/;
 
-export const IMPORT_ARTIFACT_SCHEMA_VERSION = 2 as const;
-
-type ImportArtifactOptions =
-  | {
-      artifactType: "catalog_import";
-      nowShowingStatus: "empty" | "ready";
-    }
-  | {
-      artifactType: "tmdb_metadata";
-      nowShowingStatus: null;
-    };
+export const IMPORT_ARTIFACT_SCHEMA_VERSION = 3 as const;
 
 export const clearGeneratedImportFiles = (outputDirectory: string) => {
   if (!existsSync(outputDirectory)) return;
@@ -40,7 +30,7 @@ export const clearGeneratedImportFiles = (outputDirectory: string) => {
 
 export const writeValidationReport = (
   outputDirectory: string,
-  diagnostics: ImportDiagnostic[],
+  diagnostics: CatalogImportDiagnostic[],
 ) => {
   mkdirSync(outputDirectory, { recursive: true });
   writeFileSync(
@@ -48,8 +38,8 @@ export const writeValidationReport = (
     `${JSON.stringify(
       {
         diagnostics,
-        schemaVersion: INTERMEDIATE_SCHEMA_VERSION,
-        valid: !diagnostics.some((item) => item.severity === "error"),
+        schemaVersion: CATALOG_IMPORT_SCHEMA_VERSION,
+        valid: diagnostics.length === 0,
       },
       null,
       2,
@@ -60,10 +50,9 @@ export const writeValidationReport = (
 export const writeImportArtifacts = (
   outputDirectory: string,
   chunks: SqlChunk[],
-  counts: ImportCounts,
+  counts: CatalogImportCounts,
   importedAt: string,
-  diagnostics: ImportDiagnostic[],
-  options: ImportArtifactOptions,
+  diagnostics: CatalogImportDiagnostic[],
 ) => {
   mkdirSync(outputDirectory, { recursive: true });
   clearGeneratedImportFiles(outputDirectory);
@@ -79,15 +68,15 @@ export const writeImportArtifacts = (
     `${JSON.stringify(
       {
         artifactSchemaVersion: IMPORT_ARTIFACT_SCHEMA_VERSION,
-        artifactType: options.artifactType,
+        artifactType: "catalog_import",
         chunks: chunks.map((chunk) => ({
           filename: chunk.filename,
           sha256: createHash("sha256").update(chunk.sql).digest("hex"),
         })),
         counts,
         importedAt,
-        nowShowingStatus: options.nowShowingStatus,
-        schemaVersion: INTERMEDIATE_SCHEMA_VERSION,
+        nowShowingStatus: "empty",
+        schemaVersion: CATALOG_IMPORT_SCHEMA_VERSION,
       },
       null,
       2,
