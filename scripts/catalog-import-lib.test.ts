@@ -14,21 +14,23 @@ describe("catalog import template", () => {
     const parsed = parseCatalogCsv("title\nSynthetic Movie\n");
 
     expect(parsed.diagnostics).toEqual([]);
-    expect(parsed.seed).toEqual({
-      movies: [
-        {
-          addedAt: null,
-          collection: null,
-          collectionPosition: null,
-          rating: null,
-          title: "Synthetic Movie",
-          tmdbId: null,
-        },
-      ],
-      schemaVersion: 1,
-    });
+    expect(parsed.movies).toEqual([
+      {
+        addedAt: null,
+        collection: null,
+        collectionPosition: null,
+        rating: null,
+        title: "Synthetic Movie",
+        tmdbId: null,
+      },
+    ]);
 
-    const plan = await buildCatalogImportPlan(parsed.seed, importedAt);
+    expect(parsed.nowShowingTitle).toBeNull();
+    const plan = buildCatalogImportPlan(
+      parsed.movies,
+      parsed.nowShowingTitle,
+      importedAt,
+    );
     expect(plan.counts).toEqual({
       collectionMemberships: 0,
       collections: 0,
@@ -42,13 +44,17 @@ describe("catalog import template", () => {
     );
   });
 
-  it("accepts only app-owned seed data and creates a bare TMDB link", async () => {
+  it("accepts supported import data and creates a bare TMDB link", async () => {
     const parsed = parseCatalogCsv(
-      `${fullHeader}\nSynthetic Movie,2026-08-01T10:30:00.000Z,4.5,A synthetic delight,Synthetic Saga,1,42\n`,
+      `${fullHeader}\nSynthetic Movie,2026-08-01T10:30:00.000Z,4.5,A synthetic delight,Synthetic Saga,1,42,false\n`,
     );
     expect(parsed.diagnostics).toEqual([]);
 
-    const plan = await buildCatalogImportPlan(parsed.seed, importedAt);
+    const plan = buildCatalogImportPlan(
+      parsed.movies,
+      parsed.nowShowingTitle,
+      importedAt,
+    );
     const sql = plan.statements.join("\n");
     expect(plan.counts).toEqual({
       collectionMemberships: 1,
@@ -57,7 +63,7 @@ describe("catalog import template", () => {
       ratings: 1,
       tmdbLinks: 1,
     });
-    expect(sql).toContain("INSERT OR IGNORE INTO movie_tmdb_data");
+    expect(sql).toContain("INSERT INTO movie_tmdb_data");
     expect(sql).toContain("(movie_id, tmdb_id, refresh_after)");
     expect(sql).toContain("'1970-01-01T00:00:00.000Z'");
     expect(sql).not.toMatch(
@@ -85,7 +91,7 @@ describe("catalog import template", () => {
 
   it("rejects partial ratings and invalid optional values", () => {
     const parsed = parseCatalogCsv(
-      `${fullHeader}\nMovie One,not-a-date,4,,Saga,,not-an-id\nMovie Two,,,Phrase,,2,\n`,
+      `${fullHeader}\nMovie One,not-a-date,4,,Saga,,not-an-id,\nMovie Two,,,Phrase,,2,,\n`,
     );
     expect(parsed.diagnostics).toEqual([
       { code: "INVALID_ADDED_AT", row: 2, severity: "error" },
@@ -97,6 +103,45 @@ describe("catalog import template", () => {
         row: 3,
         severity: "error",
       },
+    ]);
+  });
+
+  it("selects one imported unwatched movie as Now Showing", async () => {
+    const parsed = parseCatalogCsv(
+      "title,collection,collection_position,now_showing\nFirst Movie,Saga,1,false\nStarting Movie,Saga,2,true\n",
+    );
+    expect(parsed.diagnostics).toEqual([]);
+
+    expect(parsed.nowShowingTitle).toBe("Starting Movie");
+    const plan = buildCatalogImportPlan(
+      parsed.movies,
+      parsed.nowShowingTitle,
+      importedAt,
+    );
+    expect(plan.nowShowing?.movieId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(plan.nowShowing?.collectionId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(plan.statements.at(-1)).toBe(
+      `UPDATE now_showing SET rolled_movie_id = NULL, movie_id = '${plan.nowShowing?.movieId}', collection_id = '${plan.nowShowing?.collectionId}', status = 'ready', rolled_at = NULL, updated_at = '${importedAt}' WHERE id = 1;`,
+    );
+  });
+
+  it("rejects invalid, multiple, or watched Now Showing selections", () => {
+    expect(
+      parseCatalogCsv("title,now_showing\nMovie One,yes\n").diagnostics,
+    ).toEqual([{ code: "INVALID_NOW_SHOWING", row: 2, severity: "error" }]);
+
+    expect(
+      parseCatalogCsv(
+        "title,rating_score,rating_phrase,now_showing\nMovie One,,,true\nMovie Two,4,Good,true\n",
+      ).diagnostics,
+    ).toEqual([
+      { code: "MULTIPLE_NOW_SHOWING", row: 2, severity: "error" },
+      { code: "MULTIPLE_NOW_SHOWING", row: 3, severity: "error" },
+      { code: "WATCHED_NOW_SHOWING", row: 3, severity: "error" },
     ]);
   });
 
@@ -140,7 +185,7 @@ describe("catalog import template", () => {
     });
   });
 
-  it("plans deterministic IDs and relationships independent of row layout", async () => {
+  it("plans relationships in normalized title order", async () => {
     const first = parseCatalogCsv(
       "title,collection\nSecond Movie,Saga\nFirst Movie,Saga\n",
     );
@@ -150,26 +195,72 @@ describe("catalog import template", () => {
     expect(first.diagnostics).toEqual([]);
     expect(second.diagnostics).toEqual([]);
 
-    const firstPlan = await buildCatalogImportPlan(first.seed, importedAt);
-    const secondPlan = await buildCatalogImportPlan(second.seed, importedAt);
-    expect(firstPlan).toEqual(secondPlan);
+    const firstPlan = buildCatalogImportPlan(
+      first.movies,
+      first.nowShowingTitle,
+      importedAt,
+    );
+    const secondPlan = buildCatalogImportPlan(
+      second.movies,
+      second.nowShowingTitle,
+      importedAt,
+    );
+    for (const plan of [firstPlan, secondPlan]) {
+      const movieInsert = plan.statements.find((statement) =>
+        statement.startsWith("INSERT INTO movies "),
+      ) as string;
+      expect(movieInsert.indexOf("First Movie")).toBeLessThan(
+        movieInsert.indexOf("Second Movie"),
+      );
+    }
   });
 });
 
 describe("catalog import SQL chunks", () => {
   it("renders deterministic bounded chunks", () => {
     expect(renderSqlChunks(["SELECT 1;", "SELECT 2;"], 1)).toEqual([
-      {
-        filename: "chunk-0001.sql",
-        sql: "PRAGMA foreign_keys = ON;\nSELECT 1;\n",
-      },
-      {
-        filename: "chunk-0002.sql",
-        sql: "PRAGMA foreign_keys = ON;\nSELECT 2;\n",
-      },
+      "PRAGMA foreign_keys = ON;\nSELECT 1;\n",
+      "PRAGMA foreign_keys = ON;\nSELECT 2;\n",
     ]);
     expect(() => renderSqlChunks([], 0)).toThrow(
       "Chunk size must be a positive integer",
     );
+  });
+
+  it("batches hundreds of rows into bounded multi-row inserts", async () => {
+    const movies = Array.from({ length: 600 }, (_, index) => ({
+      addedAt: null,
+      collection: "Synthetic Series",
+      collectionPosition: index + 1,
+      rating: { phrase: "Good", score: 4 },
+      title: `Synthetic Movie ${String(index + 1).padStart(4, "0")}`,
+      tmdbId: index + 1,
+    }));
+
+    const plan = buildCatalogImportPlan(movies, null, importedAt);
+    for (const table of [
+      "movies",
+      "movie_tmdb_data",
+      "collection_movies",
+      "ratings",
+    ]) {
+      const inserts = plan.statements.filter((statement) =>
+        statement.startsWith(`INSERT INTO ${table} `),
+      );
+      expect(inserts).toHaveLength(3);
+      expect(
+        inserts.map(
+          (statement) =>
+            statement.slice(statement.indexOf(" VALUES ") + 8).split("), (")
+              .length,
+        ),
+      ).toEqual([250, 250, 100]);
+      expect(
+        inserts.every(
+          (statement) =>
+            new TextEncoder().encode(statement).byteLength < 100_000,
+        ),
+      ).toBe(true);
+    }
   });
 });

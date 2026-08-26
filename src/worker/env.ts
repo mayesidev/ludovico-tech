@@ -98,13 +98,7 @@ export const now = () => new Date().toISOString();
 
 export const newId = () => crypto.randomUUID();
 
-export const normalizeTitle = (title: string) =>
-  title
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
+export { normalizeTitle } from "../shared/normalize-title";
 
 const base64Url = (bytes: Uint8Array) => {
   let binary = "";

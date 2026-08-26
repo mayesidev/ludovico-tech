@@ -1,6 +1,5 @@
 import { parse } from "csv-parse/sync";
-
-export const CATALOG_IMPORT_SCHEMA_VERSION = 1 as const;
+import { normalizeTitle } from "../src/shared/normalize-title";
 
 export const CATALOG_IMPORT_COLUMNS = [
   "title",
@@ -10,6 +9,7 @@ export const CATALOG_IMPORT_COLUMNS = [
   "collection",
   "collection_position",
   "tmdb_id",
+  "now_showing",
 ] as const;
 
 type CatalogImportColumn = (typeof CATALOG_IMPORT_COLUMNS)[number];
@@ -24,13 +24,16 @@ export type CatalogImportDiagnosticCode =
   | "INVALID_ADDED_AT"
   | "INVALID_COLLECTION"
   | "INVALID_COLLECTION_POSITION"
+  | "INVALID_NOW_SHOWING"
   | "INVALID_RATING"
   | "INVALID_TMDB_ID"
   | "INVALID_TITLE"
+  | "MULTIPLE_NOW_SHOWING"
   | "ROW_COLUMN_COUNT"
   | "TEMPLATE_DUPLICATE_COLUMN"
   | "TEMPLATE_MISSING_TITLE"
-  | "TEMPLATE_UNKNOWN_COLUMN";
+  | "TEMPLATE_UNKNOWN_COLUMN"
+  | "WATCHED_NOW_SHOWING";
 
 export interface CatalogImportDiagnostic {
   code: CatalogImportDiagnosticCode;
@@ -38,23 +41,18 @@ export interface CatalogImportDiagnostic {
   severity: "error";
 }
 
-export interface CatalogRatingSeed {
+export interface CatalogImportRating {
   phrase: string;
   score: number;
 }
 
-export interface CatalogMovieSeed {
+export interface CatalogImportMovie {
   addedAt: string | null;
   collection: string | null;
   collectionPosition: number | null;
-  rating: CatalogRatingSeed | null;
+  rating: CatalogImportRating | null;
   title: string;
   tmdbId: number | null;
-}
-
-export interface CatalogSeed {
-  movies: CatalogMovieSeed[];
-  schemaVersion: typeof CATALOG_IMPORT_SCHEMA_VERSION;
 }
 
 export interface CatalogImportCounts {
@@ -67,27 +65,18 @@ export interface CatalogImportCounts {
 
 export interface CatalogImportPlan {
   counts: CatalogImportCounts;
-  diagnostics: CatalogImportDiagnostic[];
+  nowShowing: {
+    collectionId: string | null;
+    movieId: string;
+  } | null;
   statements: string[];
 }
 
 export interface CatalogCsvResult {
   diagnostics: CatalogImportDiagnostic[];
-  seed: CatalogSeed;
+  movies: CatalogImportMovie[];
+  nowShowingTitle: string | null;
 }
-
-export interface SqlChunk {
-  filename: string;
-  sql: string;
-}
-
-const emptyCounts = (): CatalogImportCounts => ({
-  collectionMemberships: 0,
-  collections: 0,
-  movies: 0,
-  ratings: 0,
-  tmdbLinks: 0,
-});
 
 const diagnostic = (
   code: CatalogImportDiagnosticCode,
@@ -97,26 +86,18 @@ const diagnostic = (
 const compareText = (left: string, right: string) =>
   left < right ? -1 : left > right ? 1 : 0;
 
-export const normalizeCatalogText = (value: string) =>
-  value
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-
-const parseIsoTimestamp = (value: string) => {
+const isIsoTimestamp = (value: string) => {
   try {
-    return new Date(value).toISOString() === value ? value : null;
+    return new Date(value).toISOString() === value;
   } catch {
-    return null;
+    return false;
   }
 };
 
 const parseRating = (
   scoreSource: string,
   phraseSource: string,
-): CatalogRatingSeed | null | undefined => {
+): CatalogImportRating | null | undefined => {
   const scoreValue = scoreSource.trim();
   const phrase = phraseSource.trim();
   if (!scoreValue && !phrase) return null;
@@ -131,6 +112,12 @@ const parseRating = (
     return undefined;
   }
   return { phrase, score };
+};
+
+const parseNowShowing = (value: string) => {
+  if (value === "" || value === "false") return false;
+  if (value === "true") return true;
+  return null;
 };
 
 const parsePositiveInteger = (value: string) => {
@@ -159,14 +146,16 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
   } catch {
     return {
       diagnostics: [diagnostic("IMPORT_CSV_INVALID", null)],
-      seed: { movies: [], schemaVersion: CATALOG_IMPORT_SCHEMA_VERSION },
+      movies: [],
+      nowShowingTitle: null,
     };
   }
 
   if (records.length === 0) {
     return {
       diagnostics: [diagnostic("IMPORT_EMPTY", null)],
-      seed: { movies: [], schemaVersion: CATALOG_IMPORT_SCHEMA_VERSION },
+      movies: [],
+      nowShowingTitle: null,
     };
   }
 
@@ -190,7 +179,11 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
     diagnostics.push(diagnostic("TEMPLATE_MISSING_TITLE", 1));
   }
 
-  const parsedRows: Array<{ movie: CatalogMovieSeed; row: number }> = [];
+  const parsedRows: Array<{
+    movie: CatalogImportMovie;
+    nowShowing: boolean;
+    row: number;
+  }> = [];
   for (const [index, record] of records.slice(1).entries()) {
     const row = index + 2;
     if (record.length !== headers.length) {
@@ -199,9 +192,10 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
     }
 
     const title = columnValue(record, columns, "title").trim();
-    const normalizedTitle = normalizeCatalogText(title);
+    const normalizedTitle = normalizeTitle(title);
     const addedAtSource = columnValue(record, columns, "added_at").trim();
-    const addedAt = addedAtSource ? parseIsoTimestamp(addedAtSource) : null;
+    const addedAt =
+      addedAtSource && isIsoTimestamp(addedAtSource) ? addedAtSource : null;
     const rating = parseRating(
       columnValue(record, columns, "rating_score"),
       columnValue(record, columns, "rating_phrase"),
@@ -218,6 +212,8 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
       : null;
     const tmdbIdSource = columnValue(record, columns, "tmdb_id").trim();
     const tmdbId = tmdbIdSource ? parsePositiveInteger(tmdbIdSource) : null;
+    const nowShowingSource = columnValue(record, columns, "now_showing").trim();
+    const nowShowing = parseNowShowing(nowShowingSource);
 
     let valid = true;
     if (!title || title.length > 200 || !normalizedTitle) {
@@ -234,7 +230,7 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
     }
     if (
       collection &&
-      (collection.length > 200 || !normalizeCatalogText(collection))
+      (collection.length > 200 || !normalizeTitle(collection))
     ) {
       diagnostics.push(diagnostic("INVALID_COLLECTION", row));
       valid = false;
@@ -250,8 +246,12 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
       diagnostics.push(diagnostic("INVALID_TMDB_ID", row));
       valid = false;
     }
+    if (nowShowing === null) {
+      diagnostics.push(diagnostic("INVALID_NOW_SHOWING", row));
+      valid = false;
+    }
 
-    if (valid && rating !== undefined) {
+    if (valid && rating !== undefined && nowShowing !== null) {
       parsedRows.push({
         movie: {
           addedAt,
@@ -261,6 +261,7 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
           title,
           tmdbId,
         },
+        nowShowing,
         row,
       });
     }
@@ -269,7 +270,7 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
   const uniqueTitleRows = new Map<string, number>();
   const uniqueTmdbRows = new Map<number, number>();
   for (const { movie, row } of parsedRows) {
-    const normalizedTitle = normalizeCatalogText(movie.title);
+    const normalizedTitle = normalizeTitle(movie.title);
     if (uniqueTitleRows.has(normalizedTitle)) {
       diagnostics.push(diagnostic("DUPLICATE_TITLE", row));
     } else {
@@ -286,14 +287,26 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
 
   const collections = new Map<
     string,
-    Array<{ movie: CatalogMovieSeed; row: number }>
+    Array<{ movie: CatalogImportMovie; row: number }>
   >();
   for (const parsedRow of parsedRows) {
     if (!parsedRow.movie.collection) continue;
-    const key = normalizeCatalogText(parsedRow.movie.collection);
+    const key = normalizeTitle(parsedRow.movie.collection);
     const members = collections.get(key) ?? [];
     members.push(parsedRow);
     collections.set(key, members);
+  }
+
+  const nowShowingRows = parsedRows.filter(({ nowShowing }) => nowShowing);
+  if (nowShowingRows.length > 1) {
+    for (const { row } of nowShowingRows) {
+      diagnostics.push(diagnostic("MULTIPLE_NOW_SHOWING", row));
+    }
+  }
+  for (const { movie, row } of nowShowingRows) {
+    if (movie.rating) {
+      diagnostics.push(diagnostic("WATCHED_NOW_SHOWING", row));
+    }
   }
   for (const members of collections.values()) {
     const positioned = members.filter(
@@ -329,23 +342,10 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
 
   return {
     diagnostics,
-    seed: {
-      movies: parsedRows.map(({ movie }) => movie),
-      schemaVersion: CATALOG_IMPORT_SCHEMA_VERSION,
-    },
+    movies: parsedRows.map(({ movie }) => movie),
+    nowShowingTitle: nowShowingRows[0]?.movie.title ?? null,
   };
 };
-
-const hash = async (scope: string, value: string) => {
-  const bytes = new TextEncoder().encode(`${scope}\u0000${value}`);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
-};
-
-const stableId = async (scope: string, value: string) =>
-  `${scope}_${(await hash(scope, value)).slice(0, 32)}`;
 
 const sql = (value: string | number | null) => {
   if (value === null) return "NULL";
@@ -353,47 +353,77 @@ const sql = (value: string | number | null) => {
   return `'${value.replaceAll("'", "''")}'`;
 };
 
-export const buildCatalogImportPlan = async (
-  seed: CatalogSeed,
-  importedAt: string,
-): Promise<CatalogImportPlan> => {
-  if (
-    seed.schemaVersion !== CATALOG_IMPORT_SCHEMA_VERSION ||
-    !parseIsoTimestamp(importedAt)
-  ) {
-    return {
-      counts: emptyCounts(),
-      diagnostics: [diagnostic("INVALID_ADDED_AT", null)],
-      statements: [],
-    };
-  }
+const MAX_INSERT_ROWS = 250;
+const MAX_INSERT_BYTES = 90_000;
+const sqlBytes = (value: string) => new TextEncoder().encode(value).byteLength;
 
-  const movies = [...seed.movies].sort((left, right) =>
-    compareText(
-      normalizeCatalogText(left.title),
-      normalizeCatalogText(right.title),
-    ),
+const batchedInsert = (table: string, columns: string[], rows: string[]) => {
+  const prefix = `INSERT INTO ${table} (${columns.join(", ")}) VALUES `;
+  const statements: string[] = [];
+  let batch: string[] = [];
+  for (const row of rows) {
+    const candidate = `${prefix}${[...batch, row].join(", ")};`;
+    if (
+      batch.length > 0 &&
+      (batch.length === MAX_INSERT_ROWS ||
+        sqlBytes(candidate) > MAX_INSERT_BYTES)
+    ) {
+      statements.push(`${prefix}${batch.join(", ")};`);
+      batch = [];
+    }
+    if (sqlBytes(`${prefix}${row};`) > MAX_INSERT_BYTES) {
+      throw new Error(`A ${table} import row exceeds the SQL statement limit`);
+    }
+    batch.push(row);
+  }
+  if (batch.length > 0) {
+    statements.push(`${prefix}${batch.join(", ")};`);
+  }
+  return statements;
+};
+
+export const buildCatalogImportPlan = (
+  moviesToImport: CatalogImportMovie[],
+  nowShowingTitle: string | null,
+  importedAt: string,
+): CatalogImportPlan => {
+  if (!isIsoTimestamp(importedAt)) throw new Error("Invalid import time");
+
+  const movies = [...moviesToImport].sort((left, right) =>
+    compareText(normalizeTitle(left.title), normalizeTitle(right.title)),
   );
+  const selectedMovie = nowShowingTitle
+    ? (movies.find(
+        (movie) =>
+          normalizeTitle(movie.title) === normalizeTitle(nowShowingTitle),
+      ) ?? null)
+    : null;
+  if (
+    (nowShowingTitle !== null && selectedMovie === null) ||
+    selectedMovie?.rating
+  ) {
+    throw new Error("Invalid Now Showing selection");
+  }
   const movieIds = new Map<string, string>();
   for (const movie of movies) {
-    const identity = normalizeCatalogText(movie.title);
-    movieIds.set(identity, await stableId("movie", identity));
+    const identity = normalizeTitle(movie.title);
+    movieIds.set(identity, crypto.randomUUID());
   }
 
   const collections = new Map<
     string,
     {
       id: string;
-      members: CatalogMovieSeed[];
+      members: CatalogImportMovie[];
       name: string;
       orderConfirmed: boolean;
     }
   >();
   for (const movie of movies) {
     if (!movie.collection) continue;
-    const normalized = normalizeCatalogText(movie.collection);
+    const normalized = normalizeTitle(movie.collection);
     const collection = collections.get(normalized) ?? {
-      id: await stableId("collection", normalized),
+      id: crypto.randomUUID(),
       members: [],
       name: movie.collection,
       orderConfirmed: movie.collectionPosition !== null,
@@ -403,24 +433,54 @@ export const buildCatalogImportPlan = async (
   }
 
   const statements: string[] = [];
-  for (const [normalized, collection] of [...collections.entries()].sort(
-    ([left], [right]) => compareText(left, right),
-  )) {
-    statements.push(
-      `INSERT OR IGNORE INTO collections (id, name, name_normalized, order_confirmed, created_at, updated_at) VALUES (${sql(collection.id)}, ${sql(collection.name)}, ${sql(normalized)}, ${collection.orderConfirmed ? 1 : 0}, ${sql(importedAt)}, ${sql(importedAt)});`,
+  const collectionRows = [...collections.entries()]
+    .sort(([left], [right]) => compareText(left, right))
+    .map(
+      ([normalized, collection]) =>
+        `(${sql(collection.id)}, ${sql(collection.name)}, ${sql(normalized)}, ${collection.orderConfirmed ? 1 : 0}, ${sql(importedAt)}, ${sql(importedAt)})`,
     );
-  }
+  statements.push(
+    ...batchedInsert(
+      "collections",
+      [
+        "id",
+        "name",
+        "name_normalized",
+        "order_confirmed",
+        "created_at",
+        "updated_at",
+      ],
+      collectionRows,
+    ),
+  );
+
+  const movieRows: string[] = [];
+  const tmdbRows: string[] = [];
   for (const movie of movies) {
-    const movieId = movieIds.get(normalizeCatalogText(movie.title)) as string;
-    statements.push(
-      `INSERT OR IGNORE INTO movies (id, title, title_normalized, added_at, updated_at) VALUES (${sql(movieId)}, ${sql(movie.title)}, ${sql(normalizeCatalogText(movie.title))}, ${sql(movie.addedAt ?? importedAt)}, ${sql(importedAt)});`,
+    const movieId = movieIds.get(normalizeTitle(movie.title)) as string;
+    movieRows.push(
+      `(${sql(movieId)}, ${sql(movie.title)}, ${sql(normalizeTitle(movie.title))}, ${sql(movie.addedAt ?? importedAt)}, ${sql(importedAt)})`,
     );
     if (movie.tmdbId !== null) {
-      statements.push(
-        `INSERT OR IGNORE INTO movie_tmdb_data (movie_id, tmdb_id, refresh_after) VALUES (${sql(movieId)}, ${movie.tmdbId}, '1970-01-01T00:00:00.000Z');`,
+      tmdbRows.push(
+        `(${sql(movieId)}, ${movie.tmdbId}, '1970-01-01T00:00:00.000Z')`,
       );
     }
   }
+  statements.push(
+    ...batchedInsert(
+      "movies",
+      ["id", "title", "title_normalized", "added_at", "updated_at"],
+      movieRows,
+    ),
+    ...batchedInsert(
+      "movie_tmdb_data",
+      ["movie_id", "tmdb_id", "refresh_after"],
+      tmdbRows,
+    ),
+  );
+
+  const membershipRows: string[] = [];
   for (const [, collection] of [...collections.entries()].sort(
     ([left], [right]) => compareText(left, right),
   )) {
@@ -428,22 +488,55 @@ export const buildCatalogImportPlan = async (
       collection.orderConfirmed
         ? (left.collectionPosition as number) -
           (right.collectionPosition as number)
-        : compareText(
-            normalizeCatalogText(left.title),
-            normalizeCatalogText(right.title),
-          ),
+        : compareText(normalizeTitle(left.title), normalizeTitle(right.title)),
     );
     for (const [index, movie] of members.entries()) {
-      statements.push(
-        `INSERT OR IGNORE INTO collection_movies (collection_id, movie_id, position) VALUES (${sql(collection.id)}, ${sql(movieIds.get(normalizeCatalogText(movie.title)) as string)}, ${index + 1});`,
+      membershipRows.push(
+        `(${sql(collection.id)}, ${sql(movieIds.get(normalizeTitle(movie.title)) as string)}, ${index + 1})`,
       );
     }
   }
+  statements.push(
+    ...batchedInsert(
+      "collection_movies",
+      ["collection_id", "movie_id", "position"],
+      membershipRows,
+    ),
+  );
+
+  const ratingRows: string[] = [];
   for (const movie of movies) {
     if (!movie.rating) continue;
-    const movieId = movieIds.get(normalizeCatalogText(movie.title)) as string;
+    const movieId = movieIds.get(normalizeTitle(movie.title)) as string;
+    ratingRows.push(
+      `(${sql(crypto.randomUUID())}, ${sql(movieId)}, ${sql(importedAt)}, NULL, ${movie.rating.score}, ${sql(movie.rating.phrase)}, 'legacy_import')`,
+    );
+  }
+  statements.push(
+    ...batchedInsert(
+      "ratings",
+      [
+        "id",
+        "movie_id",
+        "recorded_at",
+        "watched_at",
+        "score",
+        "phrase",
+        "source",
+      ],
+      ratingRows,
+    ),
+  );
+
+  const selectedMovieId = selectedMovie
+    ? (movieIds.get(normalizeTitle(selectedMovie.title)) as string)
+    : null;
+  const selectedCollectionId = selectedMovie?.collection
+    ? (collections.get(normalizeTitle(selectedMovie.collection))?.id ?? null)
+    : null;
+  if (selectedMovieId) {
     statements.push(
-      `INSERT OR IGNORE INTO ratings (id, movie_id, recorded_at, watched_at, score, phrase, source) VALUES (${sql(await stableId("rating", movieId))}, ${sql(movieId)}, ${sql(importedAt)}, NULL, ${movie.rating.score}, ${sql(movie.rating.phrase)}, 'legacy_import');`,
+      `UPDATE now_showing SET rolled_movie_id = NULL, movie_id = ${sql(selectedMovieId)}, collection_id = ${sql(selectedCollectionId)}, status = 'ready', rolled_at = NULL, updated_at = ${sql(importedAt)} WHERE id = 1;`,
     );
   }
 
@@ -455,7 +548,9 @@ export const buildCatalogImportPlan = async (
       ratings: movies.filter((movie) => movie.rating).length,
       tmdbLinks: movies.filter((movie) => movie.tmdbId !== null).length,
     },
-    diagnostics: [],
+    nowShowing: selectedMovieId
+      ? { collectionId: selectedCollectionId, movieId: selectedMovieId }
+      : null,
     statements,
   };
 };
@@ -463,17 +558,15 @@ export const buildCatalogImportPlan = async (
 export const renderSqlChunks = (
   statements: string[],
   statementsPerChunk = 40,
-): SqlChunk[] => {
+): string[] => {
   if (!Number.isInteger(statementsPerChunk) || statementsPerChunk < 1) {
     throw new Error("Chunk size must be a positive integer");
   }
-  const chunks: SqlChunk[] = [];
+  const chunks: string[] = [];
   for (let start = 0; start < statements.length; start += statementsPerChunk) {
-    const sequence = chunks.length + 1;
-    chunks.push({
-      filename: `chunk-${String(sequence).padStart(4, "0")}.sql`,
-      sql: `PRAGMA foreign_keys = ON;\n${statements.slice(start, start + statementsPerChunk).join("\n")}\n`,
-    });
+    chunks.push(
+      `PRAGMA foreign_keys = ON;\n${statements.slice(start, start + statementsPerChunk).join("\n")}\n`,
+    );
   }
   return chunks;
 };
