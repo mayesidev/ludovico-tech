@@ -1,62 +1,16 @@
-import { createHash } from "node:crypto";
-import { readFileSync, readdirSync } from "node:fs";
-import { join, resolve } from "node:path";
+import {
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, join, resolve } from "node:path";
 import { z } from "zod";
-import { CATALOG_IMPORT_SCHEMA_VERSION } from "./catalog-import-lib";
-import { IMPORT_ARTIFACT_SCHEMA_VERSION } from "./import-files";
+import { renderSqlChunks, type CatalogImportPlan } from "./catalog-import-lib";
 import { assertReleaseMigrationsApplied } from "./release-gates";
 import { parseWranglerConfig } from "./validate-cloudflare-config-lib";
-
-const countSchema = z.number().int().nonnegative();
-const countsSchema = z
-  .object({
-    collectionMemberships: countSchema,
-    collections: countSchema,
-    movies: countSchema,
-    ratings: countSchema,
-    tmdbLinks: countSchema,
-  })
-  .strict();
-const chunkSchema = z
-  .object({
-    filename: z.string().regex(/^chunk-\d{4}\.sql$/),
-    sha256: z.string().regex(/^[0-9a-f]{64}$/),
-  })
-  .strict();
-const importedAtSchema = z.string().refine((value) => {
-  try {
-    return new Date(value).toISOString() === value;
-  } catch {
-    return false;
-  }
-});
-const catalogManifestSchema = z
-  .object({
-    artifactSchemaVersion: z.literal(IMPORT_ARTIFACT_SCHEMA_VERSION),
-    artifactType: z.literal("catalog_import"),
-    chunks: z.array(chunkSchema).min(1),
-    counts: countsSchema,
-    importedAt: importedAtSchema,
-    nowShowingStatus: z.literal("empty"),
-    schemaVersion: z.literal(CATALOG_IMPORT_SCHEMA_VERSION),
-  })
-  .strict();
-const diagnosticSchema = z
-  .object({
-    code: z.string().regex(/^[A-Z][A-Z0-9_]{0,63}$/),
-    row: z.number().int().min(1).nullable(),
-    severity: z.literal("error"),
-  })
-  .strict();
-const validationReportSchema = z
-  .object({
-    diagnostics: z.array(diagnosticSchema).length(0),
-    schemaVersion: z.literal(CATALOG_IMPORT_SCHEMA_VERSION),
-    valid: z.literal(true),
-  })
-  .strict();
-
-type CatalogManifest = z.infer<typeof catalogManifestSchema>;
 
 export class ImportOperatorError extends Error {
   constructor(message: string) {
@@ -65,112 +19,10 @@ export class ImportOperatorError extends Error {
   }
 }
 
-type LoadedCatalogArtifact = {
-  chunks: Array<{ filename: string; path: string }>;
-  manifest: CatalogManifest;
-};
-
-export type ImportBundle = {
-  catalog: LoadedCatalogArtifact;
-};
-
-const readJson = (path: string, label: string) => {
-  try {
-    return JSON.parse(readFileSync(path, "utf8")) as unknown;
-  } catch {
-    throw new ImportOperatorError(`${label} is missing or invalid`);
-  }
-};
-
-const expectedChunkFilename = (index: number) =>
-  `chunk-${String(index + 1).padStart(4, "0")}.sql`;
-const formatCount = (value: number, singular: string) =>
-  `${value} ${singular}${value === 1 ? "" : "s"}`;
-
-export const loadImportBundle = (catalogDirectory: string): ImportBundle => {
-  const directory = resolve(catalogDirectory);
-  const parsedManifest = catalogManifestSchema.safeParse(
-    readJson(join(directory, "manifest.json"), "catalog_import manifest"),
-  );
-  if (!parsedManifest.success) {
-    throw new ImportOperatorError("catalog_import manifest is invalid");
-  }
-  const manifest = parsedManifest.data;
-  const report = validationReportSchema.safeParse(
-    readJson(
-      join(directory, "validation-report.json"),
-      "catalog_import validation report",
-    ),
-  );
-  if (!report.success) {
-    throw new ImportOperatorError(
-      "catalog_import validation report is invalid or failed",
-    );
-  }
-
-  for (const [index, chunk] of manifest.chunks.entries()) {
-    if (chunk.filename !== expectedChunkFilename(index)) {
-      throw new ImportOperatorError(
-        "catalog_import chunk sequence is not contiguous",
-      );
-    }
-  }
-  const manifestFilenames = manifest.chunks.map((chunk) => chunk.filename);
-  let directoryFilenames: string[];
-  try {
-    directoryFilenames = readdirSync(directory)
-      .filter((filename) => /^chunk-\d{4}\.sql$/.test(filename))
-      .sort();
-  } catch {
-    throw new ImportOperatorError("catalog_import directory is unavailable");
-  }
-  if (
-    JSON.stringify(directoryFilenames) !== JSON.stringify(manifestFilenames)
-  ) {
-    throw new ImportOperatorError(
-      "catalog_import chunks do not match the manifest",
-    );
-  }
-
-  const chunks = manifest.chunks.map((chunk) => {
-    const path = join(directory, chunk.filename);
-    let source: string;
-    try {
-      source = readFileSync(path, "utf8");
-    } catch {
-      throw new ImportOperatorError(
-        `catalog_import chunk ${chunk.filename} is unavailable`,
-      );
-    }
-    if (createHash("sha256").update(source).digest("hex") !== chunk.sha256) {
-      throw new ImportOperatorError(
-        `catalog_import chunk ${chunk.filename} failed its checksum`,
-      );
-    }
-    return { filename: chunk.filename, path };
-  });
-
-  const counts = manifest.counts;
-  if (
-    counts.movies < 1 ||
-    counts.ratings > counts.movies ||
-    counts.collections > counts.movies ||
-    counts.collectionMemberships > counts.movies ||
-    counts.collectionMemberships < counts.collections ||
-    counts.tmdbLinks > counts.movies
-  ) {
-    throw new ImportOperatorError("Import artifact counts are inconsistent");
-  }
-
-  return { catalog: { chunks, manifest } };
-};
-
-export type ImportEnvironment = string;
-
 export type ImportOperatorOptions = {
-  catalogDirectory: string;
+  csvPath: string;
   database: string;
-  environment: ImportEnvironment;
+  environment: string;
   execute: boolean;
   persistTo: string | null;
 };
@@ -202,7 +54,7 @@ export const parseImportOperatorArguments = (
   const values = new Map<string, string>();
   let execute = false;
   const valueFlags = new Set([
-    "--catalog",
+    "--csv",
     "--database",
     "--environment",
     "--persist-to",
@@ -230,15 +82,18 @@ export const parseImportOperatorArguments = (
 
   const environment = values.get("--environment");
   const database = values.get("--database");
-  const catalogDirectory = values.get("--catalog");
+  const csvPath = values.get("--csv");
   if (!environment || !/^[a-z][a-z0-9-]{0,62}$/.test(environment)) {
     throw new ImportOperatorError("--environment is missing or invalid");
   }
   const expectedDatabase = configuredDatabase(environment);
-  if (!database || !catalogDirectory || database !== expectedDatabase) {
+  if (!database || database !== expectedDatabase) {
     throw new ImportOperatorError(
       `Database confirmation must be ${expectedDatabase}`,
     );
+  }
+  if (!csvPath) {
+    throw new ImportOperatorError("--csv is required");
   }
   const persistTo = values.get("--persist-to") ?? null;
   if (environment === "development" && execute && !persistTo) {
@@ -252,7 +107,7 @@ export const parseImportOperatorArguments = (
     );
   }
   return {
-    catalogDirectory,
+    csvPath,
     database,
     environment,
     execute,
@@ -269,7 +124,11 @@ type DatabaseSummary = {
   collectionMemberships: number;
   collections: number;
   movies: number;
-  nowShowingStatus: "empty" | "ready" | "watched";
+  nowShowingCollectionId: string | null;
+  nowShowingMovieId: string | null;
+  nowShowingRolledAt: string | null;
+  nowShowingRolledMovieId: string | null;
+  nowShowingStatus: "empty" | "pending_order" | "ready" | "watched";
   ratings: number;
   tmdbLinks: number;
 };
@@ -280,9 +139,13 @@ const databaseSummaryQuery = `SELECT
   (SELECT COUNT(*) FROM collection_movies) AS collection_memberships,
   (SELECT COUNT(*) FROM ratings) AS ratings,
   (SELECT COUNT(*) FROM movie_tmdb_data) AS tmdb_links,
-  (SELECT status FROM now_showing WHERE id = 1) AS now_showing_status`;
+  (SELECT status FROM now_showing WHERE id = 1) AS now_showing_status,
+  (SELECT movie_id FROM now_showing WHERE id = 1) AS now_showing_movie_id,
+  (SELECT collection_id FROM now_showing WHERE id = 1) AS now_showing_collection_id,
+  (SELECT rolled_movie_id FROM now_showing WHERE id = 1) AS now_showing_rolled_movie_id,
+  (SELECT rolled_at FROM now_showing WHERE id = 1) AS now_showing_rolled_at`;
 const migrationsQuery = "SELECT name FROM d1_migrations ORDER BY id";
-
+const countSchema = z.number().int().nonnegative();
 const d1ResponseSchema = z
   .array(
     z
@@ -298,7 +161,11 @@ const summaryRowSchema = z
     collection_memberships: countSchema,
     collections: countSchema,
     movies: countSchema,
-    now_showing_status: z.enum(["empty", "ready", "watched"]),
+    now_showing_collection_id: z.string().nullable(),
+    now_showing_movie_id: z.string().nullable(),
+    now_showing_rolled_at: z.string().nullable(),
+    now_showing_rolled_movie_id: z.string().nullable(),
+    now_showing_status: z.enum(["empty", "pending_order", "ready", "watched"]),
     ratings: countSchema,
     tmdb_links: countSchema,
   })
@@ -326,6 +193,10 @@ const parseDatabaseSummary = (source: string): DatabaseSummary => {
     collectionMemberships: row.data.collection_memberships,
     collections: row.data.collections,
     movies: row.data.movies,
+    nowShowingCollectionId: row.data.now_showing_collection_id,
+    nowShowingMovieId: row.data.now_showing_movie_id,
+    nowShowingRolledAt: row.data.now_showing_rolled_at,
+    nowShowingRolledMovieId: row.data.now_showing_rolled_movie_id,
     nowShowingStatus: row.data.now_showing_status,
     ratings: row.data.ratings,
     tmdbLinks: row.data.tmdb_links,
@@ -339,7 +210,11 @@ const assertEmptyDatabase = (summary: DatabaseSummary) => {
     summary.movies !== 0 ||
     summary.ratings !== 0 ||
     summary.tmdbLinks !== 0 ||
-    summary.nowShowingStatus !== "empty"
+    summary.nowShowingStatus !== "empty" ||
+    summary.nowShowingMovieId !== null ||
+    summary.nowShowingCollectionId !== null ||
+    summary.nowShowingRolledMovieId !== null ||
+    summary.nowShowingRolledAt !== null
   ) {
     throw new ImportOperatorError(
       "The selected database is not an empty migrated import target",
@@ -349,19 +224,24 @@ const assertEmptyDatabase = (summary: DatabaseSummary) => {
 
 const assertImportedDatabase = (
   summary: DatabaseSummary,
-  bundle: ImportBundle,
+  plan: CatalogImportPlan,
 ) => {
-  const expected = bundle.catalog.manifest.counts;
+  const expected = plan.counts;
   if (
     summary.collectionMemberships !== expected.collectionMemberships ||
     summary.collections !== expected.collections ||
     summary.movies !== expected.movies ||
     summary.ratings !== expected.ratings ||
     summary.tmdbLinks !== expected.tmdbLinks ||
-    summary.nowShowingStatus !== "empty"
+    summary.nowShowingStatus !== (plan.nowShowing ? "ready" : "empty") ||
+    summary.nowShowingMovieId !== (plan.nowShowing?.movieId ?? null) ||
+    summary.nowShowingCollectionId !==
+      (plan.nowShowing?.collectionId ?? null) ||
+    summary.nowShowingRolledMovieId !== null ||
+    summary.nowShowingRolledAt !== null
   ) {
     throw new ImportOperatorError(
-      "Post-import database verification did not match the manifest",
+      "Post-import database verification did not match the CSV",
     );
   }
 };
@@ -416,8 +296,19 @@ const migrationNames = () =>
     .filter((name) => /^\d+.*\.sql$/.test(name))
     .sort();
 
-export const executeImportBundle = async (
-  bundle: ImportBundle,
+const formatCount = (value: number, singular: string) =>
+  `${value} ${singular}${value === 1 ? "" : "s"}`;
+
+export const importPreflightSummary = (plan: CatalogImportPlan) => {
+  const counts = plan.counts;
+  const nowShowing = plan.nowShowing
+    ? "Now Showing selected"
+    : "Now Showing empty";
+  return `Preflight passed: ${formatCount(counts.movies, "movie")}, ${formatCount(counts.collections, "collection")}, ${formatCount(counts.collectionMemberships, "collection membership")}, ${formatCount(counts.ratings, "rating")}, ${formatCount(counts.tmdbLinks, "TMDB link")}, ${nowShowing}`;
+};
+
+export const executeCatalogImport = async (
+  plan: CatalogImportPlan,
   options: ImportOperatorOptions,
   runner: CommandRunner,
   log: (message: string) => void,
@@ -456,22 +347,32 @@ export const executeImportBundle = async (
   );
   assertEmptyDatabase(parseDatabaseSummary(beforeSource));
 
-  for (const [index, chunk] of bundle.catalog.chunks.entries()) {
-    log(
-      `Applying catalog_import ${chunk.filename} (${index + 1}/${bundle.catalog.chunks.length})`,
-    );
-    try {
-      await runWrangler(
-        runner,
-        options,
-        ["--file", chunk.path],
-        "Import chunk failed",
-      );
-    } catch {
-      throw new ImportOperatorError(
-        `catalog_import ${chunk.filename} failed; do not rerun against this target without a reviewed pre-release reset`,
-      );
+  const chunks = renderSqlChunks(plan.statements);
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "ludovico-import-"));
+  try {
+    const paths = chunks.map((sql, index) => {
+      const filename = `chunk-${String(index + 1).padStart(4, "0")}.sql`;
+      const path = join(temporaryDirectory, filename);
+      writeFileSync(path, sql, { flag: "wx", mode: 0o600 });
+      return path;
+    });
+    for (const [index, path] of paths.entries()) {
+      log(`Applying ${basename(path)} (${index + 1}/${chunks.length})`);
+      try {
+        await runWrangler(
+          runner,
+          options,
+          ["--file", path],
+          "Import chunk failed",
+        );
+      } catch {
+        throw new ImportOperatorError(
+          `${basename(path)} failed; do not rerun against this target without a reviewed pre-release reset`,
+        );
+      }
     }
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
   }
 
   const afterSource = await runWrangler(
@@ -481,19 +382,14 @@ export const executeImportBundle = async (
     "Post-import database verification failed; do not rerun against this target without review",
   );
   try {
-    assertImportedDatabase(parseDatabaseSummary(afterSource), bundle);
+    assertImportedDatabase(parseDatabaseSummary(afterSource), plan);
   } catch {
     throw new ImportOperatorError(
       "Post-import database verification failed; do not rerun against this target without review",
     );
   }
-  const counts = bundle.catalog.manifest.counts;
+  const counts = plan.counts;
   log(
     `Verified ${formatCount(counts.movies, "movie")}, ${formatCount(counts.collections, "collection")}, ${formatCount(counts.collectionMemberships, "collection membership")}, ${formatCount(counts.ratings, "rating")}, and ${formatCount(counts.tmdbLinks, "TMDB link")}`,
   );
-};
-
-export const importPreflightSummary = (bundle: ImportBundle) => {
-  const counts = bundle.catalog.manifest.counts;
-  return `Preflight passed: ${formatCount(bundle.catalog.chunks.length, "catalog chunk")}, ${formatCount(counts.movies, "movie")}, ${formatCount(counts.collections, "collection")}, ${formatCount(counts.collectionMemberships, "collection membership")}, ${formatCount(counts.ratings, "rating")}, ${formatCount(counts.tmdbLinks, "TMDB link")}`;
 };

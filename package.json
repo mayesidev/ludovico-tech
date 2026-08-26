@@ -26,8 +26,7 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "import:generate": "tsx scripts/generate-import.ts",
-    "import:apply": "tsx scripts/apply-import.ts",
+    "import:catalog": "tsx scripts/import-catalog.ts",
     "release:gate": "node scripts/release-gates.ts"
   },
   "dependencies": {

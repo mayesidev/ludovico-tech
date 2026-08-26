@@ -12,21 +12,25 @@ Synthetic Movie One,2026-08-01T10:30:00.000Z,4.5,A synthetic delight,Synthetic S
 Synthetic Movie Two,,,,Synthetic Saga,2,42
 `;
 
-const importSyntheticCatalog = async (executions = 1) => {
-  const parsed = parseCatalogCsv(source);
+const importCatalog = async (csv: string) => {
+  const parsed = parseCatalogCsv(csv);
   expect(parsed.diagnostics).toEqual([]);
-  const plan = await buildCatalogImportPlan(parsed.seed, importedAt);
-  for (let execution = 0; execution < executions; execution += 1) {
-    for (const chunk of renderSqlChunks(plan.statements, 3)) {
-      await env.DB.exec(chunk.sql);
-    }
+  const plan = buildCatalogImportPlan(
+    parsed.movies,
+    parsed.nowShowingTitle,
+    importedAt,
+  );
+  for (const sql of renderSqlChunks(plan.statements, 3)) {
+    await env.DB.exec(sql);
   }
   return plan;
 };
 
+const importSyntheticCatalog = () => importCatalog(source);
+
 describe("catalog import", () => {
-  it("writes only durable catalog state and is idempotent", async () => {
-    const plan = await importSyntheticCatalog(2);
+  it("writes only durable catalog state", async () => {
+    const plan = await importSyntheticCatalog();
     const counts = await env.DB.prepare(
       `SELECT
          (SELECT COUNT(*) FROM movies) AS movies,
@@ -112,7 +116,7 @@ describe("catalog import", () => {
     expect(providerRows).toEqual({ collections: 0, credits: 0, people: 0 });
   });
 
-  it("leaves selection and history to the application", async () => {
+  it("leaves Now Showing empty when no title is selected", async () => {
     await importSyntheticCatalog();
     const state = await env.DB.prepare(
       `SELECT now_showing.status,
@@ -124,6 +128,33 @@ describe("catalog import", () => {
       audit_entries: 0,
       rolls: 0,
       status: "empty",
+    });
+  });
+
+  it("sets an imported unwatched title as Now Showing without creating history", async () => {
+    await importCatalog(`title,collection,collection_position,now_showing
+First Movie,Synthetic Saga,1,false
+Starting Movie,Synthetic Saga,2,true
+`);
+    const state = await env.DB.prepare(
+      `SELECT now_showing.status, movies.title, collections.name AS collection_name,
+              now_showing.rolled_movie_id, now_showing.rolled_at,
+              (SELECT COUNT(*) FROM rolls) AS rolls,
+              (SELECT COUNT(*) FROM audit_log) AS audit_entries
+       FROM now_showing
+       JOIN movies ON movies.id = now_showing.movie_id
+       LEFT JOIN collections ON collections.id = now_showing.collection_id
+       WHERE now_showing.id = 1`,
+    ).first();
+
+    expect(state).toEqual({
+      audit_entries: 0,
+      collection_name: "Synthetic Saga",
+      rolled_at: null,
+      rolled_movie_id: null,
+      rolls: 0,
+      status: "ready",
+      title: "Starting Movie",
     });
   });
 
