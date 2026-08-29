@@ -36,8 +36,6 @@ export type NowShowingRow = {
   id: number;
   movie_id: string | null;
   collection_id: string | null;
-  status: "empty" | "ready" | "watched";
-  updated_at: string;
   title: string | null;
   added_at: string | null;
   version: string | null;
@@ -48,7 +46,6 @@ export type NowShowingRow = {
   rating_score: number | null;
   rating_phrase: string | null;
   watched_at: string | null;
-  movie_collection_id: string | null;
   collection_name: string | null;
 };
 
@@ -241,50 +238,66 @@ export const getMovieDetail = async (
 
 export const getNowShowing = async (env: AppEnv["Bindings"]) =>
   env.DB.prepare(
-    `SELECT now_showing.id, now_showing.movie_id, now_showing.collection_id,
-        now_showing.status, now_showing.updated_at,
+    `SELECT now_showing.id, now_showing.movie_id,
         movies.title, movies.added_at, movies.version,
         movies.version_runtime,
         movie_tmdb_data.release_date,
         movie_tmdb_data.poster_path,
         movie_tmdb_data.runtime_minutes,
         ratings.score AS rating_score, ratings.phrase AS rating_phrase,
-        ratings.watched_at, collection_movies.collection_id AS movie_collection_id,
+        ratings.watched_at, collection_movies.collection_id,
         collections.name AS collection_name
        FROM now_showing
        LEFT JOIN movies ON movies.id = now_showing.movie_id
        LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
        LEFT JOIN ratings ON ratings.movie_id = movies.id
        LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
-       LEFT JOIN collections ON collections.id = now_showing.collection_id
+       LEFT JOIN collections ON collections.id = collection_movies.collection_id
        WHERE now_showing.id = 1`,
   ).first<NowShowingRow>();
 
 const getNowShowingAudit = async (env: AppEnv["Bindings"]) => {
   const row = await env.DB.prepare(
-    `SELECT now_showing.updated_at AS occurred_at,
-       now_showing.updated_by AS attribution_key,
+    `SELECT now_showing.rolled_at AS occurred_at,
+       now_showing.rolled_by AS attribution_key,
        users.display_name AS user_display_name,
        users.email AS user_email
      FROM now_showing
-     LEFT JOIN users ON users.id = now_showing.updated_by
+     LEFT JOIN users ON users.id = now_showing.rolled_by
      WHERE now_showing.id = 1`,
   ).first<AttributionRow>();
-  return row ? { updated: mapAttribution(row) } : null;
+  return row ? mapAttribution(row) : { at: null, by: null };
 };
 
 export const getNowShowingDetail = async (
   env: AppEnv["Bindings"],
   includeAudit = false,
+  selection?: NowShowingRow | null,
 ) => {
-  const current = await getNowShowing(env);
+  const current =
+    selection === undefined ? await getNowShowing(env) : selection;
   if (!current) return null;
+  const [credits, selectionAudit, movieAudit] = await Promise.all([
+    current.movie_id
+      ? getMovieCredits(env, current.movie_id)
+      : { cast: [], directors: [] },
+    includeAudit ? getNowShowingAudit(env) : null,
+    includeAudit && current.movie_id
+      ? getMovieAudit(env, current.movie_id)
+      : null,
+  ]);
   return {
     ...current,
-    ...(current.movie_id
-      ? await getMovieCredits(env, current.movie_id)
-      : { cast: [], directors: [] }),
-    ...(includeAudit ? { audit: await getNowShowingAudit(env) } : {}),
+    ...credits,
+    status:
+      current.movie_id === null
+        ? ("empty" as const)
+        : current.rating_score === null
+          ? ("ready" as const)
+          : ("watched" as const),
+    ...(includeAudit
+      ? { audit: { movie: movieAudit, rolled: selectionAudit! } }
+      : {}),
   };
 };
 

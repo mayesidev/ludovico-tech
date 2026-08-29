@@ -27,11 +27,27 @@ describe("catalog schema", () => {
       "SELECT COUNT(*) AS count FROM movies",
     ).first<{ count: number }>();
     const nowShowing = await env.DB.prepare(
-      "SELECT status, movie_id FROM now_showing WHERE id = 1",
-    ).first<{ status: string; movie_id: string | null }>();
+      "SELECT movie_id, rolled_at, rolled_by FROM now_showing WHERE id = 1",
+    ).first();
+    const nowShowingColumns = await env.DB.prepare(
+      "PRAGMA table_info(now_showing)",
+    ).all<{ name: string }>();
 
     expect(movieCount?.count).toBe(0);
-    expect(nowShowing).toEqual({ status: "empty", movie_id: null });
+    expect(nowShowing).toEqual({
+      movie_id: null,
+      rolled_at: null,
+      rolled_by: null,
+    });
+    expect(nowShowingColumns.results.map(({ name }) => name)).toEqual([
+      "id",
+      "movie_id",
+      "rolled_at",
+      "rolled_by",
+    ]);
+    await expect(
+      env.DB.prepare("INSERT INTO now_showing (id) VALUES (2)").run(),
+    ).rejects.toThrow();
   });
 
   it("enforces one shared half-point rating with a required phrase", async () => {

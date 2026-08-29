@@ -37,8 +37,6 @@ beforeEach(async () => {
          updated_by = NULL
        WHERE id = 1`,
     ),
-    env.DB.prepare(
-      "INSERT INTO now_showing (id, status, updated_at) VALUES (1, 'empty', datetime('now'))",
-    ),
+    env.DB.prepare("INSERT INTO now_showing (id) VALUES (1)"),
   ]);
 });

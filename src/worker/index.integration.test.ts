@@ -71,7 +71,7 @@ describe("Ludovico Tech Worker routes", () => {
       ),
       env.DB.prepare(
         `UPDATE now_showing
-         SET movie_id = ?, status = 'ready'
+         SET movie_id = ?, rolled_at = datetime('now')
          WHERE id = 1`,
       ).bind(movies[15].id),
     ]);
@@ -251,7 +251,7 @@ describe("Ludovico Tech Worker routes", () => {
 
     const attribution = await env.DB.prepare(
       `SELECT movies.added_by, movies.updated_by, ratings.recorded_by,
-              now_showing.updated_by AS now_showing_updated_by
+              now_showing.rolled_by AS now_showing_rolled_by
        FROM movies
        JOIN ratings ON ratings.movie_id = movies.id
        JOIN now_showing ON now_showing.movie_id = movies.id
@@ -260,14 +260,14 @@ describe("Ludovico Tech Worker routes", () => {
       .bind(added.body.movie.id)
       .first<{
         added_by: string;
-        now_showing_updated_by: string;
+        now_showing_rolled_by: string;
         recorded_by: string;
         updated_by: string;
       }>();
     expect(attribution?.added_by).toBeTruthy();
     expect(attribution?.updated_by).toBe(attribution?.added_by);
     expect(attribution?.recorded_by).toBe(attribution?.added_by);
-    expect(attribution?.now_showing_updated_by).toBe(attribution?.added_by);
+    expect(attribution?.now_showing_rolled_by).toBe(attribution?.added_by);
 
     const watched = await request<{ movies: Array<{ id: string }> }>(
       "/api/library?status=watched",
@@ -389,10 +389,10 @@ describe("Ludovico Tech Worker routes", () => {
       .run();
     await env.DB.prepare(
       `UPDATE now_showing
-       SET movie_id = ?, collection_id = ?, status = 'pending_order'
+       SET movie_id = ?, rolled_at = datetime('now')
        WHERE id = 1`,
     )
-      .bind(added.body.movie.id, originalCollectionId)
+      .bind(added.body.movie.id)
       .run();
 
     const moved = await request<{
@@ -413,12 +413,10 @@ describe("Ludovico Tech Worker routes", () => {
     ).toBeNull();
     expect(
       await env.DB.prepare(
-        "SELECT collection_id, movie_id, status FROM now_showing WHERE id = 1",
+        "SELECT movie_id FROM now_showing WHERE id = 1",
       ).first(),
     ).toEqual({
-      collection_id: moved.body.movie.collection_id,
       movie_id: target.body.movie.id,
-      status: "ready",
     });
     expect(
       (
@@ -454,12 +452,10 @@ describe("Ludovico Tech Worker routes", () => {
     });
     expect(
       await env.DB.prepare(
-        "SELECT collection_id, movie_id, status FROM now_showing WHERE id = 1",
+        "SELECT movie_id FROM now_showing WHERE id = 1",
       ).first(),
     ).toEqual({
-      collection_id: target.body.movie.collection_id,
       movie_id: target.body.movie.id,
-      status: "ready",
     });
     expect(
       await env.DB.prepare("SELECT id FROM collections WHERE id = ?")
@@ -602,9 +598,9 @@ describe("Ludovico Tech Worker routes", () => {
       ).bind(sibling.body.movie.id),
       env.DB.prepare(
         `UPDATE now_showing
-         SET movie_id = ?, collection_id = ?, status = 'ready'
+         SET movie_id = ?, rolled_at = datetime('now'), rolled_by = 'local-developer'
          WHERE id = 1`,
-      ).bind(candidate.body.movie.id, collectionId),
+      ).bind(candidate.body.movie.id),
     ]);
 
     const deleted = await request<{ deleted: true; id: string }>(
@@ -623,13 +619,12 @@ describe("Ludovico Tech Worker routes", () => {
     ).toBeNull();
     expect(
       await env.DB.prepare(
-        "SELECT movie_id, collection_id, status, updated_by FROM now_showing WHERE id = 1",
+        "SELECT movie_id, rolled_at, rolled_by FROM now_showing WHERE id = 1",
       ).first(),
     ).toEqual({
-      collection_id: null,
       movie_id: null,
-      status: "empty",
-      updated_by: expect.any(String),
+      rolled_at: null,
+      rolled_by: null,
     });
     expect(
       await env.DB.prepare("SELECT id FROM collections WHERE id = ?")

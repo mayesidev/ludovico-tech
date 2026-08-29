@@ -8,7 +8,9 @@ one group viewing state.
 - Authenticated members can see the resolved user or automation and timestamp
   for localized movie, rating, metadata, collection, selection, and refresh
   schedule attribution. Anonymous responses omit this information.
-- One movie is Now Showing for the group at a time.
+- The singleton Now Showing slot retains the last rolled movie until another is
+  rolled. Rating means it has been shown and moves it to viewing history; the
+  page may keep displaying it as context while the group chooses what is next.
 - A movie is watched when its one shared rating exists. There is no skipped state
   or separate watched flag.
 - A rating is 0–5 in half-point increments and requires the group's custom phrase.
@@ -31,8 +33,8 @@ one group viewing state.
 - The application must run from empty migrations. Loading an existing catalog is an
   optional operator action, never a bootstrap or test dependency.
 - An optional catalog import may restore the current unwatched selection. It does
-  not invent an unknown originating user or selection time. The importer is
-  identified as the last updater of state it materializes.
+  not invent an unknown originating user or roll time. The importer is identified
+  as the last updater of other state it materializes.
 - A known prior addition time may establish when an imported movie was added. An
   imported rating establishes watched state but not an unknown watch time.
 

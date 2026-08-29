@@ -155,12 +155,13 @@ describe("catalog import", () => {
   it("leaves Now Showing empty when no title is selected", async () => {
     await importSyntheticCatalog();
     const state = await env.DB.prepare(
-      `SELECT now_showing.status, now_showing.updated_by
+      `SELECT now_showing.movie_id, now_showing.rolled_at, now_showing.rolled_by
        FROM now_showing WHERE id = 1`,
     ).first();
     expect(state).toEqual({
-      status: "empty",
-      updated_by: null,
+      movie_id: null,
+      rolled_at: null,
+      rolled_by: null,
     });
   });
 
@@ -170,19 +171,20 @@ First Movie,Synthetic Saga,1,false
 Starting Movie,Synthetic Saga,2,true
 `);
     const state = await env.DB.prepare(
-      `SELECT now_showing.status, movies.title, collections.name AS collection_name,
-              now_showing.updated_by
+      `SELECT movies.title, collections.name AS collection_name,
+              now_showing.rolled_at, now_showing.rolled_by
        FROM now_showing
        JOIN movies ON movies.id = now_showing.movie_id
-       LEFT JOIN collections ON collections.id = now_showing.collection_id
+       LEFT JOIN collection_movies ON collection_movies.movie_id = now_showing.movie_id
+       LEFT JOIN collections ON collections.id = collection_movies.collection_id
        WHERE now_showing.id = 1`,
     ).first();
 
     expect(state).toEqual({
       collection_name: "Synthetic Saga",
-      status: "ready",
+      rolled_at: null,
+      rolled_by: null,
       title: "Starting Movie",
-      updated_by: CATALOG_IMPORT_ATTRIBUTION,
     });
   });
 

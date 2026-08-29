@@ -185,9 +185,29 @@ export function HomePage({
                 className="mt-6"
                 entries={[
                   {
-                    attribution: nowShowing.audit.updated,
-                    label: "Selection last updated",
+                    attribution: nowShowing.audit.rolled,
+                    label: "Rolled at",
                   },
+                  ...(nowShowing.audit.movie
+                    ? [
+                        {
+                          attribution: nowShowing.audit.movie.added,
+                          label: "Movie added",
+                        },
+                        {
+                          attribution: nowShowing.audit.movie.updated,
+                          label: "Movie last updated",
+                        },
+                        {
+                          attribution: nowShowing.audit.movie.rating,
+                          label: "Rating recorded",
+                        },
+                        {
+                          attribution: nowShowing.audit.movie.metadata,
+                          label: "TMDB metadata updated",
+                        },
+                      ]
+                    : []),
                 ]}
               />
             )}

@@ -69,17 +69,26 @@ const renderHome = (
 };
 
 describe("home workflows", () => {
-  it("shows selection attribution only to an authenticated user", () => {
+  it("shows roll and movie attribution only to an authenticated user", () => {
     const attributed = nowShowing({
       audit: {
-        updated: {
+        rolled: {
           at: "2026-08-07T12:00:00.000Z",
           by: "Selecting User",
+        },
+        movie: {
+          added: { at: "2026-08-01T12:00:00.000Z", by: "Adding User" },
+          metadata: { at: null, by: null },
+          rating: { at: null, by: null },
+          updated: { at: "2026-08-02T12:00:00.000Z", by: "Editing User" },
         },
       },
     });
     const { rerender, props } = renderHome({ nowShowing: attributed });
     expect(screen.getByText(/Selecting User/)).toBeVisible();
+    expect(screen.getByText(/Adding User/)).toBeVisible();
+    expect(screen.getByText("Rolled at")).toBeVisible();
+    expect(screen.getByText("Movie added")).toBeVisible();
 
     rerender(<HomePage {...props} canMutate={false} nowShowing={attributed} />);
     expect(screen.queryByText(/Selecting User/)).toBeNull();
@@ -242,7 +251,6 @@ describe("home workflows", () => {
     });
 
     expect(screen.getByText("Worth continuing")).toBeVisible();
-    expect(screen.queryByText("4/5")).toBeNull();
 
     await user.click(
       screen.getByRole("button", { name: "Continue Collection" }),
@@ -261,7 +269,6 @@ describe("home workflows", () => {
       nowShowing: nowShowing({
         collection_id: "collection-id",
         collection_name: "Test Saga",
-        status: "ready",
       }),
       onNavigate,
     });

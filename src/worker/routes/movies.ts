@@ -4,6 +4,7 @@ import type { AppEnv } from "../env";
 import {
   getMovie,
   getMovieDetail,
+  getNowShowing,
   getNowShowingDetail,
   getPosterReelMovies,
   getWatchedHistory,
@@ -237,15 +238,22 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
 
   app.get("/home", async (c) => {
     const user = await getAuthenticatedUser(c.env, c.req.raw);
-    const nowShowing = await getNowShowingDetail(c.env, Boolean(user));
-    const [watchedMovies, posterReelMovies, hasNextCollectionMovie] =
-      await Promise.all([
-        getWatchedHistory(c.env),
-        getPosterReelMovies(c.env),
-        nowShowing?.collection_id
-          ? hasRemainingCollectionMovie(c.env, nowShowing.collection_id)
-          : false,
-      ]);
+    const selection = await getNowShowing(c.env);
+    const [
+      nowShowing,
+      watchedMovies,
+      posterReelMovies,
+      hasNextCollectionMovie,
+    ] = await Promise.all([
+      getNowShowingDetail(c.env, Boolean(user), selection),
+      getWatchedHistory(c.env),
+      getPosterReelMovies(c.env),
+      selection?.movie_id &&
+      selection.rating_score !== null &&
+      selection.collection_id
+        ? hasRemainingCollectionMovie(c.env, selection.collection_id)
+        : false,
+    ]);
     return c.json({
       nowShowing,
       hasNextCollectionMovie,
@@ -641,38 +649,41 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       }
       statements.push(
         c.env.DB.prepare(
-          `UPDATE now_showing SET collection_id = ?,
-           movie_id = CASE
-             WHEN status = 'watched' OR ? IS NULL THEN movie_id
-             ELSE COALESCE(
-               (SELECT movies.id
-                FROM collection_movies
-                JOIN movies ON movies.id = collection_movies.movie_id
-                LEFT JOIN ratings ON ratings.movie_id = movies.id
-                JOIN collections ON collections.id = collection_movies.collection_id
-                WHERE collection_movies.collection_id = ? AND ratings.movie_id IS NULL
-                ORDER BY
-                  CASE WHEN collections.order_confirmed = 1 THEN collection_movies.position END ASC,
-                  CASE WHEN collections.order_confirmed = 0 THEN movies.added_at END ASC,
-                  movies.added_at ASC,
-                  movies.id ASC
-                LIMIT 1),
-               movie_id
-             )
-           END,
-           status = CASE
-             WHEN status = 'watched' THEN 'watched'
-             ELSE 'ready'
-           END,
-           updated_at = ?,
-           updated_by = ?
-           WHERE id = 1 AND movie_id = ?`,
+          `WITH replacement AS (
+             SELECT movies.id
+             FROM collection_movies
+             JOIN movies ON movies.id = collection_movies.movie_id
+             LEFT JOIN ratings ON ratings.movie_id = movies.id
+             JOIN collections ON collections.id = collection_movies.collection_id
+             WHERE collection_movies.collection_id = ? AND ratings.movie_id IS NULL
+             ORDER BY
+               CASE WHEN collections.order_confirmed = 1 THEN collection_movies.position END ASC,
+               CASE WHEN collections.order_confirmed = 0 THEN movies.added_at END ASC,
+               movies.added_at ASC,
+               movies.id ASC
+             LIMIT 1
+           )
+           UPDATE now_showing
+           SET rolled_at = CASE
+                 WHEN movie_id <> COALESCE((SELECT id FROM replacement), movie_id)
+                   THEN ?
+                 ELSE rolled_at
+               END,
+               rolled_by = CASE
+                 WHEN movie_id <> COALESCE((SELECT id FROM replacement), movie_id)
+                   THEN ?
+                 ELSE rolled_by
+               END,
+               movie_id = COALESCE((SELECT id FROM replacement), movie_id)
+           WHERE id = 1 AND ? IS NOT NULL AND movie_id = ?
+             AND NOT EXISTS (
+               SELECT 1 FROM ratings WHERE ratings.movie_id = now_showing.movie_id
+             )`,
         ).bind(
-          targetCollectionId,
-          targetCollectionId,
           targetCollectionId,
           timestamp,
           user.id,
+          targetCollectionId,
           movieId,
         ),
       );
@@ -706,7 +717,6 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       return c.json({ error: "Watched movies cannot be deleted" }, 409);
     }
 
-    const timestamp = now();
     const existingCredits =
       existing.tmdb_id === null
         ? []
@@ -714,15 +724,14 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     const statements: D1PreparedStatement[] = [
       c.env.DB.prepare(
         `UPDATE now_showing
-         SET movie_id = NULL, collection_id = NULL, status = 'empty',
-             updated_at = ?, updated_by = ?
+         SET movie_id = NULL, rolled_at = NULL, rolled_by = NULL
          WHERE id = 1 AND movie_id = ?
            AND EXISTS (
              SELECT 1 FROM movies
              LEFT JOIN ratings ON ratings.movie_id = movies.id
              WHERE movies.id = ? AND ratings.movie_id IS NULL
            )`,
-      ).bind(timestamp, user.id, movieId, movieId),
+      ).bind(movieId, movieId),
       c.env.DB.prepare(
         `DELETE FROM movies WHERE id = ?
          AND NOT EXISTS (SELECT 1 FROM ratings WHERE movie_id = ?)`,
@@ -764,24 +773,19 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     if (!movie) return c.json({ error: "Movie not found" }, 404);
 
     const timestamp = now();
-    await c.env.DB.batch([
-      c.env.DB.prepare(
-        `INSERT INTO ratings
-         (movie_id, watched_at, score, phrase, recorded_at, recorded_by)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT(movie_id) DO UPDATE SET
-         watched_at = COALESCE(ratings.watched_at, excluded.watched_at),
-         score = excluded.score,
-         phrase = excluded.phrase,
-         recorded_at = excluded.recorded_at,
-         recorded_by = excluded.recorded_by`,
-      ).bind(movieId, timestamp, input.score, input.phrase, timestamp, user.id),
-      c.env.DB.prepare(
-        `UPDATE now_showing
-         SET status = 'watched', updated_at = ?, updated_by = ?
-         WHERE id = 1 AND movie_id = ?`,
-      ).bind(timestamp, user.id, movieId),
-    ]);
+    await c.env.DB.prepare(
+      `INSERT INTO ratings
+       (movie_id, watched_at, score, phrase, recorded_at, recorded_by)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(movie_id) DO UPDATE SET
+       watched_at = COALESCE(ratings.watched_at, excluded.watched_at),
+       score = excluded.score,
+       phrase = excluded.phrase,
+       recorded_at = excluded.recorded_at,
+       recorded_by = excluded.recorded_by`,
+    )
+      .bind(movieId, timestamp, input.score, input.phrase, timestamp, user.id)
+      .run();
     return c.json({
       movie: await getMovie(c.env, movieId),
       nowShowing: await getNowShowingDetail(c.env, true),

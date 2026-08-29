@@ -48,40 +48,34 @@ describe("atomic catalog mutations", () => {
     ).toBeNull();
   });
 
-  it("rolls back a rating when its Now Showing update fails", async () => {
+  it("records a rating without mutating the singleton selection", async () => {
     const movieId = "10000000-0000-4000-8000-000000000001";
     await insertMovie(movieId, "Atomic Rating");
     await env.DB.prepare(
-      `UPDATE now_showing SET movie_id = ?, status = 'ready', updated_at = ?
+      `UPDATE now_showing SET movie_id = ?, rolled_at = ?, rolled_by = 'original-user'
        WHERE id = 1`,
     )
       .bind(movieId, timestamp)
       .run();
-    await env.DB.prepare(
-      `CREATE TRIGGER reject_watched_state
-       BEFORE UPDATE OF status ON now_showing
-       WHEN NEW.status = 'watched'
-       BEGIN SELECT RAISE(ABORT, 'forced state failure'); END`,
-    ).run();
-    try {
-      const response = await request(`/movies/${movieId}/rate`, {
-        score: 4.5,
-        phrase: "Should roll back",
-      });
-      expect(response.status).toBe(500);
-    } finally {
-      await env.DB.prepare("DROP TRIGGER reject_watched_state").run();
-    }
+    const response = await request(`/movies/${movieId}/rate`, {
+      score: 4.5,
+      phrase: "Independent rating",
+    });
+    expect(response.status).toBe(200);
     expect(
       await env.DB.prepare("SELECT movie_id FROM ratings WHERE movie_id = ?")
         .bind(movieId)
         .first(),
-    ).toBeNull();
+    ).not.toBeNull();
     expect(
       await env.DB.prepare(
-        "SELECT movie_id, status FROM now_showing WHERE id = 1",
+        "SELECT movie_id, rolled_at, rolled_by FROM now_showing WHERE id = 1",
       ).first(),
-    ).toEqual({ movie_id: movieId, status: "ready" });
+    ).toEqual({
+      movie_id: movieId,
+      rolled_at: timestamp,
+      rolled_by: "original-user",
+    });
   });
 
   it("attributes collection ordering and its selection consequence", async () => {
@@ -106,9 +100,9 @@ describe("atomic catalog mutations", () => {
       ).bind(collectionId, secondId, 2),
       env.DB.prepare(
         `UPDATE now_showing
-         SET movie_id = ?, collection_id = ?, status = 'pending_order', updated_at = ?
+         SET movie_id = ?, rolled_at = ?
          WHERE id = 1`,
-      ).bind(firstId, collectionId, timestamp),
+      ).bind(firstId, timestamp),
     ]);
 
     const response = await request(`/collections/${collectionId}/order`, {
@@ -117,8 +111,10 @@ describe("atomic catalog mutations", () => {
     expect(response.status).toBe(200);
     const attribution = await env.DB.prepare(
       `SELECT collections.updated_by AS collection_attribution,
-              now_showing.updated_by AS selection_attribution
-       FROM collections JOIN now_showing ON now_showing.collection_id = collections.id
+              now_showing.rolled_by AS selection_attribution
+       FROM collections
+       JOIN collection_movies ON collection_movies.collection_id = collections.id
+       JOIN now_showing ON now_showing.movie_id = collection_movies.movie_id
        WHERE collections.id = ?`,
     )
       .bind(collectionId)
@@ -143,9 +139,14 @@ describe("atomic catalog mutations", () => {
     ]);
     expect([first.status, second.status].sort()).toEqual([200, 409]);
     const state = await env.DB.prepare(
-      "SELECT status, updated_by FROM now_showing WHERE id = 1",
-    ).first<{ status: string; updated_by: string | null }>();
-    expect(state?.status).toBe("ready");
-    expect(state?.updated_by).toBeTruthy();
+      "SELECT movie_id, rolled_at, rolled_by FROM now_showing WHERE id = 1",
+    ).first<{
+      movie_id: string | null;
+      rolled_at: string | null;
+      rolled_by: string | null;
+    }>();
+    expect(state?.movie_id).toBeTruthy();
+    expect(state?.rolled_at).toBeTruthy();
+    expect(state?.rolled_by).toBeTruthy();
   });
 });

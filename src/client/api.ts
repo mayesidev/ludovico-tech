@@ -62,7 +62,10 @@ export type NowShowing = {
   watched_at: string | null;
   collection_name: string | null;
   directors: TmdbPersonReference[];
-  audit?: { updated: AuditAttribution };
+  audit?: {
+    movie: MovieAudit | null;
+    rolled: AuditAttribution;
+  };
 };
 
 export type CollectionDetail = {

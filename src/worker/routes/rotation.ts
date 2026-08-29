@@ -38,11 +38,14 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
 
     const stateUpdate = await c.env.DB.prepare(
       `UPDATE now_showing
-       SET movie_id = ?, collection_id = ?, status = 'ready',
-           updated_at = ?, updated_by = ?
-       WHERE id = 1 AND (movie_id IS NULL OR status = 'watched')`,
+       SET movie_id = ?, rolled_at = ?, rolled_by = ?
+       WHERE id = 1 AND (
+         movie_id IS NULL OR EXISTS (
+           SELECT 1 FROM ratings WHERE ratings.movie_id = now_showing.movie_id
+         )
+       )`,
     )
-      .bind(actual.id, rolled.collection_id, timestamp, user.id)
+      .bind(actual.id, timestamp, user.id)
       .run();
     if (!stateUpdate.meta.changes) {
       return c.json(
@@ -127,8 +130,14 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
         statements.push(
           c.env.DB.prepare(
             `UPDATE now_showing
-             SET movie_id = ?, status = 'ready', updated_at = ?, updated_by = ?
-             WHERE id = 1 AND collection_id = ? AND status IN ('pending_order', 'ready')`,
+             SET movie_id = ?, rolled_at = ?, rolled_by = ?
+             WHERE id = 1
+               AND movie_id IN (
+                 SELECT movie_id FROM collection_movies WHERE collection_id = ?
+               )
+               AND NOT EXISTS (
+                 SELECT 1 FROM ratings WHERE ratings.movie_id = now_showing.movie_id
+               )`,
           ).bind(firstUnwatchedId, timestamp, user.id, collectionId),
         );
       }
@@ -165,8 +174,11 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
     const timestamp = now();
     const stateUpdate = await c.env.DB.prepare(
       `UPDATE now_showing
-       SET movie_id = ?, status = 'ready', updated_at = ?, updated_by = ?
-       WHERE id = 1 AND movie_id = ? AND status = 'watched'`,
+       SET movie_id = ?, rolled_at = ?, rolled_by = ?
+       WHERE id = 1 AND movie_id = ?
+         AND EXISTS (
+           SELECT 1 FROM ratings WHERE ratings.movie_id = now_showing.movie_id
+         )`,
     )
       .bind(next.id, timestamp, user.id, current.movie_id)
       .run();

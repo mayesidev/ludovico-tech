@@ -126,7 +126,7 @@ type DatabaseSummary = {
   movies: number;
   nowShowingCollectionId: string | null;
   nowShowingMovieId: string | null;
-  nowShowingStatus: "empty" | "pending_order" | "ready" | "watched";
+  nowShowingStatus: "empty" | "ready" | "watched";
   ratings: number;
   tmdbLinks: number;
 };
@@ -137,9 +137,18 @@ const databaseSummaryQuery = `SELECT
   (SELECT COUNT(*) FROM collection_movies) AS collection_memberships,
   (SELECT COUNT(*) FROM ratings) AS ratings,
   (SELECT COUNT(*) FROM movie_tmdb_data) AS tmdb_links,
-  (SELECT status FROM now_showing WHERE id = 1) AS now_showing_status,
+  (SELECT CASE
+     WHEN now_showing.movie_id IS NULL THEN 'empty'
+     WHEN EXISTS (
+       SELECT 1 FROM ratings WHERE ratings.movie_id = now_showing.movie_id
+     ) THEN 'watched'
+     ELSE 'ready'
+   END FROM now_showing WHERE id = 1) AS now_showing_status,
   (SELECT movie_id FROM now_showing WHERE id = 1) AS now_showing_movie_id,
-  (SELECT collection_id FROM now_showing WHERE id = 1) AS now_showing_collection_id`;
+  (SELECT collection_movies.collection_id
+   FROM now_showing
+   LEFT JOIN collection_movies ON collection_movies.movie_id = now_showing.movie_id
+   WHERE now_showing.id = 1) AS now_showing_collection_id`;
 const migrationsQuery = "SELECT name FROM d1_migrations ORDER BY id";
 const countSchema = z.number().int().nonnegative();
 const d1ResponseSchema = z
@@ -159,7 +168,7 @@ const summaryRowSchema = z
     movies: countSchema,
     now_showing_collection_id: z.string().nullable(),
     now_showing_movie_id: z.string().nullable(),
-    now_showing_status: z.enum(["empty", "pending_order", "ready", "watched"]),
+    now_showing_status: z.enum(["empty", "ready", "watched"]),
     ratings: countSchema,
     tmdb_links: countSchema,
   })
