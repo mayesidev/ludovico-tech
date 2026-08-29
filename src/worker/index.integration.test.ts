@@ -71,9 +71,9 @@ describe("Ludovico Tech Worker routes", () => {
       ),
       env.DB.prepare(
         `UPDATE now_showing
-         SET movie_id = ?, rolled_movie_id = ?, status = 'ready'
+         SET movie_id = ?, status = 'ready'
          WHERE id = 1`,
-      ).bind(movies[15].id, movies[15].id),
+      ).bind(movies[15].id),
     ]);
 
     const home = await request<{
@@ -389,10 +389,10 @@ describe("Ludovico Tech Worker routes", () => {
       .run();
     await env.DB.prepare(
       `UPDATE now_showing
-       SET movie_id = ?, rolled_movie_id = ?, collection_id = ?, status = 'pending_order'
+       SET movie_id = ?, collection_id = ?, status = 'pending_order'
        WHERE id = 1`,
     )
-      .bind(added.body.movie.id, added.body.movie.id, originalCollectionId)
+      .bind(added.body.movie.id, originalCollectionId)
       .run();
 
     const moved = await request<{
@@ -601,15 +601,10 @@ describe("Ludovico Tech Worker routes", () => {
          VALUES (?, 9002, 'cast', 1)`,
       ).bind(sibling.body.movie.id),
       env.DB.prepare(
-        `INSERT INTO rolls
-         (id, rolled_movie_id, actual_movie_id, collection_id, created_at)
-         VALUES ('delete-roll', ?, ?, ?, datetime('now'))`,
-      ).bind(candidate.body.movie.id, candidate.body.movie.id, collectionId),
-      env.DB.prepare(
         `UPDATE now_showing
-         SET rolled_movie_id = ?, movie_id = ?, collection_id = ?, status = 'ready'
+         SET movie_id = ?, collection_id = ?, status = 'ready'
          WHERE id = 1`,
-      ).bind(candidate.body.movie.id, candidate.body.movie.id, collectionId),
+      ).bind(candidate.body.movie.id, collectionId),
     ]);
 
     const deleted = await request<{ deleted: true; id: string }>(
@@ -628,20 +623,14 @@ describe("Ludovico Tech Worker routes", () => {
     ).toBeNull();
     expect(
       await env.DB.prepare(
-        "SELECT movie_id, rolled_movie_id, collection_id, status, updated_by FROM now_showing WHERE id = 1",
+        "SELECT movie_id, collection_id, status, updated_by FROM now_showing WHERE id = 1",
       ).first(),
     ).toEqual({
       collection_id: null,
       movie_id: null,
-      rolled_movie_id: null,
       status: "empty",
       updated_by: expect.any(String),
     });
-    expect(
-      await env.DB.prepare(
-        "SELECT id FROM rolls WHERE id = 'delete-roll'",
-      ).first(),
-    ).toBeNull();
     expect(
       await env.DB.prepare("SELECT id FROM collections WHERE id = ?")
         .bind(collectionId)

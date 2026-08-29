@@ -133,7 +133,7 @@ describe("catalog import template", () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
     expect(plan.statements.at(-1)).toBe(
-      `UPDATE now_showing SET rolled_movie_id = NULL, movie_id = '${plan.nowShowing?.movieId}', collection_id = '${plan.nowShowing?.collectionId}', status = 'ready', rolled_at = NULL, updated_at = '${importedAt}', updated_by = NULL WHERE id = 1;`,
+      `UPDATE now_showing SET movie_id = '${plan.nowShowing?.movieId}', collection_id = '${plan.nowShowing?.collectionId}', status = 'ready', updated_at = '${importedAt}', updated_by = NULL WHERE id = 1;`,
     );
   });
 

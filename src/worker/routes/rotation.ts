@@ -7,7 +7,7 @@ import {
   getRandomUnwatchedMovie,
   getRemainingCollectionMovies,
 } from "../db";
-import { type AppEnv, newId, now } from "../env";
+import { type AppEnv, now } from "../env";
 import { mutationActor } from "../middleware";
 import { orderInput } from "../schemas";
 import { selectQueuedMovie } from "../selection";
@@ -36,40 +36,15 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
       : [];
     const actual = selectQueuedMovie(rolled, remainingCollectionMovies);
 
-    const rollId = newId();
-    const [rollInsert] = await c.env.DB.batch([
-      c.env.DB.prepare(
-        `INSERT INTO rolls
-         (id, rolled_movie_id, actual_movie_id, collection_id, created_at, actor_id)
-         SELECT ?, ?, ?, ?, ?, ?
-         WHERE EXISTS (
-           SELECT 1 FROM now_showing
-           WHERE id = 1 AND (movie_id IS NULL OR status = 'watched')
-         )`,
-      ).bind(
-        rollId,
-        rolled.id,
-        actual.id,
-        rolled.collection_id,
-        timestamp,
-        actor.id,
-      ),
-      c.env.DB.prepare(
-        `UPDATE now_showing
-         SET rolled_movie_id = ?, movie_id = ?, collection_id = ?,
-             status = 'ready', rolled_at = ?, updated_at = ?, updated_by = ?
-         WHERE id = 1 AND EXISTS (SELECT 1 FROM rolls WHERE id = ?)`,
-      ).bind(
-        rolled.id,
-        actual.id,
-        rolled.collection_id,
-        timestamp,
-        timestamp,
-        actor.id,
-        rollId,
-      ),
-    ]);
-    if (!rollInsert.meta.changes) {
+    const stateUpdate = await c.env.DB.prepare(
+      `UPDATE now_showing
+       SET movie_id = ?, collection_id = ?, status = 'ready',
+           updated_at = ?, updated_by = ?
+       WHERE id = 1 AND (movie_id IS NULL OR status = 'watched')`,
+    )
+      .bind(actual.id, rolled.collection_id, timestamp, actor.id)
+      .run();
+    if (!stateUpdate.meta.changes) {
       return c.json(
         { error: "Someone else is already choosing the next movie" },
         409,
@@ -190,11 +165,10 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
     const timestamp = now();
     const stateUpdate = await c.env.DB.prepare(
       `UPDATE now_showing
-       SET rolled_movie_id = ?, movie_id = ?, status = 'ready',
-           updated_at = ?, updated_by = ?
+       SET movie_id = ?, status = 'ready', updated_at = ?, updated_by = ?
        WHERE id = 1 AND movie_id = ? AND status = 'watched'`,
     )
-      .bind(next.id, next.id, timestamp, actor.id, current.movie_id)
+      .bind(next.id, timestamp, actor.id, current.movie_id)
       .run();
     if (!stateUpdate.meta.changes) {
       return c.json(

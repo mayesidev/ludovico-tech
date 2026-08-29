@@ -44,8 +44,6 @@ const summary = (overrides: Record<string, unknown> = {}) =>
       movies: 0,
       now_showing_collection_id: null,
       now_showing_movie_id: null,
-      now_showing_rolled_at: null,
-      now_showing_rolled_movie_id: null,
       now_showing_status: "empty",
       ratings: 0,
       tmdb_links: 0,

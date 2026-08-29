@@ -537,7 +537,7 @@ export const buildCatalogImportPlan = (
     : null;
   if (selectedMovieId) {
     statements.push(
-      `UPDATE now_showing SET rolled_movie_id = NULL, movie_id = ${sql(selectedMovieId)}, collection_id = ${sql(selectedCollectionId)}, status = 'ready', rolled_at = NULL, updated_at = ${sql(importedAt)}, updated_by = NULL WHERE id = 1;`,
+      `UPDATE now_showing SET movie_id = ${sql(selectedMovieId)}, collection_id = ${sql(selectedCollectionId)}, status = 'ready', updated_at = ${sql(importedAt)}, updated_by = NULL WHERE id = 1;`,
     );
   }
 

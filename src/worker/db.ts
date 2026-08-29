@@ -33,11 +33,9 @@ export type CollectionRow = {
 
 export type NowShowingRow = {
   id: number;
-  rolled_movie_id: string | null;
   movie_id: string | null;
   collection_id: string | null;
   status: "empty" | "ready" | "watched";
-  rolled_at: string | null;
   updated_at: string;
   title: string | null;
   added_at: string | null;
