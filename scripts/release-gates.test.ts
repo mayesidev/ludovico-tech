@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   assertReleaseMigrationsApplied,
-  assertTmdbRefreshPaused,
+  assertTmdbRefreshIdle,
   isReleaseTag,
   runReleaseGate,
   validateDeploymentTarget,
@@ -134,15 +134,13 @@ describe("production refresh gate", () => {
     },
   ];
 
-  it("requires a paused schedule with no active lease", () => {
-    expect(() => assertTmdbRefreshPaused(response(0, null))).not.toThrow();
-    expect(() => assertTmdbRefreshPaused(response(1, null))).toThrow(
-      "must be paused",
-    );
+  it("requires no active lease regardless of configured schedule state", () => {
+    expect(() => assertTmdbRefreshIdle(response(0, null))).not.toThrow();
+    expect(() => assertTmdbRefreshIdle(response(1, null))).not.toThrow();
     expect(() =>
-      assertTmdbRefreshPaused(response(0, "2026-08-25T02:00:00.000Z")),
+      assertTmdbRefreshIdle(response(0, "2026-08-25T02:00:00.000Z")),
     ).toThrow("no active lease");
-    expect(() => assertTmdbRefreshPaused([])).toThrow("invalid");
+    expect(() => assertTmdbRefreshIdle([])).toThrow("invalid");
   });
 });
 

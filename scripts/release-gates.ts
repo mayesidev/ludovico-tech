@@ -113,7 +113,7 @@ export const assertReleaseMigrationsApplied = (
   }
 };
 
-export const assertTmdbRefreshPaused = (response: unknown) => {
+export const assertTmdbRefreshIdle = (response: unknown) => {
   if (!Array.isArray(response) || response.length !== 1) {
     throw new Error("TMDB refresh schedule response is invalid");
   }
@@ -132,10 +132,8 @@ export const assertTmdbRefreshPaused = (response: unknown) => {
     throw new Error("TMDB refresh schedule row is invalid");
   }
   const schedule = row as Record<string, unknown>;
-  if (schedule.enabled !== 0 || schedule.lease_expires_at !== null) {
-    throw new Error(
-      "TMDB refresh schedule must be paused with no active lease",
-    );
+  if (schedule.lease_expires_at !== null) {
+    throw new Error("TMDB refresh must have no active lease");
   }
 };
 
@@ -322,7 +320,7 @@ const migrationNames = (directory: string) =>
 
 const usage = () => {
   throw new Error(
-    "Usage: release-gates.ts <validate-tag|validate-target|check-migrations|check-refresh-paused|verify-deployment|verify-maintenance> ...",
+    "Usage: release-gates.ts <validate-tag|validate-target|check-migrations|check-refresh-idle|verify-deployment|verify-maintenance> ...",
   );
 };
 
@@ -343,8 +341,8 @@ export const runReleaseGate = async (args: string[]) => {
     );
     return;
   }
-  if (command === "check-refresh-paused" && values.length === 1) {
-    assertTmdbRefreshPaused(
+  if (command === "check-refresh-idle" && values.length === 1) {
+    assertTmdbRefreshIdle(
       JSON.parse(readFileSync(resolve(values[0]), "utf8")) as unknown,
     );
     return;
