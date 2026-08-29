@@ -77,6 +77,9 @@ const currentNowShowing: NowShowing = {
 
 const arrange = (auth: AuthState) => {
   vi.spyOn(api, "authMe").mockResolvedValue(auth);
+  vi.spyOn(api, "collectionSuggestions").mockResolvedValue({
+    collections: [],
+  });
   vi.spyOn(api, "movie").mockResolvedValue({
     movie: movieDetail,
   });

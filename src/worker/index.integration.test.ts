@@ -99,6 +99,41 @@ describe("Ludovico Tech Worker routes", () => {
     expect(home.body.posterReelMovies).toHaveLength(12);
   });
 
+  it("suggests existing collection names from partial input", async () => {
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO collections
+         (id, name, name_normalized, created_at, updated_at)
+         VALUES (?, ?, ?, datetime('now'), datetime('now'))`,
+      ).bind("suggestion-alpha", "Alpha Saga", "alpha saga"),
+      env.DB.prepare(
+        `INSERT INTO collections
+         (id, name, name_normalized, created_at, updated_at)
+         VALUES (?, ?, ?, datetime('now'), datetime('now'))`,
+      ).bind("suggestion-middle", "The Alpha Stories", "the alpha stories"),
+      env.DB.prepare(
+        `INSERT INTO collections
+         (id, name, name_normalized, created_at, updated_at)
+         VALUES (?, ?, ?, datetime('now'), datetime('now'))`,
+      ).bind("suggestion-percent", "100% Cinema", "100 cinema"),
+    ]);
+
+    const suggestions = await request<{
+      collections: Array<{ id: string; name: string }>;
+    }>("/api/collections/suggestions?search=alpha");
+
+    expect(suggestions.response.status).toBe(200);
+    expect(suggestions.body.collections).toEqual([
+      { id: "suggestion-alpha", name: "Alpha Saga" },
+      { id: "suggestion-middle", name: "The Alpha Stories" },
+    ]);
+
+    const punctuationOnly = await request<{ collections: unknown[] }>(
+      "/api/collections/suggestions?search=%25",
+    );
+    expect(punctuationOnly.body.collections).toEqual([]);
+  });
+
   it("paginates Library search and sorting before returning bounded rows", async () => {
     const movies = Array.from({ length: 30 }, (_, index) => ({
       id: `library-movie-${String(index).padStart(2, "0")}`,

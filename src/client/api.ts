@@ -298,6 +298,10 @@ export const api = {
       movies: Movie[];
       tmdbCollections: TmdbCollectionReference[];
     }>(`/api/collections/${id}`),
+  collectionSuggestions: (search: string) =>
+    request<{ collections: Array<{ id: string; name: string }> }>(
+      `/api/collections/suggestions?search=${encodeURIComponent(search)}`,
+    ),
   roll: () =>
     request<{
       rolledMovie: Movie;
