@@ -61,6 +61,11 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       .getByRole("textbox", { name: "Movie title" })
       .fill("Browser Test Feature");
     await page.getByRole("button", { name: "Add Movie", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Browser Test Feature" }),
+    ).toBeVisible();
+    await expect(page).toHaveURL(/\/movies\/[^/]+$/);
+    await page.getByRole("link", { name: "Now Showing" }).click();
 
     await page
       .getByRole("button", { name: "Choose a Movie", exact: true })
@@ -119,6 +124,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
         .getByRole("button", { name: "Add Movie", exact: true })
         .click();
     }
+    await page.getByRole("link", { name: "Now Showing" }).click();
 
     await page
       .getByRole("button", { name: "Choose the Next Movie", exact: true })

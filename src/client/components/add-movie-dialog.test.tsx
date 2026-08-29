@@ -42,12 +42,14 @@ describe("add movie dialog", () => {
     });
     vi.spyOn(api, "addMovie").mockResolvedValue({ movie });
     const onClose = vi.fn();
+    const onCreated = vi.fn();
     const user = userEvent.setup();
     render(
       <AddMovieDialog
         busy={false}
         onAuthExpired={vi.fn()}
         onClose={onClose}
+        onCreated={onCreated}
         run={run}
       />,
     );
@@ -101,6 +103,7 @@ describe("add movie dialog", () => {
       versionRuntime: 112,
     });
     expect(onClose).toHaveBeenCalledOnce();
+    expect(onCreated).toHaveBeenCalledWith("added-id");
   });
 
   it("refreshes auth presentation when a TMDB search receives 401", async () => {
@@ -114,6 +117,7 @@ describe("add movie dialog", () => {
         busy={false}
         onAuthExpired={onAuthExpired}
         onClose={vi.fn()}
+        onCreated={vi.fn()}
         run={run}
       />,
     );
@@ -150,6 +154,7 @@ describe("add movie dialog", () => {
         busy={false}
         onAuthExpired={vi.fn()}
         onClose={vi.fn()}
+        onCreated={vi.fn()}
         run={run}
       />,
     );
@@ -187,6 +192,7 @@ describe("add movie dialog", () => {
         busy={false}
         onAuthExpired={vi.fn()}
         onClose={onClose}
+        onCreated={vi.fn()}
         run={run}
       />,
     );

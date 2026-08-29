@@ -18,11 +18,13 @@ export function AddMovieDialog({
   busy,
   onAuthExpired,
   onClose,
+  onCreated,
   run,
 }: {
   busy: boolean;
   onAuthExpired: () => Promise<void>;
   onClose: () => void;
+  onCreated: (movieId: string) => void;
   run: RunAction;
 }) {
   const [title, setTitle] = useState("");
@@ -154,9 +156,10 @@ export function AddMovieDialog({
                     parsedVersionReferenceUrl === undefined))
               )
                 return;
+              let createdMovieId: string | null = null;
               void run(
-                () =>
-                  api.addMovie({
+                async () => {
+                  const result = await api.addMovie({
                     title,
                     collectionName,
                     imdbId: parsedImdbId,
@@ -166,8 +169,13 @@ export function AddMovieDialog({
                     versionReferenceUrl: usingVersion
                       ? parsedVersionReferenceUrl
                       : null,
-                  }),
-                onClose,
+                  });
+                  createdMovieId = result.movie.id;
+                },
+                () => {
+                  onClose();
+                  if (createdMovieId) onCreated(createdMovieId);
+                },
               );
             }}
           >

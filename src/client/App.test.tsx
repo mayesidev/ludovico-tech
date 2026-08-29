@@ -191,6 +191,31 @@ describe("application authorization presentation", () => {
     expect(screen.queryByRole("button", { name: "Choose a Movie" })).toBeNull();
   });
 
+  it("opens the newly added movie's details", async () => {
+    arrange(authenticated);
+    vi.spyOn(api, "addMovie").mockResolvedValue({ movie });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Add a Movie" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Add a Movie" });
+    await user.type(
+      within(dialog).getByRole("textbox", { name: "Movie title" }),
+      "Test Movie",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Add Movie" }));
+
+    await waitFor(() =>
+      expect(window.location.pathname).toBe("/movies/movie-id"),
+    );
+    expect(screen.queryByRole("dialog", { name: "Add a Movie" })).toBeNull();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Test Movie" }),
+    ).toBeVisible();
+  });
+
   it("keeps add-movie failures visible and dismissible above the open dialog", async () => {
     arrange(authenticated);
     vi.spyOn(api, "addMovie").mockRejectedValue(
