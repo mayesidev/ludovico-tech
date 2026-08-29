@@ -653,19 +653,15 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     const statements: D1PreparedStatement[] = [
       c.env.DB.prepare(
         `UPDATE now_showing
-         SET rolled_movie_id = NULL, movie_id = NULL, collection_id = NULL,
-             status = 'empty', rolled_at = NULL, updated_at = ?, updated_by = ?
-         WHERE id = 1 AND (movie_id = ? OR rolled_movie_id = ?)
+         SET movie_id = NULL, collection_id = NULL, status = 'empty',
+             updated_at = ?, updated_by = ?
+         WHERE id = 1 AND movie_id = ?
            AND EXISTS (
              SELECT 1 FROM movies
              LEFT JOIN ratings ON ratings.movie_id = movies.id
              WHERE movies.id = ? AND ratings.movie_id IS NULL
            )`,
-      ).bind(timestamp, actor.id, movieId, movieId, movieId),
-      c.env.DB.prepare(
-        `DELETE FROM rolls
-         WHERE rolled_movie_id = ? OR actual_movie_id = ?`,
-      ).bind(movieId, movieId),
+      ).bind(timestamp, actor.id, movieId, movieId),
       c.env.DB.prepare(
         `DELETE FROM movies WHERE id = ?
          AND NOT EXISTS (SELECT 1 FROM ratings WHERE movie_id = ?)`,
@@ -690,7 +686,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     }
 
     const results = await c.env.DB.batch(statements);
-    const movieDelete = results[2];
+    const movieDelete = results[1];
     if (!movieDelete?.meta.changes) {
       return c.json({ error: "Watched movies cannot be deleted" }, 409);
     }

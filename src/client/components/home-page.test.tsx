@@ -37,7 +37,6 @@ const nowShowing = (overrides: Partial<NowShowing> = {}): NowShowing => ({
   rating_score: null,
   release_date: "2020-01-02",
   runtime_minutes: null,
-  rolled_movie_id: "movie-id",
   status: "ready",
   title: "Test Movie",
   version: null,

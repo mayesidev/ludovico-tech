@@ -35,7 +35,6 @@ export type NowShowing = {
   added_at?: string | null;
   cast: TmdbPersonReference[];
   id: number;
-  rolled_movie_id: string | null;
   movie_id: string | null;
   collection_id: string | null;
   status: "empty" | "ready" | "watched";

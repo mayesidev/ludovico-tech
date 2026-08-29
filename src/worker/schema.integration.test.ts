@@ -482,7 +482,7 @@ describe("catalog schema", () => {
     const tableNames = tables.results.map(({ name }) => name);
     expect(tableNames).not.toContain("movie_import_sources");
     expect(tableNames).not.toContain("audit_log");
-    expect(tableNames).toContain("rolls");
+    expect(tableNames).not.toContain("rolls");
     const movieColumns = await env.DB.prepare("PRAGMA table_info(movies)").all<{
       name: string;
     }>();

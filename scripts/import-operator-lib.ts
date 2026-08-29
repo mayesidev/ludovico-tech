@@ -126,8 +126,6 @@ type DatabaseSummary = {
   movies: number;
   nowShowingCollectionId: string | null;
   nowShowingMovieId: string | null;
-  nowShowingRolledAt: string | null;
-  nowShowingRolledMovieId: string | null;
   nowShowingStatus: "empty" | "pending_order" | "ready" | "watched";
   ratings: number;
   tmdbLinks: number;
@@ -141,9 +139,7 @@ const databaseSummaryQuery = `SELECT
   (SELECT COUNT(*) FROM movie_tmdb_data) AS tmdb_links,
   (SELECT status FROM now_showing WHERE id = 1) AS now_showing_status,
   (SELECT movie_id FROM now_showing WHERE id = 1) AS now_showing_movie_id,
-  (SELECT collection_id FROM now_showing WHERE id = 1) AS now_showing_collection_id,
-  (SELECT rolled_movie_id FROM now_showing WHERE id = 1) AS now_showing_rolled_movie_id,
-  (SELECT rolled_at FROM now_showing WHERE id = 1) AS now_showing_rolled_at`;
+  (SELECT collection_id FROM now_showing WHERE id = 1) AS now_showing_collection_id`;
 const migrationsQuery = "SELECT name FROM d1_migrations ORDER BY id";
 const countSchema = z.number().int().nonnegative();
 const d1ResponseSchema = z
@@ -163,8 +159,6 @@ const summaryRowSchema = z
     movies: countSchema,
     now_showing_collection_id: z.string().nullable(),
     now_showing_movie_id: z.string().nullable(),
-    now_showing_rolled_at: z.string().nullable(),
-    now_showing_rolled_movie_id: z.string().nullable(),
     now_showing_status: z.enum(["empty", "pending_order", "ready", "watched"]),
     ratings: countSchema,
     tmdb_links: countSchema,
@@ -195,8 +189,6 @@ const parseDatabaseSummary = (source: string): DatabaseSummary => {
     movies: row.data.movies,
     nowShowingCollectionId: row.data.now_showing_collection_id,
     nowShowingMovieId: row.data.now_showing_movie_id,
-    nowShowingRolledAt: row.data.now_showing_rolled_at,
-    nowShowingRolledMovieId: row.data.now_showing_rolled_movie_id,
     nowShowingStatus: row.data.now_showing_status,
     ratings: row.data.ratings,
     tmdbLinks: row.data.tmdb_links,
@@ -212,9 +204,7 @@ const assertEmptyDatabase = (summary: DatabaseSummary) => {
     summary.tmdbLinks !== 0 ||
     summary.nowShowingStatus !== "empty" ||
     summary.nowShowingMovieId !== null ||
-    summary.nowShowingCollectionId !== null ||
-    summary.nowShowingRolledMovieId !== null ||
-    summary.nowShowingRolledAt !== null
+    summary.nowShowingCollectionId !== null
   ) {
     throw new ImportOperatorError(
       "The selected database is not an empty migrated import target",
@@ -235,10 +225,7 @@ const assertImportedDatabase = (
     summary.tmdbLinks !== expected.tmdbLinks ||
     summary.nowShowingStatus !== (plan.nowShowing ? "ready" : "empty") ||
     summary.nowShowingMovieId !== (plan.nowShowing?.movieId ?? null) ||
-    summary.nowShowingCollectionId !==
-      (plan.nowShowing?.collectionId ?? null) ||
-    summary.nowShowingRolledMovieId !== null ||
-    summary.nowShowingRolledAt !== null
+    summary.nowShowingCollectionId !== (plan.nowShowing?.collectionId ?? null)
   ) {
     throw new ImportOperatorError(
       "Post-import database verification did not match the CSV",
