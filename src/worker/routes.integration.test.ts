@@ -341,7 +341,7 @@ describe("Google authentication", () => {
     }
   });
 
-  it("creates an allowlisted session and returns only the public actor", async () => {
+  it("creates an allowlisted session and returns only the public user", async () => {
     const state = await insertOauthState(
       "successful-state",
       future,
@@ -386,7 +386,7 @@ describe("Google authentication", () => {
     );
     expect(me.headers.get("Cache-Control")).toBe("no-store");
     expect(await me.json()).toEqual({
-      actor: { displayName: "Invited User", email: invitedEmail },
+      user: { displayName: "Invited User", email: invitedEmail },
       authenticated: true,
       local: false,
     });

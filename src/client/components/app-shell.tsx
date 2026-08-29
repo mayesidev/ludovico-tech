@@ -159,7 +159,7 @@ function AuthControls({
 
   return (
     <button
-      aria-label={`Sign Out${auth.actor?.displayName ? ` ${auth.actor.displayName}` : ""}`}
+      aria-label={`Sign Out${auth.user?.displayName ? ` ${auth.user.displayName}` : ""}`}
       onClick={onLogout}
       className="header-label max-w-[120px] shrink-0 whitespace-nowrap rounded-sm border border-border-primary bg-surface/75 px-3 py-2 text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary sm:max-w-[180px]"
     >

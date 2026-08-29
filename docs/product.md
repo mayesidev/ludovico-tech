@@ -31,7 +31,7 @@ one group viewing state.
 - The application must run from empty migrations. Loading an existing catalog is an
   optional operator action, never a bootstrap or test dependency.
 - An optional catalog import may restore the current unwatched selection. It does
-  not invent an unknown originating actor or selection time. The importer is
+  not invent an unknown originating user or selection time. The importer is
   identified as the last updater of state it materializes.
 - A known prior addition time may establish when an imported movie was added. An
   imported rating establishes watched state but not an unknown watch time.

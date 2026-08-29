@@ -2,7 +2,7 @@ import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import {
   buildCatalogImportPlan,
-  CATALOG_IMPORT_ACTOR,
+  CATALOG_IMPORT_ATTRIBUTION,
   parseCatalogCsv,
   renderSqlChunks,
 } from "../../scripts/catalog-import-lib";
@@ -101,21 +101,21 @@ describe("catalog import", () => {
     expect(rows.results).toEqual([
       {
         added_by: null,
-        collection_updated_by: CATALOG_IMPORT_ACTOR,
+        collection_updated_by: CATALOG_IMPORT_ATTRIBUTION,
         created_by: null,
         recorded_by: null,
         title: "Synthetic Movie One",
         tmdb_updated_by: null,
-        updated_by: CATALOG_IMPORT_ACTOR,
+        updated_by: CATALOG_IMPORT_ATTRIBUTION,
       },
       {
         added_by: null,
-        collection_updated_by: CATALOG_IMPORT_ACTOR,
+        collection_updated_by: CATALOG_IMPORT_ATTRIBUTION,
         created_by: null,
         recorded_by: null,
         title: "Synthetic Movie Two",
-        tmdb_updated_by: CATALOG_IMPORT_ACTOR,
-        updated_by: CATALOG_IMPORT_ACTOR,
+        tmdb_updated_by: CATALOG_IMPORT_ATTRIBUTION,
+        updated_by: CATALOG_IMPORT_ATTRIBUTION,
       },
     ]);
   });
@@ -182,7 +182,7 @@ Starting Movie,Synthetic Saga,2,true
       collection_name: "Synthetic Saga",
       status: "ready",
       title: "Starting Movie",
-      updated_by: CATALOG_IMPORT_ACTOR,
+      updated_by: CATALOG_IMPORT_ATTRIBUTION,
     });
   });
 

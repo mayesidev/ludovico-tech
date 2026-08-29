@@ -30,7 +30,7 @@ export class RuntimeConfigurationError extends Error {
   }
 }
 
-export type Actor = {
+export type AuthenticatedUser = {
   id: string;
   email: string;
   displayName: string;
@@ -134,10 +134,10 @@ const getCookie = (request: Request, name: string) => {
   return match?.[1] ?? null;
 };
 
-export const getActor = async (
+export const getAuthenticatedUser = async (
   env: AppEnv["Bindings"],
   request: Request,
-): Promise<Actor | null> => {
+): Promise<AuthenticatedUser | null> => {
   const config = getRuntimeConfig(env);
   if (config.authMode === "development") {
     return {

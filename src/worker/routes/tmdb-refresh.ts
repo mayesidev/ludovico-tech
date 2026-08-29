@@ -2,7 +2,7 @@ import { zValidator } from "@hono/zod-validator";
 import type { Hono } from "hono";
 import { z } from "zod";
 import { now, type AppEnv } from "../env";
-import { mutationActor } from "../middleware";
+import { mutationUser } from "../middleware";
 import { getTmdbMetadataContractId } from "../../shared/tmdb-metadata-contract";
 import {
   claimTmdbRefresh,
@@ -78,8 +78,8 @@ const queueInput = z.object({
 
 export const registerTmdbRefreshRoutes = (app: Hono<AppEnv>) => {
   app.get("/tmdb-refresh/run-status", async (c) => {
-    const actor = await mutationActor(c);
-    if (!actor) return c.json({ error: "Authentication required" }, 401);
+    const user = await mutationUser(c);
+    if (!user) return c.json({ error: "Authentication required" }, 401);
     return c.json(await getTmdbRefreshRunStatus(c.env));
   });
 
@@ -87,21 +87,21 @@ export const registerTmdbRefreshRoutes = (app: Hono<AppEnv>) => {
     "/tmdb-refresh/overview",
     zValidator("query", queueInput),
     async (c) => {
-      const actor = await mutationActor(c);
-      if (!actor) return c.json({ error: "Authentication required" }, 401);
+      const user = await mutationUser(c);
+      if (!user) return c.json({ error: "Authentication required" }, 401);
       return c.json(await getTmdbRefreshOverview(c.env, c.req.valid("query")));
     },
   );
 
   app.get("/tmdb-refresh/items", zValidator("query", queueInput), async (c) => {
-    const actor = await mutationActor(c);
-    if (!actor) return c.json({ error: "Authentication required" }, 401);
+    const user = await mutationUser(c);
+    if (!user) return c.json({ error: "Authentication required" }, 401);
     return c.json(await getTmdbRefreshQueue(c.env, c.req.valid("query")));
   });
 
   app.post("/tmdb-refresh/items/:movieId/refetch", async (c) => {
-    const actor = await mutationActor(c);
-    if (!actor) return c.json({ error: "Authentication required" }, 401);
+    const user = await mutationUser(c);
+    if (!user) return c.json({ error: "Authentication required" }, 401);
 
     const movieId = c.req.param("movieId");
     const timestamp = now();
@@ -116,7 +116,7 @@ export const registerTmdbRefreshRoutes = (app: Hono<AppEnv>) => {
            AND COALESCE(last_refresh_status, '') <> 'failed'
            AND contract_id = ?
            AND refresh_after > ?`,
-      ).bind(timestamp, timestamp, actor.id, movieId, contractId, timestamp),
+      ).bind(timestamp, timestamp, user.id, movieId, contractId, timestamp),
       c.env.DB.prepare(
         `SELECT refresh_after
          FROM movie_tmdb_data
@@ -138,8 +138,8 @@ export const registerTmdbRefreshRoutes = (app: Hono<AppEnv>) => {
     "/tmdb-refresh/schedule",
     zValidator("json", scheduleInput),
     async (c) => {
-      const actor = await mutationActor(c);
-      if (!actor) return c.json({ error: "Authentication required" }, 401);
+      const user = await mutationUser(c);
+      if (!user) return c.json({ error: "Authentication required" }, 401);
 
       const input = c.req.valid("json");
       const timestamp = now();
@@ -165,7 +165,7 @@ export const registerTmdbRefreshRoutes = (app: Hono<AppEnv>) => {
           input.batchSize ?? null,
           nextRunAt,
           timestamp,
-          actor.id,
+          user.id,
         )
         .run();
       return c.json({ updated: true as const });
@@ -173,10 +173,10 @@ export const registerTmdbRefreshRoutes = (app: Hono<AppEnv>) => {
   );
 
   app.post("/tmdb-refresh/run", async (c) => {
-    const actor = await mutationActor(c);
-    if (!actor) return c.json({ error: "Authentication required" }, 401);
+    const user = await mutationUser(c);
+    if (!user) return c.json({ error: "Authentication required" }, 401);
 
-    const claim = await claimTmdbRefresh(c.env, true, undefined, actor.id);
+    const claim = await claimTmdbRefresh(c.env, true, undefined, user.id);
     if (!claim) {
       return c.json({ error: "TMDB refresh is already running" }, 409);
     }

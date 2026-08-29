@@ -17,7 +17,7 @@ import {
   recordD1Usage,
   type D1ProcessingUsage,
 } from "./d1-usage";
-import { TMDB_REFRESH_ACTOR } from "./attribution";
+import { TMDB_REFRESH_ATTRIBUTION } from "./attribution";
 
 const REFRESH_AFTER_MS = 150 * 24 * 60 * 60 * 1000;
 const EXPIRES_AFTER_MS = 175 * 24 * 60 * 60 * 1000;
@@ -113,7 +113,13 @@ export const purgeExpiredTmdbData = async (
          AND expires_at IS NOT NULL
          AND expires_at <= ?
          AND expired_at IS NULL`,
-    ).bind(timestamp, timestamp, TMDB_REFRESH_ACTOR, ...movieIds, timestamp),
+    ).bind(
+      timestamp,
+      timestamp,
+      TMDB_REFRESH_ATTRIBUTION,
+      ...movieIds,
+      timestamp,
+    ),
     env.DB.prepare(
       `DELETE FROM movie_credits
        WHERE movie_id IN (${placeholders})
@@ -250,7 +256,7 @@ export const replaceTmdbDataStatements = async (
   movieId: string,
   result: TmdbMovieResult | null,
   options: {
-    actor?: string;
+    attributedBy?: string;
     attemptedAt?: string;
     existingCollectionId?: number | null;
     existingCredits?: TmdbCreditSnapshot[];
@@ -303,7 +309,7 @@ export const replaceTmdbDataStatements = async (
   const data = tmdbMovieDetailSchema.parse(result.data);
   const { fetchedAt } = result;
   const updatedAt = options.updatedAt ?? options.attemptedAt ?? fetchedAt;
-  const actor = options.actor ?? TMDB_REFRESH_ACTOR;
+  const attributionKey = options.attributedBy ?? TMDB_REFRESH_ATTRIBUTION;
   const contractId = await getTmdbMetadataContractId();
   const refreshAfter = addMilliseconds(fetchedAt, REFRESH_AFTER_MS);
   const expiresAt = addMilliseconds(fetchedAt, EXPIRES_AFTER_MS);
@@ -361,7 +367,7 @@ export const replaceTmdbDataStatements = async (
           contractId,
           options.attemptedAt ?? fetchedAt,
           updatedAt,
-          actor,
+          attributionKey,
           movieId,
           data.id,
           fetchedAt,
@@ -405,7 +411,7 @@ export const replaceTmdbDataStatements = async (
           contractId,
           options.attemptedAt ?? fetchedAt,
           updatedAt,
-          actor,
+          attributionKey,
         );
   statements.push(metadataStatement);
 
@@ -659,7 +665,7 @@ export const refreshDueTmdbData = async (
       report.refreshed += 1;
       persistenceStatements.push(
         ...(await replaceTmdbDataStatements(env, row.movie_id, result, {
-          actor: TMDB_REFRESH_ACTOR,
+          attributedBy: TMDB_REFRESH_ATTRIBUTION,
           attemptedAt: timestamp,
           existingCredits: creditSnapshots.get(row.movie_id) ?? [],
           existingSnapshot: {
@@ -694,7 +700,7 @@ export const refreshDueTmdbData = async (
           refreshErrorMessage(failure),
           timestamp,
           timestamp,
-          TMDB_REFRESH_ACTOR,
+          TMDB_REFRESH_ATTRIBUTION,
           row.movie_id,
         ),
       );

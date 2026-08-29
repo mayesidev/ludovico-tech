@@ -11,15 +11,15 @@ import {
   movieSelect,
   type MovieRow,
 } from "../db";
-import { mutationActor } from "../middleware";
+import { mutationUser } from "../middleware";
 import {
   libraryQueryInput,
   movieEditInput,
   movieInput,
   ratingInput,
 } from "../schemas";
-import { getActor, newId, normalizeTitle, now } from "../env";
-import { attributionActorName } from "../attribution";
+import { getAuthenticatedUser, newId, normalizeTitle, now } from "../env";
+import { attributionDisplayName } from "../attribution";
 import { getTmdbMovie, type TmdbMovieResult } from "../tmdb";
 import {
   getTmdbCreditSnapshots,
@@ -139,19 +139,19 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
   });
 
   app.get("/collections/:id", async (c) => {
-    const actor = await getActor(c.env, c.req.raw);
+    const user = await getAuthenticatedUser(c.env, c.req.raw);
     const collection = await c.env.DB.prepare(
-      actor
+      user
         ? `SELECT collections.id, collections.name, collections.order_confirmed,
              collections.created_at, collections.updated_at,
              collections.created_by, collections.updated_by,
-             created_actor.display_name AS created_by_display_name,
-             created_actor.email AS created_by_email,
-             updated_actor.display_name AS updated_by_display_name,
-             updated_actor.email AS updated_by_email
+             creating_user.display_name AS created_by_display_name,
+             creating_user.email AS created_by_email,
+             updating_user.display_name AS updated_by_display_name,
+             updating_user.email AS updated_by_email
            FROM collections
-           LEFT JOIN users AS created_actor ON created_actor.id = collections.created_by
-           LEFT JOIN users AS updated_actor ON updated_actor.id = collections.updated_by
+           LEFT JOIN users AS creating_user ON creating_user.id = collections.created_by
+           LEFT JOIN users AS updating_user ON updating_user.id = collections.updated_by
            WHERE collections.id = ?`
         : "SELECT id, name, order_confirmed, created_at, updated_at FROM collections WHERE id = ?",
     )
@@ -205,12 +205,12 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       order_confirmed: collection.order_confirmed,
       created_at: collection.created_at,
       updated_at: collection.updated_at,
-      ...(actor
+      ...(user
         ? {
             audit: {
               created: {
                 at: collection.created_at,
-                by: attributionActorName(
+                by: attributionDisplayName(
                   collection.created_by ?? null,
                   collection.created_by_display_name ?? null,
                   collection.created_by_email ?? null,
@@ -218,7 +218,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
               },
               updated: {
                 at: collection.updated_at,
-                by: attributionActorName(
+                by: attributionDisplayName(
                   collection.updated_by ?? null,
                   collection.updated_by_display_name ?? null,
                   collection.updated_by_email ?? null,
@@ -236,8 +236,8 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
   });
 
   app.get("/home", async (c) => {
-    const actor = await getActor(c.env, c.req.raw);
-    const nowShowing = await getNowShowingDetail(c.env, Boolean(actor));
+    const user = await getAuthenticatedUser(c.env, c.req.raw);
+    const nowShowing = await getNowShowingDetail(c.env, Boolean(user));
     const [watchedMovies, posterReelMovies, hasNextCollectionMovie] =
       await Promise.all([
         getWatchedHistory(c.env),
@@ -255,20 +255,16 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
   });
 
   app.get("/movies/:id", async (c) => {
-    const actor = await getActor(c.env, c.req.raw);
-    const movie = await getMovieDetail(
-      c.env,
-      c.req.param("id"),
-      Boolean(actor),
-    );
+    const user = await getAuthenticatedUser(c.env, c.req.raw);
+    const movie = await getMovieDetail(c.env, c.req.param("id"), Boolean(user));
     return movie
       ? c.json({ movie })
       : c.json({ error: "Movie not found" }, 404);
   });
 
   app.post("/movies", zValidator("json", movieInput), async (c) => {
-    const actor = await mutationActor(c);
-    if (!actor) return c.json({ error: "Authentication required" }, 401);
+    const user = await mutationUser(c);
+    if (!user) return c.json({ error: "Authentication required" }, 401);
 
     const input = c.req.valid("json");
     const version = input.version ?? null;
@@ -349,8 +345,8 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
             normalizeTitle(input.collectionName),
             timestamp,
             timestamp,
-            actor.id,
-            actor.id,
+            user.id,
+            user.id,
           ),
         );
       }
@@ -376,16 +372,16 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         title,
         timestamp,
         input.imdbId ?? null,
-        actor.id,
+        user.id,
         timestamp,
-        actor.id,
+        user.id,
       ),
     );
 
     if (tmdbResult) {
       statements.push(
         ...(await replaceTmdbDataStatements(c.env, id, tmdbResult, {
-          actor: actor.id,
+          attributedBy: user.id,
           existingCollectionId: null,
           existingCredits: [],
           updatedAt: timestamp,
@@ -414,7 +410,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         statements.push(
           c.env.DB.prepare(
             "UPDATE collections SET updated_at = ?, updated_by = ? WHERE id = ?",
-          ).bind(timestamp, actor.id, collectionId),
+          ).bind(timestamp, user.id, collectionId),
         );
       }
     }
@@ -423,8 +419,8 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
   });
 
   app.patch("/movies/:id", zValidator("json", movieEditInput), async (c) => {
-    const actor = await mutationActor(c);
-    if (!actor) return c.json({ error: "Authentication required" }, 401);
+    const user = await mutationUser(c);
+    if (!user) return c.json({ error: "Authentication required" }, 401);
 
     const movieId = c.req.param("id");
     const input = c.req.valid("json");
@@ -588,12 +584,12 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       versionRuntime,
       versionReferenceUrl,
       timestamp,
-      actor.id,
+      user.id,
       movieId,
     );
     const replaceTmdb = tmdbChangeRequested
       ? await replaceTmdbDataStatements(c.env, movieId, tmdbResult, {
-          actor: actor.id,
+          attributedBy: user.id,
           existingCollectionId: existing.tmdb_collection_id,
           existingCredits: existing.tmdb_id === null ? [] : undefined,
           updatedAt: timestamp,
@@ -617,8 +613,8 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
             normalizeTitle(targetCollectionName),
             timestamp,
             timestamp,
-            actor.id,
-            actor.id,
+            user.id,
+            user.id,
           ),
         );
       }
@@ -639,7 +635,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
           statements.push(
             c.env.DB.prepare(
               "UPDATE collections SET updated_at = ?, updated_by = ? WHERE id = ?",
-            ).bind(timestamp, actor.id, targetCollectionId),
+            ).bind(timestamp, user.id, targetCollectionId),
           );
         }
       }
@@ -676,7 +672,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
           targetCollectionId,
           targetCollectionId,
           timestamp,
-          actor.id,
+          user.id,
           movieId,
         ),
       );
@@ -684,7 +680,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         statements.push(
           c.env.DB.prepare(
             "UPDATE collections SET updated_at = ?, updated_by = ? WHERE id = ?",
-          ).bind(timestamp, actor.id, existing.collection_id),
+          ).bind(timestamp, user.id, existing.collection_id),
           c.env.DB.prepare(
             `DELETE FROM collections WHERE id = ?
              AND NOT EXISTS (
@@ -700,8 +696,8 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
   });
 
   app.delete("/movies/:id", async (c) => {
-    const actor = await mutationActor(c);
-    if (!actor) return c.json({ error: "Authentication required" }, 401);
+    const user = await mutationUser(c);
+    if (!user) return c.json({ error: "Authentication required" }, 401);
 
     const movieId = c.req.param("id");
     const existing = await getMovie(c.env, movieId);
@@ -726,7 +722,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
              LEFT JOIN ratings ON ratings.movie_id = movies.id
              WHERE movies.id = ? AND ratings.movie_id IS NULL
            )`,
-      ).bind(timestamp, actor.id, movieId, movieId),
+      ).bind(timestamp, user.id, movieId, movieId),
       c.env.DB.prepare(
         `DELETE FROM movies WHERE id = ?
          AND NOT EXISTS (SELECT 1 FROM ratings WHERE movie_id = ?)`,
@@ -759,8 +755,8 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
   });
 
   app.post("/movies/:id/rate", zValidator("json", ratingInput), async (c) => {
-    const actor = await mutationActor(c);
-    if (!actor) return c.json({ error: "Authentication required" }, 401);
+    const user = await mutationUser(c);
+    if (!user) return c.json({ error: "Authentication required" }, 401);
 
     const movieId = c.req.param("id");
     const input = c.req.valid("json");
@@ -779,19 +775,12 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
          phrase = excluded.phrase,
          recorded_at = excluded.recorded_at,
          recorded_by = excluded.recorded_by`,
-      ).bind(
-        movieId,
-        timestamp,
-        input.score,
-        input.phrase,
-        timestamp,
-        actor.id,
-      ),
+      ).bind(movieId, timestamp, input.score, input.phrase, timestamp, user.id),
       c.env.DB.prepare(
         `UPDATE now_showing
          SET status = 'watched', updated_at = ?, updated_by = ?
          WHERE id = 1 AND movie_id = ?`,
-      ).bind(timestamp, actor.id, movieId),
+      ).bind(timestamp, user.id, movieId),
     ]);
     return c.json({
       movie: await getMovie(c.env, movieId),

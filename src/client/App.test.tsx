@@ -44,13 +44,13 @@ const movie: Movie = {
 };
 
 const anonymous: AuthState = {
-  actor: null,
+  user: null,
   authenticated: false,
   local: false,
 };
 
 const authenticated: AuthState = {
-  actor: { displayName: "Invited User", email: "invited@example.test" },
+  user: { displayName: "Invited User", email: "invited@example.test" },
   authenticated: true,
   local: false,
 };

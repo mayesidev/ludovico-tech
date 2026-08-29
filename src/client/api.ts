@@ -128,7 +128,7 @@ export type TmdbCollectionReference = {
 };
 export type AuthState = {
   authenticated: boolean;
-  actor: { email: string; displayName: string } | null;
+  user: { email: string; displayName: string } | null;
   local: boolean;
 };
 export type HealthState = {

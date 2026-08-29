@@ -116,15 +116,20 @@ describe("atomic catalog mutations", () => {
     });
     expect(response.status).toBe(200);
     const attribution = await env.DB.prepare(
-      `SELECT collections.updated_by AS collection_actor,
-              now_showing.updated_by AS selection_actor
+      `SELECT collections.updated_by AS collection_attribution,
+              now_showing.updated_by AS selection_attribution
        FROM collections JOIN now_showing ON now_showing.collection_id = collections.id
        WHERE collections.id = ?`,
     )
       .bind(collectionId)
-      .first<{ collection_actor: string; selection_actor: string }>();
-    expect(attribution?.collection_actor).toBeTruthy();
-    expect(attribution?.selection_actor).toBe(attribution?.collection_actor);
+      .first<{
+        collection_attribution: string;
+        selection_attribution: string;
+      }>();
+    expect(attribution?.collection_attribution).toBeTruthy();
+    expect(attribution?.selection_attribution).toBe(
+      attribution?.collection_attribution,
+    );
   });
 
   it("allows only one concurrent random roll to update current state", async () => {

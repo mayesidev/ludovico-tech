@@ -81,7 +81,7 @@ export default function App() {
     try {
       setAuth(await api.authMe());
     } catch {
-      setAuth({ authenticated: false, actor: null, local: false });
+      setAuth({ authenticated: false, user: null, local: false });
     }
   }, []);
 
@@ -293,7 +293,7 @@ export default function App() {
     setError(null);
     try {
       await api.logout();
-      setAuth({ authenticated: false, actor: null, local: false });
+      setAuth({ authenticated: false, user: null, local: false });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to sign out");
     } finally {

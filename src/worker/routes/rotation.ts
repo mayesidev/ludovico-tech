@@ -8,14 +8,14 @@ import {
   getRemainingCollectionMovies,
 } from "../db";
 import { type AppEnv, now } from "../env";
-import { mutationActor } from "../middleware";
+import { mutationUser } from "../middleware";
 import { orderInput } from "../schemas";
 import { selectQueuedMovie } from "../selection";
 
 export const registerRotationRoutes = (app: Hono<AppEnv>) => {
   app.post("/roll", async (c) => {
-    const actor = await mutationActor(c);
-    if (!actor) return c.json({ error: "Authentication required" }, 401);
+    const user = await mutationUser(c);
+    if (!user) return c.json({ error: "Authentication required" }, 401);
 
     const current = await getNowShowing(c.env);
     if (current?.movie_id && current.rating_score === null) {
@@ -42,7 +42,7 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
            updated_at = ?, updated_by = ?
        WHERE id = 1 AND (movie_id IS NULL OR status = 'watched')`,
     )
-      .bind(actual.id, rolled.collection_id, timestamp, actor.id)
+      .bind(actual.id, rolled.collection_id, timestamp, user.id)
       .run();
     if (!stateUpdate.meta.changes) {
       return c.json(
@@ -67,8 +67,8 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
       }
     }),
     async (c) => {
-      const actor = await mutationActor(c);
-      if (!actor) return c.json({ error: "Authentication required" }, 401);
+      const user = await mutationUser(c);
+      if (!user) return c.json({ error: "Authentication required" }, 401);
 
       const collectionId = c.req.param("id");
       const input = c.req.valid("json");
@@ -121,7 +121,7 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
           `UPDATE collections
            SET order_confirmed = 1, updated_at = ?, updated_by = ?
            WHERE id = ?`,
-        ).bind(timestamp, actor.id, collectionId),
+        ).bind(timestamp, user.id, collectionId),
       );
       if (firstUnwatchedId) {
         statements.push(
@@ -129,7 +129,7 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
             `UPDATE now_showing
              SET movie_id = ?, status = 'ready', updated_at = ?, updated_by = ?
              WHERE id = 1 AND collection_id = ? AND status IN ('pending_order', 'ready')`,
-          ).bind(firstUnwatchedId, timestamp, actor.id, collectionId),
+          ).bind(firstUnwatchedId, timestamp, user.id, collectionId),
         );
       }
       await c.env.DB.batch(statements);
@@ -138,8 +138,8 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
   );
 
   app.post("/next", async (c) => {
-    const actor = await mutationActor(c);
-    if (!actor) return c.json({ error: "Authentication required" }, 401);
+    const user = await mutationUser(c);
+    if (!user) return c.json({ error: "Authentication required" }, 401);
 
     const current = await getNowShowing(c.env);
     if (
@@ -168,7 +168,7 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
        SET movie_id = ?, status = 'ready', updated_at = ?, updated_by = ?
        WHERE id = 1 AND movie_id = ? AND status = 'watched'`,
     )
-      .bind(next.id, timestamp, actor.id, current.movie_id)
+      .bind(next.id, timestamp, user.id, current.movie_id)
       .run();
     if (!stateUpdate.meta.changes) {
       return c.json(

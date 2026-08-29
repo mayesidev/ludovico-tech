@@ -4,7 +4,7 @@ import {
   createSessionId,
   createState,
   getAllowedEmails,
-  getActor,
+  getAuthenticatedUser,
   getRuntimeConfig,
   isDevelopmentAuth,
   isSecureEnvironment,
@@ -48,12 +48,10 @@ const normalizeReturnTo = (value: string | undefined): string => {
 export const registerAuthRoutes = (app: Hono<AppEnv>) => {
   app.get("/auth/me", async (c) => {
     c.header("Cache-Control", "no-store");
-    const actor = await getActor(c.env, c.req.raw);
+    const user = await getAuthenticatedUser(c.env, c.req.raw);
     return c.json({
-      authenticated: Boolean(actor),
-      actor: actor
-        ? { email: actor.email, displayName: actor.displayName }
-        : null,
+      authenticated: Boolean(user),
+      user: user ? { email: user.email, displayName: user.displayName } : null,
       local: isDevelopmentAuth(c.env),
     });
   });

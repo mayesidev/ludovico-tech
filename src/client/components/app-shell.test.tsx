@@ -54,7 +54,7 @@ describe("site identity", () => {
   it("keeps Credits in the primary navigation before authentication controls", () => {
     render(
       <AppHeader
-        auth={{ actor: null, authenticated: false, local: false }}
+        auth={{ user: null, authenticated: false, local: false }}
         onLogin={vi.fn()}
         onLogout={vi.fn()}
         onNavigate={vi.fn()}
@@ -79,7 +79,7 @@ describe("site identity", () => {
   it("shows TMDB operations only to authenticated contributors", () => {
     const { rerender } = render(
       <AppHeader
-        auth={{ actor: null, authenticated: false, local: false }}
+        auth={{ user: null, authenticated: false, local: false }}
         onLogin={vi.fn()}
         onLogout={vi.fn()}
         onNavigate={vi.fn()}
@@ -91,7 +91,7 @@ describe("site identity", () => {
     rerender(
       <AppHeader
         auth={{
-          actor: { displayName: "Contributor", email: "c@example.test" },
+          user: { displayName: "Contributor", email: "c@example.test" },
           authenticated: true,
           local: false,
         }}
