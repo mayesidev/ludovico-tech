@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCatalogImportPlan,
+  CATALOG_IMPORT_ACTOR,
   CATALOG_IMPORT_COLUMNS,
   parseCatalogCsv,
   renderSqlChunks,
@@ -39,6 +40,7 @@ describe("catalog import template", () => {
       tmdbLinks: 0,
     });
     expect(plan.statements.join("\n")).toContain(importedAt);
+    expect(plan.statements.join("\n")).toContain(`'${CATALOG_IMPORT_ACTOR}'`);
     expect(plan.statements[0]).toMatch(
       /^INSERT INTO movies \(id, title, added_at, added_by, updated_at, updated_by\) VALUES /,
     );
@@ -133,7 +135,7 @@ describe("catalog import template", () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
     expect(plan.statements.at(-1)).toBe(
-      `UPDATE now_showing SET movie_id = '${plan.nowShowing?.movieId}', collection_id = '${plan.nowShowing?.collectionId}', status = 'ready', updated_at = '${importedAt}', updated_by = NULL WHERE id = 1;`,
+      `UPDATE now_showing SET movie_id = '${plan.nowShowing?.movieId}', collection_id = '${plan.nowShowing?.collectionId}', status = 'ready', updated_at = '${importedAt}', updated_by = '${CATALOG_IMPORT_ACTOR}' WHERE id = 1;`,
     );
   });
 
