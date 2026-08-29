@@ -470,15 +470,9 @@ describe("authenticated attribution", () => {
       ).bind(createdMovie.id, future, past, stored?.added_by ?? null),
       env.DB.prepare(
         `UPDATE now_showing
-         SET movie_id = ?, collection_id = ?, status = 'watched',
-             updated_at = ?, updated_by = ?
+         SET movie_id = ?, rolled_at = ?, rolled_by = ?
          WHERE id = 1`,
-      ).bind(
-        createdMovie.id,
-        createdMovie.collection_id,
-        past,
-        stored?.added_by ?? null,
-      ),
+      ).bind(createdMovie.id, past, stored?.added_by ?? null),
     ]);
 
     const publicDetail = await request(
@@ -533,13 +527,22 @@ describe("authenticated attribution", () => {
       (await publicHome.json()) as { nowShowing: object }
     ).nowShowing;
     expect(publicNowShowing).not.toHaveProperty("audit");
-    expect(publicNowShowing).not.toHaveProperty("updated_by");
+    expect(publicNowShowing).not.toHaveProperty("rolled_at");
+    expect(publicNowShowing).not.toHaveProperty("rolled_by");
     const privateHome = await request("/api/home", session.bindings, {
       headers: { Cookie: session.cookie },
     });
     expect(await privateHome.json()).toMatchObject({
       nowShowing: {
-        audit: { updated: { at: past, by: "Invited User" } },
+        audit: {
+          movie: {
+            added: { at: expect.any(String), by: "Invited User" },
+            metadata: { at: past, by: "Invited User" },
+            rating: { at: expect.any(String), by: "Invited User" },
+            updated: { at: expect.any(String), by: "Invited User" },
+          },
+          rolled: { at: past, by: "Invited User" },
+        },
       },
     });
   });
@@ -1052,10 +1055,10 @@ describe("TMDB routes and metadata attachment", () => {
 
     await env.DB.prepare(
       `UPDATE now_showing
-       SET movie_id = ?, status = 'ready'
+       SET movie_id = ?, rolled_at = ?, rolled_by = 'local-developer'
        WHERE id = 1`,
     )
-      .bind(String(movie.id))
+      .bind(String(movie.id), past)
       .run();
     const current = await request("/api/home", session.bindings);
     expect(await current.json()).toMatchObject({

@@ -36,7 +36,8 @@ timestamps. User emails are normalized and resolved to existing application
 users during execution; an absent or unresolved user remains null. Users must
 sign in before import to be eligible for resolution. The importer never creates
 accounts. Rows that it materializes use `automation:catalog-import` for
-`updated_by`.
+`updated_by`. An imported Now Showing selection leaves `rolled_at` and
+`rolled_by` null because the import does not establish a roll event.
 
 ## Preflight and import
 
