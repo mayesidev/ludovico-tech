@@ -601,6 +601,12 @@ describe("Ludovico Tech Worker routes", () => {
          SET movie_id = ?, rolled_at = datetime('now'), rolled_by = 'local-developer'
          WHERE id = 1`,
       ).bind(candidate.body.movie.id),
+      env.DB.prepare(
+        `UPDATE collections
+         SET updated_at = '2020-01-01T00:00:00.000Z',
+             updated_by = 'previous-user'
+         WHERE id = ?`,
+      ).bind(collectionId),
     ]);
 
     const deleted = await request<{ deleted: true; id: string }>(
@@ -627,10 +633,16 @@ describe("Ludovico Tech Worker routes", () => {
       rolled_by: null,
     });
     expect(
-      await env.DB.prepare("SELECT id FROM collections WHERE id = ?")
+      await env.DB.prepare(
+        "SELECT id, updated_at, updated_by FROM collections WHERE id = ?",
+      )
         .bind(collectionId)
         .first(),
-    ).not.toBeNull();
+    ).toEqual({
+      id: collectionId,
+      updated_at: expect.not.stringMatching(/^2020-01-01/),
+      updated_by: "local-developer",
+    });
     expect(
       await env.DB.prepare(
         "SELECT tmdb_id FROM tmdb_people WHERE tmdb_id IN (9001, 9002) ORDER BY tmdb_id",
