@@ -1,7 +1,7 @@
 import { parse } from "csv-parse/sync";
 import { normalizeTitle } from "../src/shared/normalize-title";
 
-export const CATALOG_IMPORT_ACTOR = "automation:catalog-import";
+export const CATALOG_IMPORT_ATTRIBUTION = "automation:catalog-import";
 
 export const CATALOG_IMPORT_COLUMNS = [
   "title",
@@ -134,7 +134,7 @@ const parsePositiveInteger = (value: string) => {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
-const parseActorEmail = (value: string) => {
+const parseUserEmail = (value: string) => {
   const email = value.trim().toLowerCase();
   if (!email) return null;
   return email.length <= 320 && /^[^\s@]+@[^\s@]+$/u.test(email)
@@ -213,13 +213,13 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
     const addedAt =
       addedAtSource && isIsoTimestamp(addedAtSource) ? addedAtSource : null;
     const addedByEmailSource = columnValue(record, columns, "added_by_email");
-    const addedByEmail = parseActorEmail(addedByEmailSource);
+    const addedByEmail = parseUserEmail(addedByEmailSource);
     const parsedRating = parseRating(
       columnValue(record, columns, "rating_score"),
       columnValue(record, columns, "rating_phrase"),
     );
     const ratingByEmailSource = columnValue(record, columns, "rating_by_email");
-    const ratingByEmail = parseActorEmail(ratingByEmailSource);
+    const ratingByEmail = parseUserEmail(ratingByEmailSource);
     const collectionSource = columnValue(record, columns, "collection");
     const collection = collectionSource.trim() || null;
     const collectionPositionSource = columnValue(
@@ -393,7 +393,7 @@ const sql = (value: string | number | null) => {
   return `'${value.replaceAll("'", "''")}'`;
 };
 
-const actorSql = (email: string | null) =>
+const userAttributionSql = (email: string | null) =>
   email === null
     ? "NULL"
     : `(SELECT id FROM users WHERE email = ${sql(email)})`;
@@ -482,7 +482,7 @@ export const buildCatalogImportPlan = (
     .sort(([left], [right]) => compareText(left, right))
     .map(
       ([normalized, collection]) =>
-        `(${sql(collection.id)}, ${sql(collection.name)}, ${sql(normalized)}, ${collection.orderConfirmed ? 1 : 0}, ${sql(importedAt)}, ${sql(importedAt)}, NULL, ${sql(CATALOG_IMPORT_ACTOR)})`,
+        `(${sql(collection.id)}, ${sql(collection.name)}, ${sql(normalized)}, ${collection.orderConfirmed ? 1 : 0}, ${sql(importedAt)}, ${sql(importedAt)}, NULL, ${sql(CATALOG_IMPORT_ATTRIBUTION)})`,
     );
   statements.push(
     ...batchedInsert(
@@ -506,11 +506,11 @@ export const buildCatalogImportPlan = (
   for (const movie of movies) {
     const movieId = movieIds.get(normalizeTitle(movie.title)) as string;
     movieRows.push(
-      `(${sql(movieId)}, ${sql(movie.title)}, ${sql(movie.addedAt ?? importedAt)}, ${actorSql(movie.addedByEmail)}, ${sql(importedAt)}, ${sql(CATALOG_IMPORT_ACTOR)})`,
+      `(${sql(movieId)}, ${sql(movie.title)}, ${sql(movie.addedAt ?? importedAt)}, ${userAttributionSql(movie.addedByEmail)}, ${sql(importedAt)}, ${sql(CATALOG_IMPORT_ATTRIBUTION)})`,
     );
     if (movie.tmdbId !== null) {
       tmdbRows.push(
-        `(${sql(movieId)}, ${movie.tmdbId}, '1970-01-01T00:00:00.000Z', ${sql(importedAt)}, ${sql(CATALOG_IMPORT_ACTOR)})`,
+        `(${sql(movieId)}, ${movie.tmdbId}, '1970-01-01T00:00:00.000Z', ${sql(importedAt)}, ${sql(CATALOG_IMPORT_ATTRIBUTION)})`,
       );
     }
   }
@@ -556,7 +556,7 @@ export const buildCatalogImportPlan = (
     if (!movie.rating) continue;
     const movieId = movieIds.get(normalizeTitle(movie.title)) as string;
     ratingRows.push(
-      `(${sql(movieId)}, NULL, ${movie.rating.score}, ${sql(movie.rating.phrase)}, ${sql(importedAt)}, ${actorSql(movie.rating.recordedByEmail)})`,
+      `(${sql(movieId)}, NULL, ${movie.rating.score}, ${sql(movie.rating.phrase)}, ${sql(importedAt)}, ${userAttributionSql(movie.rating.recordedByEmail)})`,
     );
   }
   statements.push(
@@ -582,7 +582,7 @@ export const buildCatalogImportPlan = (
     : null;
   if (selectedMovieId) {
     statements.push(
-      `UPDATE now_showing SET movie_id = ${sql(selectedMovieId)}, collection_id = ${sql(selectedCollectionId)}, status = 'ready', updated_at = ${sql(importedAt)}, updated_by = ${sql(CATALOG_IMPORT_ACTOR)} WHERE id = 1;`,
+      `UPDATE now_showing SET movie_id = ${sql(selectedMovieId)}, collection_id = ${sql(selectedCollectionId)}, status = 'ready', updated_at = ${sql(importedAt)}, updated_by = ${sql(CATALOG_IMPORT_ATTRIBUTION)} WHERE id = 1;`,
     );
   }
 

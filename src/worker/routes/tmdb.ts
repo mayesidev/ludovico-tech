@@ -1,5 +1,5 @@
 import { type Context, type Hono } from "hono";
-import { getActor, type AppEnv } from "../env";
+import { getAuthenticatedUser, type AppEnv } from "../env";
 import { getTmdbMovie, searchTmdbMovies, TmdbServiceError } from "../tmdb";
 
 export const tmdbErrorResponse = (error: unknown, c: Context<AppEnv>) => {
@@ -20,8 +20,8 @@ export const tmdbErrorResponse = (error: unknown, c: Context<AppEnv>) => {
 
 export const registerTmdbRoutes = (app: Hono<AppEnv>) => {
   app.get("/tmdb/search", async (c) => {
-    const actor = await getActor(c.env, c.req.raw);
-    if (!actor) return c.json({ error: "Authentication required" }, 401);
+    const user = await getAuthenticatedUser(c.env, c.req.raw);
+    if (!user) return c.json({ error: "Authentication required" }, 401);
 
     const query = c.req.query("query")?.trim();
     if (!query) return c.json({ results: [] });
@@ -35,8 +35,8 @@ export const registerTmdbRoutes = (app: Hono<AppEnv>) => {
   });
 
   app.get("/tmdb/movies/:id", async (c) => {
-    const actor = await getActor(c.env, c.req.raw);
-    if (!actor) return c.json({ error: "Authentication required" }, 401);
+    const user = await getAuthenticatedUser(c.env, c.req.raw);
+    if (!user) return c.json({ error: "Authentication required" }, 401);
 
     const movieId = Number(c.req.param("id"));
     if (!Number.isInteger(movieId) || movieId <= 0) {

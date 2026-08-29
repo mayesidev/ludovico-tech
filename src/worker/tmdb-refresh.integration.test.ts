@@ -8,7 +8,7 @@ import type { AppEnv } from "./env";
 import { createApp } from "./index";
 import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
 import { refreshDueTmdbData } from "./tmdb-data";
-import { TMDB_REFRESH_ACTOR } from "./attribution";
+import { TMDB_REFRESH_ATTRIBUTION } from "./attribution";
 import {
   claimTmdbRefresh,
   executeTmdbRefreshClaim,
@@ -601,12 +601,12 @@ describe("TMDB refresh operations", () => {
       await env.DB.prepare(
         "SELECT updated_by FROM tmdb_refresh_schedule WHERE id = 1",
       ).first(),
-    ).toEqual({ updated_by: TMDB_REFRESH_ACTOR });
+    ).toEqual({ updated_by: TMDB_REFRESH_ATTRIBUTION });
     expect(
       await env.DB.prepare(
         "SELECT updated_by FROM movie_tmdb_data WHERE movie_id = 'scheduled-status'",
       ).first(),
-    ).toEqual({ updated_by: TMDB_REFRESH_ACTOR });
+    ).toEqual({ updated_by: TMDB_REFRESH_ATTRIBUTION });
   });
 
   it("queues one current title for refetch without changing stored metadata", async () => {

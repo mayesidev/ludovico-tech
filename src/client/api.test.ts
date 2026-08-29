@@ -120,10 +120,10 @@ describe("client API", () => {
 
   it("returns parsed JSON and preserves a safe HTTP error status", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
-      jsonResponse({ authenticated: false, actor: null, local: false }),
+      jsonResponse({ authenticated: false, user: null, local: false }),
     );
     await expect(api.authMe()).resolves.toEqual({
-      actor: null,
+      user: null,
       authenticated: false,
       local: false,
     });

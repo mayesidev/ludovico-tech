@@ -32,8 +32,8 @@ The importer rejects duplicate normalized titles, duplicate TMDB IDs, partial
 ratings, a watched or multiply selected Now Showing title, and partial or
 non-contiguous collection ordering. It does not accept IMDb IDs, prior-viewed
 flags, source provenance, provider metadata, users, sessions, or unknown
-timestamps. Actor emails are normalized and resolved to existing application
-users during execution; an absent or unresolved actor remains null. Users must
+timestamps. User emails are normalized and resolved to existing application
+users during execution; an absent or unresolved user remains null. Users must
 sign in before import to be eligible for resolution. The importer never creates
 accounts. Rows that it materializes use `automation:catalog-import` for
 `updated_by`.

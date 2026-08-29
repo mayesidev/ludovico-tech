@@ -246,7 +246,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await page.route("**/api/auth/me", async (route) => {
       await route.fulfill({
         body: JSON.stringify({
-          actor: null,
+          user: null,
           authenticated: false,
           local: false,
         }),
@@ -346,7 +346,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await page.route("**/api/auth/me", async (route) => {
       await route.fulfill({
         body: JSON.stringify({
-          actor: {
+          user: {
             displayName: "Invited User",
             email: "invited@example.test",
           },
@@ -410,7 +410,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await page.route("**/api/auth/me", async (route) => {
       await route.fulfill({
         body: JSON.stringify({
-          actor: null,
+          user: null,
           authenticated: false,
           local: false,
         }),
