@@ -717,6 +717,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       return c.json({ error: "Watched movies cannot be deleted" }, 409);
     }
 
+    const timestamp = now();
     const existingCredits =
       existing.tmdb_id === null
         ? []
@@ -746,6 +747,19 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     ];
     if (existing.collection_id) {
       statements.push(
+        c.env.DB.prepare(
+          `UPDATE collections
+           SET updated_at = ?, updated_by = ?
+           WHERE id = ?
+             AND EXISTS (
+               SELECT 1 FROM collection_movies WHERE collection_id = ?
+             )`,
+        ).bind(
+          timestamp,
+          user.id,
+          existing.collection_id,
+          existing.collection_id,
+        ),
         c.env.DB.prepare(
           `DELETE FROM collections WHERE id = ?
            AND NOT EXISTS (
