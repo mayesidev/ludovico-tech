@@ -74,6 +74,7 @@ export default function App() {
   const [auth, setAuth] = useState<AuthState | null>(null);
   const [addingMovie, setAddingMovie] = useState(false);
   const addMovieTriggerRef = useRef<HTMLButtonElement>(null);
+  const addedMovieDetailRef = useRef<MovieDetail | null>(null);
   const preparedPosterReelRef = useRef<Promise<HomeMovie[]> | null>(null);
   const preparedPosterReelSourceRef = useRef<string | null>(null);
 
@@ -134,6 +135,12 @@ export default function App() {
     async (showLoading = true) => {
       if (route.page !== "movie") {
         setMovieDetail(null);
+        setMovieDetailLoading(false);
+        return;
+      }
+      if (addedMovieDetailRef.current?.id === route.movieId) {
+        setMovieDetail(addedMovieDetailRef.current);
+        addedMovieDetailRef.current = null;
         setMovieDetailLoading(false);
         return;
       }
@@ -424,9 +431,12 @@ export default function App() {
           busy={busy}
           onAuthExpired={refreshAuth}
           onClose={() => setAddingMovie(false)}
-          onCreated={(movieId) =>
-            navigate(`/movies/${encodeURIComponent(movieId)}`)
-          }
+          onCreated={(movie) => {
+            addedMovieDetailRef.current = movie;
+            setMovieDetail(movie);
+            setMovieDetailLoading(false);
+            navigate(`/movies/${encodeURIComponent(movie.id)}`);
+          }}
           run={run}
         />
       )}
