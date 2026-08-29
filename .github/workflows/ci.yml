@@ -33,6 +33,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Classify changed paths
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: pnpm exec tsx scripts/ci-paths.ts
+
       - name: Review dependency changes
         if: github.event_name == 'pull_request'
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
@@ -76,34 +83,48 @@ jobs:
           fi
 
       - name: Install Playwright browser
+        if: steps.changes.outputs.full == 'true'
         run: pnpm exec playwright install --only-shell chromium
 
       - name: Validate Cloudflare configuration isolation
+        if: steps.changes.outputs.full == 'true'
         run: pnpm config:check
 
       - name: Check formatting
         run: pnpm format:check
 
+      - name: Validate Renovate configuration
+        if: steps.changes.outputs.renovate_config == 'true'
+        run: pnpm --package=renovate@44.39.0 dlx renovate-config-validator renovate.json
+
       - name: Lint
+        if: steps.changes.outputs.full == 'true'
         run: pnpm lint
 
       - name: Typecheck
+        if: steps.changes.outputs.full == 'true'
         run: pnpm typecheck
 
       - name: Run unit and integration tests with coverage
+        if: steps.changes.outputs.full == 'true'
         run: pnpm test:coverage
 
       - name: Build staging assets
+        if: steps.changes.outputs.full == 'true'
         run: pnpm build:staging
 
       - name: Build production assets
+        if: steps.changes.outputs.full == 'true'
         run: pnpm build:production
 
       - name: Run browser end-to-end tests
+        if: steps.changes.outputs.full == 'true'
         run: pnpm test:e2e
 
       - name: Audit production dependencies
+        if: steps.changes.outputs.full == 'true'
         run: pnpm audit:production
 
       - name: Check production dependency licenses
+        if: steps.changes.outputs.full == 'true'
         run: pnpm licenses:check

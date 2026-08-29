@@ -6,6 +6,14 @@ const workflowDirectory = resolve(".github/workflows");
 const workflow = (name: string) =>
   readFileSync(join(workflowDirectory, name), "utf8");
 
+const workflowStep = (source: string, name: string) => {
+  const start = source.indexOf(`      - name: ${name}`);
+  const end = source.indexOf("\n      - name:", start + 1);
+
+  expect(start).toBeGreaterThan(-1);
+  return source.slice(start, end === -1 ? undefined : end);
+};
+
 describe("GitHub Actions supply-chain boundary", () => {
   it("pins every third-party action to a full commit SHA", () => {
     const sources = readdirSync(workflowDirectory)
@@ -23,9 +31,30 @@ describe("GitHub Actions supply-chain boundary", () => {
 });
 
 describe("complete CI and deployment gates", () => {
-  it("keeps coverage, browser, audit, and license checks in the stable verify job", () => {
+  it("keeps expensive application checks behind conservative path classification", () => {
     const source = workflow("ci.yml");
+    const fullVerificationSteps = [
+      "Install Playwright browser",
+      "Validate Cloudflare configuration isolation",
+      "Lint",
+      "Typecheck",
+      "Run unit and integration tests with coverage",
+      "Build staging assets",
+      "Build production assets",
+      "Run browser end-to-end tests",
+      "Audit production dependencies",
+      "Check production dependency licenses",
+    ];
+
     expect(source).toContain("verify:");
+    expect(workflowStep(source, "Classify changed paths")).toContain(
+      "run: pnpm exec tsx scripts/ci-paths.ts",
+    );
+    for (const name of fullVerificationSteps) {
+      expect(workflowStep(source, name)).toContain(
+        "if: steps.changes.outputs.full == 'true'",
+      );
+    }
     expect(source).toContain("run: pnpm config:check");
     expect(source).toContain("run: pnpm test:coverage");
     expect(source).toContain("run: pnpm test:e2e");
@@ -37,6 +66,21 @@ describe("complete CI and deployment gates", () => {
     expect(source).toContain("Keep released migrations immutable");
     expect(source).toContain("--diff-filter=MDR");
     expect(source).toContain("add a new migration instead");
+  });
+
+  it("always checks formatting and validates changed Renovate configuration", () => {
+    const source = workflow("ci.yml");
+    const formatting = workflowStep(source, "Check formatting");
+    const renovate = workflowStep(source, "Validate Renovate configuration");
+
+    expect(formatting).toContain("run: pnpm format:check");
+    expect(formatting).not.toContain("steps.changes.outputs.full");
+    expect(renovate).toContain(
+      "if: steps.changes.outputs.renovate_config == 'true'",
+    );
+    expect(renovate).toContain(
+      "pnpm --package=renovate@44.39.0 dlx renovate-config-validator renovate.json",
+    );
   });
 
   it("publishes versions after verified main without deploying them", () => {
