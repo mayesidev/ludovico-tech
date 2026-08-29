@@ -7,6 +7,7 @@ import { AppLink } from "./app-link";
 import { Badge, Button, Card, Input } from "./ui";
 import { Poster } from "./poster";
 import { RatingSlider } from "./rating-slider";
+import { AuditDetails } from "./audit-details";
 
 type HomePageProps = {
   nowShowing: NowShowing | null;
@@ -177,6 +178,18 @@ export function HomePage({
                   {nowShowing.rating_phrase}
                 </span>
               </div>
+            )}
+
+            {canMutate && nowShowing?.audit && (
+              <AuditDetails
+                className="mt-6"
+                entries={[
+                  {
+                    attribution: nowShowing.audit.updated,
+                    label: "Selection last updated",
+                  },
+                ]}
+              />
             )}
 
             {canMutate && nowShowing?.movie_id && !isWatched ? (

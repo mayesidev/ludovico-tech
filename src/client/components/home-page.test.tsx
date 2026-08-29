@@ -69,6 +69,22 @@ const renderHome = (
 };
 
 describe("home workflows", () => {
+  it("shows selection attribution only to an authenticated user", () => {
+    const attributed = nowShowing({
+      audit: {
+        updated: {
+          at: "2026-08-07T12:00:00.000Z",
+          by: "Selecting User",
+        },
+      },
+    });
+    const { rerender, props } = renderHome({ nowShowing: attributed });
+    expect(screen.getByText(/Selecting User/)).toBeVisible();
+
+    rerender(<HomePage {...props} canMutate={false} nowShowing={attributed} />);
+    expect(screen.queryByText(/Selecting User/)).toBeNull();
+  });
+
   it("appends a specified version to the current title", () => {
     renderHome({
       nowShowing: nowShowing({

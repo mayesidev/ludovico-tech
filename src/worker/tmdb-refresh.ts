@@ -7,7 +7,7 @@ import {
 } from "./tmdb-data";
 import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
 import { createD1ProcessingUsage, type D1ProcessingUsage } from "./d1-usage";
-import { TMDB_REFRESH_ACTOR } from "./attribution";
+import { attributionActorName, TMDB_REFRESH_ACTOR } from "./attribution";
 
 const SCHEDULE_ID = 1;
 const LEASE_MS = 20 * 60 * 1000;
@@ -39,6 +39,10 @@ type ScheduleRow = {
   last_started_at: string | null;
   lease_expires_at: string | null;
   next_run_at: string;
+  updated_at: string;
+  updated_by: string | null;
+  updated_by_display_name: string | null;
+  updated_by_email: string | null;
 };
 
 type ScheduleSummaryRow = ScheduleRow & {
@@ -256,6 +260,16 @@ export type TmdbRefreshQueueInput = {
 };
 
 const mapSchedule = (schedule: ScheduleRow, timestamp: string) => ({
+  audit: {
+    updated: {
+      at: schedule.updated_at,
+      by: attributionActorName(
+        schedule.updated_by,
+        schedule.updated_by_display_name,
+        schedule.updated_by_email,
+      ),
+    },
+  },
   batchSize: schedule.batch_size,
   enabled: schedule.enabled === 1,
   intervalMinutes: schedule.interval_minutes,
@@ -286,6 +300,8 @@ const getTmdbRefreshSummaryData = async (
   const currentContractId = await getTmdbMetadataContractId();
   const schedule = await env.DB.prepare(
     `SELECT tmdb_refresh_schedule.*,
+       schedule_actor.display_name AS updated_by_display_name,
+       schedule_actor.email AS updated_by_email,
        (SELECT COUNT(*) FROM movies) AS total_count,
        metadata_counts.linked_count,
        metadata_counts.pending_count,
@@ -296,6 +312,8 @@ const getTmdbRefreshSummaryData = async (
        metadata_counts.due_count,
        metadata_counts.expired_count
      FROM tmdb_refresh_schedule
+     LEFT JOIN users AS schedule_actor
+       ON schedule_actor.id = tmdb_refresh_schedule.updated_by
      CROSS JOIN (
        SELECT COUNT(*) AS linked_count,
          SUM(CASE
@@ -338,7 +356,7 @@ const getTmdbRefreshSummaryData = async (
           THEN 1 ELSE 0 END) AS due_count
        FROM movie_tmdb_data
      ) AS metadata_counts
-     WHERE id = ?`,
+     WHERE tmdb_refresh_schedule.id = ?`,
   )
     .bind(
       timestamp,
@@ -388,7 +406,13 @@ export const getTmdbRefreshRunStatus = async (
   timestamp = new Date().toISOString(),
 ) => {
   const schedule = await env.DB.prepare(
-    "SELECT * FROM tmdb_refresh_schedule WHERE id = ?",
+    `SELECT tmdb_refresh_schedule.*,
+       schedule_actor.display_name AS updated_by_display_name,
+       schedule_actor.email AS updated_by_email
+     FROM tmdb_refresh_schedule
+     LEFT JOIN users AS schedule_actor
+       ON schedule_actor.id = tmdb_refresh_schedule.updated_by
+     WHERE tmdb_refresh_schedule.id = ?`,
   )
     .bind(SCHEDULE_ID)
     .first<ScheduleRow>();

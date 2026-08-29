@@ -4,6 +4,7 @@ import { imdbTitleUrl } from "../../shared/imdb";
 import { formatDate, formatMovieTitle, formatRuntime } from "../lib/utils";
 import type { ReturnTarget } from "../types";
 import { AppLink } from "./app-link";
+import { AuditDetails } from "./audit-details";
 import { Poster } from "./poster";
 import { Button } from "./ui";
 
@@ -191,6 +192,32 @@ export function MovieDetailPage({
                 </div>
               )}
           </dl>
+
+          {canMutate && movie.audit && (
+            <AuditDetails
+              className="mt-6"
+              entries={[
+                { attribution: movie.audit.added, label: "Added" },
+                { attribution: movie.audit.updated, label: "Last updated" },
+                ...(watched
+                  ? [
+                      {
+                        attribution: movie.audit.rating,
+                        label: "Rating recorded",
+                      },
+                    ]
+                  : []),
+                ...(movie.tmdb_id !== null
+                  ? [
+                      {
+                        attribution: movie.audit.metadata,
+                        label: "Metadata updated",
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+          )}
 
           {(movie.tmdb_id !== null ||
             movie.imdb_id !== null ||

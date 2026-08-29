@@ -9,6 +9,7 @@ import {
 } from "../api";
 import type { Navigate } from "../types";
 import { AppLink } from "./app-link";
+import { AuditDetails } from "./audit-details";
 import { PaginationControls } from "./pagination-controls";
 import { Button, Card, Input } from "./ui";
 
@@ -549,6 +550,17 @@ export function TmdbStatusPage({
               Save schedule
             </Button>
           </form>
+          {schedule.audit && (
+            <AuditDetails
+              className="mt-4"
+              entries={[
+                {
+                  attribution: schedule.audit.updated,
+                  label: "Schedule last updated",
+                },
+              ]}
+            />
+          )}
           <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-5">
             <div>
               <dt className="ui-label text-text-muted">Next run</dt>

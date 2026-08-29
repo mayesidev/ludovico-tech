@@ -17,6 +17,21 @@ export const formatDate = (value: string | null | undefined) => {
   }).format(date);
 };
 
+export const formatTimestamp = (value: string | null | undefined) => {
+  if (!value) return "Unknown time";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "short",
+    timeZone: "UTC",
+    timeZoneName: "short",
+    year: "numeric",
+  }).format(date);
+};
+
 export const formatRuntime = (minutes: number) => {
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
