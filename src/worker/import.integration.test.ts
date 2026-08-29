@@ -60,7 +60,8 @@ describe("catalog import", () => {
   it("defaults only the import-owned timestamps", async () => {
     await importSyntheticCatalog();
     const rows = await env.DB.prepare(
-      `SELECT movies.title, movies.added_at, ratings.watched_at
+      `SELECT movies.title, movies.added_at, ratings.recorded_at,
+              ratings.watched_at
        FROM movies
        LEFT JOIN ratings ON ratings.movie_id = movies.id
        ORDER BY movies.title`,
@@ -69,11 +70,13 @@ describe("catalog import", () => {
     expect(rows.results).toEqual([
       {
         added_at: "2026-08-01T10:30:00.000Z",
+        recorded_at: null,
         title: "Synthetic Movie One",
         watched_at: null,
       },
       {
         added_at: importedAt,
+        recorded_at: null,
         title: "Synthetic Movie Two",
         watched_at: null,
       },

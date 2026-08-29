@@ -35,8 +35,9 @@ one group viewing state.
 - An optional catalog import may restore the current unwatched selection. It does
   not invent an unknown originating user or roll time. The importer is identified
   as the last updater of other state it materializes.
-- A known prior addition time may establish when an imported movie was added. An
-  imported rating establishes watched state but not an unknown watch time.
+- Known prior addition and rating-recording times may be preserved during import.
+  An imported rating establishes watched state without inventing unknown rating or
+  watch times.
 
 Behavioral details belong in named tests, schemas, migrations, and runtime code.
 Environment and delivery mechanics belong in checked-in configuration, validators,

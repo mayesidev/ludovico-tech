@@ -9,6 +9,7 @@ export const CATALOG_IMPORT_COLUMNS = [
   "added_by_email",
   "rating_score",
   "rating_phrase",
+  "rating_recorded_at",
   "rating_by_email",
   "collection",
   "collection_position",
@@ -32,6 +33,7 @@ export type CatalogImportDiagnosticCode =
   | "INVALID_NOW_SHOWING"
   | "INVALID_RATING"
   | "INVALID_RATING_BY_EMAIL"
+  | "INVALID_RATING_RECORDED_AT"
   | "INVALID_TMDB_ID"
   | "INVALID_TITLE"
   | "MULTIPLE_NOW_SHOWING"
@@ -49,6 +51,7 @@ export interface CatalogImportDiagnostic {
 
 export interface CatalogImportRating {
   phrase: string;
+  recordedAt: string | null;
   recordedByEmail: string | null;
   score: number;
 }
@@ -105,7 +108,10 @@ const isIsoTimestamp = (value: string) => {
 const parseRating = (
   scoreSource: string,
   phraseSource: string,
-): Omit<CatalogImportRating, "recordedByEmail"> | null | undefined => {
+):
+  | Omit<CatalogImportRating, "recordedAt" | "recordedByEmail">
+  | null
+  | undefined => {
   const scoreValue = scoreSource.trim();
   const phrase = phraseSource.trim();
   if (!scoreValue && !phrase) return null;
@@ -218,6 +224,15 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
       columnValue(record, columns, "rating_score"),
       columnValue(record, columns, "rating_phrase"),
     );
+    const ratingRecordedAtSource = columnValue(
+      record,
+      columns,
+      "rating_recorded_at",
+    ).trim();
+    const ratingRecordedAt =
+      ratingRecordedAtSource && isIsoTimestamp(ratingRecordedAtSource)
+        ? ratingRecordedAtSource
+        : null;
     const ratingByEmailSource = columnValue(record, columns, "rating_by_email");
     const ratingByEmail = parseUserEmail(ratingByEmailSource);
     const collectionSource = columnValue(record, columns, "collection");
@@ -250,6 +265,13 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
     }
     if (parsedRating === undefined) {
       diagnostics.push(diagnostic("INVALID_RATING", row));
+      valid = false;
+    }
+    if (
+      (ratingRecordedAtSource && !ratingRecordedAt) ||
+      (ratingRecordedAt !== null && !parsedRating)
+    ) {
+      diagnostics.push(diagnostic("INVALID_RATING_RECORDED_AT", row));
       valid = false;
     }
     if (
@@ -296,7 +318,11 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
           collection,
           collectionPosition,
           rating: parsedRating
-            ? { ...parsedRating, recordedByEmail: ratingByEmail }
+            ? {
+                ...parsedRating,
+                recordedAt: ratingRecordedAt,
+                recordedByEmail: ratingByEmail,
+              }
             : null,
           title,
           tmdbId,
@@ -556,7 +582,7 @@ export const buildCatalogImportPlan = (
     if (!movie.rating) continue;
     const movieId = movieIds.get(normalizeTitle(movie.title)) as string;
     ratingRows.push(
-      `(${sql(movieId)}, NULL, ${movie.rating.score}, ${sql(movie.rating.phrase)}, ${sql(importedAt)}, ${userAttributionSql(movie.rating.recordedByEmail)})`,
+      `(${sql(movieId)}, NULL, ${movie.rating.score}, ${sql(movie.rating.phrase)}, ${sql(movie.rating.recordedAt)}, ${userAttributionSql(movie.rating.recordedByEmail)})`,
     );
   }
   statements.push(
