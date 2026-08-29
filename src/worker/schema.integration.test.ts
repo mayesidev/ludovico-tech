@@ -471,7 +471,7 @@ describe("catalog schema", () => {
     expect(usesTemporarySort).toBe(false);
   });
 
-  it("removes obsolete provenance from storage and public movie DTOs", async () => {
+  it("stores localized attribution without exposing it publicly", async () => {
     await insertMovie("movie-public", "Public Movie");
     await env.DB.prepare("UPDATE movies SET imdb_id = ? WHERE id = ?")
       .bind("tt0117509", "movie-public")
@@ -479,8 +479,21 @@ describe("catalog schema", () => {
     const tables = await env.DB.prepare(
       "SELECT name FROM sqlite_master WHERE type = 'table'",
     ).all<{ name: string }>();
-    expect(tables.results.map(({ name }) => name)).not.toContain(
-      "movie_import_sources",
+    const tableNames = tables.results.map(({ name }) => name);
+    expect(tableNames).not.toContain("movie_import_sources");
+    expect(tableNames).not.toContain("audit_log");
+    expect(tableNames).toContain("rolls");
+    const movieColumns = await env.DB.prepare("PRAGMA table_info(movies)").all<{
+      name: string;
+    }>();
+    expect(movieColumns.results.map(({ name }) => name)).toEqual(
+      expect.arrayContaining(["added_by", "updated_at", "updated_by"]),
+    );
+    const ratingColumns = await env.DB.prepare(
+      "PRAGMA table_info(ratings)",
+    ).all<{ name: string }>();
+    expect(ratingColumns.results.map(({ name }) => name)).toEqual(
+      expect.arrayContaining(["recorded_at", "recorded_by"]),
     );
 
     const response = await createApp().fetch(

@@ -898,8 +898,12 @@ describe("TMDB routes and metadata attachment", () => {
     expect(movie).not.toHaveProperty("updated_by");
     expect(
       await env.DB.prepare(
-        `SELECT movie_tmdb_data.contract_id, tmdb_collections.name AS collection_name
+        `SELECT movie_tmdb_data.contract_id,
+                movie_tmdb_data.updated_by,
+                movies.added_by,
+                tmdb_collections.name AS collection_name
          FROM movie_tmdb_data
+         JOIN movies ON movies.id = movie_tmdb_data.movie_id
          LEFT JOIN tmdb_collections
            ON tmdb_collections.tmdb_id = movie_tmdb_data.tmdb_collection_id
          WHERE movie_tmdb_data.movie_id = ?`,
@@ -909,6 +913,8 @@ describe("TMDB routes and metadata attachment", () => {
     ).toEqual({
       collection_name: "Attached Collection",
       contract_id: await getTmdbMetadataContractId(),
+      added_by: expect.any(String),
+      updated_by: expect.any(String),
     });
 
     const publicDetail = await request(
@@ -937,10 +943,10 @@ describe("TMDB routes and metadata attachment", () => {
 
     await env.DB.prepare(
       `UPDATE now_showing
-       SET movie_id = ?, rolled_movie_id = ?, status = 'ready'
+       SET movie_id = ?, status = 'ready'
        WHERE id = 1`,
     )
-      .bind(String(movie.id), String(movie.id))
+      .bind(String(movie.id))
       .run();
     const current = await request("/api/home", session.bindings);
     expect(await current.json()).toMatchObject({

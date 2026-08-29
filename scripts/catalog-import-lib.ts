@@ -437,7 +437,7 @@ export const buildCatalogImportPlan = (
     .sort(([left], [right]) => compareText(left, right))
     .map(
       ([normalized, collection]) =>
-        `(${sql(collection.id)}, ${sql(collection.name)}, ${sql(normalized)}, ${collection.orderConfirmed ? 1 : 0}, ${sql(importedAt)}, ${sql(importedAt)})`,
+        `(${sql(collection.id)}, ${sql(collection.name)}, ${sql(normalized)}, ${collection.orderConfirmed ? 1 : 0}, ${sql(importedAt)}, ${sql(importedAt)}, NULL, NULL)`,
     );
   statements.push(
     ...batchedInsert(
@@ -449,6 +449,8 @@ export const buildCatalogImportPlan = (
         "order_confirmed",
         "created_at",
         "updated_at",
+        "created_by",
+        "updated_by",
       ],
       collectionRows,
     ),
@@ -459,19 +461,23 @@ export const buildCatalogImportPlan = (
   for (const movie of movies) {
     const movieId = movieIds.get(normalizeTitle(movie.title)) as string;
     movieRows.push(
-      `(${sql(movieId)}, ${sql(movie.title)}, ${sql(movie.addedAt ?? importedAt)})`,
+      `(${sql(movieId)}, ${sql(movie.title)}, ${sql(movie.addedAt ?? importedAt)}, NULL, ${sql(importedAt)}, NULL)`,
     );
     if (movie.tmdbId !== null) {
       tmdbRows.push(
-        `(${sql(movieId)}, ${movie.tmdbId}, '1970-01-01T00:00:00.000Z')`,
+        `(${sql(movieId)}, ${movie.tmdbId}, '1970-01-01T00:00:00.000Z', ${sql(importedAt)}, NULL)`,
       );
     }
   }
   statements.push(
-    ...batchedInsert("movies", ["id", "title", "added_at"], movieRows),
+    ...batchedInsert(
+      "movies",
+      ["id", "title", "added_at", "added_by", "updated_at", "updated_by"],
+      movieRows,
+    ),
     ...batchedInsert(
       "movie_tmdb_data",
-      ["movie_id", "tmdb_id", "refresh_after"],
+      ["movie_id", "tmdb_id", "refresh_after", "updated_at", "updated_by"],
       tmdbRows,
     ),
   );
@@ -505,13 +511,20 @@ export const buildCatalogImportPlan = (
     if (!movie.rating) continue;
     const movieId = movieIds.get(normalizeTitle(movie.title)) as string;
     ratingRows.push(
-      `(${sql(movieId)}, NULL, ${movie.rating.score}, ${sql(movie.rating.phrase)})`,
+      `(${sql(movieId)}, NULL, ${movie.rating.score}, ${sql(movie.rating.phrase)}, ${sql(importedAt)}, NULL)`,
     );
   }
   statements.push(
     ...batchedInsert(
       "ratings",
-      ["movie_id", "watched_at", "score", "phrase"],
+      [
+        "movie_id",
+        "watched_at",
+        "score",
+        "phrase",
+        "recorded_at",
+        "recorded_by",
+      ],
       ratingRows,
     ),
   );
@@ -524,7 +537,7 @@ export const buildCatalogImportPlan = (
     : null;
   if (selectedMovieId) {
     statements.push(
-      `UPDATE now_showing SET rolled_movie_id = NULL, movie_id = ${sql(selectedMovieId)}, collection_id = ${sql(selectedCollectionId)}, status = 'ready', rolled_at = NULL, updated_at = ${sql(importedAt)} WHERE id = 1;`,
+      `UPDATE now_showing SET rolled_movie_id = NULL, movie_id = ${sql(selectedMovieId)}, collection_id = ${sql(selectedCollectionId)}, status = 'ready', rolled_at = NULL, updated_at = ${sql(importedAt)}, updated_by = NULL WHERE id = 1;`,
     );
   }
 

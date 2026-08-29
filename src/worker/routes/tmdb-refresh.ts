@@ -1,8 +1,8 @@
 import { zValidator } from "@hono/zod-validator";
 import type { Hono } from "hono";
 import { z } from "zod";
-import { newId, now, type AppEnv } from "../env";
-import { auditStatement, mutationActor } from "../middleware";
+import { now, type AppEnv } from "../env";
+import { mutationActor } from "../middleware";
 import { getTmdbMetadataContractId } from "../../shared/tmdb-metadata-contract";
 import {
   claimTmdbRefresh,
@@ -106,23 +106,17 @@ export const registerTmdbRefreshRoutes = (app: Hono<AppEnv>) => {
     const movieId = c.req.param("movieId");
     const timestamp = now();
     const contractId = await getTmdbMetadataContractId();
-    const [updated, , stored] = await c.env.DB.batch([
+    const [updated, stored] = await c.env.DB.batch([
       c.env.DB.prepare(
         `UPDATE movie_tmdb_data
-         SET refresh_after = ?
+         SET refresh_after = ?, updated_at = ?, updated_by = ?
          WHERE movie_id = ?
            AND fetched_at IS NOT NULL
            AND expired_at IS NULL
            AND COALESCE(last_refresh_status, '') <> 'failed'
            AND contract_id = ?
            AND refresh_after > ?`,
-      ).bind(timestamp, movieId, contractId, timestamp),
-      c.env.DB.prepare(
-        `INSERT INTO audit_log
-         (id, entity_type, entity_id, action, actor_id, created_at, details_json)
-         SELECT ?, 'movie_tmdb_data', ?, 'refetch_requested', ?, ?, NULL
-         WHERE changes() > 0`,
-      ).bind(newId(), movieId, actor.id, timestamp),
+      ).bind(timestamp, timestamp, actor.id, movieId, contractId, timestamp),
       c.env.DB.prepare(
         `SELECT refresh_after
          FROM movie_tmdb_data
@@ -155,37 +149,25 @@ export const registerTmdbRefreshRoutes = (app: Hono<AppEnv>) => {
           : new Date(
               new Date(timestamp).getTime() + input.intervalMinutes * 60 * 1000,
             ).toISOString();
-      const action =
-        input.batchSize !== undefined || input.intervalMinutes !== undefined
-          ? "schedule_updated"
-          : input.enabled
-            ? "schedule_resumed"
-            : "schedule_paused";
-      await c.env.DB.batch([
-        c.env.DB.prepare(
-          `UPDATE tmdb_refresh_schedule
+      await c.env.DB.prepare(
+        `UPDATE tmdb_refresh_schedule
            SET enabled = COALESCE(?, enabled),
                interval_minutes = COALESCE(?, interval_minutes),
                batch_size = COALESCE(?, batch_size),
                next_run_at = COALESCE(?, next_run_at),
-               updated_at = ?
-           WHERE id = 1`,
-        ).bind(
+               updated_at = ?,
+               updated_by = ?
+         WHERE id = 1`,
+      )
+        .bind(
           input.enabled === undefined ? null : input.enabled ? 1 : 0,
           input.intervalMinutes ?? null,
           input.batchSize ?? null,
           nextRunAt,
           timestamp,
-        ),
-        auditStatement(
-          c.env,
-          "tmdb_refresh_schedule",
-          "1",
-          action,
           actor.id,
-          input,
-        ),
-      ]);
+        )
+        .run();
       return c.json({ updated: true as const });
     },
   );
@@ -194,17 +176,10 @@ export const registerTmdbRefreshRoutes = (app: Hono<AppEnv>) => {
     const actor = await mutationActor(c);
     if (!actor) return c.json({ error: "Authentication required" }, 401);
 
-    const claim = await claimTmdbRefresh(c.env, true);
+    const claim = await claimTmdbRefresh(c.env, true, undefined, actor.id);
     if (!claim) {
       return c.json({ error: "TMDB refresh is already running" }, 409);
     }
-    await auditStatement(
-      c.env,
-      "tmdb_refresh_schedule",
-      "1",
-      "run_requested",
-      actor.id,
-    ).run();
     c.executionCtx.waitUntil(
       executeTmdbRefreshClaim(c.env, claim).catch(() => {
         console.error("TMDB manual refresh failed");

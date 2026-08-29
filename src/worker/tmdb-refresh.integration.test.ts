@@ -8,6 +8,7 @@ import type { AppEnv } from "./env";
 import { createApp } from "./index";
 import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
 import { refreshDueTmdbData } from "./tmdb-data";
+import { TMDB_REFRESH_ACTOR } from "./attribution";
 import {
   claimTmdbRefresh,
   executeTmdbRefreshClaim,
@@ -598,9 +599,14 @@ describe("TMDB refresh operations", () => {
     });
     expect(
       await env.DB.prepare(
-        "SELECT action FROM audit_log WHERE entity_type = 'tmdb_refresh_schedule'",
+        "SELECT updated_by FROM tmdb_refresh_schedule WHERE id = 1",
       ).first(),
-    ).toEqual({ action: "run_requested" });
+    ).toEqual({ updated_by: TMDB_REFRESH_ACTOR });
+    expect(
+      await env.DB.prepare(
+        "SELECT updated_by FROM movie_tmdb_data WHERE movie_id = 'scheduled-status'",
+      ).first(),
+    ).toEqual({ updated_by: TMDB_REFRESH_ACTOR });
   });
 
   it("queues one current title for refetch without changing stored metadata", async () => {
@@ -645,7 +651,7 @@ describe("TMDB refresh operations", () => {
     expect(
       await env.DB.prepare(
         `SELECT title, fetched_at, refresh_after, expires_at, contract_id,
-                last_refresh_status
+                last_refresh_status, updated_by
          FROM movie_tmdb_data
          WHERE movie_id = 'scheduled-status'`,
       ).first(),
@@ -656,6 +662,7 @@ describe("TMDB refresh operations", () => {
       last_refresh_status: "succeeded",
       refresh_after: timestamp,
       title: "Stored Provider Title",
+      updated_by: expect.any(String),
     });
 
     const repeated = await app.fetch(
@@ -672,12 +679,10 @@ describe("TMDB refresh operations", () => {
     });
     expect(
       await env.DB.prepare(
-        `SELECT COUNT(*) AS count, MIN(actor_id) AS actor_id FROM audit_log
-         WHERE entity_type = 'movie_tmdb_data'
-           AND entity_id = 'scheduled-status'
-           AND action = 'refetch_requested'`,
+        `SELECT updated_by FROM movie_tmdb_data
+         WHERE movie_id = 'scheduled-status'`,
       ).first(),
-    ).toEqual({ actor_id: expect.any(String), count: 1 });
+    ).toEqual({ updated_by: expect.any(String) });
 
     await insertUnlinkedMovie();
     for (const movieId of ["unlinked-status", "missing-status"]) {
@@ -695,7 +700,7 @@ describe("TMDB refresh operations", () => {
     }
   });
 
-  it("updates the automatic refresh schedule through audited controls", async () => {
+  it("attributes automatic refresh schedule controls", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(timestamp));
     const app = createApp();
@@ -749,7 +754,7 @@ describe("TMDB refresh operations", () => {
     expect(await update.json()).toEqual({ updated: true });
     expect(
       await env.DB.prepare(
-        `SELECT batch_size, enabled, interval_minutes, next_run_at
+        `SELECT batch_size, enabled, interval_minutes, next_run_at, updated_by
          FROM tmdb_refresh_schedule WHERE id = 1`,
       ).first(),
     ).toEqual({
@@ -757,20 +762,7 @@ describe("TMDB refresh operations", () => {
       enabled: 1,
       interval_minutes: 720,
       next_run_at: "2026-08-24T13:30:00.000Z",
+      updated_by: expect.any(String),
     });
-    const actions = (
-      await env.DB.prepare(
-        `SELECT action FROM audit_log
-         WHERE entity_type = 'tmdb_refresh_schedule'`,
-      ).all<{ action: string }>()
-    ).results.map(({ action }) => action);
-    expect(actions).toHaveLength(3);
-    expect(actions).toEqual(
-      expect.arrayContaining([
-        "schedule_paused",
-        "schedule_resumed",
-        "schedule_updated",
-      ]),
-    );
   });
 });

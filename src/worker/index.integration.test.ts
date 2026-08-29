@@ -249,6 +249,26 @@ describe("Ludovico Tech Worker routes", () => {
     });
     expect(rated.body.movie.watched_at).toEqual(expect.any(String));
 
+    const attribution = await env.DB.prepare(
+      `SELECT movies.added_by, movies.updated_by, ratings.recorded_by,
+              now_showing.updated_by AS now_showing_updated_by
+       FROM movies
+       JOIN ratings ON ratings.movie_id = movies.id
+       JOIN now_showing ON now_showing.movie_id = movies.id
+       WHERE movies.id = ?`,
+    )
+      .bind(added.body.movie.id)
+      .first<{
+        added_by: string;
+        now_showing_updated_by: string;
+        recorded_by: string;
+        updated_by: string;
+      }>();
+    expect(attribution?.added_by).toBeTruthy();
+    expect(attribution?.updated_by).toBe(attribution?.added_by);
+    expect(attribution?.recorded_by).toBe(attribution?.added_by);
+    expect(attribution?.now_showing_updated_by).toBe(attribution?.added_by);
+
     const watched = await request<{ movies: Array<{ id: string }> }>(
       "/api/library?status=watched",
     );
@@ -276,6 +296,20 @@ describe("Ludovico Tech Worker routes", () => {
         collectionName: "Integration Saga",
       }),
     });
+
+    const collectionAttribution = await env.DB.prepare(
+      `SELECT collections.created_by, collections.updated_by
+       FROM collections
+       JOIN collection_movies
+         ON collection_movies.collection_id = collections.id
+       WHERE collection_movies.movie_id = ?`,
+    )
+      .bind(second.body.movie.id)
+      .first<{ created_by: string; updated_by: string }>();
+    expect(collectionAttribution?.created_by).toBeTruthy();
+    expect(collectionAttribution?.updated_by).toBe(
+      collectionAttribution?.created_by,
+    );
 
     await env.DB.batch([
       env.DB.prepare("UPDATE movies SET added_at = ? WHERE id = ?").bind(
@@ -594,31 +628,25 @@ describe("Ludovico Tech Worker routes", () => {
     ).toBeNull();
     expect(
       await env.DB.prepare(
-        "SELECT id FROM rolls WHERE id = 'delete-roll'",
-      ).first(),
-    ).toBeNull();
-    expect(
-      await env.DB.prepare(
-        "SELECT movie_id, rolled_movie_id, collection_id, status FROM now_showing WHERE id = 1",
+        "SELECT movie_id, rolled_movie_id, collection_id, status, updated_by FROM now_showing WHERE id = 1",
       ).first(),
     ).toEqual({
       collection_id: null,
       movie_id: null,
       rolled_movie_id: null,
       status: "empty",
+      updated_by: expect.any(String),
     });
+    expect(
+      await env.DB.prepare(
+        "SELECT id FROM rolls WHERE id = 'delete-roll'",
+      ).first(),
+    ).toBeNull();
     expect(
       await env.DB.prepare("SELECT id FROM collections WHERE id = ?")
         .bind(collectionId)
         .first(),
     ).not.toBeNull();
-    expect(
-      await env.DB.prepare(
-        "SELECT action FROM audit_log WHERE entity_id = ? AND action = 'deleted'",
-      )
-        .bind(candidate.body.movie.id)
-        .first(),
-    ).toEqual({ action: "deleted" });
     expect(
       await env.DB.prepare(
         "SELECT tmdb_id FROM tmdb_people WHERE tmdb_id IN (9001, 9002) ORDER BY tmdb_id",

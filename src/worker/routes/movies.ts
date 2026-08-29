@@ -11,7 +11,7 @@ import {
   movieSelect,
   type MovieRow,
 } from "../db";
-import { auditStatement, mutationActor } from "../middleware";
+import { mutationActor } from "../middleware";
 import {
   libraryQueryInput,
   movieEditInput,
@@ -261,6 +261,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     const metadata = tmdbResult?.data ?? null;
     const title = metadata?.title ?? input.title;
     let collectionId: string | null = null;
+    let collectionCreated = false;
     const statements: D1PreparedStatement[] = [];
 
     if (input.collectionName) {
@@ -271,15 +272,20 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         .first<{ id: string }>();
       collectionId = existing?.id ?? newId();
       if (!existing) {
+        collectionCreated = true;
         statements.push(
           c.env.DB.prepare(
-            "INSERT INTO collections (id, name, name_normalized, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            `INSERT INTO collections
+             (id, name, name_normalized, created_at, updated_at, created_by, updated_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
           ).bind(
             collectionId,
             input.collectionName,
             normalizeTitle(input.collectionName),
             timestamp,
             timestamp,
+            actor.id,
+            actor.id,
           ),
         );
       }
@@ -297,16 +303,27 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
 
     statements.push(
       c.env.DB.prepare(
-        `INSERT INTO movies (id, title, added_at, imdb_id)
-         VALUES (?, ?, ?, ?)`,
-      ).bind(id, title, timestamp, input.imdbId ?? null),
+        `INSERT INTO movies
+         (id, title, added_at, imdb_id, added_by, updated_at, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        id,
+        title,
+        timestamp,
+        input.imdbId ?? null,
+        actor.id,
+        timestamp,
+        actor.id,
+      ),
     );
 
     if (tmdbResult) {
       statements.push(
         ...(await replaceTmdbDataStatements(c.env, id, tmdbResult, {
+          actor: actor.id,
           existingCollectionId: null,
           existingCredits: [],
+          updatedAt: timestamp,
         })),
       );
       if (version !== null) {
@@ -328,12 +345,14 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
           "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
         ).bind(collectionId, id, position),
       );
+      if (!collectionCreated) {
+        statements.push(
+          c.env.DB.prepare(
+            "UPDATE collections SET updated_at = ?, updated_by = ? WHERE id = ?",
+          ).bind(timestamp, actor.id, collectionId),
+        );
+      }
     }
-    statements.push(
-      auditStatement(c.env, "movie", id, "created", actor.id, {
-        title,
-      }),
-    );
     await c.env.DB.batch(statements);
     return c.json({ movie: await getMovieDetail(c.env, id) }, 201);
   });
@@ -493,7 +512,9 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
            imdb_id = ?,
            version = ?,
            version_runtime = ?,
-           version_reference_url = ?
+           version_reference_url = ?,
+           updated_at = ?,
+           updated_by = ?
          WHERE id = ?`,
     ).bind(
       title,
@@ -501,12 +522,16 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       version,
       versionRuntime,
       versionReferenceUrl,
+      timestamp,
+      actor.id,
       movieId,
     );
     const replaceTmdb = tmdbChangeRequested
       ? await replaceTmdbDataStatements(c.env, movieId, tmdbResult, {
+          actor: actor.id,
           existingCollectionId: existing.tmdb_collection_id,
           existingCredits: existing.tmdb_id === null ? [] : undefined,
+          updatedAt: timestamp,
         })
       : [];
     const statements: D1PreparedStatement[] =
@@ -518,13 +543,17 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       if (createCollection && targetCollectionId && targetCollectionName) {
         statements.push(
           c.env.DB.prepare(
-            "INSERT INTO collections (id, name, name_normalized, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            `INSERT INTO collections
+             (id, name, name_normalized, created_at, updated_at, created_by, updated_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
           ).bind(
             targetCollectionId,
             targetCollectionName,
             normalizeTitle(targetCollectionName),
             timestamp,
             timestamp,
+            actor.id,
+            actor.id,
           ),
         );
       }
@@ -540,10 +569,14 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
           c.env.DB.prepare(
             "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
           ).bind(targetCollectionId, movieId, targetPosition),
-          c.env.DB.prepare(
-            "UPDATE collections SET updated_at = ? WHERE id = ?",
-          ).bind(timestamp, targetCollectionId),
         );
+        if (!createCollection) {
+          statements.push(
+            c.env.DB.prepare(
+              "UPDATE collections SET updated_at = ?, updated_by = ? WHERE id = ?",
+            ).bind(timestamp, actor.id, targetCollectionId),
+          );
+        }
       }
       statements.push(
         c.env.DB.prepare(
@@ -570,21 +603,23 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
              WHEN status = 'watched' THEN 'watched'
              ELSE 'ready'
            END,
-           updated_at = ?
+           updated_at = ?,
+           updated_by = ?
            WHERE id = 1 AND movie_id = ?`,
         ).bind(
           targetCollectionId,
           targetCollectionId,
           targetCollectionId,
           timestamp,
+          actor.id,
           movieId,
         ),
       );
       if (existing.collection_id) {
         statements.push(
           c.env.DB.prepare(
-            "UPDATE collections SET updated_at = ? WHERE id = ?",
-          ).bind(timestamp, existing.collection_id),
+            "UPDATE collections SET updated_at = ?, updated_by = ? WHERE id = ?",
+          ).bind(timestamp, actor.id, existing.collection_id),
           c.env.DB.prepare(
             `DELETE FROM collections WHERE id = ?
              AND NOT EXISTS (
@@ -595,11 +630,6 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       }
     }
 
-    statements.push(
-      auditStatement(c.env, "movie", movieId, "updated", actor.id, {
-        fields: Object.keys(input),
-      }),
-    );
     await c.env.DB.batch(statements);
     return c.json({ movie: await getMovieDetail(c.env, movieId) });
   });
@@ -616,45 +646,30 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     }
 
     const timestamp = now();
-    const auditId = newId();
     const existingCredits =
       existing.tmdb_id === null
         ? []
         : ((await getTmdbCreditSnapshots(c.env, [movieId])).get(movieId) ?? []);
     const statements: D1PreparedStatement[] = [
       c.env.DB.prepare(
-        `INSERT INTO audit_log
-         (id, entity_type, entity_id, action, actor_id, created_at, details_json)
-         SELECT ?, 'movie', ?, 'deleted', ?, ?, ?
-         WHERE EXISTS (
-           SELECT 1 FROM movies
-           LEFT JOIN ratings ON ratings.movie_id = movies.id
-           WHERE movies.id = ? AND ratings.movie_id IS NULL
-         )`,
-      ).bind(
-        auditId,
-        movieId,
-        actor.id,
-        timestamp,
-        JSON.stringify({ title: existing.title }),
-        movieId,
-      ),
-      c.env.DB.prepare(
         `UPDATE now_showing
          SET rolled_movie_id = NULL, movie_id = NULL, collection_id = NULL,
-             status = 'empty', rolled_at = NULL, updated_at = ?
+             status = 'empty', rolled_at = NULL, updated_at = ?, updated_by = ?
          WHERE id = 1 AND (movie_id = ? OR rolled_movie_id = ?)
-           AND EXISTS (SELECT 1 FROM audit_log WHERE id = ?)`,
-      ).bind(timestamp, movieId, movieId, auditId),
+           AND EXISTS (
+             SELECT 1 FROM movies
+             LEFT JOIN ratings ON ratings.movie_id = movies.id
+             WHERE movies.id = ? AND ratings.movie_id IS NULL
+           )`,
+      ).bind(timestamp, actor.id, movieId, movieId, movieId),
       c.env.DB.prepare(
         `DELETE FROM rolls
-         WHERE (rolled_movie_id = ? OR actual_movie_id = ?)
-           AND EXISTS (SELECT 1 FROM audit_log WHERE id = ?)`,
-      ).bind(movieId, movieId, auditId),
+         WHERE rolled_movie_id = ? OR actual_movie_id = ?`,
+      ).bind(movieId, movieId),
       c.env.DB.prepare(
         `DELETE FROM movies WHERE id = ?
-         AND EXISTS (SELECT 1 FROM audit_log WHERE id = ?)`,
-      ).bind(movieId, auditId),
+         AND NOT EXISTS (SELECT 1 FROM ratings WHERE movie_id = ?)`,
+      ).bind(movieId, movieId),
       ...tmdbCandidateOrphanCleanupStatements(c.env, {
         collectionIds:
           existing.tmdb_collection_id === null
@@ -669,14 +684,14 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
           `DELETE FROM collections WHERE id = ?
            AND NOT EXISTS (
              SELECT 1 FROM collection_movies WHERE collection_id = ?
-           )
-           AND EXISTS (SELECT 1 FROM audit_log WHERE id = ?)`,
-        ).bind(existing.collection_id, existing.collection_id, auditId),
+           )`,
+        ).bind(existing.collection_id, existing.collection_id),
       );
     }
 
-    const [auditInsert] = await c.env.DB.batch(statements);
-    if (!auditInsert.meta.changes) {
+    const results = await c.env.DB.batch(statements);
+    const movieDelete = results[2];
+    if (!movieDelete?.meta.changes) {
       return c.json({ error: "Watched movies cannot be deleted" }, 409);
     }
     return c.json({ deleted: true, id: movieId });
@@ -694,18 +709,28 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     const timestamp = now();
     await c.env.DB.batch([
       c.env.DB.prepare(
-        `INSERT INTO ratings (movie_id, watched_at, score, phrase)
-         VALUES (?, ?, ?, ?)
+        `INSERT INTO ratings
+         (movie_id, watched_at, score, phrase, recorded_at, recorded_by)
+         VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT(movie_id) DO UPDATE SET
          watched_at = COALESCE(ratings.watched_at, excluded.watched_at),
-         score = excluded.score, phrase = excluded.phrase`,
-      ).bind(movieId, timestamp, input.score, input.phrase),
+         score = excluded.score,
+         phrase = excluded.phrase,
+         recorded_at = excluded.recorded_at,
+         recorded_by = excluded.recorded_by`,
+      ).bind(
+        movieId,
+        timestamp,
+        input.score,
+        input.phrase,
+        timestamp,
+        actor.id,
+      ),
       c.env.DB.prepare(
-        "UPDATE now_showing SET status = 'watched', updated_at = ? WHERE id = 1 AND movie_id = ?",
-      ).bind(timestamp, movieId),
-      auditStatement(c.env, "movie", movieId, "rated", actor.id, {
-        score: input.score,
-      }),
+        `UPDATE now_showing
+         SET status = 'watched', updated_at = ?, updated_by = ?
+         WHERE id = 1 AND movie_id = ?`,
+      ).bind(timestamp, actor.id, movieId),
     ]);
     return c.json({
       movie: await getMovie(c.env, movieId),

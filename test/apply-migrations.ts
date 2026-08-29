@@ -10,7 +10,6 @@ beforeEach(async () => {
     env.DB.prepare("DELETE FROM auth_sessions"),
     env.DB.prepare("DELETE FROM oauth_states"),
     env.DB.prepare("DELETE FROM tmdb_cache"),
-    env.DB.prepare("DELETE FROM audit_log"),
     env.DB.prepare("DELETE FROM rolls"),
     env.DB.prepare("DELETE FROM now_showing"),
     env.DB.prepare("DELETE FROM ratings"),
@@ -35,7 +34,8 @@ beforeEach(async () => {
          last_remaining_count = 0,
          last_rate_limited = 0,
          last_error = NULL,
-         updated_at = '1970-01-01T00:00:00.000Z'
+         updated_at = '1970-01-01T00:00:00.000Z',
+         updated_by = NULL
        WHERE id = 1`,
     ),
     env.DB.prepare(
