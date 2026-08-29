@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api, ApiError, type MovieDetail } from "../api";
 import type { RunAction } from "../types";
 import { AddMovieDialog } from "./add-movie-dialog";
@@ -31,6 +31,12 @@ const run: RunAction = async (action, after) => {
 };
 
 describe("add movie dialog", () => {
+  beforeEach(() => {
+    vi.spyOn(api, "collectionSuggestions").mockResolvedValue({
+      collections: [],
+    });
+  });
+
   it("searches TMDB, confirms a candidate, and adds its identity", async () => {
     vi.spyOn(api, "tmdbSearch").mockResolvedValue({
       results: [
@@ -63,7 +69,7 @@ describe("add movie dialog", () => {
     ).toBeDisabled();
     await user.type(title, "Candidate");
     await user.type(
-      screen.getByRole("textbox", { name: "Collection (optional)" }),
+      screen.getByRole("combobox", { name: "Collection (optional)" }),
       "A Saga",
     );
     await user.type(
@@ -106,6 +112,48 @@ describe("add movie dialog", () => {
     });
     expect(onClose).toHaveBeenCalledOnce();
     expect(onCreated).toHaveBeenCalledWith(movie);
+  });
+
+  it("suggests existing collections without requiring one", async () => {
+    vi.mocked(api.collectionSuggestions).mockResolvedValue({
+      collections: [{ id: "known-id", name: "Known Saga" }],
+    });
+    vi.spyOn(api, "addMovie").mockResolvedValue({ movie });
+    const user = userEvent.setup();
+    render(
+      <AddMovieDialog
+        busy={false}
+        onAuthExpired={vi.fn()}
+        onClose={vi.fn()}
+        onCreated={vi.fn()}
+        run={run}
+      />,
+    );
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Movie title" }),
+      "A New Movie",
+    );
+    const collection = screen.getByRole("combobox", {
+      name: "Collection (optional)",
+    });
+    await user.type(collection, "Kno");
+
+    await waitFor(() =>
+      expect(api.collectionSuggestions).toHaveBeenCalledWith("Kno"),
+    );
+    expect(collection).toHaveAttribute("list");
+    expect(
+      document.querySelector('option[value="Known Saga"]'),
+    ).toBeInTheDocument();
+
+    await user.clear(collection);
+    await user.type(collection, "Entirely New Collection");
+    await user.click(screen.getByRole("button", { name: "Add Movie" }));
+
+    expect(api.addMovie).toHaveBeenCalledWith(
+      expect.objectContaining({ collectionName: "Entirely New Collection" }),
+    );
   });
 
   it("shows that the movie is being added until its confirmed detail returns", async () => {

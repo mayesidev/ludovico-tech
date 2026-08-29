@@ -110,16 +110,23 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
   }) => {
     await page.goto("/");
 
-    for (const title of [
+    for (const [index, title] of [
       "Browser Chapter One",
       "Browser Chapter Two",
       "Browser Chapter Three",
-    ]) {
+    ].entries()) {
       await page.getByRole("button", { name: "Add a Movie" }).click();
       await page.getByRole("textbox", { name: "Movie title" }).fill(title);
-      await page
-        .getByRole("textbox", { name: "Collection (optional)" })
-        .fill("Browser Saga");
+      const collection = page.getByRole("combobox", {
+        name: "Collection (optional)",
+      });
+      await collection.fill(index === 1 ? "Browser" : "Browser Saga");
+      if (index === 1) {
+        await expect(
+          page.locator('datalist option[value="Browser Saga"]'),
+        ).toBeAttached();
+        await collection.fill("Browser Saga");
+      }
       await page
         .getByRole("button", { name: "Add Movie", exact: true })
         .click();

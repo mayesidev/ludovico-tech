@@ -9,10 +9,11 @@ import { parseTmdbId } from "../lib/tmdb-id";
 import { parseImdbId } from "../../shared/imdb";
 import type { RunAction } from "../types";
 import { Dialog } from "./dialog";
+import { CollectionNameField } from "./collection-name-field";
 import { ImdbMovieField } from "./imdb-movie-field";
 import { MovieVersionFields } from "./movie-version-fields";
 import { TmdbMovieFields } from "./tmdb-movie-fields";
-import { Button, Input } from "./ui";
+import { Button } from "./ui";
 
 export function AddMovieDialog({
   busy,
@@ -40,7 +41,6 @@ export function AddMovieDialog({
   const titleInputRef = useRef<HTMLInputElement>(null);
   const dialogTitleId = useId();
   const dialogDescriptionId = useId();
-  const collectionId = useId();
   const titleErrorId = useId();
   const parsedTmdbId = parseTmdbId(tmdbId);
   const parsedImdbId = parseImdbId(imdbId);
@@ -124,14 +124,9 @@ export function AddMovieDialog({
             usingVersion && parsedVersionRuntime === undefined
           }
         />
-        <label className="sr-only" htmlFor={collectionId}>
-          Collection (optional)
-        </label>
-        <Input
-          id={collectionId}
+        <CollectionNameField
+          onChange={setCollectionName}
           value={collectionName}
-          onChange={(event) => setCollectionName(event.target.value)}
-          placeholder="Collection (optional)"
         />
       </div>
 

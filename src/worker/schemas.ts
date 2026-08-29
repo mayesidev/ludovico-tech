@@ -85,3 +85,7 @@ export const libraryQueryInput = z.object({
     .default("title"),
   status: z.enum(["all", "watched", "unwatched"]).default("all"),
 });
+
+export const collectionSuggestionQueryInput = z.object({
+  search: z.string().trim().min(1).max(200),
+});

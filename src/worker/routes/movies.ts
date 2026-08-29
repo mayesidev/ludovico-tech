@@ -14,6 +14,7 @@ import {
 } from "../db";
 import { mutationUser } from "../middleware";
 import {
+  collectionSuggestionQueryInput,
   libraryQueryInput,
   movieEditInput,
   movieInput,
@@ -138,6 +139,32 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       pagination: { page, pageSize: input.pageSize, total, totalPages },
     });
   });
+
+  app.get(
+    "/collections/suggestions",
+    zValidator("query", collectionSuggestionQueryInput),
+    async (c) => {
+      const normalizedSearch = normalizeTitle(c.req.valid("query").search);
+      if (!normalizedSearch) return c.json({ collections: [] });
+      const search = normalizedSearch.replace(/[\\%_]/g, "\\$&");
+      const collections = await c.env.DB.prepare(
+        `SELECT id, name
+         FROM collections
+         WHERE name_normalized LIKE ? ESCAPE '\\'
+         ORDER BY
+           CASE WHEN name_normalized = ? THEN 0
+                WHEN name_normalized LIKE ? ESCAPE '\\' THEN 1
+                ELSE 2
+           END,
+           name COLLATE NOCASE,
+           id
+         LIMIT 8`,
+      )
+        .bind(`%${search}%`, search, `${search}%`)
+        .all<{ id: string; name: string }>();
+      return c.json({ collections: collections.results });
+    },
+  );
 
   app.get("/collections/:id", async (c) => {
     const user = await getAuthenticatedUser(c.env, c.req.raw);
