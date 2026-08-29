@@ -54,7 +54,7 @@ describe("catalog import template", () => {
 
   it("accepts supported import data and creates a bare TMDB link", async () => {
     const parsed = parseCatalogCsv(
-      `${fullHeader}\nSynthetic Movie,2026-08-01T10:30:00.000Z,Adder@Example.test,4.5,A synthetic delight,Rater@Example.test,Synthetic Saga,1,42,false\n`,
+      `${fullHeader}\nSynthetic Movie,2026-08-01T10:30:00.000Z,Adder@Example.test,4.5,A synthetic delight,2026-08-02T11:00:00.000Z,Rater@Example.test,Synthetic Saga,1,42,false\n`,
     );
     expect(parsed.diagnostics).toEqual([]);
 
@@ -84,6 +84,7 @@ describe("catalog import template", () => {
     expect(sql).toContain(
       "(SELECT id FROM users WHERE email = 'rater@example.test')",
     );
+    expect(sql).toContain("'2026-08-02T11:00:00.000Z'");
     expect(sql).toContain("'1970-01-01T00:00:00.000Z'");
     expect(sql).not.toMatch(
       /poster_path|runtime_minutes|tmdb_collections|tmdb_people|movie_credits|fetched_at|contract_id|legacy_import/,
@@ -110,7 +111,7 @@ describe("catalog import template", () => {
 
   it("rejects partial ratings and invalid optional values", () => {
     const parsed = parseCatalogCsv(
-      `${fullHeader}\nMovie One,not-a-date,,4,,,Saga,,not-an-id,\nMovie Two,,,,Phrase,,,2,,\n`,
+      `${fullHeader}\nMovie One,not-a-date,,4,,,,Saga,,not-an-id,\nMovie Two,,,,Phrase,,,,2,,\n`,
     );
     expect(parsed.diagnostics).toEqual([
       { code: "INVALID_ADDED_AT", row: 2, severity: "error" },
@@ -125,6 +126,16 @@ describe("catalog import template", () => {
     ]);
   });
 
+  it("rejects invalid or unpaired rating timestamps", () => {
+    const parsed = parseCatalogCsv(
+      "title,rating_score,rating_phrase,rating_recorded_at\nMovie One,4,Good,not-a-date\nMovie Two,,,2026-08-02T11:00:00.000Z\n",
+    );
+    expect(parsed.diagnostics).toEqual([
+      { code: "INVALID_RATING_RECORDED_AT", row: 2, severity: "error" },
+      { code: "INVALID_RATING_RECORDED_AT", row: 3, severity: "error" },
+    ]);
+  });
+
   it("rejects invalid or unpaired user emails without exposing values", () => {
     const parsed = parseCatalogCsv(
       "title,added_by_email,rating_by_email\nMovie One,not-an-email,\nMovie Two,,rater@example.test\n",
@@ -133,6 +144,28 @@ describe("catalog import template", () => {
       { code: "INVALID_ADDED_BY_EMAIL", row: 2, severity: "error" },
       { code: "INVALID_RATING_BY_EMAIL", row: 3, severity: "error" },
     ]);
+  });
+
+  it("keeps a known rating user without inventing the rating time", () => {
+    const parsed = parseCatalogCsv(
+      "title,rating_score,rating_phrase,rating_by_email\nMovie One,4,Good,rater@example.test\n",
+    );
+    expect(parsed.diagnostics).toEqual([]);
+    expect(parsed.movies[0]?.rating).toEqual({
+      phrase: "Good",
+      recordedAt: null,
+      recordedByEmail: "rater@example.test",
+      score: 4,
+    });
+
+    const sql = buildCatalogImportPlan(
+      parsed.movies,
+      parsed.nowShowingTitle,
+      importedAt,
+    ).statements.join("\n");
+    expect(sql).toMatch(
+      /INSERT INTO ratings .*\(.*'Good', NULL, \(SELECT id FROM users WHERE email = 'rater@example\.test'\)\)/,
+    );
   });
 
   it("selects one imported unwatched movie as Now Showing", async () => {
@@ -262,7 +295,12 @@ describe("catalog import SQL chunks", () => {
       addedByEmail: null,
       collection: "Synthetic Series",
       collectionPosition: index + 1,
-      rating: { phrase: "Good", recordedByEmail: null, score: 4 },
+      rating: {
+        phrase: "Good",
+        recordedAt: null,
+        recordedByEmail: null,
+        score: 4,
+      },
       title: `Synthetic Movie ${String(index + 1).padStart(4, "0")}`,
       tmdbId: index + 1,
     }));

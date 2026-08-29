@@ -22,6 +22,7 @@ complete valid import.
 | `added_by_email`      | Optional application-user email                                     | Attributes the original addition when that user already exists in the target.         |
 | `rating_score`        | Optional; paired with `rating_phrase`; 0–5 in half-point increments | Creates a rating and therefore marks the title watched.                               |
 | `rating_phrase`       | Optional; paired with `rating_score`; 1–120 characters              | Creates the rating phrase.                                                            |
+| `rating_recorded_at`  | Optional ISO 8601 UTC timestamp; requires a rating                  | Preserves a known time for the original rating action.                                |
 | `rating_by_email`     | Optional application-user email; requires a rating                  | Attributes the original rating when that user already exists in the target.           |
 | `collection`          | Optional; 1–200 characters                                          | Creates local collection membership.                                                  |
 | `collection_position` | Optional; requires `collection`                                     | Confirms collection order when every member has one unique contiguous position.       |
@@ -42,7 +43,7 @@ accounts. Rows that it materializes use `automation:catalog-import` for
 ## Preflight and import
 
 The command start time defaults blank `added_at` values. Imported ratings create
-watched state without inventing watch times.
+watched state without inventing rating or watch times.
 
 ```sh
 pnpm import:catalog -- \
