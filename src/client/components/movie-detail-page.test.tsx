@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { MovieDetail } from "../api";
 import { MovieDetailPage } from "./movie-detail-page";
@@ -28,6 +28,46 @@ const movie: MovieDetail = {
 };
 
 describe("movie details", () => {
+  it("shows attribution only to an authenticated user", () => {
+    const attributedMovie: MovieDetail = {
+      ...movie,
+      audit: {
+        added: { at: "2026-08-07T12:00:00.000Z", by: "Adding User" },
+        metadata: {
+          at: "2026-08-08T13:00:00.000Z",
+          by: "TMDB refresh automation",
+        },
+        rating: { at: "2026-08-09T14:00:00.000Z", by: "Rating User" },
+        updated: { at: "2026-08-10T15:00:00.000Z", by: "Editing User" },
+      },
+    };
+    const { rerender } = render(
+      <MovieDetailPage
+        canMutate
+        movie={attributedMovie}
+        onNavigate={vi.fn()}
+        returnTo="library"
+      />,
+    );
+    const activity = screen.getByRole("region", {
+      name: "Activity attribution",
+    });
+    expect(within(activity).getByText(/Adding User/)).toBeVisible();
+    expect(within(activity).getByText(/Rating User/)).toBeVisible();
+    expect(within(activity).getByText(/TMDB refresh automation/)).toBeVisible();
+
+    rerender(
+      <MovieDetailPage
+        movie={attributedMovie}
+        onNavigate={vi.fn()}
+        returnTo="library"
+      />,
+    );
+    expect(
+      screen.queryByRole("region", { name: "Activity attribution" }),
+    ).toBeNull();
+  });
+
   it("shows the persisted top cast and directors", () => {
     render(
       <MovieDetailPage

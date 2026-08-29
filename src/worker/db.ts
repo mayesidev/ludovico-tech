@@ -1,4 +1,5 @@
 import type { AppEnv } from "./env";
+import { attributionActorName } from "./attribution";
 
 export type MovieRow = {
   id: string;
@@ -50,6 +51,22 @@ export type NowShowingRow = {
   movie_collection_id: string | null;
   collection_name: string | null;
 };
+
+type AttributionRow = {
+  actor_display_name: string | null;
+  actor_email: string | null;
+  actor_id: string | null;
+  occurred_at: string | null;
+};
+
+const mapAttribution = (row: AttributionRow) => ({
+  at: row.occurred_at,
+  by: attributionActorName(
+    row.actor_id,
+    row.actor_display_name,
+    row.actor_email,
+  ),
+});
 
 export type HomeMovieRow = {
   id: string;
@@ -132,15 +149,101 @@ export const getMovieCredits = async (
   return credits;
 };
 
-export const getMovieDetail = async (env: AppEnv["Bindings"], id: string) => {
+const getMovieAudit = async (env: AppEnv["Bindings"], id: string) => {
+  const row = await env.DB.prepare(
+    `SELECT
+       movies.added_at,
+       movies.added_by,
+       added_actor.display_name AS added_by_display_name,
+       added_actor.email AS added_by_email,
+       movies.updated_at,
+       movies.updated_by,
+       updated_actor.display_name AS updated_by_display_name,
+       updated_actor.email AS updated_by_email,
+       ratings.recorded_at,
+       ratings.recorded_by,
+       rating_actor.display_name AS recorded_by_display_name,
+       rating_actor.email AS recorded_by_email,
+       movie_tmdb_data.updated_at AS metadata_updated_at,
+       movie_tmdb_data.updated_by AS metadata_updated_by,
+       metadata_actor.display_name AS metadata_updated_by_display_name,
+       metadata_actor.email AS metadata_updated_by_email
+     FROM movies
+     LEFT JOIN ratings ON ratings.movie_id = movies.id
+     LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
+     LEFT JOIN users AS added_actor ON added_actor.id = movies.added_by
+     LEFT JOIN users AS updated_actor ON updated_actor.id = movies.updated_by
+     LEFT JOIN users AS rating_actor ON rating_actor.id = ratings.recorded_by
+     LEFT JOIN users AS metadata_actor ON metadata_actor.id = movie_tmdb_data.updated_by
+     WHERE movies.id = ?`,
+  )
+    .bind(id)
+    .first<{
+      added_at: string;
+      added_by: string | null;
+      added_by_display_name: string | null;
+      added_by_email: string | null;
+      metadata_updated_at: string | null;
+      metadata_updated_by: string | null;
+      metadata_updated_by_display_name: string | null;
+      metadata_updated_by_email: string | null;
+      recorded_at: string | null;
+      recorded_by: string | null;
+      recorded_by_display_name: string | null;
+      recorded_by_email: string | null;
+      updated_at: string | null;
+      updated_by: string | null;
+      updated_by_display_name: string | null;
+      updated_by_email: string | null;
+    }>();
+  if (!row) return null;
+  return {
+    added: mapAttribution({
+      actor_display_name: row.added_by_display_name,
+      actor_email: row.added_by_email,
+      actor_id: row.added_by,
+      occurred_at: row.added_at,
+    }),
+    metadata: mapAttribution({
+      actor_display_name: row.metadata_updated_by_display_name,
+      actor_email: row.metadata_updated_by_email,
+      actor_id: row.metadata_updated_by,
+      occurred_at: row.metadata_updated_at,
+    }),
+    rating: mapAttribution({
+      actor_display_name: row.recorded_by_display_name,
+      actor_email: row.recorded_by_email,
+      actor_id: row.recorded_by,
+      occurred_at: row.recorded_at,
+    }),
+    updated: mapAttribution({
+      actor_display_name: row.updated_by_display_name,
+      actor_email: row.updated_by_email,
+      actor_id: row.updated_by,
+      occurred_at: row.updated_at,
+    }),
+  };
+};
+
+export const getMovieDetail = async (
+  env: AppEnv["Bindings"],
+  id: string,
+  includeAudit = false,
+) => {
   const movie = await getMovie(env, id);
   if (!movie) return null;
-  return { ...movie, ...(await getMovieCredits(env, id)) };
+  return {
+    ...movie,
+    ...(await getMovieCredits(env, id)),
+    ...(includeAudit ? { audit: await getMovieAudit(env, id) } : {}),
+  };
 };
 
 export const getNowShowing = async (env: AppEnv["Bindings"]) =>
   env.DB.prepare(
-    `SELECT now_showing.*, movies.title, movies.added_at, movies.version,
+    `SELECT now_showing.id, now_showing.movie_id, now_showing.collection_id,
+        now_showing.status, now_showing.updated_at,
+        movies.title, movies.added_at, movies.version,
         movies.version_runtime,
         movie_tmdb_data.release_date,
         movie_tmdb_data.poster_path,
@@ -157,7 +260,23 @@ export const getNowShowing = async (env: AppEnv["Bindings"]) =>
        WHERE now_showing.id = 1`,
   ).first<NowShowingRow>();
 
-export const getNowShowingDetail = async (env: AppEnv["Bindings"]) => {
+const getNowShowingAudit = async (env: AppEnv["Bindings"]) => {
+  const row = await env.DB.prepare(
+    `SELECT now_showing.updated_at AS occurred_at,
+       now_showing.updated_by AS actor_id,
+       users.display_name AS actor_display_name,
+       users.email AS actor_email
+     FROM now_showing
+     LEFT JOIN users ON users.id = now_showing.updated_by
+     WHERE now_showing.id = 1`,
+  ).first<AttributionRow>();
+  return row ? { updated: mapAttribution(row) } : null;
+};
+
+export const getNowShowingDetail = async (
+  env: AppEnv["Bindings"],
+  includeAudit = false,
+) => {
   const current = await getNowShowing(env);
   if (!current) return null;
   return {
@@ -165,6 +284,7 @@ export const getNowShowingDetail = async (env: AppEnv["Bindings"]) => {
     ...(current.movie_id
       ? await getMovieCredits(env, current.movie_id)
       : { cast: [], directors: [] }),
+    ...(includeAudit ? { audit: await getNowShowingAudit(env) } : {}),
   };
 };
 

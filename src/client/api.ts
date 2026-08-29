@@ -21,12 +21,25 @@ export type Movie = {
   watched_at: string | null;
 };
 
+export type AuditAttribution = {
+  at: string | null;
+  by: string | null;
+};
+
+export type MovieAudit = {
+  added: AuditAttribution;
+  metadata: AuditAttribution;
+  rating: AuditAttribution;
+  updated: AuditAttribution;
+};
+
 export type TmdbPersonReference = {
   tmdbId: number;
   name: string;
 };
 
 export type MovieDetail = Movie & {
+  audit?: MovieAudit;
   cast: TmdbPersonReference[];
   directors: TmdbPersonReference[];
 };
@@ -49,6 +62,16 @@ export type NowShowing = {
   watched_at: string | null;
   collection_name: string | null;
   directors: TmdbPersonReference[];
+  audit?: { updated: AuditAttribution };
+};
+
+export type CollectionDetail = {
+  audit?: {
+    created: AuditAttribution;
+    updated: AuditAttribution;
+  };
+  id: string;
+  name: string;
 };
 
 export type HomeMovie = Pick<
@@ -136,6 +159,7 @@ export type TmdbRefreshItem = {
 };
 
 export type TmdbRefreshSchedule = {
+  audit?: { updated: AuditAttribution };
   batchSize: number;
   enabled: boolean;
   intervalMinutes: number;
@@ -267,7 +291,7 @@ export const api = {
     request<{ movie: MovieDetail }>(`/api/movies/${encodeURIComponent(id)}`),
   collection: (id: string) =>
     request<{
-      collection: { id: string; name: string };
+      collection: CollectionDetail;
       movies: Movie[];
       tmdbCollections: TmdbCollectionReference[];
     }>(`/api/collections/${id}`),

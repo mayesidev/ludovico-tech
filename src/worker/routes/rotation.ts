@@ -52,7 +52,7 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
     }
     return c.json({
       rolledMovie: await getMovie(c.env, rolled.id),
-      nowShowing: await getNowShowingDetail(c.env),
+      nowShowing: await getNowShowingDetail(c.env, true),
     });
   });
 
@@ -133,7 +133,7 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
         );
       }
       await c.env.DB.batch(statements);
-      return c.json({ nowShowing: await getNowShowingDetail(c.env) });
+      return c.json({ nowShowing: await getNowShowingDetail(c.env, true) });
     },
   );
 
@@ -176,6 +176,6 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
         409,
       );
     }
-    return c.json({ nowShowing: await getNowShowingDetail(c.env) });
+    return c.json({ nowShowing: await getNowShowingDetail(c.env, true) });
   });
 };

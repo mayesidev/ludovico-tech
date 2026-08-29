@@ -18,7 +18,8 @@ import {
   movieInput,
   ratingInput,
 } from "../schemas";
-import { newId, normalizeTitle, now } from "../env";
+import { getActor, newId, normalizeTitle, now } from "../env";
+import { attributionActorName } from "../attribution";
 import { getTmdbMovie, type TmdbMovieResult } from "../tmdb";
 import {
   getTmdbCreditSnapshots,
@@ -138,11 +139,36 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
   });
 
   app.get("/collections/:id", async (c) => {
+    const actor = await getActor(c.env, c.req.raw);
     const collection = await c.env.DB.prepare(
-      "SELECT id, name, order_confirmed, created_at, updated_at FROM collections WHERE id = ?",
+      actor
+        ? `SELECT collections.id, collections.name, collections.order_confirmed,
+             collections.created_at, collections.updated_at,
+             collections.created_by, collections.updated_by,
+             created_actor.display_name AS created_by_display_name,
+             created_actor.email AS created_by_email,
+             updated_actor.display_name AS updated_by_display_name,
+             updated_actor.email AS updated_by_email
+           FROM collections
+           LEFT JOIN users AS created_actor ON created_actor.id = collections.created_by
+           LEFT JOIN users AS updated_actor ON updated_actor.id = collections.updated_by
+           WHERE collections.id = ?`
+        : "SELECT id, name, order_confirmed, created_at, updated_at FROM collections WHERE id = ?",
     )
       .bind(c.req.param("id"))
-      .first();
+      .first<{
+        created_at: string;
+        created_by?: string | null;
+        created_by_display_name?: string | null;
+        created_by_email?: string | null;
+        id: string;
+        name: string;
+        order_confirmed: number;
+        updated_at: string;
+        updated_by?: string | null;
+        updated_by_display_name?: string | null;
+        updated_by_email?: string | null;
+      }>();
     if (!collection) return c.json({ error: "Collection not found" }, 404);
 
     const movies = await c.env.DB.prepare(
@@ -173,11 +199,45 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
           ]),
       ).values(),
     ].sort((left, right) => left.name.localeCompare(right.name));
-    return c.json({ collection, movies: movies.results, tmdbCollections });
+    const publicCollection = {
+      id: collection.id,
+      name: collection.name,
+      order_confirmed: collection.order_confirmed,
+      created_at: collection.created_at,
+      updated_at: collection.updated_at,
+      ...(actor
+        ? {
+            audit: {
+              created: {
+                at: collection.created_at,
+                by: attributionActorName(
+                  collection.created_by ?? null,
+                  collection.created_by_display_name ?? null,
+                  collection.created_by_email ?? null,
+                ),
+              },
+              updated: {
+                at: collection.updated_at,
+                by: attributionActorName(
+                  collection.updated_by ?? null,
+                  collection.updated_by_display_name ?? null,
+                  collection.updated_by_email ?? null,
+                ),
+              },
+            },
+          }
+        : {}),
+    };
+    return c.json({
+      collection: publicCollection,
+      movies: movies.results,
+      tmdbCollections,
+    });
   });
 
   app.get("/home", async (c) => {
-    const nowShowing = await getNowShowingDetail(c.env);
+    const actor = await getActor(c.env, c.req.raw);
+    const nowShowing = await getNowShowingDetail(c.env, Boolean(actor));
     const [watchedMovies, posterReelMovies, hasNextCollectionMovie] =
       await Promise.all([
         getWatchedHistory(c.env),
@@ -195,7 +255,12 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
   });
 
   app.get("/movies/:id", async (c) => {
-    const movie = await getMovieDetail(c.env, c.req.param("id"));
+    const actor = await getActor(c.env, c.req.raw);
+    const movie = await getMovieDetail(
+      c.env,
+      c.req.param("id"),
+      Boolean(actor),
+    );
     return movie
       ? c.json({ movie })
       : c.json({ error: "Movie not found" }, 404);
@@ -354,7 +419,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       }
     }
     await c.env.DB.batch(statements);
-    return c.json({ movie: await getMovieDetail(c.env, id) }, 201);
+    return c.json({ movie: await getMovieDetail(c.env, id, true) }, 201);
   });
 
   app.patch("/movies/:id", zValidator("json", movieEditInput), async (c) => {
@@ -631,7 +696,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     }
 
     await c.env.DB.batch(statements);
-    return c.json({ movie: await getMovieDetail(c.env, movieId) });
+    return c.json({ movie: await getMovieDetail(c.env, movieId, true) });
   });
 
   app.delete("/movies/:id", async (c) => {
@@ -730,7 +795,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     ]);
     return c.json({
       movie: await getMovie(c.env, movieId),
-      nowShowing: await getNowShowingDetail(c.env),
+      nowShowing: await getNowShowingDetail(c.env, true),
     });
   });
 };

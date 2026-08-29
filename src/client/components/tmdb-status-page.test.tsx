@@ -68,6 +68,12 @@ const summary: TmdbRefreshSummary = {
   },
   currentContractId,
   schedule: {
+    audit: {
+      updated: {
+        at: "2026-08-24T01:00:00.000Z",
+        by: "TMDB refresh automation",
+      },
+    },
     batchSize: 25,
     enabled: true,
     intervalMinutes: 330,
@@ -168,6 +174,7 @@ describe("TMDB refresh status page", () => {
       screen.getByRole("columnheader", { name: /Status/ }),
     ).toHaveAttribute("aria-sort", "ascending");
     expect(screen.getByText("Current fetch contract:")).toBeVisible();
+    expect(screen.getByText(/TMDB refresh automation/)).toBeVisible();
     expect(
       screen.getByRole("columnheader", { name: "Fetch contract" }),
     ).toBeVisible();

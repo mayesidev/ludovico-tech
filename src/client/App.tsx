@@ -4,6 +4,7 @@ import {
   api,
   ApiError,
   type AuthState,
+  type CollectionDetail,
   type HomeMovie,
   type Movie,
   type MovieDetail,
@@ -54,6 +55,8 @@ export default function App() {
   const [watchedMovies, setWatchedMovies] = useState<HomeMovie[]>([]);
   const [posterReelMovies, setPosterReelMovies] = useState<HomeMovie[]>([]);
   const [collectionMovies, setCollectionMovies] = useState<Movie[]>([]);
+  const [collectionDetail, setCollectionDetail] =
+    useState<CollectionDetail | null>(null);
   const [catalogRevision, setCatalogRevision] = useState(0);
   const [movieDetail, setMovieDetail] = useState<MovieDetail | null>(null);
   const [movieDetailLoading, setMovieDetailLoading] = useState(
@@ -101,9 +104,9 @@ export default function App() {
           setWatchedMovies(home.watchedMovies);
           setPosterReelMovies(home.posterReelMovies);
         } else if (route.page === "collection") {
-          setCollectionMovies(
-            (await api.collection(route.collectionId)).movies,
-          );
+          const result = await api.collection(route.collectionId);
+          setCollectionMovies(result.movies);
+          setCollectionDetail(result.collection);
         }
         setError(null);
       } catch (cause) {
@@ -113,6 +116,7 @@ export default function App() {
           cause.status === 404
         ) {
           setCollectionMovies([]);
+          setCollectionDetail(null);
           setError(null);
         } else {
           setError(
@@ -369,6 +373,7 @@ export default function App() {
           />
         ) : route.page === "collection" ? (
           <CollectionDetailPage
+            audit={collectionDetail?.audit}
             busy={busy}
             canMutate={canMutate}
             collectionId={route.collectionId}

@@ -436,6 +436,115 @@ describe("Google authentication", () => {
   });
 });
 
+describe("authenticated attribution", () => {
+  it("resolves localized attribution without exposing it publicly", async () => {
+    const session = await authenticated();
+    const created = await request("/api/movies", session.bindings, {
+      method: "POST",
+      headers: { Cookie: session.cookie },
+      body: JSON.stringify({
+        collectionName: "Attribution Collection",
+        title: "Attributed Movie",
+      }),
+    });
+    const createdMovie = (
+      (await created.json()) as {
+        movie: { collection_id: string; id: string };
+      }
+    ).movie;
+    await request(`/api/movies/${createdMovie.id}/rate`, session.bindings, {
+      method: "POST",
+      headers: { Cookie: session.cookie },
+      body: JSON.stringify({ phrase: "Attributable", score: 4 }),
+    });
+    const stored = await env.DB.prepare(
+      "SELECT added_by FROM movies WHERE id = ?",
+    )
+      .bind(createdMovie.id)
+      .first<{ added_by: string }>();
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO movie_tmdb_data
+         (movie_id, tmdb_id, refresh_after, updated_at, updated_by)
+         VALUES (?, 42, ?, ?, ?)`,
+      ).bind(createdMovie.id, future, past, stored?.added_by ?? null),
+      env.DB.prepare(
+        `UPDATE now_showing
+         SET movie_id = ?, collection_id = ?, status = 'watched',
+             updated_at = ?, updated_by = ?
+         WHERE id = 1`,
+      ).bind(
+        createdMovie.id,
+        createdMovie.collection_id,
+        past,
+        stored?.added_by ?? null,
+      ),
+    ]);
+
+    const publicDetail = await request(
+      `/api/movies/${createdMovie.id}`,
+      session.bindings,
+    );
+    const publicMovie = ((await publicDetail.json()) as { movie: object })
+      .movie;
+    expect(publicMovie).not.toHaveProperty("audit");
+    expect(publicMovie).not.toHaveProperty("added_by");
+    expect(publicMovie).not.toHaveProperty("updated_by");
+
+    const privateDetail = await request(
+      `/api/movies/${createdMovie.id}`,
+      session.bindings,
+      { headers: { Cookie: session.cookie } },
+    );
+    expect(await privateDetail.json()).toMatchObject({
+      movie: {
+        audit: {
+          added: { at: expect.any(String), by: "Invited User" },
+          metadata: { at: past, by: "Invited User" },
+          rating: { at: expect.any(String), by: "Invited User" },
+          updated: { at: expect.any(String), by: "Invited User" },
+        },
+      },
+    });
+
+    const publicCollection = await request(
+      `/api/collections/${createdMovie.collection_id}`,
+      session.bindings,
+    );
+    expect(
+      ((await publicCollection.json()) as { collection: object }).collection,
+    ).not.toHaveProperty("audit");
+    const privateCollection = await request(
+      `/api/collections/${createdMovie.collection_id}`,
+      session.bindings,
+      { headers: { Cookie: session.cookie } },
+    );
+    expect(await privateCollection.json()).toMatchObject({
+      collection: {
+        audit: {
+          created: { at: expect.any(String), by: "Invited User" },
+          updated: { at: expect.any(String), by: "Invited User" },
+        },
+      },
+    });
+
+    const publicHome = await request("/api/home", session.bindings);
+    const publicNowShowing = (
+      (await publicHome.json()) as { nowShowing: object }
+    ).nowShowing;
+    expect(publicNowShowing).not.toHaveProperty("audit");
+    expect(publicNowShowing).not.toHaveProperty("updated_by");
+    const privateHome = await request("/api/home", session.bindings, {
+      headers: { Cookie: session.cookie },
+    });
+    expect(await privateHome.json()).toMatchObject({
+      nowShowing: {
+        audit: { updated: { at: past, by: "Invited User" } },
+      },
+    });
+  });
+});
+
 describe("IMDb references", () => {
   it("normalizes a mobile title URL without requesting provider data", async () => {
     const session = await authenticated();

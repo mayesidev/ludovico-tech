@@ -46,6 +46,43 @@ const run: RunAction = async (action, after) => {
 };
 
 describe("collection details", () => {
+  it("shows collection attribution only to an authenticated user", () => {
+    const audit = {
+      created: { at: "2026-08-07T12:00:00.000Z", by: "Creating User" },
+      updated: { at: "2026-08-08T12:00:00.000Z", by: "Updating User" },
+    };
+    const { rerender } = render(
+      <CollectionDetailPage
+        audit={audit}
+        busy={false}
+        canMutate
+        collectionId="collection-id"
+        movies={movies}
+        onLogin={vi.fn()}
+        onNavigate={vi.fn()}
+        returnTo="library"
+        run={run}
+      />,
+    );
+    expect(screen.getByText(/Creating User/)).toBeVisible();
+    expect(screen.getByText(/Updating User/)).toBeVisible();
+
+    rerender(
+      <CollectionDetailPage
+        audit={audit}
+        busy={false}
+        canMutate={false}
+        collectionId="collection-id"
+        movies={movies}
+        onLogin={vi.fn()}
+        onNavigate={vi.fn()}
+        returnTo="library"
+        run={run}
+      />,
+    );
+    expect(screen.queryByText(/Creating User/)).toBeNull();
+  });
+
   it("uses date added before a custom order is saved", () => {
     render(
       <CollectionDetailPage

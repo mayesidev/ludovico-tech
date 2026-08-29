@@ -5,6 +5,9 @@ one group viewing state.
 
 - Anyone may browse the catalog, current selection, and viewing history.
 - An authenticated allowlisted member may change shared state.
+- Authenticated members can see the resolved user or automation and timestamp
+  for localized movie, rating, metadata, collection, selection, and refresh
+  schedule attribution. Anonymous responses omit this information.
 - One movie is Now Showing for the group at a time.
 - A movie is watched when its one shared rating exists. There is no skipped state
   or separate watched flag.

@@ -1,13 +1,18 @@
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowUp, ExternalLink } from "lucide-react";
-import { api, type Movie } from "../api";
+import { api, type AuditAttribution, type Movie } from "../api";
 import type { Navigate, ReturnTarget, RunAction } from "../types";
 import { cn, formatMovieTitle } from "../lib/utils";
 import { AppLink } from "./app-link";
 import { Button } from "./ui";
+import { AuditDetails } from "./audit-details";
 
 type CollectionDetailPageProps = {
   busy: boolean;
+  audit?: {
+    created: AuditAttribution;
+    updated: AuditAttribution;
+  };
   canMutate: boolean;
   collectionId: string;
   movies: Movie[];
@@ -30,6 +35,7 @@ const byCollectionOrder = (left: Movie, right: Movie) => {
 };
 
 export function CollectionDetailPage({
+  audit,
   busy,
   canMutate,
   collectionId,
@@ -155,6 +161,16 @@ export function CollectionDetailPage({
           </div>
         )}
       </div>
+
+      {canMutate && audit && (
+        <AuditDetails
+          className="mb-8"
+          entries={[
+            { attribution: audit.created, label: "Created" },
+            { attribution: audit.updated, label: "Last updated" },
+          ]}
+        />
+      )}
 
       <section
         aria-labelledby="collection-order-title"
