@@ -13,7 +13,7 @@ importers:
     dependencies:
       '@hono/zod-validator':
         specifier: ^0.9.0
-        version: 0.9.0(hono@4.13.3)(zod@4.4.3)
+        version: 0.9.0(hono@4.13.5)(zod@4.4.3)
       '@tanstack/react-table':
         specifier: ^9.1.2
         version: 9.1.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -25,7 +25,7 @@ importers:
         version: 2.1.1
       hono:
         specifier: ^4.12.34
-        version: 4.13.3
+        version: 4.13.5
       lucide-react:
         specifier: ^1.28.0
         version: 1.33.0(react@19.2.8)
@@ -2194,8 +2194,8 @@ packages:
   highlight.js@10.7.3:
     resolution: {integrity: sha512-tzcUFauisWKNHaRkN4Wjl/ZA07gENAjFl3J/c480dprkGTg5EQstgaNFqBfUqCq54kZRIEcreTsAgF/m2quD7A==}
 
-  hono@4.13.3:
-    resolution: {integrity: sha512-r8AO2mYHoLxSHkgafNeC/BXyb2vWRxD3jem4Ts+ptav8oTG5FIRifAjuJEmZI4bSvvc2ns0GxmIYiZnHqN3mMw==}
+  hono@4.13.5:
+    resolution: {integrity: sha512-O6+/eCYRkzzzy0rPWwKLiGBR1nFuUPZynnwjxN1MBA62NNqbT0wQEzQyK2gSO5yDIDB336sXQleAhOHrzlYyKw==}
     engines: {node: '>=16.9.0'}
 
   hook-std@4.0.0:
@@ -4202,9 +4202,9 @@ snapshots:
 
   '@exodus/bytes@1.15.1': {}
 
-  '@hono/zod-validator@0.9.0(hono@4.13.3)(zod@4.4.3)':
+  '@hono/zod-validator@0.9.0(hono@4.13.5)(zod@4.4.3)':
     dependencies:
-      hono: 4.13.3
+      hono: 4.13.5
       zod: 4.4.3
 
   '@humanfs/core@0.19.2':
@@ -5538,7 +5538,7 @@ snapshots:
 
   highlight.js@10.7.3: {}
 
-  hono@4.13.3: {}
+  hono@4.13.5: {}
 
   hook-std@4.0.0: {}
 
