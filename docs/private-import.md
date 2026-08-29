@@ -29,8 +29,9 @@ complete valid import.
 The importer rejects duplicate normalized titles, duplicate TMDB IDs, partial
 ratings, a watched or multiply selected Now Showing title, and partial or
 non-contiguous collection ordering. It does not accept IMDb IDs, prior-viewed
-flags, source provenance, provider metadata, users, sessions, attribution actors,
-or unknown timestamps.
+flags, source provenance, provider metadata, users, sessions, source attribution
+actors, or unknown timestamps. Originating human fields remain null; rows that
+the importer materializes use `automation:catalog-import` for `updated_by`.
 
 ## Preflight and import
 

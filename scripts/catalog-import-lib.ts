@@ -1,6 +1,8 @@
 import { parse } from "csv-parse/sync";
 import { normalizeTitle } from "../src/shared/normalize-title";
 
+export const CATALOG_IMPORT_ACTOR = "automation:catalog-import";
+
 export const CATALOG_IMPORT_COLUMNS = [
   "title",
   "added_at",
@@ -437,7 +439,7 @@ export const buildCatalogImportPlan = (
     .sort(([left], [right]) => compareText(left, right))
     .map(
       ([normalized, collection]) =>
-        `(${sql(collection.id)}, ${sql(collection.name)}, ${sql(normalized)}, ${collection.orderConfirmed ? 1 : 0}, ${sql(importedAt)}, ${sql(importedAt)}, NULL, NULL)`,
+        `(${sql(collection.id)}, ${sql(collection.name)}, ${sql(normalized)}, ${collection.orderConfirmed ? 1 : 0}, ${sql(importedAt)}, ${sql(importedAt)}, NULL, ${sql(CATALOG_IMPORT_ACTOR)})`,
     );
   statements.push(
     ...batchedInsert(
@@ -461,11 +463,11 @@ export const buildCatalogImportPlan = (
   for (const movie of movies) {
     const movieId = movieIds.get(normalizeTitle(movie.title)) as string;
     movieRows.push(
-      `(${sql(movieId)}, ${sql(movie.title)}, ${sql(movie.addedAt ?? importedAt)}, NULL, ${sql(importedAt)}, NULL)`,
+      `(${sql(movieId)}, ${sql(movie.title)}, ${sql(movie.addedAt ?? importedAt)}, NULL, ${sql(importedAt)}, ${sql(CATALOG_IMPORT_ACTOR)})`,
     );
     if (movie.tmdbId !== null) {
       tmdbRows.push(
-        `(${sql(movieId)}, ${movie.tmdbId}, '1970-01-01T00:00:00.000Z', ${sql(importedAt)}, NULL)`,
+        `(${sql(movieId)}, ${movie.tmdbId}, '1970-01-01T00:00:00.000Z', ${sql(importedAt)}, ${sql(CATALOG_IMPORT_ACTOR)})`,
       );
     }
   }
@@ -537,7 +539,7 @@ export const buildCatalogImportPlan = (
     : null;
   if (selectedMovieId) {
     statements.push(
-      `UPDATE now_showing SET movie_id = ${sql(selectedMovieId)}, collection_id = ${sql(selectedCollectionId)}, status = 'ready', updated_at = ${sql(importedAt)}, updated_by = NULL WHERE id = 1;`,
+      `UPDATE now_showing SET movie_id = ${sql(selectedMovieId)}, collection_id = ${sql(selectedCollectionId)}, status = 'ready', updated_at = ${sql(importedAt)}, updated_by = ${sql(CATALOG_IMPORT_ACTOR)} WHERE id = 1;`,
     );
   }
 

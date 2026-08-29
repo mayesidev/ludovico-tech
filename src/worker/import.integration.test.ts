@@ -2,6 +2,7 @@ import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import {
   buildCatalogImportPlan,
+  CATALOG_IMPORT_ACTOR,
   parseCatalogCsv,
   renderSqlChunks,
 } from "../../scripts/catalog-import-lib";
@@ -79,6 +80,46 @@ describe("catalog import", () => {
     ]);
   });
 
+  it("attributes import writes without inventing originating humans", async () => {
+    await importSyntheticCatalog();
+    const rows = await env.DB.prepare(
+      `SELECT movies.title, movies.added_by, movies.updated_by,
+              collections.created_by,
+              collections.updated_by AS collection_updated_by,
+              ratings.recorded_by,
+              movie_tmdb_data.updated_by AS tmdb_updated_by
+       FROM movies
+       LEFT JOIN collection_movies
+         ON collection_movies.movie_id = movies.id
+       LEFT JOIN collections
+         ON collections.id = collection_movies.collection_id
+       LEFT JOIN ratings ON ratings.movie_id = movies.id
+       LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
+       ORDER BY movies.title`,
+    ).all();
+
+    expect(rows.results).toEqual([
+      {
+        added_by: null,
+        collection_updated_by: CATALOG_IMPORT_ACTOR,
+        created_by: null,
+        recorded_by: null,
+        title: "Synthetic Movie One",
+        tmdb_updated_by: null,
+        updated_by: CATALOG_IMPORT_ACTOR,
+      },
+      {
+        added_by: null,
+        collection_updated_by: CATALOG_IMPORT_ACTOR,
+        created_by: null,
+        recorded_by: null,
+        title: "Synthetic Movie Two",
+        tmdb_updated_by: CATALOG_IMPORT_ACTOR,
+        updated_by: CATALOG_IMPORT_ACTOR,
+      },
+    ]);
+  });
+
   it("queues TMDB backfill without importing provider data", async () => {
     await importSyntheticCatalog();
     const link = await env.DB.prepare(
@@ -141,7 +182,7 @@ Starting Movie,Synthetic Saga,2,true
       collection_name: "Synthetic Saga",
       status: "ready",
       title: "Starting Movie",
-      updated_by: null,
+      updated_by: CATALOG_IMPORT_ACTOR,
     });
   });
 
