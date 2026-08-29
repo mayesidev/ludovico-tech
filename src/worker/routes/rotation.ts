@@ -8,7 +8,7 @@ import {
   getRemainingCollectionMovies,
 } from "../db";
 import { type AppEnv, newId, now } from "../env";
-import { auditStatement, mutationActor } from "../middleware";
+import { mutationActor } from "../middleware";
 import { orderInput } from "../schemas";
 import { selectQueuedMovie } from "../selection";
 
@@ -55,32 +55,17 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
         actor.id,
       ),
       c.env.DB.prepare(
-        `UPDATE now_showing SET rolled_movie_id = ?, movie_id = ?, collection_id = ?,
-         status = ?, rolled_at = ?, updated_at = ?
+        `UPDATE now_showing
+         SET rolled_movie_id = ?, movie_id = ?, collection_id = ?,
+             status = 'ready', rolled_at = ?, updated_at = ?, updated_by = ?
          WHERE id = 1 AND EXISTS (SELECT 1 FROM rolls WHERE id = ?)`,
       ).bind(
         rolled.id,
         actual.id,
         rolled.collection_id,
-        "ready",
         timestamp,
         timestamp,
-        rollId,
-      ),
-      c.env.DB.prepare(
-        `INSERT INTO audit_log
-         (id, entity_type, entity_id, action, actor_id, created_at, details_json)
-         SELECT ?, 'now_showing', '1', 'rolled', ?, ?, ?
-         WHERE EXISTS (SELECT 1 FROM rolls WHERE id = ?)`,
-      ).bind(
-        newId(),
         actor.id,
-        timestamp,
-        JSON.stringify({
-          rollId,
-          rolledMovieId: rolled.id,
-          actualMovieId: actual.id,
-        }),
         rollId,
       ),
     ]);
@@ -158,27 +143,20 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
       ];
       statements.push(
         c.env.DB.prepare(
-          "UPDATE collections SET order_confirmed = 1, updated_at = ? WHERE id = ?",
-        ).bind(timestamp, collectionId),
+          `UPDATE collections
+           SET order_confirmed = 1, updated_at = ?, updated_by = ?
+           WHERE id = ?`,
+        ).bind(timestamp, actor.id, collectionId),
       );
       if (firstUnwatchedId) {
         statements.push(
           c.env.DB.prepare(
-            `UPDATE now_showing SET movie_id = ?, status = 'ready', updated_at = ?
+            `UPDATE now_showing
+             SET movie_id = ?, status = 'ready', updated_at = ?, updated_by = ?
              WHERE id = 1 AND collection_id = ? AND status IN ('pending_order', 'ready')`,
-          ).bind(firstUnwatchedId, timestamp, collectionId),
+          ).bind(firstUnwatchedId, timestamp, actor.id, collectionId),
         );
       }
-      statements.push(
-        auditStatement(
-          c.env,
-          "collection",
-          collectionId,
-          "order_updated",
-          actor.id,
-          { movieIds: input.movieIds },
-        ),
-      );
       await c.env.DB.batch(statements);
       return c.json({ nowShowing: await getNowShowingDetail(c.env) });
     },
@@ -210,28 +188,14 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
     }
 
     const timestamp = now();
-    const [stateUpdate] = await c.env.DB.batch([
-      c.env.DB.prepare(
-        `UPDATE now_showing SET rolled_movie_id = ?, movie_id = ?, status = 'ready', updated_at = ?
-         WHERE id = 1 AND movie_id = ? AND status = 'watched'`,
-      ).bind(next.id, next.id, timestamp, current.movie_id),
-      c.env.DB.prepare(
-        `INSERT INTO audit_log
-         (id, entity_type, entity_id, action, actor_id, created_at, details_json)
-         SELECT ?, 'now_showing', '1', 'advanced', ?, ?, ?
-         WHERE EXISTS (
-           SELECT 1 FROM now_showing
-           WHERE id = 1 AND movie_id = ? AND status = 'ready' AND updated_at = ?
-         )`,
-      ).bind(
-        newId(),
-        actor.id,
-        timestamp,
-        JSON.stringify({ movieId: next.id }),
-        next.id,
-        timestamp,
-      ),
-    ]);
+    const stateUpdate = await c.env.DB.prepare(
+      `UPDATE now_showing
+       SET rolled_movie_id = ?, movie_id = ?, status = 'ready',
+           updated_at = ?, updated_by = ?
+       WHERE id = 1 AND movie_id = ? AND status = 'watched'`,
+    )
+      .bind(next.id, next.id, timestamp, actor.id, current.movie_id)
+      .run();
     if (!stateUpdate.meta.changes) {
       return c.json(
         { error: "Now Showing changed before it could advance" },

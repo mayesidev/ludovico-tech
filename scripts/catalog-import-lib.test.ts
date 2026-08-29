@@ -40,10 +40,10 @@ describe("catalog import template", () => {
     });
     expect(plan.statements.join("\n")).toContain(importedAt);
     expect(plan.statements[0]).toMatch(
-      /^INSERT INTO movies \(id, title, added_at\) VALUES /,
+      /^INSERT INTO movies \(id, title, added_at, added_by, updated_at, updated_by\) VALUES /,
     );
     expect(plan.statements.join("\n")).not.toMatch(
-      /movie_import_sources|prior_viewed|title_normalized|added_by|updated_by|now_showing/,
+      /movie_import_sources|prior_viewed|title_normalized|now_showing/,
     );
   });
 
@@ -67,13 +67,15 @@ describe("catalog import template", () => {
       tmdbLinks: 1,
     });
     expect(sql).toContain("INSERT INTO movie_tmdb_data");
-    expect(sql).toContain("(movie_id, tmdb_id, refresh_after)");
     expect(sql).toContain(
-      "INSERT INTO ratings (movie_id, watched_at, score, phrase)",
+      "(movie_id, tmdb_id, refresh_after, updated_at, updated_by)",
+    );
+    expect(sql).toContain(
+      "INSERT INTO ratings (movie_id, watched_at, score, phrase, recorded_at, recorded_by)",
     );
     expect(sql).toContain("'1970-01-01T00:00:00.000Z'");
     expect(sql).not.toMatch(
-      /poster_path|runtime_minutes|tmdb_collections|tmdb_people|movie_credits|fetched_at|contract_id|recorded_at|recorded_by|legacy_import/,
+      /poster_path|runtime_minutes|tmdb_collections|tmdb_people|movie_credits|fetched_at|contract_id|legacy_import/,
     );
   });
 
@@ -131,7 +133,7 @@ describe("catalog import template", () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
     expect(plan.statements.at(-1)).toBe(
-      `UPDATE now_showing SET rolled_movie_id = NULL, movie_id = '${plan.nowShowing?.movieId}', collection_id = '${plan.nowShowing?.collectionId}', status = 'ready', rolled_at = NULL, updated_at = '${importedAt}' WHERE id = 1;`,
+      `UPDATE now_showing SET rolled_movie_id = NULL, movie_id = '${plan.nowShowing?.movieId}', collection_id = '${plan.nowShowing?.collectionId}', status = 'ready', rolled_at = NULL, updated_at = '${importedAt}', updated_by = NULL WHERE id = 1;`,
     );
   });
 

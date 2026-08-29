@@ -7,6 +7,7 @@ import {
 } from "./tmdb-data";
 import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
 import { createD1ProcessingUsage, type D1ProcessingUsage } from "./d1-usage";
+import { TMDB_REFRESH_ACTOR } from "./attribution";
 
 const SCHEDULE_ID = 1;
 const LEASE_MS = 20 * 60 * 1000;
@@ -73,6 +74,7 @@ export const claimTmdbRefresh = async (
   env: AppEnv["Bindings"],
   force = false,
   timestamp = new Date().toISOString(),
+  actor = TMDB_REFRESH_ACTOR,
 ): Promise<TmdbRefreshClaim | null> => {
   const leaseExpiresAt = addMilliseconds(timestamp, LEASE_MS);
   const row = await env.DB.prepare(
@@ -80,7 +82,8 @@ export const claimTmdbRefresh = async (
        lease_expires_at = ?,
        last_started_at = ?,
        last_error = NULL,
-       updated_at = ?
+       updated_at = ?,
+       updated_by = ?
      WHERE id = ?
        AND (? = 1 OR enabled = 1)
        AND (? = 1 OR next_run_at <= ?)
@@ -91,6 +94,7 @@ export const claimTmdbRefresh = async (
       leaseExpiresAt,
       timestamp,
       timestamp,
+      actor,
       SCHEDULE_ID,
       force ? 1 : 0,
       force ? 1 : 0,
@@ -140,7 +144,8 @@ const finishClaim = async (
        last_processing_rows_written = ?,
        last_processing_retried = ?,
        last_error = ?,
-       updated_at = ?
+       updated_at = ?,
+       updated_by = ?
      WHERE id = ? AND lease_expires_at = ?`,
   )
     .bind(
@@ -156,6 +161,7 @@ const finishClaim = async (
       usage.retried ? 1 : 0,
       lastError,
       completedAt,
+      TMDB_REFRESH_ACTOR,
       SCHEDULE_ID,
       claim.leaseExpiresAt,
     )
@@ -177,7 +183,8 @@ const failClaim = async (
        last_processing_rows_written = ?,
        last_processing_retried = ?,
        last_error = 'Refresh worker failed',
-       updated_at = ?
+       updated_at = ?,
+       updated_by = ?
      WHERE id = ? AND lease_expires_at = ?`,
   )
     .bind(
@@ -187,6 +194,7 @@ const failClaim = async (
       usage.rowsWritten,
       usage.retried ? 1 : 0,
       completedAt,
+      TMDB_REFRESH_ACTOR,
       SCHEDULE_ID,
       claim.leaseExpiresAt,
     )

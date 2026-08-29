@@ -17,6 +17,7 @@ import {
   recordD1Usage,
   type D1ProcessingUsage,
 } from "./d1-usage";
+import { TMDB_REFRESH_ACTOR } from "./attribution";
 
 const REFRESH_AFTER_MS = 150 * 24 * 60 * 60 * 1000;
 const EXPIRES_AFTER_MS = 175 * 24 * 60 * 60 * 1000;
@@ -105,12 +106,14 @@ export const purgeExpiredTmdbData = async (
          poster_path = NULL,
          runtime_minutes = NULL,
          tmdb_collection_id = NULL,
-         expired_at = ?
+         expired_at = ?,
+         updated_at = ?,
+         updated_by = ?
        WHERE movie_id IN (${placeholders})
          AND expires_at IS NOT NULL
          AND expires_at <= ?
          AND expired_at IS NULL`,
-    ).bind(timestamp, ...movieIds, timestamp),
+    ).bind(timestamp, timestamp, TMDB_REFRESH_ACTOR, ...movieIds, timestamp),
     env.DB.prepare(
       `DELETE FROM movie_credits
        WHERE movie_id IN (${placeholders})
@@ -247,12 +250,14 @@ export const replaceTmdbDataStatements = async (
   movieId: string,
   result: TmdbMovieResult | null,
   options: {
+    actor?: string;
     attemptedAt?: string;
     existingCollectionId?: number | null;
     existingCredits?: TmdbCreditSnapshot[];
     existingSnapshot?: TmdbStoredSnapshot;
     includeOrphanCleanup?: boolean;
     includeSharedEntities?: boolean;
+    updatedAt?: string;
   } = {},
 ) => {
   const includeOrphanCleanup = options.includeOrphanCleanup ?? true;
@@ -297,6 +302,8 @@ export const replaceTmdbDataStatements = async (
 
   const data = tmdbMovieDetailSchema.parse(result.data);
   const { fetchedAt } = result;
+  const updatedAt = options.updatedAt ?? options.attemptedAt ?? fetchedAt;
+  const actor = options.actor ?? TMDB_REFRESH_ACTOR;
   const contractId = await getTmdbMetadataContractId();
   const refreshAfter = addMilliseconds(fetchedAt, REFRESH_AFTER_MS);
   const expiresAt = addMilliseconds(fetchedAt, EXPIRES_AFTER_MS);
@@ -341,7 +348,9 @@ export const replaceTmdbDataStatements = async (
              last_refresh_attempt_at = ?,
              last_refresh_status = 'succeeded',
              last_refresh_error = NULL,
-             expired_at = NULL
+             expired_at = NULL,
+             updated_at = ?,
+             updated_by = ?
            WHERE movie_id = ?
              AND tmdb_id = ?
              AND ? >= COALESCE(fetched_at, '')`,
@@ -351,6 +360,8 @@ export const replaceTmdbDataStatements = async (
           expiresAt,
           contractId,
           options.attemptedAt ?? fetchedAt,
+          updatedAt,
+          actor,
           movieId,
           data.id,
           fetchedAt,
@@ -359,8 +370,9 @@ export const replaceTmdbDataStatements = async (
           `INSERT INTO movie_tmdb_data
          (movie_id, tmdb_id, title, release_date, poster_path, runtime_minutes,
           tmdb_collection_id, fetched_at, refresh_after, expires_at, contract_id,
-          last_refresh_attempt_at, last_refresh_status, last_refresh_error)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'succeeded', NULL)
+          last_refresh_attempt_at, last_refresh_status, last_refresh_error,
+          updated_at, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'succeeded', NULL, ?, ?)
          ON CONFLICT(movie_id) DO UPDATE SET
            tmdb_id = excluded.tmdb_id,
            title = excluded.title,
@@ -375,7 +387,9 @@ export const replaceTmdbDataStatements = async (
            last_refresh_attempt_at = excluded.last_refresh_attempt_at,
            last_refresh_status = excluded.last_refresh_status,
            last_refresh_error = excluded.last_refresh_error,
-           expired_at = NULL
+           expired_at = NULL,
+           updated_at = excluded.updated_at,
+           updated_by = excluded.updated_by
          WHERE excluded.fetched_at >= COALESCE(movie_tmdb_data.fetched_at, '')`,
         ).bind(
           movieId,
@@ -390,6 +404,8 @@ export const replaceTmdbDataStatements = async (
           expiresAt,
           contractId,
           options.attemptedAt ?? fetchedAt,
+          updatedAt,
+          actor,
         );
   statements.push(metadataStatement);
 
@@ -643,6 +659,7 @@ export const refreshDueTmdbData = async (
       report.refreshed += 1;
       persistenceStatements.push(
         ...(await replaceTmdbDataStatements(env, row.movie_id, result, {
+          actor: TMDB_REFRESH_ACTOR,
           attemptedAt: timestamp,
           existingCredits: creditSnapshots.get(row.movie_id) ?? [],
           existingSnapshot: {
@@ -655,6 +672,7 @@ export const refreshDueTmdbData = async (
           },
           includeOrphanCleanup: false,
           includeSharedEntities: false,
+          updatedAt: timestamp,
         })),
       );
     } else if (failure) {
@@ -667,12 +685,16 @@ export const refreshDueTmdbData = async (
              last_refresh_attempt_at = ?,
              last_refresh_status = 'failed',
              last_refresh_error = ?,
-             refresh_after = ?
+             refresh_after = ?,
+             updated_at = ?,
+             updated_by = ?
            WHERE movie_id = ?`,
         ).bind(
           timestamp,
           refreshErrorMessage(failure),
           timestamp,
+          timestamp,
+          TMDB_REFRESH_ACTOR,
           row.movie_id,
         ),
       );
