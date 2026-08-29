@@ -178,6 +178,9 @@ describe("complete CI and deployment gates", () => {
     const maintenanceGate = source.indexOf(
       "Verify maintenance mode owns production traffic",
     );
+    const refreshIdleGate = source.indexOf(
+      "Wait for production refresh activity to stop",
+    );
     const recoveryCheckpoint = source.indexOf(
       "Capture production D1 recovery checkpoint",
     );
@@ -230,7 +233,8 @@ describe("complete CI and deployment gates", () => {
     expect(source).toMatch(
       /wrangler d1 execute DB --config wrangler\.jsonc --remote --env production/,
     );
-    expect(source).toContain("check-refresh-paused");
+    expect(source).toContain("check-refresh-idle");
+    expect(source).not.toContain("check-refresh-paused");
     expect(source).toContain("d1 time-travel info DB");
     expect(source).toContain("D1_RECOVERY_BOOKMARK");
     expect(source).toContain('--var "MAINTENANCE_MODE:true"');
@@ -243,7 +247,9 @@ describe("complete CI and deployment gates", () => {
     expect(build).toBeGreaterThan(tagValidation);
     expect(maintenanceDeploy).toBeGreaterThan(build);
     expect(maintenanceGate).toBeGreaterThan(maintenanceDeploy);
+    expect(refreshIdleGate).toBeGreaterThan(maintenanceGate);
     expect(recoveryCheckpoint).toBeGreaterThan(maintenanceGate);
+    expect(recoveryCheckpoint).toBeGreaterThan(refreshIdleGate);
     expect(migration).toBeGreaterThan(releaseCheckout);
     expect(migration).toBeGreaterThan(recoveryCheckpoint);
     expect(migrationGate).toBeGreaterThan(migration);
