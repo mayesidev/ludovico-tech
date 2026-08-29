@@ -6,8 +6,10 @@ export const CATALOG_IMPORT_ACTOR = "automation:catalog-import";
 export const CATALOG_IMPORT_COLUMNS = [
   "title",
   "added_at",
+  "added_by_email",
   "rating_score",
   "rating_phrase",
+  "rating_by_email",
   "collection",
   "collection_position",
   "tmdb_id",
@@ -24,10 +26,12 @@ export type CatalogImportDiagnosticCode =
   | "IMPORT_CSV_INVALID"
   | "IMPORT_EMPTY"
   | "INVALID_ADDED_AT"
+  | "INVALID_ADDED_BY_EMAIL"
   | "INVALID_COLLECTION"
   | "INVALID_COLLECTION_POSITION"
   | "INVALID_NOW_SHOWING"
   | "INVALID_RATING"
+  | "INVALID_RATING_BY_EMAIL"
   | "INVALID_TMDB_ID"
   | "INVALID_TITLE"
   | "MULTIPLE_NOW_SHOWING"
@@ -45,11 +49,13 @@ export interface CatalogImportDiagnostic {
 
 export interface CatalogImportRating {
   phrase: string;
+  recordedByEmail: string | null;
   score: number;
 }
 
 export interface CatalogImportMovie {
   addedAt: string | null;
+  addedByEmail: string | null;
   collection: string | null;
   collectionPosition: number | null;
   rating: CatalogImportRating | null;
@@ -99,7 +105,7 @@ const isIsoTimestamp = (value: string) => {
 const parseRating = (
   scoreSource: string,
   phraseSource: string,
-): CatalogImportRating | null | undefined => {
+): Omit<CatalogImportRating, "recordedByEmail"> | null | undefined => {
   const scoreValue = scoreSource.trim();
   const phrase = phraseSource.trim();
   if (!scoreValue && !phrase) return null;
@@ -126,6 +132,14 @@ const parsePositiveInteger = (value: string) => {
   if (!/^\d+$/.test(value)) return null;
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const parseActorEmail = (value: string) => {
+  const email = value.trim().toLowerCase();
+  if (!email) return null;
+  return email.length <= 320 && /^[^\s@]+@[^\s@]+$/u.test(email)
+    ? email
+    : undefined;
 };
 
 const columnValue = (
@@ -198,10 +212,14 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
     const addedAtSource = columnValue(record, columns, "added_at").trim();
     const addedAt =
       addedAtSource && isIsoTimestamp(addedAtSource) ? addedAtSource : null;
-    const rating = parseRating(
+    const addedByEmailSource = columnValue(record, columns, "added_by_email");
+    const addedByEmail = parseActorEmail(addedByEmailSource);
+    const parsedRating = parseRating(
       columnValue(record, columns, "rating_score"),
       columnValue(record, columns, "rating_phrase"),
     );
+    const ratingByEmailSource = columnValue(record, columns, "rating_by_email");
+    const ratingByEmail = parseActorEmail(ratingByEmailSource);
     const collectionSource = columnValue(record, columns, "collection");
     const collection = collectionSource.trim() || null;
     const collectionPositionSource = columnValue(
@@ -226,8 +244,19 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
       diagnostics.push(diagnostic("INVALID_ADDED_AT", row));
       valid = false;
     }
-    if (rating === undefined) {
+    if (addedByEmail === undefined) {
+      diagnostics.push(diagnostic("INVALID_ADDED_BY_EMAIL", row));
+      valid = false;
+    }
+    if (parsedRating === undefined) {
       diagnostics.push(diagnostic("INVALID_RATING", row));
+      valid = false;
+    }
+    if (
+      ratingByEmail === undefined ||
+      (ratingByEmail !== null && parsedRating === null)
+    ) {
+      diagnostics.push(diagnostic("INVALID_RATING_BY_EMAIL", row));
       valid = false;
     }
     if (
@@ -253,13 +282,22 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
       valid = false;
     }
 
-    if (valid && rating !== undefined && nowShowing !== null) {
+    if (
+      valid &&
+      addedByEmail !== undefined &&
+      parsedRating !== undefined &&
+      ratingByEmail !== undefined &&
+      nowShowing !== null
+    ) {
       parsedRows.push({
         movie: {
           addedAt,
+          addedByEmail,
           collection,
           collectionPosition,
-          rating,
+          rating: parsedRating
+            ? { ...parsedRating, recordedByEmail: ratingByEmail }
+            : null,
           title,
           tmdbId,
         },
@@ -354,6 +392,11 @@ const sql = (value: string | number | null) => {
   if (typeof value === "number") return String(value);
   return `'${value.replaceAll("'", "''")}'`;
 };
+
+const actorSql = (email: string | null) =>
+  email === null
+    ? "NULL"
+    : `(SELECT id FROM users WHERE email = ${sql(email)})`;
 
 const MAX_INSERT_ROWS = 250;
 const MAX_INSERT_BYTES = 90_000;
@@ -463,7 +506,7 @@ export const buildCatalogImportPlan = (
   for (const movie of movies) {
     const movieId = movieIds.get(normalizeTitle(movie.title)) as string;
     movieRows.push(
-      `(${sql(movieId)}, ${sql(movie.title)}, ${sql(movie.addedAt ?? importedAt)}, NULL, ${sql(importedAt)}, ${sql(CATALOG_IMPORT_ACTOR)})`,
+      `(${sql(movieId)}, ${sql(movie.title)}, ${sql(movie.addedAt ?? importedAt)}, ${actorSql(movie.addedByEmail)}, ${sql(importedAt)}, ${sql(CATALOG_IMPORT_ACTOR)})`,
     );
     if (movie.tmdbId !== null) {
       tmdbRows.push(
@@ -513,7 +556,7 @@ export const buildCatalogImportPlan = (
     if (!movie.rating) continue;
     const movieId = movieIds.get(normalizeTitle(movie.title)) as string;
     ratingRows.push(
-      `(${sql(movieId)}, NULL, ${movie.rating.score}, ${sql(movie.rating.phrase)}, ${sql(importedAt)}, NULL)`,
+      `(${sql(movieId)}, NULL, ${movie.rating.score}, ${sql(movie.rating.phrase)}, ${sql(importedAt)}, ${actorSql(movie.rating.recordedByEmail)})`,
     );
   }
   statements.push(

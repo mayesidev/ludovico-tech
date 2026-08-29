@@ -19,8 +19,10 @@ complete valid import.
 | --------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | `title`               | Required; 1–200 characters                                          | Creates the movie title.                                                              |
 | `added_at`            | Optional ISO 8601 UTC timestamp                                     | Preserves a known library addition time. The explicit import time is used when blank. |
+| `added_by_email`      | Optional application-user email                                     | Attributes the original addition when that user already exists in the target.         |
 | `rating_score`        | Optional; paired with `rating_phrase`; 0–5 in half-point increments | Creates a rating and therefore marks the title watched.                               |
 | `rating_phrase`       | Optional; paired with `rating_score`; 1–120 characters              | Creates the rating phrase.                                                            |
+| `rating_by_email`     | Optional application-user email; requires a rating                  | Attributes the original rating when that user already exists in the target.           |
 | `collection`          | Optional; 1–200 characters                                          | Creates local collection membership.                                                  |
 | `collection_position` | Optional; requires `collection`                                     | Confirms collection order when every member has one unique contiguous position.       |
 | `tmdb_id`             | Optional positive integer; unique in the import                     | Creates only a TMDB link due for application-managed backfill.                        |
@@ -29,9 +31,12 @@ complete valid import.
 The importer rejects duplicate normalized titles, duplicate TMDB IDs, partial
 ratings, a watched or multiply selected Now Showing title, and partial or
 non-contiguous collection ordering. It does not accept IMDb IDs, prior-viewed
-flags, source provenance, provider metadata, users, sessions, source attribution
-actors, or unknown timestamps. Originating human fields remain null; rows that
-the importer materializes use `automation:catalog-import` for `updated_by`.
+flags, source provenance, provider metadata, users, sessions, or unknown
+timestamps. Actor emails are normalized and resolved to existing application
+users during execution; an absent or unresolved actor remains null. Users must
+sign in before import to be eligible for resolution. The importer never creates
+accounts. Rows that it materializes use `automation:catalog-import` for
+`updated_by`.
 
 ## Preflight and import
 
