@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { MovieDetail } from "../api";
 import { MovieDetailPage } from "./movie-detail-page";
@@ -28,7 +29,7 @@ const movie: MovieDetail = {
 };
 
 describe("movie details", () => {
-  it("shows attribution only to an authenticated user", () => {
+  it("shows collapsed attribution only to an authenticated user", async () => {
     const attributedMovie: MovieDetail = {
       ...movie,
       audit: {
@@ -52,6 +53,8 @@ describe("movie details", () => {
     const activity = screen.getByRole("region", {
       name: "Activity attribution",
     });
+    expect(activity).not.toBeVisible();
+    await userEvent.click(screen.getByText("History", { selector: "summary" }));
     expect(within(activity).getByText(/Adding User/)).toBeVisible();
     expect(within(activity).getByText(/Rating User/)).toBeVisible();
     expect(within(activity).getByText(/TMDB refresh automation/)).toBeVisible();
