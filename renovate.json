@@ -19,6 +19,18 @@
       "groupName": "Cloudflare development toolchain"
     },
     {
+      "description": "Keep ESLint peer-resolved tooling updates together",
+      "matchPackageNames": [
+        "@eslint/js",
+        "eslint",
+        "eslint-plugin-react-hooks",
+        "eslint-plugin-react-refresh",
+        "typescript-eslint"
+      ],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "ESLint toolchain"
+    },
+    {
       "description": "Upgrade the coupled semantic-release notes toolchain together",
       "matchPackageNames": [
         "@semantic-release/release-notes-generator",
