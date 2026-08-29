@@ -46,6 +46,7 @@ describe("movie details", () => {
       <MovieDetailPage
         canMutate
         movie={attributedMovie}
+        onEdit={vi.fn()}
         onNavigate={vi.fn()}
         returnTo="library"
       />,
@@ -53,8 +54,19 @@ describe("movie details", () => {
     const activity = screen.getByRole("region", {
       name: "Activity attribution",
     });
+    const history = screen.getByText("History", { selector: "summary" });
+    expect(
+      screen
+        .getByRole("link", { name: /View on IMDb/ })
+        .compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      history.compareDocumentPosition(
+        screen.getByRole("button", { name: "Edit Movie" }),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(activity).not.toBeVisible();
-    await userEvent.click(screen.getByText("History", { selector: "summary" }));
+    await userEvent.click(history);
     expect(within(activity).getByText(/Adding User/)).toBeVisible();
     expect(within(activity).getByText(/Rating User/)).toBeVisible();
     expect(within(activity).getByText(/TMDB refresh automation/)).toBeVisible();
@@ -222,7 +234,7 @@ describe("movie details", () => {
     }).parentElement;
     const actions = editButton.parentElement;
     expect(actions).not.toBe(providerLinks);
-    expect(actions?.previousElementSibling).toBe(providerLinks);
+    expect(actions?.parentElement?.previousElementSibling).toBe(providerLinks);
 
     editButton.click();
     expect(onEdit).toHaveBeenCalledWith(movie);

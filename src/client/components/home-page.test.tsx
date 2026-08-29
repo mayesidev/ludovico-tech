@@ -86,10 +86,16 @@ describe("home workflows", () => {
     });
     const user = userEvent.setup();
     const { rerender, props } = renderHome({ nowShowing: attributed });
-    expect(screen.getByText("History", { selector: "summary" })).toBeVisible();
+    const history = screen.getByText("History", { selector: "summary" });
+    expect(history).toBeVisible();
+    expect(
+      screen
+        .getByRole("button", { name: "Rate It" })
+        .compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(screen.getByText(/Selecting User/)).not.toBeVisible();
 
-    await user.click(screen.getByText("History", { selector: "summary" }));
+    await user.click(history);
     expect(screen.getByText(/Selecting User/)).toBeVisible();
     expect(screen.getByText(/Adding User/)).toBeVisible();
     expect(screen.getByText("Rolled at")).toBeVisible();
