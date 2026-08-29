@@ -69,7 +69,7 @@ const renderHome = (
 };
 
 describe("home workflows", () => {
-  it("shows roll and movie attribution only to an authenticated user", () => {
+  it("shows collapsed roll and movie attribution only to an authenticated user", async () => {
     const attributed = nowShowing({
       audit: {
         rolled: {
@@ -84,7 +84,12 @@ describe("home workflows", () => {
         },
       },
     });
+    const user = userEvent.setup();
     const { rerender, props } = renderHome({ nowShowing: attributed });
+    expect(screen.getByText("History", { selector: "summary" })).toBeVisible();
+    expect(screen.getByText(/Selecting User/)).not.toBeVisible();
+
+    await user.click(screen.getByText("History", { selector: "summary" }));
     expect(screen.getByText(/Selecting User/)).toBeVisible();
     expect(screen.getByText(/Adding User/)).toBeVisible();
     expect(screen.getByText("Rolled at")).toBeVisible();

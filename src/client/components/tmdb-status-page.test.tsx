@@ -174,6 +174,8 @@ describe("TMDB refresh status page", () => {
       screen.getByRole("columnheader", { name: /Status/ }),
     ).toHaveAttribute("aria-sort", "ascending");
     expect(screen.getByText("Current fetch contract:")).toBeVisible();
+    expect(screen.getByText(/TMDB refresh automation/)).not.toBeVisible();
+    fireEvent.click(screen.getByText("History", { selector: "summary" }));
     expect(screen.getByText(/TMDB refresh automation/)).toBeVisible();
     expect(
       screen.getByRole("columnheader", { name: "Fetch contract" }),

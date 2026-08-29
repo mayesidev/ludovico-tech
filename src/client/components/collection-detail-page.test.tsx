@@ -46,7 +46,7 @@ const run: RunAction = async (action, after) => {
 };
 
 describe("collection details", () => {
-  it("shows collection attribution only to an authenticated user", () => {
+  it("shows collapsed collection attribution only to an authenticated user", async () => {
     const audit = {
       created: { at: "2026-08-07T12:00:00.000Z", by: "Creating User" },
       updated: { at: "2026-08-08T12:00:00.000Z", by: "Updating User" },
@@ -64,6 +64,8 @@ describe("collection details", () => {
         run={run}
       />,
     );
+    expect(screen.getByText(/Creating User/)).not.toBeVisible();
+    await userEvent.click(screen.getByText("History", { selector: "summary" }));
     expect(screen.getByText(/Creating User/)).toBeVisible();
     expect(screen.getByText(/Updating User/)).toBeVisible();
 
