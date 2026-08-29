@@ -193,36 +193,11 @@ export function MovieDetailPage({
               )}
           </dl>
 
-          {canMutate && movie.audit && (
-            <AuditDetails
-              className="mt-6"
-              entries={[
-                { attribution: movie.audit.added, label: "Added" },
-                { attribution: movie.audit.updated, label: "Last updated" },
-                ...(watched
-                  ? [
-                      {
-                        attribution: movie.audit.rating,
-                        label: "Rating recorded",
-                      },
-                    ]
-                  : []),
-                ...(movie.tmdb_id !== null
-                  ? [
-                      {
-                        attribution: movie.audit.metadata,
-                        label: "Metadata updated",
-                      },
-                    ]
-                  : []),
-              ]}
-            />
-          )}
-
           {(movie.tmdb_id !== null ||
             movie.imdb_id !== null ||
             canEdit ||
-            canDelete) && (
+            canDelete ||
+            (canMutate && movie.audit)) && (
             <div className="mt-6 space-y-4">
               {(movie.tmdb_id !== null || movie.imdb_id !== null) && (
                 <div className="flex flex-wrap items-center gap-4">
@@ -250,19 +225,56 @@ export function MovieDetailPage({
                   )}
                 </div>
               )}
-              {(canEdit || canDelete) && (
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  {canEdit && (
-                    <Button onClick={() => onEdit(movie)} variant="secondary">
-                      <Pencil size={15} />
-                      Edit Movie
-                    </Button>
+              {(canEdit || canDelete || (canMutate && movie.audit)) && (
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  {canMutate && movie.audit && (
+                    <AuditDetails
+                      entries={[
+                        { attribution: movie.audit.added, label: "Added" },
+                        {
+                          attribution: movie.audit.updated,
+                          label: "Last updated",
+                        },
+                        ...(watched
+                          ? [
+                              {
+                                attribution: movie.audit.rating,
+                                label: "Rating recorded",
+                              },
+                            ]
+                          : []),
+                        ...(movie.tmdb_id !== null
+                          ? [
+                              {
+                                attribution: movie.audit.metadata,
+                                label: "Metadata updated",
+                              },
+                            ]
+                          : []),
+                      ]}
+                    />
                   )}
-                  {canDelete && (
-                    <Button onClick={() => onDelete(movie)} variant="danger">
-                      <Trash2 size={15} />
-                      Delete Movie
-                    </Button>
+                  {(canEdit || canDelete) && (
+                    <div className="ml-auto flex flex-wrap items-center gap-2">
+                      {canEdit && (
+                        <Button
+                          onClick={() => onEdit(movie)}
+                          variant="secondary"
+                        >
+                          <Pencil size={15} />
+                          Edit Movie
+                        </Button>
+                      )}
+                      {canDelete && (
+                        <Button
+                          onClick={() => onDelete(movie)}
+                          variant="danger"
+                        >
+                          <Trash2 size={15} />
+                          Delete Movie
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
               )}

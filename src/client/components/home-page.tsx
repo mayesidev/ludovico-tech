@@ -180,38 +180,6 @@ export function HomePage({
               </div>
             )}
 
-            {canMutate && nowShowing?.audit && (
-              <AuditDetails
-                className="mt-6"
-                entries={[
-                  {
-                    attribution: nowShowing.audit.rolled,
-                    label: "Rolled at",
-                  },
-                  ...(nowShowing.audit.movie
-                    ? [
-                        {
-                          attribution: nowShowing.audit.movie.added,
-                          label: "Movie added",
-                        },
-                        {
-                          attribution: nowShowing.audit.movie.updated,
-                          label: "Movie last updated",
-                        },
-                        {
-                          attribution: nowShowing.audit.movie.rating,
-                          label: "Rating recorded",
-                        },
-                        {
-                          attribution: nowShowing.audit.movie.metadata,
-                          label: "TMDB metadata updated",
-                        },
-                      ]
-                    : []),
-                ]}
-              />
-            )}
-
             {canMutate && nowShowing?.movie_id && !isWatched ? (
               <RatingForm busy={busy} movieId={nowShowing.movie_id} run={run} />
             ) : canMutate ? (
@@ -254,6 +222,38 @@ export function HomePage({
                     : "Sign In to Rate This Movie"}
                 </Button>
               </div>
+            )}
+
+            {canMutate && nowShowing?.audit && (
+              <AuditDetails
+                className="mt-6"
+                entries={[
+                  {
+                    attribution: nowShowing.audit.rolled,
+                    label: "Rolled at",
+                  },
+                  ...(nowShowing.audit.movie
+                    ? [
+                        {
+                          attribution: nowShowing.audit.movie.added,
+                          label: "Movie added",
+                        },
+                        {
+                          attribution: nowShowing.audit.movie.updated,
+                          label: "Movie last updated",
+                        },
+                        {
+                          attribution: nowShowing.audit.movie.rating,
+                          label: "Rating recorded",
+                        },
+                        {
+                          attribution: nowShowing.audit.movie.metadata,
+                          label: "TMDB metadata updated",
+                        },
+                      ]
+                    : []),
+                ]}
+              />
             )}
           </div>
         </div>

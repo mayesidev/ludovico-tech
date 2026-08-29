@@ -9,7 +9,6 @@ import {
 } from "../api";
 import type { Navigate } from "../types";
 import { AppLink } from "./app-link";
-import { AuditDetails } from "./audit-details";
 import { PaginationControls } from "./pagination-controls";
 import { Button, Card, Input } from "./ui";
 
@@ -550,18 +549,7 @@ export function TmdbStatusPage({
               Save schedule
             </Button>
           </form>
-          {schedule.audit && (
-            <AuditDetails
-              className="mt-4"
-              entries={[
-                {
-                  attribution: schedule.audit.updated,
-                  label: "Schedule last updated",
-                },
-              ]}
-            />
-          )}
-          <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-5">
+          <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-6">
             <div>
               <dt className="ui-label text-text-muted">Next run</dt>
               <dd className="mt-1 text-text-primary">
@@ -597,6 +585,21 @@ export function TmdbStatusPage({
                   : `${schedule.lastProcessingRowsRead.toLocaleString()} read, ${schedule.lastProcessingRowsWritten.toLocaleString()} written`}
               </dd>
             </div>
+            {schedule.audit &&
+              (schedule.audit.updated.at !== null ||
+                schedule.audit.updated.by !== null) && (
+                <div>
+                  <dt className="ui-label text-text-muted">
+                    Schedule last updated
+                  </dt>
+                  <dd className="mt-1 text-text-primary">
+                    {formatTimestamp(schedule.audit.updated.at)}
+                    {schedule.audit.updated.by
+                      ? ` · ${schedule.audit.updated.by}`
+                      : " · Unknown user"}
+                  </dd>
+                </div>
+              )}
           </dl>
           <p className="mt-3 text-xs text-text-muted">
             Refresh processing only; excludes scheduler, expiration maintenance,
