@@ -424,6 +424,9 @@ export default function App() {
           busy={busy}
           onAuthExpired={refreshAuth}
           onClose={() => setAddingMovie(false)}
+          onCreated={(movieId) =>
+            navigate(`/movies/${encodeURIComponent(movieId)}`)
+          }
           run={run}
         />
       )}
