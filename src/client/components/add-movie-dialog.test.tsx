@@ -1,11 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { api, ApiError, type Movie } from "../api";
+import { api, ApiError, type MovieDetail } from "../api";
 import type { RunAction } from "../types";
 import { AddMovieDialog } from "./add-movie-dialog";
 
-const movie: Movie = {
+const movie: MovieDetail = {
   added_at: "2026-08-07T00:00:00.000Z",
   collection_id: null,
   id: "added-id",
@@ -21,6 +21,8 @@ const movie: Movie = {
   title: "Matched Movie",
   tmdb_id: 42,
   watched_at: null,
+  cast: [],
+  directors: [],
 };
 
 const run: RunAction = async (action, after) => {
@@ -103,7 +105,39 @@ describe("add movie dialog", () => {
       versionRuntime: 112,
     });
     expect(onClose).toHaveBeenCalledOnce();
-    expect(onCreated).toHaveBeenCalledWith("added-id");
+    expect(onCreated).toHaveBeenCalledWith(movie);
+  });
+
+  it("shows that the movie is being added until its confirmed detail returns", async () => {
+    let confirmAdd!: (result: { movie: MovieDetail }) => void;
+    vi.spyOn(api, "addMovie").mockReturnValue(
+      new Promise((resolve) => {
+        confirmAdd = resolve;
+      }),
+    );
+    const onCreated = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <AddMovieDialog
+        busy={false}
+        onAuthExpired={vi.fn()}
+        onClose={vi.fn()}
+        onCreated={onCreated}
+        run={run}
+      />,
+    );
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Movie title" }),
+      "Pending Movie",
+    );
+    await user.click(screen.getByRole("button", { name: "Add Movie" }));
+
+    expect(screen.getByRole("button", { name: "Adding…" })).toBeDisabled();
+    expect(onCreated).not.toHaveBeenCalled();
+
+    confirmAdd({ movie });
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith(movie));
   });
 
   it("refreshes auth presentation when a TMDB search receives 401", async () => {

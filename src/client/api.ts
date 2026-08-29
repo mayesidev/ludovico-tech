@@ -324,7 +324,7 @@ export const api = {
     versionRuntime?: number | null;
     versionReferenceUrl?: string | null;
   }) =>
-    request<{ movie: Movie }>("/api/movies", {
+    request<{ movie: MovieDetail }>("/api/movies", {
       method: "POST",
       body: JSON.stringify(movie),
     }),

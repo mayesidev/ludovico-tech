@@ -15,6 +15,7 @@ import {
   ApiError,
   type AuthState,
   type Movie,
+  type MovieDetail,
   type NowShowing,
 } from "./api";
 import {
@@ -42,6 +43,8 @@ const movie: Movie = {
   tmdb_id: null,
   watched_at: null,
 };
+
+const movieDetail: MovieDetail = { ...movie, cast: [], directors: [] };
 
 const anonymous: AuthState = {
   user: null,
@@ -75,7 +78,7 @@ const currentNowShowing: NowShowing = {
 const arrange = (auth: AuthState) => {
   vi.spyOn(api, "authMe").mockResolvedValue(auth);
   vi.spyOn(api, "movie").mockResolvedValue({
-    movie: { ...movie, cast: [], directors: [] },
+    movie: movieDetail,
   });
   vi.spyOn(api, "library").mockResolvedValue({
     counts: { total: 1, unwatched: 1 },
@@ -193,7 +196,7 @@ describe("application authorization presentation", () => {
 
   it("opens the newly added movie's details", async () => {
     arrange(authenticated);
-    vi.spyOn(api, "addMovie").mockResolvedValue({ movie });
+    vi.spyOn(api, "addMovie").mockResolvedValue({ movie: movieDetail });
     const user = userEvent.setup();
     render(<App />);
 
@@ -214,6 +217,7 @@ describe("application authorization presentation", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "Test Movie" }),
     ).toBeVisible();
+    expect(api.movie).not.toHaveBeenCalled();
   });
 
   it("keeps add-movie failures visible and dismissible above the open dialog", async () => {

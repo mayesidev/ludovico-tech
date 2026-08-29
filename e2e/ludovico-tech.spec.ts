@@ -193,7 +193,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       .fill("Browser Editable Movie");
     await page.getByRole("button", { name: "Add Movie", exact: true }).click();
 
-    await page.getByRole("link", { name: "Library" }).click();
+    await page.getByRole("link", { name: "Library", exact: true }).click();
     await page
       .getByRole("link", { name: "Browser Editable Movie", exact: true })
       .click();
@@ -225,7 +225,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       .fill("Browser Deletion Candidate");
     await page.getByRole("button", { name: "Add Movie", exact: true }).click();
 
-    await page.getByRole("link", { name: "Library" }).click();
+    await page.getByRole("link", { name: "Library", exact: true }).click();
     await page
       .getByRole("link", { name: "Browser Deletion Candidate", exact: true })
       .click();

@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from "react";
-import { Plus, X } from "lucide-react";
-import { api } from "../api";
+import { LoaderCircle, Plus, X } from "lucide-react";
+import { api, type MovieDetail } from "../api";
 import {
   parseVersionReferenceUrl,
   parseVersionRuntime,
@@ -24,7 +24,7 @@ export function AddMovieDialog({
   busy: boolean;
   onAuthExpired: () => Promise<void>;
   onClose: () => void;
-  onCreated: (movieId: string) => void;
+  onCreated: (movie: MovieDetail) => void;
   run: RunAction;
 }) {
   const [title, setTitle] = useState("");
@@ -36,6 +36,7 @@ export function AddMovieDialog({
   const [versionRuntime, setVersionRuntime] = useState("");
   const [versionReferenceUrl, setVersionReferenceUrl] = useState("");
   const [attempted, setAttempted] = useState(false);
+  const [adding, setAdding] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const dialogTitleId = useId();
   const dialogDescriptionId = useId();
@@ -142,7 +143,10 @@ export function AddMovieDialog({
           </p>
           <Button
             disabled={
-              busy || parsedImdbId === undefined || parsedTmdbId === undefined
+              adding ||
+              busy ||
+              parsedImdbId === undefined ||
+              parsedTmdbId === undefined
             }
             onClick={() => {
               setAttempted(true);
@@ -156,31 +160,35 @@ export function AddMovieDialog({
                     parsedVersionReferenceUrl === undefined))
               )
                 return;
-              let createdMovieId: string | null = null;
-              void run(
-                async () => {
-                  const result = await api.addMovie({
-                    title,
-                    collectionName,
-                    imdbId: parsedImdbId,
-                    tmdbId: parsedTmdbId,
-                    version: usingVersion ? version.trim() : null,
-                    versionRuntime: usingVersion ? parsedVersionRuntime : null,
-                    versionReferenceUrl: usingVersion
-                      ? parsedVersionReferenceUrl
-                      : null,
-                  });
-                  createdMovieId = result.movie.id;
-                },
-                () => {
-                  onClose();
-                  if (createdMovieId) onCreated(createdMovieId);
-                },
-              );
+              let createdMovie: MovieDetail | null = null;
+              setAdding(true);
+              void run(async () => {
+                const result = await api.addMovie({
+                  title,
+                  collectionName,
+                  imdbId: parsedImdbId,
+                  tmdbId: parsedTmdbId,
+                  version: usingVersion ? version.trim() : null,
+                  versionRuntime: usingVersion ? parsedVersionRuntime : null,
+                  versionReferenceUrl: usingVersion
+                    ? parsedVersionReferenceUrl
+                    : null,
+                });
+                createdMovie = result.movie;
+              }).then(() => {
+                setAdding(false);
+                if (!createdMovie) return;
+                onCreated(createdMovie);
+                onClose();
+              });
             }}
           >
-            <Plus size={16} />
-            Add Movie
+            {adding ? (
+              <LoaderCircle className="animate-spin" size={16} />
+            ) : (
+              <Plus size={16} />
+            )}
+            {adding ? "Adding…" : "Add Movie"}
           </Button>
         </div>
       )}
