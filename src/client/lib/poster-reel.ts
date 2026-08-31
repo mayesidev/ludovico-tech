@@ -1,7 +1,6 @@
 import type { HomeMovie } from "../api";
 import { posterUrl } from "./utils";
 
-export const POSTER_REEL_DURATION_MS = 2400;
 export const POSTER_REVEAL_DURATION_MS = 1200;
 export const POSTER_REEL_INTERVAL_MS = 180;
 export const POSTER_REEL_LEAD_IN_MS = POSTER_REEL_INTERVAL_MS;
@@ -10,6 +9,9 @@ export const POSTER_REEL_LIMIT = 12;
 const POSTER_LOAD_TIMEOUT_MS = 2000;
 
 type PosterLoader = (url: string) => Promise<boolean>;
+
+export const posterReelDurationMs = (titleCount: number) =>
+  titleCount * POSTER_REEL_INTERVAL_MS;
 
 export const selectPosterReel = (
   movies: HomeMovie[],
