@@ -1,5 +1,6 @@
 import type { AppEnv } from "./env";
 import { attributionDisplayName } from "./attribution";
+import { sampleOffsetsWithoutReplacement } from "./random-sample";
 
 export type MovieRow = {
   id: string;
@@ -373,12 +374,30 @@ export const getWatchedHistory = async (env: AppEnv["Bindings"]) => {
      ORDER BY ratings.watched_at DESC, ratings.movie_id ASC
      LIMIT 1`,
   ).first<HomeMovieRow>();
-  const previous = await getRandomHomeMovieSlice(
-    env,
-    `ratings.movie_id IS NOT NULL${latest ? " AND movies.id <> ?" : ""}`,
-    latest ? [latest.id] : [],
+  const candidateCount = await env.DB.prepare(
+    `SELECT COUNT(*) AS count
+     FROM ratings${latest ? " WHERE movie_id <> ?" : ""}`,
+  )
+    .bind(...(latest ? [latest.id] : []))
+    .first<{ count: number }>();
+  const offsets = sampleOffsetsWithoutReplacement(
+    candidateCount?.count ?? 0,
     latest ? 3 : 4,
   );
+  const previous = offsets.length
+    ? (
+        await env.DB.batch<HomeMovieRow>(
+          offsets.map((offset) =>
+            env.DB.prepare(
+              `${homeMovieSelect}
+                 WHERE ratings.movie_id IS NOT NULL${latest ? " AND movies.id <> ?" : ""}
+                 ORDER BY ratings.movie_id ASC
+                 LIMIT 1 OFFSET ?`,
+            ).bind(...(latest ? [latest.id, offset] : [offset])),
+          ),
+        )
+      ).flatMap(({ results }) => results)
+    : [];
   return latest ? [latest, ...previous] : previous;
 };
 
