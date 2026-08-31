@@ -92,6 +92,60 @@ describe("catalog schema", () => {
     ).rejects.toThrow();
   });
 
+  it("keeps a dense candidate slot for every unwatched movie", async () => {
+    const movieIds = ["candidate-one", "candidate-two", "candidate-three"];
+    for (const movieId of movieIds) await insertMovie(movieId);
+
+    await env.DB.prepare(
+      `INSERT INTO ratings (movie_id, score, phrase)
+       VALUES (?, 4, 'Watched')`,
+    )
+      .bind(movieIds[1])
+      .run();
+    await env.DB.prepare("DELETE FROM movies WHERE id = ?")
+      .bind(movieIds[0])
+      .run();
+
+    expect(
+      (
+        await env.DB.prepare(
+          "SELECT slot, movie_id FROM roll_candidates ORDER BY slot",
+        ).all()
+      ).results,
+    ).toEqual([{ slot: 1, movie_id: movieIds[2] }]);
+
+    await env.DB.prepare("DELETE FROM ratings WHERE movie_id = ?")
+      .bind(movieIds[1])
+      .run();
+    expect(
+      (
+        await env.DB.prepare(
+          "SELECT slot, movie_id FROM roll_candidates ORDER BY slot",
+        ).all()
+      ).results,
+    ).toEqual([
+      { slot: 1, movie_id: movieIds[2] },
+      { slot: 2, movie_id: movieIds[1] },
+    ]);
+
+    await env.DB.prepare(
+      `INSERT INTO ratings (movie_id, score, phrase)
+       VALUES (?, 4, 'Watched again')`,
+    )
+      .bind(movieIds[1])
+      .run();
+    await env.DB.prepare("DELETE FROM movies WHERE id = ?")
+      .bind(movieIds[1])
+      .run();
+    expect(
+      (
+        await env.DB.prepare(
+          "SELECT slot, movie_id FROM roll_candidates ORDER BY slot",
+        ).all()
+      ).results,
+    ).toEqual([{ slot: 1, movie_id: movieIds[2] }]);
+  });
+
   it("keeps version details attached to a TMDB movie and a named version", async () => {
     await insertMovie("movie-valid-version");
     await insertTmdbLink("movie-valid-version", 42);

@@ -330,35 +330,29 @@ const homeMovieSelect = `
   LEFT JOIN ratings ON ratings.movie_id = movies.id
 `;
 
-const getRandomMovieRows = async <Row>(
+const getRandomRollCandidateRows = async <Row>(
   env: AppEnv["Bindings"],
   select: string,
-  eligibility: string,
   limit: number,
   randomIndex?: (upperBound: number) => number,
 ) => {
   const row = await env.DB.prepare(
-    "SELECT MAX(rowid) AS max_rowid FROM movies",
-  ).first<{ max_rowid: number | null }>();
-  const sampleIndex = createRandomIndexSampler(
-    row?.max_rowid ?? 0,
-    randomIndex,
-  );
+    "SELECT MAX(slot) AS max_slot FROM roll_candidates",
+  ).first<{ max_slot: number | null }>();
+  const sampleIndex = createRandomIndexSampler(row?.max_slot ?? 0, randomIndex);
   const selected: Row[] = [];
 
   while (selected.length < limit) {
-    const rowIds: number[] = [];
-    while (rowIds.length < limit - selected.length) {
+    const slots: number[] = [];
+    while (slots.length < limit - selected.length) {
       const index = sampleIndex();
       if (index === null) break;
-      rowIds.push(index + 1);
+      slots.push(index + 1);
     }
-    if (rowIds.length === 0) break;
+    if (slots.length === 0) break;
     const sampled = await env.DB.batch<Row>(
-      rowIds.map((rowId) =>
-        env.DB.prepare(
-          `${select} WHERE movies.rowid = ? AND (${eligibility})`,
-        ).bind(rowId),
+      slots.map((slot) =>
+        env.DB.prepare(`${select} WHERE roll_candidates.slot = ?`).bind(slot),
       ),
     );
     selected.push(...sampled.flatMap(({ results }) => results));
@@ -421,13 +415,13 @@ export const getRandomUnwatchedMovie = async (
 ) => {
   const select = `SELECT movies.id, movies.title,
       collection_movies.collection_id
-    FROM movies
+    FROM roll_candidates
+    JOIN movies ON movies.id = roll_candidates.movie_id
     LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
-    LEFT JOIN ratings ON ratings.movie_id = movies.id`;
-  const [movie] = await getRandomMovieRows<RandomMovieRow>(
+  `;
+  const [movie] = await getRandomRollCandidateRows<RandomMovieRow>(
     env,
     select,
-    "ratings.movie_id IS NULL",
     1,
     randomIndex,
   );
@@ -438,22 +432,15 @@ export const getPosterReelMovies = async (
   env: AppEnv["Bindings"],
   randomIndex?: (upperBound: number) => number,
 ) => {
-  const withPosters = await getRandomMovieRows<HomeMovieRow>(
-    env,
-    homeMovieSelect,
-    "movie_tmdb_data.poster_path IS NOT NULL",
-    12,
-    randomIndex,
-  );
-  return withPosters.length > 0
-    ? withPosters
-    : getRandomMovieRows<HomeMovieRow>(
-        env,
-        homeMovieSelect,
-        "1 = 1",
-        12,
-        randomIndex,
-      );
+  const select = `
+    SELECT movies.id, movies.title, movies.version,
+      movie_tmdb_data.poster_path,
+      NULL AS rating_score, NULL AS rating_phrase, NULL AS watched_at
+    FROM roll_candidates
+    JOIN movies ON movies.id = roll_candidates.movie_id
+    LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
+  `;
+  return getRandomRollCandidateRows<HomeMovieRow>(env, select, 12, randomIndex);
 };
 
 export const hasRemainingCollectionMovie = async (

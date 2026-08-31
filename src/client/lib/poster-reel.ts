@@ -16,9 +16,7 @@ export const selectPosterReel = (
   random: () => number = Math.random,
   limit = POSTER_REEL_LIMIT,
 ) => {
-  const moviesWithPosters = movies.filter((movie) => movie.poster_path);
-  const candidates = moviesWithPosters.length > 0 ? moviesWithPosters : movies;
-  const shuffled = [...candidates];
+  const shuffled = [...movies];
 
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
     const swapIndex = Math.floor(random() * (index + 1));

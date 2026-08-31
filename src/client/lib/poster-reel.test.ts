@@ -31,7 +31,7 @@ afterEach(() => {
 });
 
 describe("random poster reel", () => {
-  it("shuffles unique local catalog posters without requesting provider data", () => {
+  it("shuffles unique local titles regardless of poster availability", () => {
     const reel = selectPosterReel(
       [
         movie("one", "/one.jpg"),
@@ -41,7 +41,7 @@ describe("random poster reel", () => {
       () => 0,
     );
 
-    expect(reel.map((entry) => entry.id)).toEqual(["two", "one"]);
+    expect(reel.map((entry) => entry.id)).toEqual(["two", "missing", "one"]);
     expect(new Set(reel.map((entry) => entry.id)).size).toBe(reel.length);
   });
 
