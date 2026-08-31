@@ -203,10 +203,8 @@ describe("D1 index alignment", () => {
       `SELECT movies.id
        FROM movies
        LEFT JOIN ratings ON ratings.movie_id = movies.id
-       WHERE ratings.movie_id IS NOT NULL AND movies.id <> ?
-       ORDER BY ratings.movie_id ASC
-       LIMIT 1 OFFSET ?`,
-      ["latest-id", 1],
+       WHERE ratings.rowid = ?`,
+      [1],
     );
 
     expect(randomPlan).toContain(
@@ -216,7 +214,7 @@ describe("D1 index alignment", () => {
       "SEARCH ratings USING COVERING INDEX idx_ratings_watched_history (watched_at>?)",
     );
     expect(historySamplePlan).toContain(
-      "SCAN ratings USING COVERING INDEX sqlite_autoindex_ratings_1",
+      "SEARCH ratings USING INTEGER PRIMARY KEY (rowid=?)",
     );
     expect(
       [...randomPlan, ...historyPlan, ...historySamplePlan].some((detail) =>

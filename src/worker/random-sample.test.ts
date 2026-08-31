@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sampleOffsetsWithoutReplacement } from "./random-sample";
+import { createRandomIndexSampler } from "./random-sample";
 
 describe("random sampling without replacement", () => {
   it("draws independent unique offsets instead of an adjacent slice", () => {
@@ -9,13 +9,14 @@ describe("random sampling without replacement", () => {
       expect(value).toBeLessThan(upperBound);
       return value;
     };
+    const sample = createRandomIndexSampler(8, randomIndex);
 
-    expect(sampleOffsetsWithoutReplacement(8, 3, randomIndex)).toEqual([
-      0, 3, 4,
-    ]);
+    expect([sample(), sample(), sample()]).toEqual([0, 3, 4]);
   });
 
-  it("returns every available offset when the requested sample is larger", () => {
-    expect(sampleOffsetsWithoutReplacement(2, 3, () => 0)).toEqual([0, 1]);
+  it("exhausts every available offset exactly once", () => {
+    const sample = createRandomIndexSampler(2, () => 0);
+
+    expect([sample(), sample(), sample()]).toEqual([0, 1, null]);
   });
 });
