@@ -199,6 +199,15 @@ describe("D1 index alignment", () => {
        ORDER BY ratings.watched_at DESC, ratings.movie_id ASC
        LIMIT 1`,
     );
+    const historySamplePlan = await queryPlan(
+      `SELECT movies.id
+       FROM movies
+       LEFT JOIN ratings ON ratings.movie_id = movies.id
+       WHERE ratings.movie_id IS NOT NULL AND movies.id <> ?
+       ORDER BY ratings.movie_id ASC
+       LIMIT 1 OFFSET ?`,
+      ["latest-id", 1],
+    );
 
     expect(randomPlan).toContain(
       "SEARCH movies USING INTEGER PRIMARY KEY (rowid>?)",
@@ -206,8 +215,11 @@ describe("D1 index alignment", () => {
     expect(historyPlan).toContain(
       "SEARCH ratings USING COVERING INDEX idx_ratings_watched_history (watched_at>?)",
     );
+    expect(historySamplePlan).toContain(
+      "SCAN ratings USING COVERING INDEX sqlite_autoindex_ratings_1",
+    );
     expect(
-      [...randomPlan, ...historyPlan].some((detail) =>
+      [...randomPlan, ...historyPlan, ...historySamplePlan].some((detail) =>
         detail.includes("TEMP B-TREE"),
       ),
     ).toBe(false);
