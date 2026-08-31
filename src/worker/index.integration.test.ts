@@ -101,7 +101,10 @@ describe("Ludovico Tech Worker routes", () => {
     expect(home.body.hasNextCollectionMovie).toBe(false);
     expect(home.body.watchedMovies).toHaveLength(4);
     expect(home.body.watchedMovies[0].id).toBe(movies[5].id);
-    expect(home.body.posterReelMovies).toHaveLength(12);
+    expect(home.body.posterReelMovies).toHaveLength(10);
+    expect(new Set(home.body.posterReelMovies.map(({ id }) => id))).toEqual(
+      new Set(movies.slice(6).map(({ id }) => id)),
+    );
   });
 
   it("retries a random rating row gap without duplicating titles", async () => {
@@ -143,7 +146,7 @@ describe("Ludovico Tech Worker routes", () => {
     ]);
   });
 
-  it("rejects missing and watched movie rows when randomly rolling", async () => {
+  it("rolls one exact slot from the dense unwatched pool", async () => {
     const movies = Array.from({ length: 4 }, (_, index) => ({
       id: `roll-sample-${index}`,
       title: `Roll Sample ${index}`,
@@ -165,19 +168,18 @@ describe("Ludovico Tech Worker routes", () => {
     )
       .bind(movies[0].id)
       .run();
-    const values = [1, 0, 0];
+    const upperBounds: number[] = [];
 
     const rolled = await getRandomUnwatchedMovie(env, (upperBound) => {
-      const value = values.shift() ?? 0;
-      expect(value).toBeLessThan(upperBound);
-      return value;
+      upperBounds.push(upperBound);
+      return 0;
     });
 
     expect(rolled).toMatchObject({ id: movies[2].id, title: movies[2].title });
-    expect(values).toEqual([]);
+    expect(upperBounds).toEqual([2]);
   });
 
-  it("samples distinct poster reel titles with exact movie row lookups", async () => {
+  it("samples distinct unwatched reel titles with exact candidate slots", async () => {
     const movies = Array.from({ length: 13 }, (_, index) => ({
       id: `poster-sample-${index}`,
       title: `Poster Sample ${index}`,
@@ -196,6 +198,10 @@ describe("Ludovico Tech Worker routes", () => {
            VALUES (?, ?, ?, '1970-01-01T00:00:00.000Z')`,
         ).bind(movie.id, 20_000 + index, `/poster-${index}.jpg`),
       ),
+      env.DB.prepare(
+        `INSERT INTO ratings (movie_id, watched_at, score, phrase)
+         VALUES (?, '2026-08-02T00:00:00.000Z', 4, 'Watched')`,
+      ).bind(movies[0].id),
     ]);
 
     const reel = await getPosterReelMovies(env, () => 0);
@@ -208,19 +214,21 @@ describe("Ludovico Tech Worker routes", () => {
       await env.DB.prepare(
         `EXPLAIN QUERY PLAN
          SELECT movies.id
-         FROM movies
+         FROM roll_candidates
+         JOIN movies ON movies.id = roll_candidates.movie_id
          LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
-         WHERE movies.rowid = ?
-           AND movie_tmdb_data.poster_path IS NOT NULL`,
+         WHERE roll_candidates.slot = ?`,
       )
         .bind(1)
         .all<{ detail: string }>()
     ).results.map(({ detail }) => detail);
-    expect(plan).toContain("SEARCH movies USING INTEGER PRIMARY KEY (rowid=?)");
+    expect(plan).toContain(
+      "SEARCH roll_candidates USING INTEGER PRIMARY KEY (rowid=?)",
+    );
     expect(plan.some((detail) => detail.includes("TEMP B-TREE"))).toBe(false);
   });
 
-  it("falls back to posterless titles when building the roll reel", async () => {
+  it("includes posterless titles in the random roll reel", async () => {
     const movies = Array.from({ length: 3 }, (_, index) => ({
       id: `poster-fallback-${index}`,
       title: `Poster Fallback ${index}`,
