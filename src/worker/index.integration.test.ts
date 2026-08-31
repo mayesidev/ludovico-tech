@@ -1,6 +1,10 @@
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { getWatchedHistory } from "./db";
+import {
+  getPosterReelMovies,
+  getRandomUnwatchedMovie,
+  getWatchedHistory,
+} from "./db";
 
 const worker = exports.default;
 
@@ -137,6 +141,105 @@ describe("Ludovico Tech Worker routes", () => {
       movies[3].id,
       movies[5].id,
     ]);
+  });
+
+  it("rejects missing and watched movie rows when randomly rolling", async () => {
+    const movies = Array.from({ length: 4 }, (_, index) => ({
+      id: `roll-sample-${index}`,
+      title: `Roll Sample ${index}`,
+    }));
+    await env.DB.batch(
+      movies.map((movie) =>
+        env.DB.prepare(
+          `INSERT INTO movies (id, title, added_at)
+           VALUES (?, ?, '2026-08-01T00:00:00.000Z')`,
+        ).bind(movie.id, movie.title),
+      ),
+    );
+    await env.DB.prepare("DELETE FROM movies WHERE id = ?")
+      .bind(movies[1].id)
+      .run();
+    await env.DB.prepare(
+      `INSERT INTO ratings (movie_id, watched_at, score, phrase)
+       VALUES (?, '2026-08-02T00:00:00.000Z', 4, 'Watched')`,
+    )
+      .bind(movies[0].id)
+      .run();
+    const values = [1, 0, 0];
+
+    const rolled = await getRandomUnwatchedMovie(env, (upperBound) => {
+      const value = values.shift() ?? 0;
+      expect(value).toBeLessThan(upperBound);
+      return value;
+    });
+
+    expect(rolled).toMatchObject({ id: movies[2].id, title: movies[2].title });
+    expect(values).toEqual([]);
+  });
+
+  it("samples distinct poster reel titles with exact movie row lookups", async () => {
+    const movies = Array.from({ length: 13 }, (_, index) => ({
+      id: `poster-sample-${index}`,
+      title: `Poster Sample ${index}`,
+    }));
+    await env.DB.batch([
+      ...movies.map((movie) =>
+        env.DB.prepare(
+          `INSERT INTO movies (id, title, added_at)
+           VALUES (?, ?, '2026-08-01T00:00:00.000Z')`,
+        ).bind(movie.id, movie.title),
+      ),
+      ...movies.slice(1).map((movie, index) =>
+        env.DB.prepare(
+          `INSERT INTO movie_tmdb_data
+           (movie_id, tmdb_id, poster_path, refresh_after)
+           VALUES (?, ?, ?, '1970-01-01T00:00:00.000Z')`,
+        ).bind(movie.id, 20_000 + index, `/poster-${index}.jpg`),
+      ),
+    ]);
+
+    const reel = await getPosterReelMovies(env, () => 0);
+
+    expect(reel).toHaveLength(12);
+    expect(new Set(reel.map(({ id }) => id))).toEqual(
+      new Set(movies.slice(1).map(({ id }) => id)),
+    );
+    const plan = (
+      await env.DB.prepare(
+        `EXPLAIN QUERY PLAN
+         SELECT movies.id
+         FROM movies
+         LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
+         WHERE movies.rowid = ?
+           AND movie_tmdb_data.poster_path IS NOT NULL`,
+      )
+        .bind(1)
+        .all<{ detail: string }>()
+    ).results.map(({ detail }) => detail);
+    expect(plan).toContain("SEARCH movies USING INTEGER PRIMARY KEY (rowid=?)");
+    expect(plan.some((detail) => detail.includes("TEMP B-TREE"))).toBe(false);
+  });
+
+  it("falls back to posterless titles when building the roll reel", async () => {
+    const movies = Array.from({ length: 3 }, (_, index) => ({
+      id: `poster-fallback-${index}`,
+      title: `Poster Fallback ${index}`,
+    }));
+    await env.DB.batch(
+      movies.map((movie) =>
+        env.DB.prepare(
+          `INSERT INTO movies (id, title, added_at)
+           VALUES (?, ?, '2026-08-01T00:00:00.000Z')`,
+        ).bind(movie.id, movie.title),
+      ),
+    );
+
+    const reel = await getPosterReelMovies(env, () => 0);
+
+    expect(reel.map(({ id }) => id)).toHaveLength(3);
+    expect(new Set(reel.map(({ id }) => id))).toEqual(
+      new Set(movies.map(({ id }) => id)),
+    );
   });
 
   it("suggests existing collection names from partial input", async () => {
