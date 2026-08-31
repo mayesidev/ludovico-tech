@@ -1,8 +1,8 @@
 import type { HomeMovie } from "../api";
 import { posterUrl } from "./utils";
 
-export const POSTER_REVEAL_DURATION_MS = 1200;
-export const POSTER_REEL_INTERVAL_MS = 180;
+export const POSTER_REVEAL_DURATION_MS = 1500;
+export const POSTER_REEL_INTERVAL_MS = 200;
 export const POSTER_REEL_LEAD_IN_MS = POSTER_REEL_INTERVAL_MS;
 export const POSTER_REEL_IMAGE_WIDTH = 342;
 export const POSTER_REEL_LIMIT = 12;
