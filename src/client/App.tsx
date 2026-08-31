@@ -30,10 +30,10 @@ import { parseRoute } from "./route";
 import type { RunAction, Tab } from "./types";
 import { formatMovieTitle } from "./lib/utils";
 import {
-  POSTER_REEL_DURATION_MS,
   POSTER_REEL_LEAD_IN_MS,
   POSTER_REEL_LIMIT,
   POSTER_REVEAL_DURATION_MS,
+  posterReelDurationMs,
   preloadPosterPath,
   preloadPosterReel,
   selectPosterReel,
@@ -273,7 +273,7 @@ export default function App() {
         setRollReveal((current) => (current ? { ...current, reel } : current));
         const [posterPath] = await Promise.all([
           preloadPosterPath(result.nowShowing.poster_path),
-          wait(POSTER_REEL_DURATION_MS),
+          wait(posterReelDurationMs(reel.length)),
         ]);
         const selected = {
           posterPath,

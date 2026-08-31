@@ -173,6 +173,11 @@ describe("random selection reveal", () => {
     expect(
       screen.queryByText("Movie two", { selector: ".sr-only" }),
     ).toBeNull();
+
+    act(() => vi.advanceTimersByTime(POSTER_REEL_INTERVAL_MS));
+
+    expect(screen.getByAltText("Poster for Movie two")).toBeInTheDocument();
+    expect(screen.queryByAltText("Poster for Movie one")).toBeNull();
   });
 
   it("announces and displays the actual Now Showing result", () => {

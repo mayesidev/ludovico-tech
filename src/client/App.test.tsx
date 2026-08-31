@@ -19,9 +19,9 @@ import {
   type NowShowing,
 } from "./api";
 import {
-  POSTER_REEL_DURATION_MS,
   POSTER_REEL_LEAD_IN_MS,
   POSTER_REVEAL_DURATION_MS,
+  posterReelDurationMs,
 } from "./lib/poster-reel";
 
 const movie: Movie = {
@@ -336,7 +336,7 @@ describe("application authorization presentation", () => {
       "https://image.tmdb.org/t/p/w342/reel.jpg",
     );
     await act(async () => {
-      vi.advanceTimersByTime(POSTER_REEL_DURATION_MS);
+      vi.advanceTimersByTime(posterReelDurationMs(1));
       await Promise.resolve();
     });
     const reveal = screen.getByRole("status");

@@ -216,7 +216,7 @@ export function RollReveal({
     )
       return;
     const interval = window.setInterval(
-      () => setReelIndex((index) => (index + 1) % reel.length),
+      () => setReelIndex((index) => Math.min(index + 1, reel.length - 1)),
       POSTER_REEL_INTERVAL_MS,
     );
     return () => window.clearInterval(interval);

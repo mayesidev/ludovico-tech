@@ -4,6 +4,7 @@ import {
   POSTER_REEL_IMAGE_WIDTH,
   preloadPosterPath,
   preloadPosterReel,
+  posterReelDurationMs,
   selectPosterReel,
 } from "./poster-reel";
 
@@ -31,6 +32,11 @@ afterEach(() => {
 });
 
 describe("random poster reel", () => {
+  it("gives every prepared title one complete display interval", () => {
+    expect(posterReelDurationMs(12)).toBe(2160);
+    expect(posterReelDurationMs(3)).toBe(540);
+  });
+
   it("shuffles unique local titles regardless of poster availability", () => {
     const reel = selectPosterReel(
       [
