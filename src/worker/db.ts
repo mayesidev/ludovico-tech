@@ -330,41 +330,40 @@ const homeMovieSelect = `
   LEFT JOIN ratings ON ratings.movie_id = movies.id
 `;
 
-const getRandomMovieRowId = async (env: AppEnv["Bindings"]) => {
+const getRandomMovieRows = async <Row>(
+  env: AppEnv["Bindings"],
+  select: string,
+  eligibility: string,
+  limit: number,
+  randomIndex?: (upperBound: number) => number,
+) => {
   const row = await env.DB.prepare(
     "SELECT MAX(rowid) AS max_rowid FROM movies",
   ).first<{ max_rowid: number | null }>();
-  if (!row?.max_rowid) return null;
-  const value = crypto.getRandomValues(new Uint32Array(1))[0] ?? 0;
-  return 1 + Math.floor((value / 0x1_0000_0000) * row.max_rowid);
-};
+  const sampleIndex = createRandomIndexSampler(
+    row?.max_rowid ?? 0,
+    randomIndex,
+  );
+  const selected: Row[] = [];
 
-const getRandomHomeMovieSlice = async (
-  env: AppEnv["Bindings"],
-  predicate: string,
-  bindings: Array<string | number>,
-  limit: number,
-) => {
-  const pivot = await getRandomMovieRowId(env);
-  if (pivot === null) return [];
-  const afterPivot = await env.DB.prepare(
-    `${homeMovieSelect}
-     WHERE ${predicate} AND movies.rowid >= ?
-     ORDER BY movies.rowid ASC
-     LIMIT ?`,
-  )
-    .bind(...bindings, pivot, limit)
-    .all<HomeMovieRow>();
-  if (afterPivot.results.length >= limit) return afterPivot.results;
-  const beforePivot = await env.DB.prepare(
-    `${homeMovieSelect}
-     WHERE ${predicate} AND movies.rowid < ?
-     ORDER BY movies.rowid ASC
-     LIMIT ?`,
-  )
-    .bind(...bindings, pivot, limit - afterPivot.results.length)
-    .all<HomeMovieRow>();
-  return [...afterPivot.results, ...beforePivot.results];
+  while (selected.length < limit) {
+    const rowIds: number[] = [];
+    while (rowIds.length < limit - selected.length) {
+      const index = sampleIndex();
+      if (index === null) break;
+      rowIds.push(index + 1);
+    }
+    if (rowIds.length === 0) break;
+    const sampled = await env.DB.batch<Row>(
+      rowIds.map((rowId) =>
+        env.DB.prepare(
+          `${select} WHERE movies.rowid = ? AND (${eligibility})`,
+        ).bind(rowId),
+      ),
+    );
+    selected.push(...sampled.flatMap(({ results }) => results));
+  }
+  return selected;
 };
 
 export const getWatchedHistory = async (
@@ -416,41 +415,45 @@ export const getWatchedHistory = async (
   return latest ? [latest, ...previous] : previous;
 };
 
-export const getRandomUnwatchedMovie = async (env: AppEnv["Bindings"]) => {
-  const pivot = await getRandomMovieRowId(env);
-  if (pivot === null) return null;
+export const getRandomUnwatchedMovie = async (
+  env: AppEnv["Bindings"],
+  randomIndex?: (upperBound: number) => number,
+) => {
   const select = `SELECT movies.id, movies.title,
       collection_movies.collection_id
     FROM movies
     LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
     LEFT JOIN ratings ON ratings.movie_id = movies.id`;
-  const afterPivot = await env.DB.prepare(
-    `${select}
-     WHERE ratings.movie_id IS NULL AND movies.rowid >= ?
-     ORDER BY movies.rowid ASC LIMIT 1`,
-  )
-    .bind(pivot)
-    .first<RandomMovieRow>();
-  if (afterPivot) return afterPivot;
-  return env.DB.prepare(
-    `${select}
-     WHERE ratings.movie_id IS NULL AND movies.rowid < ?
-     ORDER BY movies.rowid ASC LIMIT 1`,
-  )
-    .bind(pivot)
-    .first<RandomMovieRow>();
+  const [movie] = await getRandomMovieRows<RandomMovieRow>(
+    env,
+    select,
+    "ratings.movie_id IS NULL",
+    1,
+    randomIndex,
+  );
+  return movie ?? null;
 };
 
-export const getPosterReelMovies = async (env: AppEnv["Bindings"]) => {
-  const withPosters = await getRandomHomeMovieSlice(
+export const getPosterReelMovies = async (
+  env: AppEnv["Bindings"],
+  randomIndex?: (upperBound: number) => number,
+) => {
+  const withPosters = await getRandomMovieRows<HomeMovieRow>(
     env,
+    homeMovieSelect,
     "movie_tmdb_data.poster_path IS NOT NULL",
-    [],
     12,
+    randomIndex,
   );
   return withPosters.length > 0
     ? withPosters
-    : getRandomHomeMovieSlice(env, "1 = 1", [], 12);
+    : getRandomMovieRows<HomeMovieRow>(
+        env,
+        homeMovieSelect,
+        "1 = 1",
+        12,
+        randomIndex,
+      );
 };
 
 export const hasRemainingCollectionMovie = async (
