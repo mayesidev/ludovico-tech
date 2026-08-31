@@ -33,8 +33,8 @@ afterEach(() => {
 
 describe("random poster reel", () => {
   it("gives every prepared title one complete display interval", () => {
-    expect(posterReelDurationMs(12)).toBe(2160);
-    expect(posterReelDurationMs(3)).toBe(540);
+    expect(posterReelDurationMs(12)).toBe(2400);
+    expect(posterReelDurationMs(3)).toBe(600);
   });
 
   it("shuffles unique local titles regardless of poster availability", () => {
