@@ -1,6 +1,6 @@
 import type { AppEnv } from "./env";
 import { attributionDisplayName } from "./attribution";
-import { sampleOffsetsWithoutReplacement } from "./random-sample";
+import { createRandomIndexSampler } from "./random-sample";
 
 export type MovieRow = {
   id: string;
@@ -367,37 +367,52 @@ const getRandomHomeMovieSlice = async (
   return [...afterPivot.results, ...beforePivot.results];
 };
 
-export const getWatchedHistory = async (env: AppEnv["Bindings"]) => {
+export const getWatchedHistory = async (
+  env: AppEnv["Bindings"],
+  randomIndex?: (upperBound: number) => number,
+) => {
   const latest = await env.DB.prepare(
     `${homeMovieSelect}
      WHERE ratings.movie_id IS NOT NULL AND ratings.watched_at IS NOT NULL
      ORDER BY ratings.watched_at DESC, ratings.movie_id ASC
      LIMIT 1`,
   ).first<HomeMovieRow>();
-  const candidateCount = await env.DB.prepare(
-    `SELECT COUNT(*) AS count
-     FROM ratings${latest ? " WHERE movie_id <> ?" : ""}`,
+  const bounds = await env.DB.prepare(
+    `SELECT MAX(rowid) AS max_row_id,
+       (SELECT rowid FROM ratings WHERE movie_id = ?) AS excluded_row_id
+     FROM ratings`,
   )
-    .bind(...(latest ? [latest.id] : []))
-    .first<{ count: number }>();
-  const offsets = sampleOffsetsWithoutReplacement(
-    candidateCount?.count ?? 0,
-    latest ? 3 : 4,
+    .bind(latest?.id ?? null)
+    .first<{ excluded_row_id: number | null; max_row_id: number | null }>();
+  const excludedRowId = bounds?.excluded_row_id ?? null;
+  const populationSize = Math.max(
+    0,
+    (bounds?.max_row_id ?? 0) - (excludedRowId === null ? 0 : 1),
   );
-  const previous = offsets.length
-    ? (
-        await env.DB.batch<HomeMovieRow>(
-          offsets.map((offset) =>
-            env.DB.prepare(
-              `${homeMovieSelect}
-                 WHERE ratings.movie_id IS NOT NULL${latest ? " AND movies.id <> ?" : ""}
-                 ORDER BY ratings.movie_id ASC
-                 LIMIT 1 OFFSET ?`,
-            ).bind(...(latest ? [latest.id, offset] : [offset])),
-          ),
-        )
-      ).flatMap(({ results }) => results)
-    : [];
+  const limit = latest ? 3 : 4;
+  const sampleIndex = createRandomIndexSampler(populationSize, randomIndex);
+  const previous: HomeMovieRow[] = [];
+
+  while (previous.length < limit) {
+    const rowIds: number[] = [];
+    while (rowIds.length < limit - previous.length) {
+      const index = sampleIndex();
+      if (index === null) break;
+      const rowId = index + 1;
+      rowIds.push(
+        excludedRowId !== null && rowId >= excludedRowId ? rowId + 1 : rowId,
+      );
+    }
+    if (rowIds.length === 0) break;
+    const sampled = await env.DB.batch<HomeMovieRow>(
+      rowIds.map((rowId) =>
+        env.DB.prepare(`${homeMovieSelect} WHERE ratings.rowid = ?`).bind(
+          rowId,
+        ),
+      ),
+    );
+    previous.push(...sampled.flatMap(({ results }) => results));
+  }
   return latest ? [latest, ...previous] : previous;
 };
 

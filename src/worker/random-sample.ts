@@ -10,24 +10,21 @@ const secureRandomIndex: RandomIndex = (upperBound) => {
   return value % upperBound;
 };
 
-export const sampleOffsetsWithoutReplacement = (
+export const createRandomIndexSampler = (
   populationSize: number,
-  sampleSize: number,
   randomIndex: RandomIndex = secureRandomIndex,
 ) => {
-  const selected: number[] = [];
   const swaps = new Map<number, number>();
-  const size = Math.min(populationSize, sampleSize);
+  let remaining = populationSize;
 
-  for (let index = 0; index < size; index += 1) {
-    const remaining = populationSize - index;
+  return () => {
+    if (remaining === 0) return null;
     const pickedOffset = randomIndex(remaining);
     const selectedOffset = swaps.get(pickedOffset) ?? pickedOffset;
     const lastOffset = swaps.get(remaining - 1) ?? remaining - 1;
     swaps.set(pickedOffset, lastOffset);
     swaps.delete(remaining - 1);
-    selected.push(selectedOffset);
-  }
-
-  return selected;
+    remaining -= 1;
+    return selectedOffset;
+  };
 };

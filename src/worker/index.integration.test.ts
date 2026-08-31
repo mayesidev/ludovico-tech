@@ -1,5 +1,6 @@
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import { getWatchedHistory } from "./db";
 
 const worker = exports.default;
 
@@ -97,6 +98,45 @@ describe("Ludovico Tech Worker routes", () => {
     expect(home.body.watchedMovies).toHaveLength(4);
     expect(home.body.watchedMovies[0].id).toBe(movies[5].id);
     expect(home.body.posterReelMovies).toHaveLength(12);
+  });
+
+  it("retries a random rating row gap without duplicating titles", async () => {
+    const movies = Array.from({ length: 6 }, (_, index) => ({
+      id: `history-gap-${index}`,
+      title: `History Gap ${index}`,
+    }));
+    await env.DB.batch([
+      ...movies.map((movie) =>
+        env.DB.prepare(
+          `INSERT INTO movies (id, title, added_at)
+           VALUES (?, ?, '2026-08-01T00:00:00.000Z')`,
+        ).bind(movie.id, movie.title),
+      ),
+      ...movies.map((movie, index) =>
+        env.DB.prepare(
+          `INSERT INTO ratings (movie_id, watched_at, score, phrase)
+           VALUES (?, ?, 4, 'Watched')`,
+        ).bind(movie.id, index === 0 ? "2026-08-31T00:00:00.000Z" : null),
+      ),
+    ]);
+    await env.DB.prepare("DELETE FROM ratings WHERE movie_id = ?")
+      .bind(movies[1].id)
+      .run();
+    const values = [0, 1, 2, 0];
+    const randomIndex = (upperBound: number) => {
+      const value = values.shift() ?? 0;
+      expect(value).toBeLessThan(upperBound);
+      return value;
+    };
+
+    const history = await getWatchedHistory(env, randomIndex);
+
+    expect(history.map(({ id }) => id)).toEqual([
+      movies[0].id,
+      movies[2].id,
+      movies[3].id,
+      movies[5].id,
+    ]);
   });
 
   it("suggests existing collection names from partial input", async () => {
