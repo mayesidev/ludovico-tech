@@ -19,6 +19,7 @@ describe("credits page", () => {
     });
     expect(pageHeading).toBeVisible();
     expect(pageHeading).toHaveClass("tracking-[0.01em]");
+    expect(pageHeading.closest("header")).toHaveClass("text-center");
     expect(
       screen.getByText(/shared movie watchlist for a group of friends/),
     ).toBeVisible();
@@ -38,11 +39,15 @@ describe("credits page", () => {
       const region = screen.getByRole("region", { name });
       expect(screen.getByRole("heading", { level: 2, name })).toHaveClass(
         "leading-none",
+        "text-center",
       );
       const content = region.querySelector("h2 + *");
       expect(content).toHaveClass("mt-5");
       expect(content).not.toHaveClass("border-y");
     }
+    expect(
+      screen.getByRole("region", { name: "Background" }).querySelector("div"),
+    ).toHaveClass("md:grid-cols-3");
 
     expect(
       screen.getByRole("link", { name: "The Movie Database" }),

@@ -23,36 +23,44 @@ export function CreditsPage() {
   }, []);
 
   return (
-    <article className="w-full">
-      <header className="mb-8">
+    <article className="w-full py-2 sm:py-4">
+      <header className="text-center">
+        <span
+          aria-hidden="true"
+          className="mx-auto mb-3 block h-px w-12 bg-highlight/70"
+        />
         <h1 className="font-heading text-3xl font-medium leading-none tracking-[0.01em] text-text-primary sm:text-4xl">
           Credits
         </h1>
+        <span
+          aria-hidden="true"
+          className="mx-auto mt-3 block h-px w-12 bg-highlight/70"
+        />
       </header>
 
-      <div className="max-w-3xl space-y-10 sm:space-y-12">
+      <div className="mx-auto mt-10 max-w-5xl space-y-10 sm:mt-12 sm:space-y-12">
         <section aria-labelledby="credits-background">
           <h2
-            className="font-heading text-2xl font-medium leading-none tracking-tight text-text-primary"
+            className="text-center font-heading text-2xl font-medium leading-none tracking-tight text-text-primary"
             id="credits-background"
           >
             Background
           </h2>
-          <div className="mt-5 space-y-4">
-            <p className="text-base leading-7 text-text-secondary sm:text-lg sm:leading-8">
+          <div className="mt-5 grid gap-5 md:grid-cols-3 md:gap-8">
+            <p className="text-center text-base leading-7 text-text-secondary sm:text-lg sm:leading-8">
               Ludovico Tech is a shared movie watchlist for a group of friends
               with more recommendations than movie nights. It grew from the
               group repeatedly asking one friend, “You haven&apos;t seen that?!”
               into a long-running, RiffTrax-esque pop-culture re-education
               program.
             </p>
-            <p className="text-base leading-7 text-text-secondary sm:text-lg sm:leading-8">
+            <p className="text-center text-base leading-7 text-text-secondary sm:text-lg sm:leading-8">
               The group maintains the list and randomly chooses what to watch
               next to keep things fair and interesting. After each movie, that
               one friend has to rate it with a contextual reference to check it
               off the list before another can be chosen.
             </p>
-            <p className="text-base leading-7 text-text-secondary sm:text-lg sm:leading-8">
+            <p className="text-center text-base leading-7 text-text-secondary sm:text-lg sm:leading-8">
               The name is a tongue-in-cheek nod to the Ludovico Technique in{" "}
               <cite>A Clockwork Orange</cite>. After all, while the group tries
               to make movie nights enjoyable for everyone, that one friend{" "}
@@ -63,12 +71,12 @@ export function CreditsPage() {
 
         <section aria-labelledby="credits-production">
           <h2
-            className="font-heading text-2xl font-medium leading-none tracking-tight text-text-primary"
+            className="text-center font-heading text-2xl font-medium leading-none tracking-tight text-text-primary"
             id="credits-production"
           >
             Production
           </h2>
-          <dl className="mt-5 grid gap-6 sm:grid-cols-3 sm:gap-10">
+          <dl className="mt-5 grid gap-6 text-center sm:grid-cols-3 sm:gap-10">
             <div>
               <dt className="ui-label text-text-muted">Version</dt>
               <dd className="mt-2 font-semibold text-text-primary">
@@ -106,9 +114,9 @@ export function CreditsPage() {
           </dl>
         </section>
 
-        <section aria-labelledby="credits-movie-data">
+        <section aria-labelledby="credits-movie-data" className="text-center">
           <h2
-            className="font-heading text-2xl font-medium leading-none tracking-tight text-text-primary"
+            className="text-center font-heading text-2xl font-medium leading-none tracking-tight text-text-primary"
             id="credits-movie-data"
           >
             Movie Data
@@ -123,7 +131,7 @@ export function CreditsPage() {
             >
               <img alt="TMDB" className="h-5 w-auto sm:h-6" src={tmdbLogo} />
             </a>
-            <p className="mt-4 max-w-xl text-sm leading-6 text-text-muted">
+            <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-text-muted">
               This application uses TMDB and the TMDB APIs but is not endorsed,
               certified, or otherwise approved by TMDB.
             </p>
