@@ -163,7 +163,16 @@ export function LibraryPage({
 
       <Card aria-busy={refreshing} className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1050px] text-left text-sm">
+          <table className="w-full min-w-[1050px] table-fixed text-left text-sm">
+            <colgroup>
+              <col className="w-[220px]" />
+              <col className="w-[190px]" />
+              <col className="w-[110px]" />
+              <col className="w-[130px]" />
+              <col className="w-[200px]" />
+              <col className="w-[100px]" />
+              {canMutate && <col className="w-[100px]" />}
+            </colgroup>
             <thead className="ui-label border-b border-highlight/15 bg-[#7a1d30] text-text-primary/80">
               <tr>
                 {sortHeader("Title", "title")}
@@ -187,7 +196,7 @@ export function LibraryPage({
                     className="bg-canvas/35 transition hover:bg-action/15"
                     key={movie.id}
                   >
-                    <td className="px-5 py-4 text-text-muted">
+                    <td className="break-words px-5 py-4 text-text-muted">
                       <AppLink
                         className="font-semibold text-text-primary hover:text-highlight-soft"
                         href={`/movies/${encodeURIComponent(movie.id)}?from=library`}
@@ -196,7 +205,7 @@ export function LibraryPage({
                         {title}
                       </AppLink>
                     </td>
-                    <td className="px-5 py-4 text-text-muted">
+                    <td className="break-words px-5 py-4 text-text-muted">
                       {movie.collection_id && movie.collection_name ? (
                         <AppLink
                           className="hover:text-highlight-soft"
@@ -213,7 +222,7 @@ export function LibraryPage({
                     <td className="px-5 py-4 text-text-muted">
                       {formatDate(movie.added_at)}
                     </td>
-                    <td className="px-5 py-4 text-text-muted">
+                    <td className="break-words px-5 py-4 text-text-muted">
                       {movie.rating_score !== null ? (
                         <span className="text-highlight-soft">
                           {movie.rating_score} · {movie.rating_phrase}

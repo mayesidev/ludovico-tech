@@ -94,6 +94,18 @@ describe("movie library", () => {
       "href",
       "https://www.imdb.com/title/tt0133093/",
     );
+    const table = screen.getByRole("table");
+    expect(table).toHaveClass("table-fixed");
+    expect(
+      Array.from(table.querySelectorAll("col"), (column) => column.className),
+    ).toEqual([
+      "w-[220px]",
+      "w-[190px]",
+      "w-[110px]",
+      "w-[130px]",
+      "w-[200px]",
+      "w-[100px]",
+    ]);
   });
 
   it("debounces whole-library search and requests server sorting", async () => {
@@ -203,6 +215,7 @@ describe("movie library", () => {
     );
 
     expect(await screen.findByText("0 · Zero elements")).toBeVisible();
+    expect(screen.getByRole("table").querySelectorAll("col")).toHaveLength(7);
     await user.click(screen.getByRole("button", { name: "Edit" }));
     expect(onEdit).toHaveBeenCalledWith(zeroRatedMovie);
   });
