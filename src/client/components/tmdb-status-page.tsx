@@ -367,7 +367,7 @@ export function TmdbStatusPage({
   const { page, pageSize, total, totalPages } = queue.pagination;
   return (
     <div>
-      <div className="mb-7 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+      <div className="mb-7 flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
         <div>
           <h1 className="font-heading text-3xl font-medium leading-none tracking-[0.01em] text-text-primary sm:text-4xl">
             Manager's Office
