@@ -20,21 +20,42 @@ describe("credits page", () => {
     expect(pageHeading).toBeVisible();
     expect(pageHeading).toHaveClass("tracking-[0.01em]");
     expect(pageHeading.closest("header")).toHaveClass("text-center");
-    expect(
-      screen.getByText(/shared movie watchlist for a group of friends/),
-    ).toBeVisible();
+    const backgroundCopy = screen.getByText(
+      /shared movie watchlist for a group of friends/,
+    );
+    expect(backgroundCopy).toBeVisible();
+    expect(backgroundCopy).toHaveClass("text-base", "font-normal", "leading-7");
+    expect(backgroundCopy).not.toHaveClass("sm:text-lg", "font-semibold");
 
-    expect(
-      screen.getByRole("link", { name: "Ludovico Tech on GitHub" }),
-    ).toHaveAttribute("href", "https://github.com/mayesidev/ludovico-tech");
-    expect(screen.getByRole("link", { name: "MIT License" })).toHaveAttribute(
+    const sourceLink = screen.getByRole("link", {
+      name: "Ludovico Tech on GitHub",
+    });
+    expect(sourceLink).toHaveAttribute(
+      "href",
+      "https://github.com/mayesidev/ludovico-tech",
+    );
+    expect(sourceLink).toHaveClass("font-normal");
+    const licenseLink = screen.getByRole("link", { name: "MIT License" });
+    expect(licenseLink).toHaveAttribute(
       "href",
       "https://github.com/mayesidev/ludovico-tech/blob/main/LICENSE",
     );
+    expect(licenseLink).toHaveClass("font-normal");
     expect(await screen.findByText("v1.4.1")).toBeVisible();
-    expect(screen.getAllByRole("term").map((term) => term.textContent)).toEqual(
-      ["Version", "Source Code", "License"],
+    const productionTerms = screen.getAllByRole("term");
+    expect(productionTerms.map((term) => term.textContent)).toEqual([
+      "Version",
+      "Source Code",
+      "License",
+    ]);
+    expect(productionTerms[0]?.closest("dl")).toHaveClass(
+      "text-base",
+      "font-normal",
+      "leading-7",
     );
+    for (const term of productionTerms) {
+      expect(term).not.toHaveClass("ui-label", "font-semibold");
+    }
     for (const name of ["Background", "Production", "Movie Data"]) {
       const region = screen.getByRole("region", { name });
       expect(screen.getByRole("heading", { level: 2, name })).toHaveClass(
@@ -56,11 +77,12 @@ describe("credits page", () => {
       "src",
       expect.stringMatching(/^data:image\/svg\+xml/),
     );
-    expect(
-      screen.getByText(
-        "This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.",
-      ),
-    ).toBeVisible();
+    const tmdbNotice = screen.getByText(
+      "This application uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.",
+    );
+    expect(tmdbNotice).toBeVisible();
+    expect(tmdbNotice).toHaveClass("text-base", "font-normal", "leading-7");
+    expect(tmdbNotice).not.toHaveClass("text-sm", "font-semibold");
   });
 
   it("remains available when release health cannot be loaded", () => {

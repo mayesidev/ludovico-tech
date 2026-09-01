@@ -4,7 +4,7 @@ import { api } from "../api";
 import tmdbLogo from "../assets/tmdb-logo.svg";
 
 const linkClassName =
-  "inline-flex items-center gap-2 font-semibold text-highlight-soft transition hover:text-text-primary";
+  "inline-flex items-center gap-2 font-normal text-highlight-soft transition hover:text-text-primary";
 
 export function CreditsPage() {
   const [version, setVersion] = useState<string | null>(null);
@@ -47,20 +47,20 @@ export function CreditsPage() {
             Background
           </h2>
           <div className="mt-5 grid gap-5 md:grid-cols-3 md:gap-8">
-            <p className="text-center text-base leading-7 text-text-secondary sm:text-lg sm:leading-8">
+            <p className="text-center text-base font-normal leading-7 text-text-secondary">
               Ludovico Tech is a shared movie watchlist for a group of friends
               with more recommendations than movie nights. It grew from the
               group repeatedly asking one friend, “You haven&apos;t seen that?!”
               into a long-running, RiffTrax-esque pop-culture re-education
               program.
             </p>
-            <p className="text-center text-base leading-7 text-text-secondary sm:text-lg sm:leading-8">
+            <p className="text-center text-base font-normal leading-7 text-text-secondary">
               The group maintains the list and randomly chooses what to watch
               next to keep things fair and interesting. After each movie, that
               one friend has to rate it with a contextual reference to check it
               off the list before another can be chosen.
             </p>
-            <p className="text-center text-base leading-7 text-text-secondary sm:text-lg sm:leading-8">
+            <p className="text-center text-base font-normal leading-7 text-text-secondary">
               The name is a tongue-in-cheek nod to the Ludovico Technique in{" "}
               <cite>A Clockwork Orange</cite>. After all, while the group tries
               to make movie nights enjoyable for everyone, that one friend{" "}
@@ -76,16 +76,16 @@ export function CreditsPage() {
           >
             Production
           </h2>
-          <dl className="mt-5 grid gap-6 text-center sm:grid-cols-3 sm:gap-10">
+          <dl className="mt-5 grid gap-6 text-center text-base font-normal leading-7 sm:grid-cols-3 sm:gap-10">
             <div>
-              <dt className="ui-label text-text-muted">Version</dt>
-              <dd className="mt-2 font-semibold text-text-primary">
+              <dt className="text-text-muted">Version</dt>
+              <dd className="mt-1 text-text-primary">
                 {version ?? "Unavailable"}
               </dd>
             </div>
             <div>
-              <dt className="ui-label text-text-muted">Source Code</dt>
-              <dd className="mt-2">
+              <dt className="text-text-muted">Source Code</dt>
+              <dd className="mt-1">
                 <a
                   className={linkClassName}
                   href="https://github.com/mayesidev/ludovico-tech"
@@ -98,8 +98,8 @@ export function CreditsPage() {
               </dd>
             </div>
             <div>
-              <dt className="ui-label text-text-muted">License</dt>
-              <dd className="mt-2">
+              <dt className="text-text-muted">License</dt>
+              <dd className="mt-1">
                 <a
                   className={linkClassName}
                   href="https://github.com/mayesidev/ludovico-tech/blob/main/LICENSE"
@@ -131,7 +131,7 @@ export function CreditsPage() {
             >
               <img alt="TMDB" className="h-5 w-auto sm:h-6" src={tmdbLogo} />
             </a>
-            <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-text-muted">
+            <p className="mx-auto mt-4 max-w-xl text-base font-normal leading-7 text-text-secondary">
               This application uses TMDB and the TMDB APIs but is not endorsed,
               certified, or otherwise approved by TMDB.
             </p>
