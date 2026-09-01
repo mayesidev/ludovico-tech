@@ -181,19 +181,28 @@ describe("TMDB refresh status page", () => {
       screen.getByRole("columnheader", { name: "Fetch contract" }),
     ).toBeVisible();
     const table = screen.getByRole("table");
-    expect(table).toHaveClass("table-fixed");
+    expect(table).toHaveClass("min-w-[1180px]", "table-fixed");
     expect(
       Array.from(table.querySelectorAll("col"), (column) => column.className),
     ).toEqual([
       "w-[220px]",
-      "w-[100px]",
-      "w-[170px]",
+      "w-[90px]",
       "w-[160px]",
-      "w-[160px]",
-      "w-[160px]",
+      "w-[130px]",
+      "w-[130px]",
+      "w-[130px]",
       "w-[140px]",
-      "w-[170px]",
+      "w-[180px]",
     ]);
+    const currentRow = screen.getByText("Current Movie").closest("tr");
+    expect(currentRow).not.toBeNull();
+    const splitTimestamps = currentRow!.querySelectorAll("time");
+    expect(splitTimestamps).toHaveLength(3);
+    for (const timestamp of splitTimestamps) {
+      expect(timestamp.children).toHaveLength(2);
+      expect(timestamp.children[0]).toHaveClass("block");
+      expect(timestamp.children[1]).toHaveClass("block");
+    }
     const search = screen.getByPlaceholderText("Search all fields…");
     fireEvent.change(search, { target: { value: "aaaaaaaa" } });
     await waitFor(() =>

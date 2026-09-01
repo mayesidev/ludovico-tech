@@ -95,16 +95,16 @@ describe("movie library", () => {
       "https://www.imdb.com/title/tt0133093/",
     );
     const table = screen.getByRole("table");
-    expect(table).toHaveClass("table-fixed");
+    expect(table).toHaveClass("min-w-[1050px]", "table-fixed");
     expect(
       Array.from(table.querySelectorAll("col"), (column) => column.className),
     ).toEqual([
       "w-[220px]",
-      "w-[190px]",
+      "w-[150px]",
       "w-[110px]",
       "w-[130px]",
-      "w-[200px]",
-      "w-[100px]",
+      "w-[150px]",
+      "w-[170px]",
     ]);
   });
 
@@ -215,7 +215,20 @@ describe("movie library", () => {
     );
 
     expect(await screen.findByText("0 · Zero elements")).toBeVisible();
-    expect(screen.getByRole("table").querySelectorAll("col")).toHaveLength(7);
+    expect(
+      Array.from(
+        screen.getByRole("table").querySelectorAll("col"),
+        (column) => column.className,
+      ),
+    ).toEqual([
+      "w-[220px]",
+      "w-[150px]",
+      "w-[110px]",
+      "w-[130px]",
+      "w-[150px]",
+      "w-[170px]",
+      "w-[120px]",
+    ]);
     await user.click(screen.getByRole("button", { name: "Edit" }));
     expect(onEdit).toHaveBeenCalledWith(zeroRatedMovie);
   });
