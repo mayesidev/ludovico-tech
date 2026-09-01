@@ -13,9 +13,12 @@ describe("credits page", () => {
     });
     render(<CreditsPage />);
 
-    expect(
-      screen.getByRole("heading", { level: 1, name: "Credits" }),
-    ).toBeVisible();
+    const pageHeading = screen.getByRole("heading", {
+      level: 1,
+      name: "Credits",
+    });
+    expect(pageHeading).toBeVisible();
+    expect(pageHeading).toHaveClass("tracking-[0.01em]");
     expect(
       screen.getByText(/shared movie watchlist for a group of friends/),
     ).toBeVisible();
@@ -31,6 +34,15 @@ describe("credits page", () => {
     expect(screen.getAllByRole("term").map((term) => term.textContent)).toEqual(
       ["Version", "Source Code", "License"],
     );
+    for (const name of ["Background", "Production", "Movie Data"]) {
+      const region = screen.getByRole("region", { name });
+      expect(screen.getByRole("heading", { level: 2, name })).toHaveClass(
+        "leading-none",
+      );
+      const content = region.querySelector("h2 + *");
+      expect(content).toHaveClass("mt-5");
+      expect(content).not.toHaveClass("border-y");
+    }
 
     expect(
       screen.getByRole("link", { name: "The Movie Database" }),
