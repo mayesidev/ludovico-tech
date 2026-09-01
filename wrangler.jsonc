@@ -105,5 +105,39 @@
         },
       ],
     },
+    "production-family-bonding": {
+      "name": "ludovico-tech-production-family-bonding",
+      "workers_dev": false,
+      "triggers": {
+        "crons": [],
+      },
+      "routes": [
+        {
+          "pattern": "familybonding.ludovicotech.com",
+          "custom_domain": true,
+        },
+      ],
+      "vars": {
+        "APP_ENV": "production",
+        "AUTH_MODE": "google",
+      },
+      "secrets": {
+        "required": [
+          "TMDB_READ_ACCESS_TOKEN",
+          "GOOGLE_CLIENT_ID",
+          "GOOGLE_CLIENT_SECRET",
+          "GOOGLE_REDIRECT_URI",
+          "ALLOWED_EMAILS",
+        ],
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "ludovico-tech-production-family-bonding",
+          "database_id": "33333333-3333-3333-3333-333333333333",
+          "migrations_dir": "migrations",
+        },
+      ],
+    },
   },
 }

@@ -30,6 +30,7 @@ export type WranglerConfig = {
 
 const DEVELOPMENT_DATABASE_ID = "00000000-0000-0000-0000-000000000000";
 export const DEPLOYMENT_DATABASE_ID_SENTINELS = {
+  "production-family-bonding": "33333333-3333-3333-3333-333333333333",
   production: "11111111-1111-1111-1111-111111111111",
   staging: "22222222-2222-2222-2222-222222222222",
 } as const;
@@ -59,19 +60,23 @@ const requireValue = <T>(value: T | undefined, message: string): T => {
 
 const validateEnvironment = (
   config: WranglerConfig,
-  key: "development" | "production" | "staging",
+  key: "development" | DeploymentTarget,
+  expectedWorkerName: string,
+  expectedDatabaseName: string,
+  expectedAppEnvironment: "development" | "production" | "staging",
   expectedAuthMode: "development" | "google",
   expectedDomain: string | null,
+  expectedCrons: string[],
 ) => {
   const environment = requireValue(
     config.env?.[key],
     `Missing ${key} Worker environment`,
   );
-  if (environment.name !== `ludovico-tech-${key}`) {
-    throw new Error(`${key} Worker name must be ludovico-tech-${key}`);
+  if (environment.name !== expectedWorkerName) {
+    throw new Error(`${key} Worker name must be ${expectedWorkerName}`);
   }
   if (
-    environment.vars?.APP_ENV !== key ||
+    environment.vars?.APP_ENV !== expectedAppEnvironment ||
     environment.vars?.AUTH_MODE !== expectedAuthMode
   ) {
     throw new Error(`${key} runtime variables are not fail-closed`);
@@ -79,7 +84,6 @@ const validateEnvironment = (
   if (environment.workers_dev !== false) {
     throw new Error(`${key} workers.dev exposure must be disabled`);
   }
-  const expectedCrons = key === "development" ? [] : ["*/15 * * * *"];
   if (
     JSON.stringify(environment.triggers?.crons ?? []) !==
     JSON.stringify(expectedCrons)
@@ -101,8 +105,8 @@ const validateEnvironment = (
     throw new Error(`${key} must define exactly one DB binding`);
   }
   const database = databases[0];
-  if (database.database_name !== `ludovico-tech-${key}`) {
-    throw new Error(`${key} D1 name must be ludovico-tech-${key}`);
+  if (database.database_name !== expectedDatabaseName) {
+    throw new Error(`${key} D1 name must be ${expectedDatabaseName}`);
   }
   if (!database.database_id || !UUID_PATTERN.test(database.database_id)) {
     throw new Error(`${key} D1 ID must be a UUID`);
@@ -140,20 +144,42 @@ export function validateCloudflareConfig(
   const development = validateEnvironment(
     config,
     "development",
+    "ludovico-tech-development",
+    "ludovico-tech-development",
+    "development",
     "development",
     null,
+    [],
   );
   const staging = validateEnvironment(
     config,
     "staging",
+    "ludovico-tech-staging",
+    "ludovico-tech-staging",
+    "staging",
     "google",
     "staging.ludovicotech.com",
+    ["*/15 * * * *"],
   );
   const production = validateEnvironment(
     config,
     "production",
+    "ludovico-tech-production",
+    "ludovico-tech-production",
+    "production",
     "google",
     "ludovicotech.com",
+    ["*/15 * * * *"],
+  );
+  const productionFamilyBonding = validateEnvironment(
+    config,
+    "production-family-bonding",
+    "ludovico-tech-production-family-bonding",
+    "ludovico-tech-production-family-bonding",
+    "production",
+    "google",
+    "familybonding.ludovicotech.com",
+    [],
   );
 
   if (development.database.database_id !== DEVELOPMENT_DATABASE_ID) {
@@ -169,10 +195,11 @@ export function validateCloudflareConfig(
     development.database.database_id,
     staging.database.database_id,
     production.database.database_id,
+    productionFamilyBonding.database.database_id,
   ];
   if (new Set(databaseIds).size !== databaseIds.length) {
     throw new Error(
-      "Development, staging, and production must use distinct D1 IDs",
+      "Development and every deployment target must use distinct D1 IDs",
     );
   }
 
@@ -194,6 +221,7 @@ export function validateCloudflareConfig(
   for (const [key, deployed] of [
     ["staging", staging],
     ["production", production],
+    ["production-family-bonding", productionFamilyBonding],
   ] as const) {
     if (
       JSON.stringify(sorted(deployed.environment.secrets?.required)) !==
@@ -228,6 +256,16 @@ export function validateCloudflareConfig(
   ) {
     throw new Error(
       "Production D1 is not provisioned; replace the sentinel with the dedicated database ID",
+    );
+  }
+
+  if (
+    deploymentTargets.has("production-family-bonding") &&
+    productionFamilyBonding.database.database_id ===
+      DEPLOYMENT_DATABASE_ID_SENTINELS["production-family-bonding"]
+  ) {
+    throw new Error(
+      "Family Bonding D1 is not provisioned; replace the sentinel with the dedicated database ID",
     );
   }
 }

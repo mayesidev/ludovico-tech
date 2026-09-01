@@ -2,13 +2,19 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
+  DEPLOYMENT_DATABASE_ID_SENTINELS,
   type DeploymentTarget,
   validateCloudflareConfigSource,
 } from "./validate-cloudflare-config-lib";
 
 const deploymentTargets = new Set<DeploymentTarget>();
-if (process.argv.includes("--staging")) deploymentTargets.add("staging");
-if (process.argv.includes("--production")) deploymentTargets.add("production");
+for (const argument of process.argv.slice(2)) {
+  const target = argument.startsWith("--") ? argument.slice(2) : "";
+  if (!(target in DEPLOYMENT_DATABASE_ID_SENTINELS)) {
+    throw new Error(`Unknown deployment target ${argument}`);
+  }
+  deploymentTargets.add(target as DeploymentTarget);
+}
 
 validateCloudflareConfigSource(
   readFileSync(resolve("wrangler.jsonc"), "utf8"),

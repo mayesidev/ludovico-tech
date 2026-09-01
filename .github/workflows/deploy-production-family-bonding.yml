@@ -1,0 +1,343 @@
+name: Deploy Family Bonding
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published semantic-release tag to deploy
+        required: true
+        type: string
+      mode:
+        description: Initial preparation, initial activation, or a later release deployment
+        required: true
+        type: choice
+        options:
+          - prepare
+          - activate
+          - deploy
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production-family-bonding
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment: production-family-bonding
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PRODUCTION_FAMILY_BONDING_BASE_URL: ${{ vars.PRODUCTION_FAMILY_BONDING_BASE_URL }}
+      RELEASE_TAG: ${{ inputs.tag }}
+
+    steps:
+      - name: Check out the trusted deployment gate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: main
+
+      - name: Preserve the trusted deployment gate
+        run: cp scripts/release-gates.ts "$RUNNER_TEMP/release-gates.ts"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.24.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Validate the published release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node "$RUNNER_TEMP/release-gates.ts" validate-tag "$RELEASE_TAG"
+          release_json="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG")"
+          test "$(jq -r '.tag_name' <<<"$release_json")" = "$RELEASE_TAG"
+          test "$(jq -r '.draft' <<<"$release_json")" = "false"
+          test "$(jq -r '.prerelease' <<<"$release_json")" = "false"
+          release_sha="$(git rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}")"
+          git checkout --detach "$release_sha"
+          test "$(git rev-parse HEAD)" = "$release_sha"
+          printf 'RELEASE_SHA=%s\n' "$release_sha" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate Family Bonding configuration and target
+        run: |
+          pnpm config:check:production-family-bonding
+          node "$RUNNER_TEMP/release-gates.ts" validate-target \
+            "$PRODUCTION_FAMILY_BONDING_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" production-family-bonding
+
+      - name: Audit production dependencies
+        run: pnpm audit:production
+
+      - name: Check production dependency licenses
+        run: pnpm licenses:check
+
+      - name: Build Family Bonding assets
+        run: pnpm build:production-family-bonding
+
+      - name: Prepare Family Bonding deployment secrets
+        env:
+          TMDB_READ_ACCESS_TOKEN: ${{ secrets.TMDB_READ_ACCESS_TOKEN }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}
+          ALLOWED_EMAILS: ${{ secrets.ALLOWED_EMAILS }}
+        run: |
+          umask 077
+          for secret_name in \
+            TMDB_READ_ACCESS_TOKEN \
+            GOOGLE_CLIENT_ID \
+            GOOGLE_CLIENT_SECRET \
+            GOOGLE_REDIRECT_URI \
+            ALLOWED_EMAILS
+          do
+            if [ -z "${!secret_name}" ]; then
+              printf 'Required Family Bonding secret %s is not configured\n' "$secret_name" >&2
+              exit 1
+            fi
+          done
+
+          jq -n '{
+            TMDB_READ_ACCESS_TOKEN: env.TMDB_READ_ACCESS_TOKEN,
+            GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID,
+            GOOGLE_CLIENT_SECRET: env.GOOGLE_CLIENT_SECRET,
+            GOOGLE_REDIRECT_URI: env.GOOGLE_REDIRECT_URI,
+            ALLOWED_EMAILS: env.ALLOWED_EMAILS
+          }' > "$RUNNER_TEMP/production-family-bonding-secrets.json"
+
+      - name: Deploy exact release in maintenance mode
+        id: maintenance
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm exec wrangler deploy \
+            --secrets-file "$RUNNER_TEMP/production-family-bonding-secrets.json" \
+            --var "APP_VERSION:${RELEASE_TAG}" \
+            --var "GIT_SHA:${RELEASE_SHA}" \
+            --var "MAINTENANCE_MODE:true"
+
+      - name: Verify maintenance mode owns Family Bonding traffic
+        run: |
+          node "$RUNNER_TEMP/release-gates.ts" verify-maintenance \
+            "$PRODUCTION_FAMILY_BONDING_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" production-family-bonding
+
+      - name: Wait for refresh activity before a later release deployment
+        if: inputs.mode == 'deploy'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          for attempt in $(seq 1 21); do
+            pnpm exec wrangler d1 execute DB --config wrangler.jsonc --remote --env production-family-bonding \
+              --command "SELECT enabled, lease_expires_at FROM tmdb_refresh_schedule WHERE id = 1" --json \
+              > "$RUNNER_TEMP/refresh-schedule.json"
+            if node "$RUNNER_TEMP/release-gates.ts" check-refresh-idle \
+              "$RUNNER_TEMP/refresh-schedule.json" 2>/dev/null
+            then
+              exit 0
+            fi
+            if [ "$attempt" -eq 21 ]; then
+              node "$RUNNER_TEMP/release-gates.ts" check-refresh-idle \
+                "$RUNNER_TEMP/refresh-schedule.json"
+            fi
+            sleep 15
+          done
+
+      - name: Capture pre-migration recovery checkpoint
+        if: inputs.mode == 'deploy'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm exec wrangler d1 time-travel info DB \
+            --config wrangler.jsonc --env production-family-bonding --json \
+            > "$RUNNER_TEMP/d1-recovery.json"
+          recovery_bookmark="$(jq -er '.bookmark | select(type == "string" and length > 0)' \
+            "$RUNNER_TEMP/d1-recovery.json")"
+          printf 'D1_RECOVERY_BOOKMARK=%s\n' "$recovery_bookmark" >> "$GITHUB_ENV"
+          printf '### Family Bonding recovery checkpoint\n\nD1 bookmark: `%s`\n' \
+            "$recovery_bookmark" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply exact release migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: >-
+          pnpm exec wrangler d1 migrations apply DB
+          --config wrangler.jsonc --remote --env production-family-bonding
+
+      - name: Verify exact release migration set
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm exec wrangler d1 execute DB --config wrangler.jsonc --remote --env production-family-bonding \
+            --command "SELECT name FROM d1_migrations ORDER BY id" --json \
+            > "$RUNNER_TEMP/applied-migrations.json"
+          node "$RUNNER_TEMP/release-gates.ts" check-migrations \
+            migrations "$RUNNER_TEMP/applied-migrations.json"
+
+      - name: Disable refresh for initial preparation
+        if: inputs.mode == 'prepare'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: >-
+          pnpm exec wrangler d1 execute DB --config wrangler.jsonc --remote --env production-family-bonding
+          --command "UPDATE tmdb_refresh_schedule
+          SET enabled = 0,
+          lease_expires_at = NULL,
+          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+          updated_by = 'automation:deployment'
+          WHERE id = 1"
+
+      - name: Verify initial refresh remains disabled
+        if: inputs.mode == 'prepare' || inputs.mode == 'activate'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm exec wrangler d1 execute DB --config wrangler.jsonc --remote --env production-family-bonding \
+            --command "SELECT enabled, lease_expires_at FROM tmdb_refresh_schedule WHERE id = 1" --json \
+            > "$RUNNER_TEMP/refresh-schedule.json"
+          node "$RUNNER_TEMP/release-gates.ts" check-refresh-disabled \
+            "$RUNNER_TEMP/refresh-schedule.json"
+
+      - name: Verify the initial import target is empty
+        if: inputs.mode == 'prepare'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm exec wrangler d1 execute DB --config wrangler.jsonc --remote --env production-family-bonding \
+            --command "SELECT
+              EXISTS(SELECT 1 FROM movies) AS has_movies,
+              EXISTS(SELECT 1 FROM collections) AS has_collections,
+              EXISTS(SELECT 1 FROM ratings) AS has_ratings,
+              EXISTS(SELECT 1 FROM movie_tmdb_data) AS has_tmdb_links,
+              (SELECT movie_id FROM now_showing WHERE id = 1) AS now_showing_movie_id" --json \
+            > "$RUNNER_TEMP/production-family-bonding-state.json"
+          node "$RUNNER_TEMP/release-gates.ts" check-production-family-bonding-empty \
+            "$RUNNER_TEMP/production-family-bonding-state.json"
+
+      - name: Capture pre-import recovery checkpoint
+        if: inputs.mode == 'prepare'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm exec wrangler d1 time-travel info DB \
+            --config wrangler.jsonc --env production-family-bonding --json \
+            > "$RUNNER_TEMP/d1-recovery.json"
+          recovery_bookmark="$(jq -er '.bookmark | select(type == "string" and length > 0)' \
+            "$RUNNER_TEMP/d1-recovery.json")"
+          printf '### Family Bonding pre-import recovery checkpoint\n\nD1 bookmark: `%s`\n' \
+            "$recovery_bookmark" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify reviewed initial import state
+        if: inputs.mode == 'activate'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm exec wrangler d1 execute DB --config wrangler.jsonc --remote --env production-family-bonding \
+            --command "SELECT
+              EXISTS(SELECT 1 FROM movies) AS has_movies,
+              EXISTS(SELECT 1 FROM collections) AS has_collections,
+              EXISTS(SELECT 1 FROM ratings) AS has_ratings,
+              EXISTS(SELECT 1 FROM movie_tmdb_data) AS has_tmdb_links,
+              (SELECT movie_id FROM now_showing WHERE id = 1) AS now_showing_movie_id" --json \
+            > "$RUNNER_TEMP/production-family-bonding-state.json"
+          node "$RUNNER_TEMP/release-gates.ts" check-production-family-bonding-initial \
+            "$RUNNER_TEMP/production-family-bonding-state.json"
+
+      - name: Verify the managed catalog is populated
+        if: inputs.mode == 'deploy'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm exec wrangler d1 execute DB --config wrangler.jsonc --remote --env production-family-bonding \
+            --command "SELECT
+              EXISTS(SELECT 1 FROM movies) AS has_movies,
+              EXISTS(SELECT 1 FROM collections) AS has_collections,
+              EXISTS(SELECT 1 FROM ratings) AS has_ratings,
+              EXISTS(SELECT 1 FROM movie_tmdb_data) AS has_tmdb_links,
+              (SELECT movie_id FROM now_showing WHERE id = 1) AS now_showing_movie_id" --json \
+            > "$RUNNER_TEMP/production-family-bonding-state.json"
+          node "$RUNNER_TEMP/release-gates.ts" check-production-family-bonding-populated \
+            "$RUNNER_TEMP/production-family-bonding-state.json"
+
+      - name: Capture pre-activation recovery checkpoint
+        if: inputs.mode == 'activate'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm exec wrangler d1 time-travel info DB \
+            --config wrangler.jsonc --env production-family-bonding --json \
+            > "$RUNNER_TEMP/d1-recovery.json"
+          recovery_bookmark="$(jq -er '.bookmark | select(type == "string" and length > 0)' \
+            "$RUNNER_TEMP/d1-recovery.json")"
+          printf '### Family Bonding pre-activation recovery checkpoint\n\nD1 bookmark: `%s`\n' \
+            "$recovery_bookmark" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Confirm refresh remains idle after migrations
+        if: inputs.mode == 'deploy'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm exec wrangler d1 execute DB --config wrangler.jsonc --remote --env production-family-bonding \
+            --command "SELECT enabled, lease_expires_at FROM tmdb_refresh_schedule WHERE id = 1" --json \
+            > "$RUNNER_TEMP/refresh-schedule-after-migrations.json"
+          node "$RUNNER_TEMP/release-gates.ts" check-refresh-idle \
+            "$RUNNER_TEMP/refresh-schedule-after-migrations.json"
+
+      - name: Deploy exact release commit
+        if: inputs.mode == 'activate' || inputs.mode == 'deploy'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm exec wrangler deploy \
+            --secrets-file "$RUNNER_TEMP/production-family-bonding-secrets.json" \
+            --var "APP_VERSION:${RELEASE_TAG}" \
+            --var "GIT_SHA:${RELEASE_SHA}" \
+            --var "MAINTENANCE_MODE:false"
+
+      - name: Verify deployed release health
+        if: inputs.mode == 'activate' || inputs.mode == 'deploy'
+        run: |
+          node "$RUNNER_TEMP/release-gates.ts" verify-deployment \
+            "$PRODUCTION_FAMILY_BONDING_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" production-family-bonding
+
+      - name: Restore maintenance mode after cutover failure
+        if: ${{ failure() && steps.maintenance.outcome == 'success' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm exec wrangler deploy \
+            --secrets-file "$RUNNER_TEMP/production-family-bonding-secrets.json" \
+            --var "APP_VERSION:${RELEASE_TAG}" \
+            --var "GIT_SHA:${RELEASE_SHA}" \
+            --var "MAINTENANCE_MODE:true"
+
+      - name: Verify maintenance fallback
+        if: ${{ failure() && steps.maintenance.outcome == 'success' }}
+        run: |
+          node "$RUNNER_TEMP/release-gates.ts" verify-maintenance \
+            "$PRODUCTION_FAMILY_BONDING_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" production-family-bonding
