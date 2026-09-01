@@ -180,6 +180,20 @@ describe("TMDB refresh status page", () => {
     expect(
       screen.getByRole("columnheader", { name: "Fetch contract" }),
     ).toBeVisible();
+    const table = screen.getByRole("table");
+    expect(table).toHaveClass("table-fixed");
+    expect(
+      Array.from(table.querySelectorAll("col"), (column) => column.className),
+    ).toEqual([
+      "w-[220px]",
+      "w-[100px]",
+      "w-[170px]",
+      "w-[160px]",
+      "w-[160px]",
+      "w-[160px]",
+      "w-[140px]",
+      "w-[170px]",
+    ]);
     const search = screen.getByPlaceholderText("Search all fields…");
     fireEvent.change(search, { target: { value: "aaaaaaaa" } });
     await waitFor(() =>

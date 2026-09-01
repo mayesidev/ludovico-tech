@@ -661,7 +661,17 @@ export function TmdbStatusPage({
 
       <Card aria-busy={refreshing} className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1280px] text-left text-sm">
+          <table className="w-full min-w-[1280px] table-fixed text-left text-sm">
+            <colgroup>
+              <col className="w-[220px]" />
+              <col className="w-[100px]" />
+              <col className="w-[170px]" />
+              <col className="w-[160px]" />
+              <col className="w-[160px]" />
+              <col className="w-[160px]" />
+              <col className="w-[140px]" />
+              <col className="w-[170px]" />
+            </colgroup>
             <thead className="ui-label border-b border-highlight/15 bg-[#7a1d30] text-text-primary/80">
               <tr>
                 {sortHeader("Title", "title")}
@@ -682,7 +692,7 @@ export function TmdbStatusPage({
                   className="bg-canvas/35 transition hover:bg-action/15"
                   key={item.movieId}
                 >
-                  <td className="px-5 py-4 text-text-muted">
+                  <td className="break-words px-5 py-4 text-text-muted">
                     <AppLink
                       className="font-semibold text-text-primary hover:text-highlight-soft"
                       href={`/movies/${encodeURIComponent(item.movieId)}?from=manager-office`}
@@ -694,7 +704,7 @@ export function TmdbStatusPage({
                   <td className="px-5 py-4 text-text-muted">
                     {item.tmdbId ?? "—"}
                   </td>
-                  <td className="px-5 py-4 text-text-muted">
+                  <td className="break-words px-5 py-4 text-text-muted">
                     <span
                       className={
                         item.state === "failed"
