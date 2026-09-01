@@ -27,6 +27,35 @@ const formatDueTimestamp = (value: string | null) =>
       ? "Due now"
       : "—";
 
+function QueueTimestamp({
+  due = false,
+  fallback = "Never",
+  value,
+}: {
+  due?: boolean;
+  fallback?: string;
+  value: string | null;
+}) {
+  if (value === null) return fallback;
+  const timestamp = new Date(value);
+  if (due && formatDueTimestamp(value) === "Due now") return "Due now";
+
+  return (
+    <time className="leading-5" dateTime={value}>
+      <span className="block">
+        {new Intl.DateTimeFormat(undefined, {
+          dateStyle: "medium",
+        }).format(timestamp)}
+      </span>
+      <span className="block">
+        {new Intl.DateTimeFormat(undefined, {
+          timeStyle: "short",
+        }).format(timestamp)}
+      </span>
+    </time>
+  );
+}
+
 const formatInterval = (minutes: number) => {
   const days = Math.floor(minutes / 1440);
   const hours = Math.floor((minutes % 1440) / 60);
@@ -661,16 +690,16 @@ export function TmdbStatusPage({
 
       <Card aria-busy={refreshing} className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1280px] table-fixed text-left text-sm">
+          <table className="w-full min-w-[1180px] table-fixed text-left text-sm">
             <colgroup>
               <col className="w-[220px]" />
-              <col className="w-[100px]" />
-              <col className="w-[170px]" />
+              <col className="w-[90px]" />
               <col className="w-[160px]" />
-              <col className="w-[160px]" />
-              <col className="w-[160px]" />
+              <col className="w-[130px]" />
+              <col className="w-[130px]" />
+              <col className="w-[130px]" />
               <col className="w-[140px]" />
-              <col className="w-[170px]" />
+              <col className="w-[180px]" />
             </colgroup>
             <thead className="ui-label border-b border-highlight/15 bg-[#7a1d30] text-text-primary/80">
               <tr>
@@ -723,16 +752,20 @@ export function TmdbStatusPage({
                     </span>
                   </td>
                   <td className="px-5 py-4 text-text-muted">
-                    {formatTimestamp(
-                      item.fetchedAt,
-                      item.state === "unlinked" ? "—" : "Never",
-                    )}
+                    <QueueTimestamp
+                      fallback={item.state === "unlinked" ? "—" : "Never"}
+                      value={item.fetchedAt}
+                    />
                   </td>
                   <td className="px-5 py-4 text-text-muted">
-                    {formatTimestamp(item.lastAttemptAt, "—")}
+                    <QueueTimestamp fallback="—" value={item.lastAttemptAt} />
                   </td>
                   <td className="px-5 py-4 text-text-muted">
-                    {formatDueTimestamp(item.refreshAfter)}
+                    <QueueTimestamp
+                      due
+                      fallback="—"
+                      value={item.refreshAfter}
+                    />
                   </td>
                   <td className="px-5 py-4 text-text-muted">
                     {item.contractId === null ? (

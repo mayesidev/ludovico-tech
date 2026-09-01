@@ -166,12 +166,12 @@ export function LibraryPage({
           <table className="w-full min-w-[1050px] table-fixed text-left text-sm">
             <colgroup>
               <col className="w-[220px]" />
-              <col className="w-[190px]" />
+              <col className="w-[150px]" />
               <col className="w-[110px]" />
               <col className="w-[130px]" />
-              <col className="w-[200px]" />
-              <col className="w-[100px]" />
-              {canMutate && <col className="w-[100px]" />}
+              <col className="w-[150px]" />
+              <col className="w-[170px]" />
+              {canMutate && <col className="w-[120px]" />}
             </colgroup>
             <thead className="ui-label border-b border-highlight/15 bg-[#7a1d30] text-text-primary/80">
               <tr>
