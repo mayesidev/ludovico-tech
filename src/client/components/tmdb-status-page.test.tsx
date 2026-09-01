@@ -125,6 +125,16 @@ describe("TMDB refresh status page", () => {
       expect(loadOverview).toHaveBeenCalledTimes(1);
       expect(loadQueue).not.toHaveBeenCalled();
     });
+    const pageHeading = screen.getByRole("heading", {
+      level: 1,
+      name: "Manager's Office",
+    });
+    expect(pageHeading.parentElement?.parentElement).toHaveClass(
+      "sm:items-start",
+    );
+    expect(pageHeading.parentElement?.parentElement).not.toHaveClass(
+      "sm:items-end",
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
     await waitFor(() => {

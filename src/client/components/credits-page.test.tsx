@@ -19,7 +19,23 @@ describe("credits page", () => {
     });
     expect(pageHeading).toBeVisible();
     expect(pageHeading).toHaveClass("tracking-[0.01em]");
-    expect(pageHeading.closest("header")).toHaveClass("text-center");
+    expect(pageHeading.closest("article")).toHaveClass("w-full");
+    expect(pageHeading.closest("article")).not.toHaveClass("py-2", "sm:py-4");
+    const pageHeader = pageHeading.closest("header");
+    expect(pageHeader).toHaveClass(
+      "flex",
+      "items-center",
+      "justify-center",
+      "text-center",
+    );
+    const decorations = pageHeader?.querySelectorAll(
+      "span[aria-hidden='true']",
+    );
+    expect(decorations).toHaveLength(2);
+    for (const decoration of decorations ?? []) {
+      expect(decoration).toHaveClass("h-px", "w-12");
+      expect(decoration).not.toHaveClass("mb-3", "mt-3");
+    }
     const backgroundCopy = screen.getByText(
       /shared movie watchlist for a group of friends/,
     );

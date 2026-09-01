@@ -23,19 +23,13 @@ export function CreditsPage() {
   }, []);
 
   return (
-    <article className="w-full py-2 sm:py-4">
-      <header className="text-center">
-        <span
-          aria-hidden="true"
-          className="mx-auto mb-3 block h-px w-12 bg-highlight/70"
-        />
+    <article className="w-full">
+      <header className="flex items-center justify-center gap-4 text-center sm:gap-5">
+        <span aria-hidden="true" className="block h-px w-12 bg-highlight/70" />
         <h1 className="font-heading text-3xl font-medium leading-none tracking-[0.01em] text-text-primary sm:text-4xl">
           Credits
         </h1>
-        <span
-          aria-hidden="true"
-          className="mx-auto mt-3 block h-px w-12 bg-highlight/70"
-        />
+        <span aria-hidden="true" className="block h-px w-12 bg-highlight/70" />
       </header>
 
       <div className="mx-auto mt-10 max-w-5xl space-y-10 sm:mt-12 sm:space-y-12">
