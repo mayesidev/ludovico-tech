@@ -98,6 +98,24 @@ describe("complete CI and deployment gates", () => {
     );
   });
 
+  it("uses the trusted audit classifier for exact-release deployments", () => {
+    for (const name of [
+      "deploy.yml",
+      "deploy-staging.yml",
+      "deploy-production-family-bonding.yml",
+    ]) {
+      const source = workflow(name);
+      expect(
+        workflowStep(source, "Preserve the trusted deployment gate"),
+      ).toContain(
+        'cp scripts/production-audit.ts "$RUNNER_TEMP/production-audit.ts"',
+      );
+      expect(workflowStep(source, "Audit production dependencies")).toContain(
+        'run: node "$RUNNER_TEMP/production-audit.ts"',
+      );
+    }
+  });
+
   it("cuts over exact staging releases behind verified maintenance mode", () => {
     const source = workflow("deploy-staging.yml");
     const nodeSetup = source.indexOf("Set up Node.js");
