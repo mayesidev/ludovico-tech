@@ -134,7 +134,7 @@
         {
           "binding": "DB",
           "database_name": "ludovico-tech-production-family-bonding",
-          "database_id": "33333333-3333-3333-3333-333333333333",
+          "database_id": "254e9677-810f-412c-b941-1052ca80cb50",
           "migrations_dir": "migrations",
         },
       ],
