@@ -266,9 +266,7 @@ describe("home workflows", () => {
     await user.click(
       screen.getByRole("button", { name: "Continue Collection" }),
     );
-    await user.click(
-      screen.getByRole("button", { name: "Choose Another Movie" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Roll What’s Next" }));
 
     expect(api.next).toHaveBeenCalledOnce();
     expect(roll).toHaveBeenCalledOnce();
@@ -301,7 +299,7 @@ describe("home workflows", () => {
     expect(screen.queryByRole("button", { name: "Rate It" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add a Movie" })).toBeNull();
     expect(
-      screen.queryByRole("button", { name: "Choose the Next Movie" }),
+      screen.queryByRole("button", { name: "Roll What’s Next" }),
     ).toBeNull();
     expect(
       screen.getByRole("heading", { level: 1, name: "Test Movie (2020)" }),
@@ -327,6 +325,18 @@ describe("home workflows", () => {
 
     await user.click(
       screen.getByRole("button", { name: "Sign In to Rate This Movie" }),
+    );
+
+    expect(onLogin).toHaveBeenCalledOnce();
+  });
+
+  it("describes signing in as enabling the next roll", async () => {
+    const onLogin = vi.fn();
+    const user = userEvent.setup();
+    renderHome({ canMutate: false, nowShowing: null, onLogin });
+
+    await user.click(
+      screen.getByRole("button", { name: "Sign In to Roll What’s Next" }),
     );
 
     expect(onLogin).toHaveBeenCalledOnce();

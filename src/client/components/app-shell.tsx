@@ -236,7 +236,7 @@ export function RollReveal({
       : starting?.title;
   const announcement = selected
     ? `Now showing: ${selected.title}`
-    : "Choosing a movie";
+    : "Rolling...";
 
   return (
     <div
@@ -269,7 +269,7 @@ export function RollReveal({
           )}
         </div>
         <p className="ui-label mb-3 text-highlight">
-          {selected ? "Now Showing" : "Choosing a Movie"}
+          {selected ? "Now Showing" : "Rolling..."}
         </p>
         <h2 className="font-heading text-4xl font-medium tracking-tight text-text-primary sm:text-6xl">
           {visibleTitle ?? "The Posters Are Shuffling"}

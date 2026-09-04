@@ -207,18 +207,14 @@ export function HomePage({
                   ) : (
                     <RotateCw size={16} />
                   )}
-                  {isWatched && collectionId && hasNextCollectionMovie
-                    ? "Choose Another Movie"
-                    : hasSelection
-                      ? "Choose the Next Movie"
-                      : "Choose a Movie"}
+                  Roll What’s Next
                 </Button>
               </div>
             ) : (
               <div className="mt-7">
                 <Button onClick={onLogin} variant="secondary">
                   {isWatched || !hasSelection
-                    ? "Sign In to Choose What’s Next"
+                    ? "Sign In to Roll What’s Next"
                     : "Sign In to Rate This Movie"}
                 </Button>
               </div>

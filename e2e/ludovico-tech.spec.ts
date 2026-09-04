@@ -68,10 +68,10 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await page.getByRole("link", { name: "Now Showing" }).click();
 
     await page
-      .getByRole("button", { name: "Choose a Movie", exact: true })
+      .getByRole("button", { name: "Roll What’s Next", exact: true })
       .click();
     const reveal = page.getByRole("status");
-    await expect(reveal).toContainText("Choosing a Movie");
+    await expect(reveal).toContainText("Rolling...");
     await expect(reveal).toBeHidden({
       timeout: 5_000,
     });
@@ -134,7 +134,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await page.getByRole("link", { name: "Now Showing" }).click();
 
     await page
-      .getByRole("button", { name: "Choose the Next Movie", exact: true })
+      .getByRole("button", { name: "Roll What’s Next", exact: true })
       .click();
     await expect(page.getByRole("status")).toBeHidden({
       timeout: 5_000,
@@ -176,7 +176,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await page.getByRole("button", { name: "Rate It" }).click();
 
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await page.getByRole("button", { name: "Choose Another Movie" }).click();
+    await page.getByRole("button", { name: "Roll What’s Next" }).click();
     const reveal = page.getByRole("status");
     await expect(reveal).toBeVisible();
     expect(
