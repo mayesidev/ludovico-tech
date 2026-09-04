@@ -143,18 +143,19 @@ export const registerTmdbRefreshRoutes = (app: Hono<AppEnv>) => {
 
       const input = c.req.valid("json");
       const timestamp = now();
-      const nextRunAt =
-        input.intervalMinutes === undefined
-          ? null
-          : new Date(
-              new Date(timestamp).getTime() + input.intervalMinutes * 60 * 1000,
-            ).toISOString();
       await c.env.DB.prepare(
         `UPDATE tmdb_refresh_schedule
            SET enabled = COALESCE(?, enabled),
                interval_minutes = COALESCE(?, interval_minutes),
                batch_size = COALESCE(?, batch_size),
-               next_run_at = COALESCE(?, next_run_at),
+               next_run_at = CASE
+                 WHEN ? IS NULL THEN next_run_at
+                 ELSE strftime(
+                   '%Y-%m-%dT%H:%M:%fZ',
+                   COALESCE(last_completed_at, '1970-01-01T00:00:00.000Z'),
+                   '+' || ? || ' minutes'
+                 )
+               END,
                updated_at = ?,
                updated_by = ?
          WHERE id = 1`,
@@ -163,7 +164,8 @@ export const registerTmdbRefreshRoutes = (app: Hono<AppEnv>) => {
           input.enabled === undefined ? null : input.enabled ? 1 : 0,
           input.intervalMinutes ?? null,
           input.batchSize ?? null,
-          nextRunAt,
+          input.intervalMinutes ?? null,
+          input.intervalMinutes ?? null,
           timestamp,
           user.id,
         )
