@@ -742,6 +742,10 @@ describe("TMDB refresh operations", () => {
     );
     expect(invalid.status).toBe(400);
 
+    await env.DB.prepare(
+      `UPDATE tmdb_refresh_schedule
+       SET last_completed_at = '2026-08-24T01:00:00.000Z' WHERE id = 1`,
+    ).run();
     const update = await app.fetch(
       new Request("https://ludovico-tech.test/api/tmdb-refresh/schedule", {
         body: JSON.stringify({ batchSize: 50, intervalMinutes: 720 }),
@@ -761,8 +765,72 @@ describe("TMDB refresh operations", () => {
       batch_size: 50,
       enabled: 1,
       interval_minutes: 720,
-      next_run_at: "2026-08-24T13:30:00.000Z",
+      next_run_at: "2026-08-24T13:00:00.000Z",
       updated_by: expect.any(String),
+    });
+  });
+
+  it("keeps a frequency change overdue when its completion anchor is old", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(timestamp));
+    await env.DB.prepare(
+      `UPDATE tmdb_refresh_schedule
+       SET last_completed_at = '2026-08-22T01:30:00.000Z',
+           next_run_at = '2026-08-30T00:00:00.000Z'
+       WHERE id = 1`,
+    ).run();
+
+    const response = await createApp().fetch(
+      new Request("https://ludovico-tech.test/api/tmdb-refresh/schedule", {
+        body: JSON.stringify({ intervalMinutes: 720 }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
+      }),
+      bindings(),
+    );
+
+    expect(response.status).toBe(200);
+    expect(
+      await env.DB.prepare(
+        `SELECT interval_minutes, lease_expires_at, next_run_at
+         FROM tmdb_refresh_schedule WHERE id = 1`,
+      ).first(),
+    ).toEqual({
+      interval_minutes: 720,
+      lease_expires_at: null,
+      next_run_at: "2026-08-22T13:30:00.000Z",
+    });
+  });
+
+  it("keeps a never-completed schedule immediately due after a frequency change", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(timestamp));
+    await env.DB.prepare(
+      `UPDATE tmdb_refresh_schedule
+       SET last_completed_at = NULL,
+           next_run_at = '2026-08-30T00:00:00.000Z'
+       WHERE id = 1`,
+    ).run();
+
+    const response = await createApp().fetch(
+      new Request("https://ludovico-tech.test/api/tmdb-refresh/schedule", {
+        body: JSON.stringify({ intervalMinutes: 720 }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
+      }),
+      bindings(),
+    );
+
+    expect(response.status).toBe(200);
+    expect(
+      await env.DB.prepare(
+        `SELECT interval_minutes, lease_expires_at, next_run_at
+         FROM tmdb_refresh_schedule WHERE id = 1`,
+      ).first(),
+    ).toEqual({
+      interval_minutes: 720,
+      lease_expires_at: null,
+      next_run_at: "1970-01-01T12:00:00.000Z",
     });
   });
 });
