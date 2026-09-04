@@ -179,7 +179,7 @@ export function validateCloudflareConfig(
     "production",
     "google",
     "familybonding.ludovicotech.com",
-    [],
+    ["*/15 * * * *"],
   );
 
   if (development.database.database_id !== DEVELOPMENT_DATABASE_ID) {

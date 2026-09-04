@@ -74,14 +74,14 @@ describe("Cloudflare environment isolation validation", () => {
     );
   });
 
-  it("keeps automatic Family Bonding refresh disabled until separately accepted", () => {
+  it("requires the bounded Family Bonding refresh schedule", () => {
     const config = repositoryConfig();
     expect(
       environment(config, "production-family-bonding").triggers?.crons,
-    ).toEqual([]);
+    ).toEqual(["*/15 * * * *"]);
 
     environment(config, "production-family-bonding").triggers = {
-      crons: ["*/15 * * * *"],
+      crons: [],
     };
     expect(() => validateCloudflareConfig(config)).toThrow(
       "production-family-bonding TMDB refresh schedule is incorrect",

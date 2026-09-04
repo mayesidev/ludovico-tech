@@ -109,7 +109,7 @@
       "name": "ludovico-tech-production-family-bonding",
       "workers_dev": false,
       "triggers": {
-        "crons": [],
+        "crons": ["*/15 * * * *"],
       },
       "routes": [
         {
