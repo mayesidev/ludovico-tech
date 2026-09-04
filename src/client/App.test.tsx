@@ -125,7 +125,12 @@ describe("application authorization presentation", () => {
     expect(
       screen.getByRole("button", { name: /^Sign In$/ }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Choose a Movie" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Sign In to Roll What’s Next" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Roll What’s Next" }),
+    ).toBeNull();
     expect(screen.queryByRole("button", { name: "Add a Movie" })).toBeNull();
     expect(api.home).toHaveBeenCalledOnce();
 
@@ -169,7 +174,7 @@ describe("application authorization presentation", () => {
     render(<App />);
 
     expect(
-      await screen.findByRole("button", { name: "Choose a Movie" }),
+      await screen.findByRole("button", { name: "Roll What’s Next" }),
     ).toBeVisible();
     const addMovie = screen.getByRole("button", { name: "Add a Movie" });
     expect(addMovie).toBeVisible();
@@ -194,7 +199,9 @@ describe("application authorization presentation", () => {
       expect(screen.getByRole("button", { name: /^Sign In$/ })).toBeVisible(),
     );
     expect(api.logout).toHaveBeenCalledOnce();
-    expect(screen.queryByRole("button", { name: "Choose a Movie" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Roll What’s Next" }),
+    ).toBeNull();
   });
 
   it("opens the newly added movie's details", async () => {
@@ -266,7 +273,7 @@ describe("application authorization presentation", () => {
     render(<App />);
 
     await user.click(
-      await screen.findByRole("button", { name: "Choose a Movie" }),
+      await screen.findByRole("button", { name: "Roll What’s Next" }),
     );
 
     expect(
@@ -275,7 +282,9 @@ describe("application authorization presentation", () => {
       }),
     ).toHaveTextContent("Your session ended. Sign in again to make changes.");
     expect(screen.getByRole("button", { name: /^Sign In$/ })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Choose a Movie" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Roll What’s Next" }),
+    ).toBeNull();
     expect(api.authMe).toHaveBeenCalledTimes(2);
   });
 
@@ -315,14 +324,14 @@ describe("application authorization presentation", () => {
     });
     render(<App />);
 
-    const choose = await screen.findByRole("button", {
-      name: "Choose the Next Movie",
+    const rollButton = await screen.findByRole("button", {
+      name: "Roll What’s Next",
     });
     vi.useFakeTimers();
-    fireEvent.click(choose);
+    fireEvent.click(rollButton);
 
     const openingReveal = screen.getByRole("status");
-    expect(openingReveal).toHaveTextContent("Choosing a movie");
+    expect(openingReveal).toHaveTextContent("Rolling...");
     expect(
       within(openingReveal).getByAltText("Poster for Current Movie"),
     ).toHaveAttribute("src", "https://image.tmdb.org/t/p/w500/current.jpg");
@@ -375,7 +384,7 @@ describe("application authorization presentation", () => {
       </StrictMode>,
     );
 
-    await screen.findByRole("button", { name: "Choose a Movie" });
+    await screen.findByRole("button", { name: "Roll What’s Next" });
     await waitFor(() => expect(decode).toHaveBeenCalledOnce());
   });
 

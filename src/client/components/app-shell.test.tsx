@@ -161,14 +161,14 @@ describe("random selection reveal", () => {
       />,
     );
 
-    expect(screen.getByRole("status")).toHaveTextContent("Choosing a movie");
+    expect(screen.getByRole("status")).toHaveTextContent("Rolling...");
     expect(screen.getByAltText("Poster for Movie one")).toBeInTheDocument();
 
     act(() => vi.advanceTimersByTime(POSTER_REEL_INTERVAL_MS));
 
     expect(screen.getByAltText("Poster for Movie two")).toBeInTheDocument();
     expect(
-      screen.getByText("Choosing a movie", { selector: ".sr-only" }),
+      screen.getByText("Rolling...", { selector: ".sr-only" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByText("Movie two", { selector: ".sr-only" }),
