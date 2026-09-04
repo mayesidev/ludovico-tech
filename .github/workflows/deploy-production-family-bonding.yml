@@ -41,7 +41,9 @@ jobs:
           ref: main
 
       - name: Preserve the trusted deployment gate
-        run: cp scripts/release-gates.ts "$RUNNER_TEMP/release-gates.ts"
+        run: |
+          cp scripts/release-gates.ts "$RUNNER_TEMP/release-gates.ts"
+          cp scripts/production-audit.ts "$RUNNER_TEMP/production-audit.ts"
 
       - name: Set up pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
@@ -78,7 +80,7 @@ jobs:
             "$PRODUCTION_FAMILY_BONDING_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" production-family-bonding
 
       - name: Audit production dependencies
-        run: pnpm audit:production
+        run: node "$RUNNER_TEMP/production-audit.ts"
 
       - name: Check production dependency licenses
         run: pnpm licenses:check

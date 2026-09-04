@@ -19,7 +19,7 @@
     "config:check:staging": "tsx scripts/validate-cloudflare-config.ts --staging",
     "config:check:production": "tsx scripts/validate-cloudflare-config.ts --production",
     "config:check:production-family-bonding": "tsx scripts/validate-cloudflare-config.ts --production-family-bonding",
-    "audit:production": "pnpm audit --prod --audit-level high",
+    "audit:production": "node scripts/production-audit.ts",
     "licenses:check": "pnpm licenses list --prod --json | node scripts/production-licenses.ts",
     "check": "pnpm config:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage",
     "typecheck": "tsc --noEmit",
