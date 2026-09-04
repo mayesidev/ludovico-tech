@@ -316,7 +316,14 @@ export const executeCatalogImport = async (
   await runSafely(
     runner,
     "pnpm",
-    ["config:check"],
+    options.environment === "development"
+      ? ["config:check"]
+      : [
+          "exec",
+          "tsx",
+          "scripts/validate-cloudflare-config.ts",
+          `--${options.environment}`,
+        ],
     "Target configuration validation failed",
   );
 

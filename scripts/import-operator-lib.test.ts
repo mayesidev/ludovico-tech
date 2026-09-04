@@ -58,6 +58,10 @@ const migrationResponse = () =>
       .map((name) => ({ name })),
   );
 
+const isConfigValidation = (arguments_: string[]) =>
+  arguments_.length === 1 ||
+  arguments_.includes("scripts/validate-cloudflare-config.ts");
+
 describe("catalog import input and target confirmation", () => {
   it("reports durable counts without private values", () => {
     expect(importPreflightSummary(createPlan())).toBe(
@@ -91,6 +95,21 @@ describe("catalog import input and target confirmation", () => {
         "data/catalog.csv",
       ]),
     ).toThrow("Environment unknown is not configured for catalog imports");
+
+    expect(
+      parseImportOperatorArguments([
+        "--environment",
+        "production-family-bonding",
+        "--database",
+        "ludovico-tech-production-family-bonding",
+        "--csv",
+        "data/catalog.csv",
+      ]),
+    ).toMatchObject({
+      database: "ludovico-tech-production-family-bonding",
+      environment: "production-family-bonding",
+      execute: false,
+    });
   });
 
   it("requires isolated persistence for local execution", () => {
@@ -115,7 +134,7 @@ describe("catalog import execution", () => {
     let summaryCall = 0;
     const runner: CommandRunner = async (executable, arguments_) => {
       calls.push({ arguments_, executable });
-      if (arguments_.length === 1) return "";
+      if (isConfigValidation(arguments_)) return "";
       if (arguments_.includes("SELECT name FROM d1_migrations ORDER BY id")) {
         return migrationResponse();
       }
@@ -145,7 +164,12 @@ describe("catalog import execution", () => {
     await executeCatalogImport(createPlan(), productionOptions(), runner, log);
 
     expect(calls[0]).toEqual({
-      arguments_: ["config:check"],
+      arguments_: [
+        "exec",
+        "tsx",
+        "scripts/validate-cloudflare-config.ts",
+        "--production",
+      ],
       executable: "pnpm",
     });
     expect(temporaryPaths).toHaveLength(1);
@@ -162,7 +186,7 @@ describe("catalog import execution", () => {
     });
     let summaryCall = 0;
     const runner: CommandRunner = async (_executable, arguments_) => {
-      if (arguments_.length === 1) return "";
+      if (isConfigValidation(arguments_)) return "";
       if (arguments_.includes("SELECT name FROM d1_migrations ORDER BY id")) {
         return migrationResponse();
       }
@@ -196,7 +220,7 @@ describe("catalog import execution", () => {
 
   it("stops before writes when migrations or empty-target checks fail", async () => {
     const missingMigration: CommandRunner = async (_executable, arguments_) => {
-      if (arguments_.length === 1) return "";
+      if (isConfigValidation(arguments_)) return "";
       if (arguments_.includes("SELECT name FROM d1_migrations ORDER BY id")) {
         return d1Response([]);
       }
@@ -212,7 +236,7 @@ describe("catalog import execution", () => {
     ).rejects.toThrow("Migration verification failed");
 
     const occupied: CommandRunner = async (_executable, arguments_) => {
-      if (arguments_.length === 1) return "";
+      if (isConfigValidation(arguments_)) return "";
       if (arguments_.includes("SELECT name FROM d1_migrations ORDER BY id")) {
         return migrationResponse();
       }
@@ -230,7 +254,7 @@ describe("catalog import execution", () => {
 
   it("reports a stop condition after a write or postcheck failure", async () => {
     const failedChunk: CommandRunner = async (_executable, arguments_) => {
-      if (arguments_.length === 1) return "";
+      if (isConfigValidation(arguments_)) return "";
       if (arguments_.includes("SELECT name FROM d1_migrations ORDER BY id")) {
         return migrationResponse();
       }
@@ -248,7 +272,7 @@ describe("catalog import execution", () => {
 
     let summaryCall = 0;
     const failedPostcheck: CommandRunner = async (_executable, arguments_) => {
-      if (arguments_.length === 1) return "";
+      if (isConfigValidation(arguments_)) return "";
       if (arguments_.includes("SELECT name FROM d1_migrations ORDER BY id")) {
         return migrationResponse();
       }

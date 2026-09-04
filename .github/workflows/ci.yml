@@ -117,6 +117,10 @@ jobs:
         if: steps.changes.outputs.full == 'true'
         run: pnpm build:production
 
+      - name: Build Family Bonding assets
+        if: steps.changes.outputs.full == 'true'
+        run: pnpm build:production-family-bonding
+
       - name: Run browser end-to-end tests
         if: steps.changes.outputs.full == 'true'
         run: pnpm test:e2e

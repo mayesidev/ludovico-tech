@@ -41,6 +41,7 @@ describe("complete CI and deployment gates", () => {
       "Run unit and integration tests with coverage",
       "Build staging assets",
       "Build production assets",
+      "Build Family Bonding assets",
       "Run browser end-to-end tests",
       "Audit production dependencies",
       "Check production dependency licenses",
@@ -62,6 +63,7 @@ describe("complete CI and deployment gates", () => {
     expect(source).toContain("run: pnpm licenses:check");
     expect(source).toContain("run: pnpm build:staging");
     expect(source).toContain("run: pnpm build:production");
+    expect(source).toContain("run: pnpm build:production-family-bonding");
     expect(source).toContain("actions/dependency-review-action@");
     expect(source).toContain("Keep released migrations immutable");
     expect(source).toContain("--diff-filter=MDR");
@@ -265,5 +267,42 @@ describe("complete CI and deployment gates", () => {
     expect(readdirSync(workflowDirectory)).not.toContain(
       "migrate-production.yml",
     );
+  });
+
+  it("keeps Family Bonding in maintenance through its private initial import", () => {
+    const source = workflow("deploy-production-family-bonding.yml");
+    const maintenanceDeploy = source.indexOf(
+      "Deploy exact release in maintenance mode",
+    );
+    const migration = source.indexOf("wrangler d1 migrations apply DB");
+    const emptyGate = source.indexOf("check-production-family-bonding-empty");
+    const seedGate = source.indexOf("check-production-family-bonding-initial");
+    const activateDeploy = source.indexOf("Deploy exact release commit");
+    const smoke = source.indexOf("verify-deployment");
+
+    expect(source).toContain("environment: production-family-bonding");
+    expect(source).toContain(
+      "options:\n          - prepare\n          - activate\n          - deploy",
+    );
+    expect(source).toContain("pnpm config:check:production-family-bonding");
+    expect(source).toContain("pnpm build:production-family-bonding");
+    expect(source).toContain(
+      '"$PRODUCTION_FAMILY_BONDING_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" production-family-bonding',
+    );
+    expect(source).toContain("--remote --env production-family-bonding");
+    expect(source).toContain("check-refresh-disabled");
+    expect(source).toContain("check-production-family-bonding-populated");
+    expect(source).toContain("if: inputs.mode == 'prepare'");
+    expect(source).toContain("if: inputs.mode == 'activate'");
+    expect(source).toContain(
+      "if: inputs.mode == 'activate' || inputs.mode == 'deploy'",
+    );
+    expect(source).not.toContain("import:catalog");
+    expect(maintenanceDeploy).toBeGreaterThan(0);
+    expect(migration).toBeGreaterThan(maintenanceDeploy);
+    expect(emptyGate).toBeGreaterThan(migration);
+    expect(seedGate).toBeGreaterThan(emptyGate);
+    expect(activateDeploy).toBeGreaterThan(seedGate);
+    expect(smoke).toBeGreaterThan(activateDeploy);
   });
 });

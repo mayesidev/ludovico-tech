@@ -4,18 +4,34 @@ import { resolve } from "node:path";
 
 const releaseTagPattern = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const gitShaPattern = /^[0-9a-f]{40}$/;
-const deploymentOrigins = {
-  production: "https://ludovicotech.com",
-  staging: "https://staging.ludovicotech.com",
+const deploymentTargets = {
+  "production-family-bonding": {
+    origin: "https://familybonding.ludovicotech.com",
+    runtimeEnvironment: "production",
+  },
+  production: {
+    origin: "https://ludovicotech.com",
+    runtimeEnvironment: "production",
+  },
+  staging: {
+    origin: "https://staging.ludovicotech.com",
+    runtimeEnvironment: "staging",
+  },
 } as const;
 const deploymentSmokePath =
   "/api/library?direction=asc&page=1&pageSize=25&search=&sort=title&status=all";
 
-type DeploymentEnvironment = keyof typeof deploymentOrigins;
+type DeploymentTarget = keyof typeof deploymentTargets;
 
-const isDeploymentEnvironment = (
-  value: string,
-): value is DeploymentEnvironment => value in deploymentOrigins;
+const isDeploymentTarget = (value: string): value is DeploymentTarget =>
+  value in deploymentTargets;
+
+const deploymentTarget = (value: string) => {
+  if (!isDeploymentTarget(value)) {
+    throw new Error("Deployment target is invalid");
+  }
+  return deploymentTargets[value];
+};
 
 export const isReleaseTag = (value: string) => releaseTagPattern.test(value);
 
@@ -43,16 +59,14 @@ export const validateDeploymentTarget = (
   baseUrl: string,
   releaseTag: string,
   gitSha: string,
-  expectedEnvironment: string,
+  expectedTarget: string,
 ) => {
-  if (!isDeploymentEnvironment(expectedEnvironment)) {
-    throw new Error("Deployment environment is invalid");
-  }
+  const target = deploymentTarget(expectedTarget);
   const url = deploymentBaseUrl(baseUrl);
   if (!isReleaseTag(releaseTag)) throw new Error("Release tag is invalid");
   if (!gitShaPattern.test(gitSha)) throw new Error("Commit SHA is invalid");
-  if (url.origin !== deploymentOrigins[expectedEnvironment]) {
-    throw new Error("Deployment origin does not match the environment");
+  if (url.origin !== target.origin) {
+    throw new Error("Deployment origin does not match the target");
   }
   return url;
 };
@@ -137,6 +151,65 @@ export const assertTmdbRefreshIdle = (response: unknown) => {
   }
 };
 
+export const assertTmdbRefreshDisabled = (response: unknown) => {
+  assertTmdbRefreshIdle(response);
+  const row = (
+    response as Array<{ results: Array<Record<string, unknown>> }>
+  )[0].results[0];
+  if (row?.enabled !== 0) {
+    throw new Error("TMDB refresh schedule must be disabled");
+  }
+};
+
+const familyBondingBootstrapState = (response: unknown) => {
+  if (!Array.isArray(response) || response.length !== 1) {
+    throw new Error("Family Bonding bootstrap response is invalid");
+  }
+  const result = response[0];
+  if (
+    !result ||
+    typeof result !== "object" ||
+    (result as Record<string, unknown>).success !== true ||
+    !Array.isArray((result as Record<string, unknown>).results) ||
+    (result as { results: unknown[] }).results.length !== 1
+  ) {
+    throw new Error("Family Bonding bootstrap query failed");
+  }
+  const row = (result as { results: unknown[] }).results[0];
+  if (!row || typeof row !== "object") {
+    throw new Error("Family Bonding bootstrap row is invalid");
+  }
+  const seed = row as Record<string, unknown>;
+  return seed;
+};
+
+export const assertFamilyBondingEmpty = (response: unknown) => {
+  const seed = familyBondingBootstrapState(response);
+  if (
+    seed.has_movies !== 0 ||
+    seed.has_collections !== 0 ||
+    seed.has_ratings !== 0 ||
+    seed.has_tmdb_links !== 0 ||
+    seed.now_showing_movie_id !== null
+  ) {
+    throw new Error("Family Bonding target is not empty");
+  }
+};
+
+export const assertFamilyBondingPopulated = (response: unknown) => {
+  const state = familyBondingBootstrapState(response);
+  if (state.has_movies !== 1) {
+    throw new Error("Family Bonding catalog is not populated");
+  }
+};
+
+export const assertFamilyBondingInitialCatalog = (response: unknown) => {
+  const state = familyBondingBootstrapState(response);
+  if (state.has_movies !== 1 || state.now_showing_movie_id !== null) {
+    throw new Error("Family Bonding initial catalog is not ready");
+  }
+};
+
 type Fetcher = (
   input: string | URL | Request,
   init?: RequestInit,
@@ -177,15 +250,17 @@ export const verifyDeployment = async (
   baseUrl: string,
   releaseTag: string,
   gitSha: string,
-  expectedEnvironment: string,
+  expectedTarget: string,
   attempts = deploymentVerificationAttempts,
 ) => {
   const origin = validateDeploymentTarget(
     baseUrl,
     releaseTag,
     gitSha,
-    expectedEnvironment,
+    expectedTarget,
   );
+  const expectedRuntimeEnvironment =
+    deploymentTarget(expectedTarget).runtimeEnvironment;
   if (
     !Number.isInteger(attempts) ||
     attempts < 1 ||
@@ -207,7 +282,7 @@ export const verifyDeployment = async (
       );
       if (
         health.ok !== true ||
-        health.environment !== expectedEnvironment ||
+        health.environment !== expectedRuntimeEnvironment ||
         health.version !== releaseTag ||
         health.commit !== gitSha
       ) {
@@ -249,15 +324,17 @@ export const verifyMaintenanceDeployment = async (
   baseUrl: string,
   releaseTag: string,
   gitSha: string,
-  expectedEnvironment: string,
+  expectedTarget: string,
   attempts = deploymentVerificationAttempts,
 ) => {
   const origin = validateDeploymentTarget(
     baseUrl,
     releaseTag,
     gitSha,
-    expectedEnvironment,
+    expectedTarget,
   );
+  const expectedRuntimeEnvironment =
+    deploymentTarget(expectedTarget).runtimeEnvironment;
   if (
     !Number.isInteger(attempts) ||
     attempts < 1 ||
@@ -280,7 +357,7 @@ export const verifyMaintenanceDeployment = async (
         healthResponse.status !== 503 ||
         health.ok !== false ||
         health.maintenance !== true ||
-        health.environment !== expectedEnvironment ||
+        health.environment !== expectedRuntimeEnvironment ||
         health.version !== releaseTag ||
         health.commit !== gitSha
       ) {
@@ -320,7 +397,7 @@ const migrationNames = (directory: string) =>
 
 const usage = () => {
   throw new Error(
-    "Usage: release-gates.ts <validate-tag|validate-target|check-migrations|check-refresh-idle|verify-deployment|verify-maintenance> ...",
+    "Usage: release-gates.ts <validate-tag|validate-target|check-migrations|check-refresh-idle|check-refresh-disabled|check-production-family-bonding-empty|check-production-family-bonding-initial|check-production-family-bonding-populated|verify-deployment|verify-maintenance> ...",
   );
 };
 
@@ -343,6 +420,39 @@ export const runReleaseGate = async (args: string[]) => {
   }
   if (command === "check-refresh-idle" && values.length === 1) {
     assertTmdbRefreshIdle(
+      JSON.parse(readFileSync(resolve(values[0]), "utf8")) as unknown,
+    );
+    return;
+  }
+  if (command === "check-refresh-disabled" && values.length === 1) {
+    assertTmdbRefreshDisabled(
+      JSON.parse(readFileSync(resolve(values[0]), "utf8")) as unknown,
+    );
+    return;
+  }
+  if (
+    command === "check-production-family-bonding-populated" &&
+    values.length === 1
+  ) {
+    assertFamilyBondingPopulated(
+      JSON.parse(readFileSync(resolve(values[0]), "utf8")) as unknown,
+    );
+    return;
+  }
+  if (
+    command === "check-production-family-bonding-initial" &&
+    values.length === 1
+  ) {
+    assertFamilyBondingInitialCatalog(
+      JSON.parse(readFileSync(resolve(values[0]), "utf8")) as unknown,
+    );
+    return;
+  }
+  if (
+    command === "check-production-family-bonding-empty" &&
+    values.length === 1
+  ) {
+    assertFamilyBondingEmpty(
       JSON.parse(readFileSync(resolve(values[0]), "utf8")) as unknown,
     );
     return;

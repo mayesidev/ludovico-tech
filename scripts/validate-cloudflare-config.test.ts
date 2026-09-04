@@ -36,7 +36,7 @@ const database = (
 };
 
 describe("Cloudflare environment isolation validation", () => {
-  it("accepts the repository configuration for both deployment targets", () => {
+  it("accepts the repository configuration while unresolved targets stay non-deployable", () => {
     expect(() =>
       validateCloudflareConfig(
         repositoryConfig(),
@@ -74,6 +74,38 @@ describe("Cloudflare environment isolation validation", () => {
     );
   });
 
+  it("keeps automatic Family Bonding refresh disabled until separately accepted", () => {
+    const config = repositoryConfig();
+    expect(
+      environment(config, "production-family-bonding").triggers?.crons,
+    ).toEqual([]);
+
+    environment(config, "production-family-bonding").triggers = {
+      crons: ["*/15 * * * *"],
+    };
+    expect(() => validateCloudflareConfig(config)).toThrow(
+      "production-family-bonding TMDB refresh schedule is incorrect",
+    );
+  });
+
+  it("keeps the Family Bonding target in the production runtime security class", () => {
+    const config = repositoryConfig();
+    expect(environment(config, "production-family-bonding").vars).toMatchObject(
+      {
+        APP_ENV: "production",
+        AUTH_MODE: "google",
+      },
+    );
+
+    environment(config, "production-family-bonding").vars = {
+      APP_ENV: "production-family-bonding",
+      AUTH_MODE: "google",
+    };
+    expect(() => validateCloudflareConfig(config)).toThrow(
+      "production-family-bonding runtime variables are not fail-closed",
+    );
+  });
+
   it("rejects a D1 database shared by staging and production", () => {
     const config = repositoryConfig();
     database(config, "staging").database_id = database(
@@ -82,7 +114,7 @@ describe("Cloudflare environment isolation validation", () => {
     ).database_id;
 
     expect(() => validateCloudflareConfig(config)).toThrow(
-      "Development, staging, and production must use distinct D1 IDs",
+      "Development and every deployment target must use distinct D1 IDs",
     );
   });
 
@@ -105,7 +137,11 @@ describe("Cloudflare environment isolation validation", () => {
     );
   });
 
-  for (const target of ["staging", "production"] as const) {
+  for (const target of [
+    "staging",
+    "production",
+    "production-family-bonding",
+  ] as const) {
     it(`rejects an unresolved ${target} database sentinel only when deploying that target`, () => {
       const config = repositoryConfig();
       database(config, target).database_id =
@@ -113,7 +149,7 @@ describe("Cloudflare environment isolation validation", () => {
 
       expect(() => validateCloudflareConfig(config)).not.toThrow();
       expect(() => validateCloudflareConfig(config, new Set([target]))).toThrow(
-        `${target === "staging" ? "Staging" : "Production"} D1 is not provisioned`,
+        `${target === "staging" ? "Staging" : target === "production" ? "Production" : "Family Bonding"} D1 is not provisioned`,
       );
     });
   }

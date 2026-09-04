@@ -4,6 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   assertReleaseMigrationsApplied,
+  assertFamilyBondingEmpty,
+  assertFamilyBondingInitialCatalog,
+  assertFamilyBondingPopulated,
+  assertTmdbRefreshDisabled,
   assertTmdbRefreshIdle,
   isReleaseTag,
   runReleaseGate,
@@ -54,6 +58,14 @@ describe("release input validation", () => {
         "staging",
       ),
     ).toThrow("does not match");
+    expect(
+      validateDeploymentTarget(
+        "https://familybonding.ludovicotech.com",
+        "v1.2.3",
+        "a".repeat(40),
+        "production-family-bonding",
+      ).origin,
+    ).toBe("https://familybonding.ludovicotech.com");
   });
 
   it("wires strict tag, target, and migration CLI commands", async () => {
@@ -141,6 +153,68 @@ describe("production refresh gate", () => {
       assertTmdbRefreshIdle(response(0, "2026-08-25T02:00:00.000Z")),
     ).toThrow("no active lease");
     expect(() => assertTmdbRefreshIdle([])).toThrow("invalid");
+  });
+
+  it("requires an idle disabled schedule during Family Bonding bootstrap", () => {
+    expect(() => assertTmdbRefreshDisabled(response(0, null))).not.toThrow();
+    expect(() => assertTmdbRefreshDisabled(response(1, null))).toThrow(
+      "must be disabled",
+    );
+  });
+});
+
+describe("Family Bonding bootstrap gate", () => {
+  const response = (overrides: Record<string, unknown> = {}) => [
+    {
+      results: [
+        {
+          has_collections: 0,
+          has_movies: 1,
+          has_ratings: 1,
+          has_tmdb_links: 0,
+          now_showing_movie_id: null,
+          ...overrides,
+        },
+      ],
+      success: true,
+    },
+  ];
+
+  it("requires a populated catalog with no initial selection", () => {
+    expect(() => assertFamilyBondingInitialCatalog(response())).not.toThrow();
+    expect(() =>
+      assertFamilyBondingInitialCatalog(response({ has_movies: 0 })),
+    ).toThrow("not ready");
+    expect(() =>
+      assertFamilyBondingInitialCatalog(
+        response({ now_showing_movie_id: "movie-1" }),
+      ),
+    ).toThrow("not ready");
+    expect(() => assertFamilyBondingInitialCatalog([])).toThrow("invalid");
+  });
+
+  it("requires a populated catalog before any normal deployment", () => {
+    expect(() => assertFamilyBondingPopulated(response())).not.toThrow();
+    expect(() =>
+      assertFamilyBondingPopulated(
+        response({ now_showing_movie_id: "movie-1" }),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertFamilyBondingPopulated(response({ has_movies: 0 })),
+    ).toThrow("not populated");
+  });
+
+  it("requires an empty initial import target", () => {
+    expect(() =>
+      assertFamilyBondingEmpty(
+        response({
+          has_movies: 0,
+          has_ratings: 0,
+        }),
+      ),
+    ).not.toThrow();
+    expect(() => assertFamilyBondingEmpty(response())).toThrow("not empty");
   });
 });
 
@@ -291,7 +365,37 @@ describe("deployed release verification", () => {
         "preview",
         1,
       ),
-    ).rejects.toThrow("Deployment environment is invalid");
+    ).rejects.toThrow("Deployment target is invalid");
+  });
+
+  it("verifies Family Bonding as a distinct target with production runtime metadata", async () => {
+    const baseUrl = "https://familybonding.ludovicotech.com";
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          commit: gitSha,
+          environment: "production",
+          ok: true,
+          version: releaseTag,
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          movies: [],
+          pagination: { page: 1, pageSize: 25 },
+        }),
+      );
+
+    await verifyDeployment(
+      fetcher,
+      vi.fn(),
+      baseUrl,
+      releaseTag,
+      gitSha,
+      "production-family-bonding",
+      1,
+    );
   });
 });
 
