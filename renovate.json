@@ -6,6 +6,9 @@
     "security:minimumReleaseAgeNpm"
   ],
   "prHourlyLimit": 0,
+  "lockFileMaintenance": {
+    "enabled": true
+  },
   "packageRules": [
     {
       "description": "Keep the coupled Cloudflare development toolchain compatible",
