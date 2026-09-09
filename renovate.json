@@ -39,6 +39,11 @@
       "matchUpdateTypes": ["major"],
       "groupName": "semantic-release notes toolchain",
       "minimumGroupSize": 2
+    },
+    {
+      "description": "Keep pnpm on v11 until GitHub natively parses the v12 multi-document lockfile (dependabot/dependabot-core#15904)",
+      "matchPackageNames": ["pnpm"],
+      "allowedVersions": "<12"
     }
   ],
   "vulnerabilityAlerts": {
