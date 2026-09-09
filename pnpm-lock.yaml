@@ -5,7 +5,6 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  baseline-browser-mapping: 2.11.21
   miniflare>sharp: 0.35.4
 
 importers:
