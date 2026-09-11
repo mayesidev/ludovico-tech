@@ -2,6 +2,3 @@ saveExact: true
 allowBuilds:
   esbuild: true
   workerd: true
-overrides:
-  # Remove when Miniflare ships sharp >=0.35.4 (GHSA-rgj7-g3m4-5g8c).
-  "miniflare>sharp": 0.35.4

@@ -14,7 +14,7 @@
       "description": "Keep the coupled Cloudflare development toolchain compatible",
       "matchPackageNames": [
         "@cloudflare/vite-plugin",
-        "@cloudflare/vitest-pool-workers",
+        "@cloudflare/vitest-plugin",
         "@cloudflare/workers-types",
         "wrangler"
       ],
