@@ -41,7 +41,7 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tailwind-merge": "3.6.0",
-    "zod": "4.5.4"
+    "zod": "4.6.1"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.54.7",

@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@hono/zod-validator':
         specifier: 0.9.1
-        version: 0.9.1(hono@4.13.7)(zod@4.5.4)
+        version: 0.9.1(hono@4.13.7)(zod@4.6.1)
       '@tanstack/react-table':
         specifier: 9.2.4
         version: 9.2.4(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -36,8 +36,8 @@ importers:
         specifier: 3.6.0
         version: 3.6.0
       zod:
-        specifier: 4.5.4
-        version: 4.5.4
+        specifier: 4.6.1
+        version: 4.6.1
     devDependencies:
       '@cloudflare/vite-plugin':
         specifier: 1.54.7
@@ -3621,8 +3621,8 @@ packages:
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
-  zod@4.5.4:
-    resolution: {integrity: sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA==}
+  zod@4.6.1:
+    resolution: {integrity: sha512-341aRWQsve0rvronKNTqZpjmzdbUDlFuzHaI/XLg/Ej82qffDJRRfBTCuv7+9q/rMjB6LSLyEBnW4InJeMtt/Q==}
 
 snapshots:
 
@@ -4179,10 +4179,10 @@ snapshots:
 
   '@exodus/bytes@1.15.1': {}
 
-  '@hono/zod-validator@0.9.1(hono@4.13.7)(zod@4.5.4)':
+  '@hono/zod-validator@0.9.1(hono@4.13.7)(zod@4.6.1)':
     dependencies:
       hono: 4.13.7
-      zod: 4.5.4
+      zod: 4.6.1
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -5303,8 +5303,8 @@ snapshots:
       '@babel/parser': 7.29.8
       eslint: 10.10.0(jiti@2.7.0)(supports-color@10.2.2)
       hermes-parser: 0.25.1
-      zod: 4.5.4
-      zod-validation-error: 4.0.2(zod@4.5.4)
+      zod: 4.6.1
+      zod-validation-error: 4.0.2(zod@4.6.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -6776,10 +6776,10 @@ snapshots:
       cookie: 1.1.1
       youch-core: 0.3.3
 
-  zod-validation-error@4.0.2(zod@4.5.4):
+  zod-validation-error@4.0.2(zod@4.6.1):
     dependencies:
-      zod: 4.5.4
+      zod: 4.6.1
 
   zod@4.4.3: {}
 
-  zod@4.5.4: {}
+  zod@4.6.1: {}
