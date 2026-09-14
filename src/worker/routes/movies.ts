@@ -31,6 +31,42 @@ import {
 import { tmdbErrorResponse } from "./tmdb";
 import { literalSubstringSearch, sqliteSearchText } from "../sqlite-search";
 
+const collectionAppendStatements = (
+  env: AppEnv["Bindings"],
+  movieId: string,
+  collectionName: string,
+  timestamp: string,
+  userId: string,
+) => {
+  const normalizedName = normalizeTitle(collectionName);
+  return {
+    collection: env.DB.prepare(
+      `INSERT INTO collections
+       (id, name, name_normalized, created_at, updated_at, created_by, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(name_normalized) DO UPDATE SET
+         updated_at = excluded.updated_at,
+         updated_by = excluded.updated_by`,
+    ).bind(
+      newId(),
+      collectionName,
+      normalizedName,
+      timestamp,
+      timestamp,
+      userId,
+      userId,
+    ),
+    membership: env.DB.prepare(
+      `INSERT INTO collection_movies (collection_id, movie_id, position)
+       SELECT collections.id, ?, COALESCE((
+         SELECT MAX(position) FROM collection_movies
+         WHERE collection_id = collections.id
+       ), 0) + 1
+       FROM collections WHERE name_normalized = ?`,
+    ).bind(movieId, normalizedName),
+  };
+};
+
 export const registerMovieRoutes = (app: Hono<AppEnv>) => {
   app.get("/library", zValidator("query", libraryQueryInput), async (c) => {
     const input = c.req.valid("query");
@@ -358,46 +394,17 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     }
     const metadata = tmdbResult?.data ?? null;
     const title = metadata?.title ?? input.title;
-    let collectionId: string | null = null;
-    let collectionCreated = false;
-    const statements: D1PreparedStatement[] = [];
-
-    if (input.collectionName) {
-      const existing = await c.env.DB.prepare(
-        "SELECT id FROM collections WHERE name_normalized = ?",
-      )
-        .bind(normalizeTitle(input.collectionName))
-        .first<{ id: string }>();
-      collectionId = existing?.id ?? newId();
-      if (!existing) {
-        collectionCreated = true;
-        statements.push(
-          c.env.DB.prepare(
-            `INSERT INTO collections
-             (id, name, name_normalized, created_at, updated_at, created_by, updated_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          ).bind(
-            collectionId,
-            input.collectionName,
-            normalizeTitle(input.collectionName),
-            timestamp,
-            timestamp,
-            user.id,
-            user.id,
-          ),
-        );
-      }
-    }
-
-    const position = collectionId
-      ? ((
-          await c.env.DB.prepare(
-            "SELECT COALESCE(MAX(position), 0) AS max_position FROM collection_movies WHERE collection_id = ?",
-          )
-            .bind(collectionId)
-            .first<{ max_position: number }>()
-        )?.max_position ?? 0) + 1
+    const collectionAppend = input.collectionName
+      ? collectionAppendStatements(
+          c.env,
+          id,
+          input.collectionName,
+          timestamp,
+          user.id,
+        )
       : null;
+    const statements: D1PreparedStatement[] = [];
+    if (collectionAppend) statements.push(collectionAppend.collection);
 
     statements.push(
       c.env.DB.prepare(
@@ -437,20 +444,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       }
     }
 
-    if (collectionId && position !== null) {
-      statements.push(
-        c.env.DB.prepare(
-          "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
-        ).bind(collectionId, id, position),
-      );
-      if (!collectionCreated) {
-        statements.push(
-          c.env.DB.prepare(
-            "UPDATE collections SET updated_at = ?, updated_by = ? WHERE id = ?",
-          ).bind(timestamp, user.id, collectionId),
-        );
-      }
-    }
+    if (collectionAppend) statements.push(collectionAppend.membership);
     await c.env.DB.batch(statements);
     return c.json({ movie: await getMovieDetail(c.env, id, true) }, 201);
   });
@@ -567,7 +561,6 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
 
     let targetCollectionId = existing.collection_id;
     let targetCollectionName: string | null = null;
-    let createCollection = false;
     const collectionChangeRequested = input.collectionName !== undefined;
     if (collectionChangeRequested) {
       targetCollectionName = input.collectionName || null;
@@ -586,23 +579,12 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
           .bind(normalizeTitle(targetCollectionName))
           .first<{ id: string }>();
         targetCollectionId = target?.id ?? newId();
-        createCollection = !target;
       }
     }
 
     const membershipChanged =
       collectionChangeRequested &&
       targetCollectionId !== existing.collection_id;
-    const targetPosition =
-      membershipChanged && targetCollectionId
-        ? ((
-            await c.env.DB.prepare(
-              "SELECT COALESCE(MAX(position), 0) + 1 AS position FROM collection_movies WHERE collection_id = ?",
-            )
-              .bind(targetCollectionId)
-              .first<{ position: number }>()
-          )?.position ?? 1)
-        : null;
 
     const updateMovie = c.env.DB.prepare(
       `UPDATE movies SET
@@ -638,23 +620,16 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         : [updateMovie, ...replaceTmdb];
 
     if (membershipChanged) {
-      if (createCollection && targetCollectionId && targetCollectionName) {
-        statements.push(
-          c.env.DB.prepare(
-            `INSERT INTO collections
-             (id, name, name_normalized, created_at, updated_at, created_by, updated_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          ).bind(
-            targetCollectionId,
+      const collectionAppend = targetCollectionName
+        ? collectionAppendStatements(
+            c.env,
+            movieId,
             targetCollectionName,
-            normalizeTitle(targetCollectionName),
-            timestamp,
             timestamp,
             user.id,
-            user.id,
-          ),
-        );
-      }
+          )
+        : null;
+      if (collectionAppend) statements.push(collectionAppend.collection);
       if (existing.collection_id) {
         statements.push(
           c.env.DB.prepare(
@@ -662,20 +637,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
           ).bind(existing.collection_id, movieId),
         );
       }
-      if (targetCollectionId && targetPosition !== null) {
-        statements.push(
-          c.env.DB.prepare(
-            "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
-          ).bind(targetCollectionId, movieId, targetPosition),
-        );
-        if (!createCollection) {
-          statements.push(
-            c.env.DB.prepare(
-              "UPDATE collections SET updated_at = ?, updated_by = ? WHERE id = ?",
-            ).bind(timestamp, user.id, targetCollectionId),
-          );
-        }
-      }
+      if (collectionAppend) statements.push(collectionAppend.membership);
       statements.push(
         c.env.DB.prepare(
           `WITH replacement AS (
@@ -684,7 +646,9 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
              JOIN movies ON movies.id = collection_movies.movie_id
              LEFT JOIN ratings ON ratings.movie_id = movies.id
              JOIN collections ON collections.id = collection_movies.collection_id
-             WHERE collection_movies.collection_id = ? AND ratings.movie_id IS NULL
+             WHERE collection_movies.collection_id = (
+               SELECT collection_id FROM collection_movies WHERE movie_id = ?
+             ) AND ratings.movie_id IS NULL
              ORDER BY
                CASE WHEN collections.order_confirmed = 1 THEN collection_movies.position END ASC,
                CASE WHEN collections.order_confirmed = 0 THEN movies.added_at END ASC,
@@ -704,17 +668,13 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
                  ELSE rolled_by
                END,
                movie_id = COALESCE((SELECT id FROM replacement), movie_id)
-           WHERE id = 1 AND ? IS NOT NULL AND movie_id = ?
+           WHERE id = 1 AND EXISTS (
+               SELECT 1 FROM collection_movies WHERE movie_id = ?
+             ) AND movie_id = ?
              AND NOT EXISTS (
                SELECT 1 FROM ratings WHERE ratings.movie_id = now_showing.movie_id
              )`,
-        ).bind(
-          targetCollectionId,
-          timestamp,
-          user.id,
-          targetCollectionId,
-          movieId,
-        ),
+        ).bind(movieId, timestamp, user.id, movieId, movieId),
       );
       if (existing.collection_id) {
         statements.push(
