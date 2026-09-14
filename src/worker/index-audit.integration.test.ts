@@ -20,7 +20,7 @@ describe("D1 index alignment", () => {
       ).all<{ name: string }>()
     ).results.map(({ name }) => name);
 
-    expect(explicitIndexes).not.toContain("idx_collection_movies_order");
+    expect(explicitIndexes).not.toContain("idx_collection_memberships_order");
     expect(explicitIndexes).not.toContain("idx_movies_title_normalized");
     expect(explicitIndexes).not.toContain("idx_ratings_recorded_at");
     expect(explicitIndexes).toEqual(
@@ -43,7 +43,7 @@ describe("D1 index alignment", () => {
     const indexes = (
       await env.DB.prepare(
         `SELECT il.name, il.origin, ii.seqno, ii.name AS column_name
-         FROM pragma_index_list('collection_movies') AS il
+         FROM pragma_index_list('collection_memberships') AS il
          JOIN pragma_index_info(il.name) AS ii
          ORDER BY il.name, ii.seqno`,
       ).all<{
@@ -74,13 +74,13 @@ describe("D1 index alignment", () => {
 
   it("uses the collection-position key for ordered membership reads", async () => {
     const plan = await queryPlan(
-      `SELECT movie_id, position FROM collection_movies
+      `SELECT movie_id, position FROM collection_memberships
        WHERE collection_id = ? ORDER BY position`,
       ["collection-id"],
     );
 
     expect(plan).toContain(
-      "SEARCH collection_movies USING INDEX sqlite_autoindex_collection_movies_2 (collection_id=?)",
+      "SEARCH collection_memberships USING INDEX sqlite_autoindex_collection_memberships_2 (collection_id=?)",
     );
     expect(plan.some((detail) => detail.includes("TEMP B-TREE"))).toBe(false);
   });
@@ -182,10 +182,10 @@ describe("D1 index alignment", () => {
 
   it("uses rowid and watched-history indexes for bounded random and history reads", async () => {
     const randomPlan = await queryPlan(
-      `SELECT movies.id, movies.title, collection_movies.collection_id
+      `SELECT movies.id, movies.title, collection_memberships.collection_id
        FROM movies
-       LEFT JOIN collection_movies
-         ON collection_movies.movie_id = movies.id
+       LEFT JOIN collection_memberships
+         ON collection_memberships.movie_id = movies.id
        LEFT JOIN ratings ON ratings.movie_id = movies.id
        WHERE ratings.movie_id IS NULL AND movies.rowid >= ?
        ORDER BY movies.rowid ASC LIMIT 1`,

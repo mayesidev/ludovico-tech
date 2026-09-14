@@ -1,4 +1,5 @@
 import { parse } from "csv-parse/sync";
+import { normalizeCollectionName } from "../src/shared/normalize-collection-name";
 import { normalizeTitle } from "../src/shared/normalize-title";
 
 export const CATALOG_IMPORT_ATTRIBUTION = "automation:catalog-import";
@@ -281,10 +282,7 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
       diagnostics.push(diagnostic("INVALID_RATING_BY_EMAIL", row));
       valid = false;
     }
-    if (
-      collection &&
-      (collection.length > 200 || !normalizeTitle(collection))
-    ) {
+    if (collection && collection.length > 200) {
       diagnostics.push(diagnostic("INVALID_COLLECTION", row));
       valid = false;
     }
@@ -357,7 +355,7 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
   >();
   for (const parsedRow of parsedRows) {
     if (!parsedRow.movie.collection) continue;
-    const key = normalizeTitle(parsedRow.movie.collection);
+    const key = normalizeCollectionName(parsedRow.movie.collection);
     const members = collections.get(key) ?? [];
     members.push(parsedRow);
     collections.set(key, members);
@@ -492,7 +490,7 @@ export const buildCatalogImportPlan = (
   >();
   for (const movie of movies) {
     if (!movie.collection) continue;
-    const normalized = normalizeTitle(movie.collection);
+    const normalized = normalizeCollectionName(movie.collection);
     const collection = collections.get(normalized) ?? {
       id: crypto.randomUUID(),
       members: [],
@@ -516,7 +514,7 @@ export const buildCatalogImportPlan = (
       [
         "id",
         "name",
-        "name_normalized",
+        "name_key",
         "order_confirmed",
         "created_at",
         "updated_at",
@@ -571,7 +569,7 @@ export const buildCatalogImportPlan = (
   }
   statements.push(
     ...batchedInsert(
-      "collection_movies",
+      "collection_memberships",
       ["collection_id", "movie_id", "position"],
       membershipRows,
     ),
@@ -604,7 +602,8 @@ export const buildCatalogImportPlan = (
     ? (movieIds.get(normalizeTitle(selectedMovie.title)) as string)
     : null;
   const selectedCollectionId = selectedMovie?.collection
-    ? (collections.get(normalizeTitle(selectedMovie.collection))?.id ?? null)
+    ? (collections.get(normalizeCollectionName(selectedMovie.collection))?.id ??
+      null)
     : null;
   if (selectedMovieId) {
     statements.push(

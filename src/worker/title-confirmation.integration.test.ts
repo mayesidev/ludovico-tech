@@ -51,7 +51,7 @@ const seed = async (linked = false) => {
   vi.setSystemTime(timestamp);
   await env.DB.batch([
     env.DB
-      .prepare(`INSERT INTO collections (id, name, name_normalized, created_at, updated_at, order_confirmed)
+      .prepare(`INSERT INTO collections (id, name, name_key, created_at, updated_at, order_confirmed)
       VALUES ('source', 'Source', 'source', '2026-01-01', '2026-01-01', 1),
              ('target', 'Target', 'target', '2026-01-01', '2026-01-01', 1)`),
     env.DB.prepare(`INSERT INTO movies (id, title, added_at) VALUES
@@ -59,7 +59,7 @@ const seed = async (linked = false) => {
       ('movie', 'Original', '2026-01-01'),
       ('target-anchor', 'Target movie', '2026-01-01')`),
     env.DB
-      .prepare(`INSERT INTO collection_movies (collection_id, movie_id, position)
+      .prepare(`INSERT INTO collection_memberships (collection_id, movie_id, position)
       VALUES ('source', 'anchor', 1), ('source', 'movie', 2), ('target', 'target-anchor', 1)`),
     env.DB.prepare(
       "UPDATE now_showing SET movie_id = 'movie', rolled_at = '2026-01-01' WHERE id = 1",
@@ -88,7 +88,7 @@ const saved = async () => {
     env.DB.prepare("SELECT * FROM tmdb_people ORDER BY tmdb_id"),
     env.DB.prepare("SELECT * FROM collections ORDER BY id"),
     env.DB.prepare(
-      "SELECT * FROM collection_movies ORDER BY collection_id, position",
+      "SELECT * FROM collection_memberships ORDER BY collection_id, position",
     ),
     env.DB.prepare("SELECT * FROM now_showing"),
   ]);

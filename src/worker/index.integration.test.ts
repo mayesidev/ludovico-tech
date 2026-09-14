@@ -254,17 +254,17 @@ describe("Ludovico Tech Worker routes", () => {
     await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO collections
-         (id, name, name_normalized, created_at, updated_at)
+         (id, name, name_key, created_at, updated_at)
          VALUES (?, ?, ?, datetime('now'), datetime('now'))`,
       ).bind("suggestion-alpha", "Alpha Saga", "alpha saga"),
       env.DB.prepare(
         `INSERT INTO collections
-         (id, name, name_normalized, created_at, updated_at)
+         (id, name, name_key, created_at, updated_at)
          VALUES (?, ?, ?, datetime('now'), datetime('now'))`,
       ).bind("suggestion-middle", "The Alpha Stories", "the alpha stories"),
       env.DB.prepare(
         `INSERT INTO collections
-         (id, name, name_normalized, created_at, updated_at)
+         (id, name, name_key, created_at, updated_at)
          VALUES (?, ?, ?, datetime('now'), datetime('now'))`,
       ).bind("suggestion-percent", "100% Cinema", "100 cinema"),
     ]);
@@ -312,11 +312,11 @@ describe("Ludovico Tech Worker routes", () => {
       ).bind(movies[0].id),
       env.DB.prepare(
         `INSERT INTO collections
-         (id, name, name_normalized, created_at, updated_at)
+         (id, name, name_key, created_at, updated_at)
          VALUES ('library-alpha', 'Alpha Collection', 'alpha collection', ?, ?)`,
       ).bind("2026-08-24T00:00:00.000Z", "2026-08-24T00:00:00.000Z"),
       env.DB.prepare(
-        `INSERT INTO collection_movies (collection_id, movie_id, position)
+        `INSERT INTO collection_memberships (collection_id, movie_id, position)
          VALUES ('library-alpha', ?, 1)`,
       ).bind(movies[1].id),
     ]);
@@ -347,7 +347,7 @@ describe("Ludovico Tech Worker routes", () => {
          SELECT movies.id
          FROM movies
          LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
-         LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
+         LEFT JOIN collection_memberships ON collection_memberships.movie_id = movies.id
          LEFT JOIN ratings ON ratings.movie_id = movies.id
          ORDER BY movies.title COLLATE NOCASE ASC, movies.id ASC
          LIMIT 25`,
@@ -486,9 +486,9 @@ describe("Ludovico Tech Worker routes", () => {
     const collectionAttribution = await env.DB.prepare(
       `SELECT collections.created_by, collections.updated_by
        FROM collections
-       JOIN collection_movies
-         ON collection_movies.collection_id = collections.id
-       WHERE collection_movies.movie_id = ?`,
+       JOIN collection_memberships
+         ON collection_memberships.collection_id = collections.id
+       WHERE collection_memberships.movie_id = ?`,
     )
       .bind(second.body.movie.id)
       .first<{ created_by: string; updated_by: string }>();
@@ -607,7 +607,7 @@ describe("Ludovico Tech Worker routes", () => {
     expect(
       (
         await env.DB.prepare(
-          `SELECT movie_id, position FROM collection_movies
+          `SELECT movie_id, position FROM collection_memberships
            WHERE collection_id = ? ORDER BY position`,
         )
           .bind(target.body.movie.collection_id)

@@ -68,8 +68,8 @@ const saved = () =>
           tmdb_id, collections.name AS collection_name
    FROM movies
    LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
-   LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
-   LEFT JOIN collections ON collections.id = collection_movies.collection_id
+   LEFT JOIN collection_memberships ON collection_memberships.movie_id = movies.id
+   LEFT JOIN collections ON collections.id = collection_memberships.collection_id
    WHERE movies.id = 'movie'`,
   ).first();
 const deferred = <T>() => {

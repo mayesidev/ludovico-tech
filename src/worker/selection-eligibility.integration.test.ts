@@ -24,7 +24,7 @@ const seed = async (confirmed = true, ids = movieIds) => {
   await env.DB.batch([
     env.DB.prepare(
       `INSERT INTO collections
-       (id, name, name_normalized, order_confirmed, created_at, updated_at)
+       (id, name, name_key, order_confirmed, created_at, updated_at)
        VALUES (?, 'Rotation collection', 'rotation collection', ?, ?, ?),
               (?, 'Other collection', 'other collection', 1, ?, ?)`,
     ).bind(
@@ -41,7 +41,7 @@ const seed = async (confirmed = true, ids = movieIds) => {
        SELECT value, value, ?, ? FROM json_each(?)`,
     ).bind(timestamp, timestamp, JSON.stringify(ids)),
     env.DB.prepare(
-      `INSERT INTO collection_movies (collection_id, movie_id, position)
+      `INSERT INTO collection_memberships (collection_id, movie_id, position)
        SELECT ?, value, key + 1 FROM json_each(?)`,
     ).bind(collectionId, JSON.stringify(ids)),
   ]);
@@ -204,7 +204,7 @@ describe("selection uses current collection eligibility", () => {
 
   it("rejects a standalone roll rated before commit", async () => {
     await seed();
-    await env.DB.prepare("DELETE FROM collection_movies").run();
+    await env.DB.prepare("DELETE FROM collection_memberships").run();
     const response = await duringSelection("/roll", async (sampledId) => {
       await rate(sampledId!);
     });

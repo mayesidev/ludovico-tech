@@ -14,13 +14,13 @@ import { orderInput } from "../schemas";
 // Keep collection ordering identical to the catalog and collection detail views.
 const firstUnwatchedCollectionMovie = `
   SELECT movies.id
-  FROM collection_movies
-  JOIN movies ON movies.id = collection_movies.movie_id
-  JOIN collections ON collections.id = collection_movies.collection_id
-  WHERE collection_movies.collection_id = ?
+  FROM collection_memberships
+  JOIN movies ON movies.id = collection_memberships.movie_id
+  JOIN collections ON collections.id = collection_memberships.collection_id
+  WHERE collection_memberships.collection_id = ?
     AND NOT EXISTS (SELECT 1 FROM ratings WHERE ratings.movie_id = movies.id)
   ORDER BY
-    CASE WHEN collections.order_confirmed = 1 THEN collection_movies.position END ASC,
+    CASE WHEN collections.order_confirmed = 1 THEN collection_memberships.position END ASC,
     CASE WHEN collections.order_confirmed = 0 THEN movies.added_at END ASC,
     movies.added_at ASC,
     movies.id ASC
@@ -48,10 +48,10 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
     const timestamp = now();
     const stateUpdate = await c.env.DB.prepare(
       `WITH eligible_roll AS (
-         SELECT movies.id, collection_movies.collection_id
+         SELECT movies.id, collection_memberships.collection_id
          FROM movies
-         LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
-         WHERE movies.id = ? AND collection_movies.collection_id IS ?
+         LEFT JOIN collection_memberships ON collection_memberships.movie_id = movies.id
+         WHERE movies.id = ? AND collection_memberships.collection_id IS ?
            AND NOT EXISTS (SELECT 1 FROM ratings WHERE ratings.movie_id = movies.id)
        ), candidate AS (
          SELECT CASE WHEN collection_id IS NULL THEN id
@@ -103,11 +103,11 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
       const collectionId = c.req.param("id");
       const input = c.req.valid("json");
       const members = await c.env.DB.prepare(
-        `SELECT collection_movies.movie_id AS id,
+        `SELECT collection_memberships.movie_id AS id,
          CASE WHEN ratings.movie_id IS NULL THEN 0 ELSE 1 END AS watched
-         FROM collection_movies
-         LEFT JOIN ratings ON ratings.movie_id = collection_movies.movie_id
-         WHERE collection_movies.collection_id = ?`,
+         FROM collection_memberships
+         LEFT JOIN ratings ON ratings.movie_id = collection_memberships.movie_id
+         WHERE collection_memberships.collection_id = ?`,
       )
         .bind(collectionId)
         .all<{ id: string; watched: number }>();
@@ -138,11 +138,11 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
 
       const statements = [
         c.env.DB.prepare(
-          "UPDATE collection_movies SET position = position + 1000000 WHERE collection_id = ?",
+          "UPDATE collection_memberships SET position = position + 1000000 WHERE collection_id = ?",
         ).bind(collectionId),
         ...input.movieIds.map((movieId, index) =>
           c.env.DB.prepare(
-            "UPDATE collection_movies SET position = ? WHERE collection_id = ? AND movie_id = ?",
+            "UPDATE collection_memberships SET position = ? WHERE collection_id = ? AND movie_id = ?",
           ).bind(index + 1, collectionId, movieId),
         ),
       ];
@@ -160,7 +160,7 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
              SET movie_id = ?, rolled_at = ?, rolled_by = ?
              WHERE id = 1
                AND movie_id IN (
-                 SELECT movie_id FROM collection_movies WHERE collection_id = ?
+                 SELECT movie_id FROM collection_memberships WHERE collection_id = ?
                )
                AND NOT EXISTS (
                  SELECT 1 FROM ratings WHERE ratings.movie_id = now_showing.movie_id
@@ -203,7 +203,7 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
        WHERE id = 1 AND movie_id = ?
          AND (SELECT id FROM candidate) IS NOT NULL
          AND EXISTS (
-           SELECT 1 FROM collection_movies
+           SELECT 1 FROM collection_memberships
            WHERE movie_id = now_showing.movie_id AND collection_id = ?
          )
          AND EXISTS (

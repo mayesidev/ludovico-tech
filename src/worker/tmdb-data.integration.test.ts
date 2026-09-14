@@ -206,7 +206,7 @@ describe("scheduled TMDB enrichment refresh", () => {
     await insertLinkedMovie("scheduled-movie", 42);
     await env.DB.prepare(
       `INSERT INTO collections
-       (id, name, name_normalized, created_at, updated_at)
+       (id, name, name_key, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?)`,
     )
       .bind(
@@ -218,7 +218,7 @@ describe("scheduled TMDB enrichment refresh", () => {
       )
       .run();
     await env.DB.prepare(
-      `INSERT INTO collection_movies (collection_id, movie_id, position)
+      `INSERT INTO collection_memberships (collection_id, movie_id, position)
        VALUES (?, ?, 1)`,
     )
       .bind("library-collection", "scheduled-movie")
@@ -245,10 +245,10 @@ describe("scheduled TMDB enrichment refresh", () => {
       await env.DB.prepare(
         `SELECT movies.title, movies.imdb_id, movies.version,
                 movies.version_runtime, ratings.phrase,
-                collection_movies.collection_id
+                collection_memberships.collection_id
          FROM movies
          JOIN ratings ON ratings.movie_id = movies.id
-         JOIN collection_movies ON collection_movies.movie_id = movies.id
+         JOIN collection_memberships ON collection_memberships.movie_id = movies.id
          WHERE movies.id = ?`,
       )
         .bind("scheduled-movie")
