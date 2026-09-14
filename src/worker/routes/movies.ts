@@ -29,6 +29,7 @@ import {
   tmdbCandidateOrphanCleanupStatements,
 } from "../tmdb-data";
 import { tmdbErrorResponse } from "./tmdb";
+import { literalSubstringSearch, sqliteSearchText } from "../sqlite-search";
 
 export const registerMovieRoutes = (app: Hono<AppEnv>) => {
   app.get("/library", zValidator("query", libraryQueryInput), async (c) => {
@@ -39,16 +40,17 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       filters.push("ratings.movie_id IS NOT NULL");
     if (input.status === "unwatched") filters.push("ratings.movie_id IS NULL");
     if (input.search) {
-      const pattern = `%${input.search.replace(/[\\%_]/g, "\\$&")}%`;
-      filters.push(`(
-        LOWER(movies.title || ' ' || COALESCE(movies.version, '')) LIKE LOWER(?) ESCAPE '\\'
-        OR LOWER(COALESCE(collections.name, '')) LIKE LOWER(?) ESCAPE '\\'
-        OR LOWER(COALESCE(movie_tmdb_data.release_date, '')) LIKE LOWER(?) ESCAPE '\\'
-        OR LOWER(movies.added_at) LIKE LOWER(?) ESCAPE '\\'
-        OR LOWER(COALESCE(CAST(ratings.score AS TEXT), '')) LIKE LOWER(?) ESCAPE '\\'
-        OR LOWER(COALESCE(ratings.phrase, '')) LIKE LOWER(?) ESCAPE '\\'
-      )`);
-      bindings.push(pattern, pattern, pattern, pattern, pattern, pattern);
+      const search = literalSubstringSearch(input.search);
+      const fields = [
+        "movies.title || ' ' || COALESCE(movies.version, '')",
+        "COALESCE(collections.name, '')",
+        "COALESCE(movie_tmdb_data.release_date, '')",
+        "movies.added_at",
+        "COALESCE(CAST(ratings.score AS TEXT), '')",
+        "COALESCE(ratings.phrase, '')",
+      ];
+      filters.push(`(${fields.map(search.condition).join(" OR ")})`);
+      bindings.push(...fields.flatMap(() => search.bindings));
     }
     const where = filters.length > 0 ? `WHERE ${filters.join(" AND ")}` : "";
     const globalCounts = await c.env.DB.prepare(
@@ -146,21 +148,21 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     async (c) => {
       const normalizedSearch = normalizeTitle(c.req.valid("query").search);
       if (!normalizedSearch) return c.json({ collections: [] });
-      const search = normalizedSearch.replace(/[\\%_]/g, "\\$&");
+      const search = literalSubstringSearch(normalizedSearch);
       const collections = await c.env.DB.prepare(
         `SELECT id, name
          FROM collections
-         WHERE name_normalized LIKE ? ESCAPE '\\'
+         WHERE ${search.condition("name_normalized")}
          ORDER BY
            CASE WHEN name_normalized = ? THEN 0
-                WHEN name_normalized LIKE ? ESCAPE '\\' THEN 1
+                WHEN INSTR(${sqliteSearchText("name_normalized")}, ?) = 1 THEN 1
                 ELSE 2
            END,
            name COLLATE NOCASE,
            id
          LIMIT 8`,
       )
-        .bind(`%${search}%`, search, `${search}%`)
+        .bind(...search.bindings, normalizedSearch, normalizedSearch)
         .all<{ id: string; name: string }>();
       return c.json({ collections: collections.results });
     },

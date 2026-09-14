@@ -7,6 +7,7 @@ import {
 } from "./tmdb-data";
 import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
 import { createD1ProcessingUsage, type D1ProcessingUsage } from "./d1-usage";
+import { literalSubstringSearch } from "./sqlite-search";
 import {
   attributionDisplayName,
   TMDB_REFRESH_ATTRIBUTION,
@@ -652,7 +653,7 @@ export const getTmdbRefreshQueue = async (
     bindings.push(input.state);
   }
   if (input.search) {
-    const pattern = `%${input.search.replace(/[\\%_]/g, "\\$&")}%`;
+    const search = literalSubstringSearch(input.search);
     const fields = [
       "title",
       "COALESCE(CAST(tmdb_id AS TEXT), '—')",
@@ -673,10 +674,8 @@ export const getTmdbRefreshQueue = async (
               THEN 'Due now' ELSE '—' END)`,
       "COALESCE(contract_id, '—')",
     ];
-    const clauses = fields.map(
-      (field) => `LOWER(${field}) LIKE LOWER(?) ESCAPE '\\'`,
-    );
-    bindings.push(...fields.map(() => pattern));
+    const clauses = fields.map(search.condition);
+    bindings.push(...fields.flatMap(() => search.bindings));
     if (input.dateSearch) {
       clauses.push(
         "SUBSTR(fetched_at, 1, 16) = SUBSTR(?, 1, 16)",
