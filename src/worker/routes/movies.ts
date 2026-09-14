@@ -31,19 +31,26 @@ import {
 import { tmdbErrorResponse } from "./tmdb";
 import { literalSubstringSearch, sqliteSearchText } from "../sqlite-search";
 
+type MovieWriteGuard = {
+  condition: string;
+  bindings: string[];
+};
+
 const collectionAppendStatements = (
   env: AppEnv["Bindings"],
   movieId: string,
   collectionName: string,
   timestamp: string,
   userId: string,
+  guard?: MovieWriteGuard,
 ) => {
   const normalizedName = normalizeTitle(collectionName);
+  const guardBindings = guard?.bindings ?? [];
   return {
     collection: env.DB.prepare(
       `INSERT INTO collections
        (id, name, name_normalized, created_at, updated_at, created_by, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ${guard ? `SELECT ?, ?, ?, ?, ?, ?, ? WHERE ${guard.condition}` : "VALUES (?, ?, ?, ?, ?, ?, ?)"}
        ON CONFLICT(name_normalized) DO UPDATE SET
          updated_at = excluded.updated_at,
          updated_by = excluded.updated_by`,
@@ -55,6 +62,7 @@ const collectionAppendStatements = (
       timestamp,
       userId,
       userId,
+      ...guardBindings,
     ),
     membership: env.DB.prepare(
       `INSERT INTO collection_movies (collection_id, movie_id, position)
@@ -62,8 +70,9 @@ const collectionAppendStatements = (
          SELECT MAX(position) FROM collection_movies
          WHERE collection_id = collections.id
        ), 0) + 1
-       FROM collections WHERE name_normalized = ?`,
-    ).bind(movieId, normalizedName),
+       FROM collections WHERE name_normalized = ?
+       ${guard ? `AND ${guard.condition}` : ""}`,
+    ).bind(movieId, normalizedName, ...guardBindings),
   };
 };
 
@@ -580,6 +589,23 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       collectionChangeRequested &&
       targetCollectionId !== existing.collection_id;
 
+    // This predicate stays stable throughout an unconfirmed-title batch,
+    // which never changes the TMDB link. Every side effect uses the same guard.
+    const titleGuard: MovieWriteGuard | undefined =
+      input.title !== undefined && !tmdbChangeRequested
+        ? {
+            condition: `EXISTS (
+              SELECT 1 FROM movies AS current_movie
+              LEFT JOIN movie_tmdb_data AS current_tmdb
+                ON current_tmdb.movie_id = current_movie.id
+              WHERE current_movie.id = ?
+                AND (current_tmdb.movie_id IS NULL OR current_movie.title = ?)
+            )`,
+            bindings: [movieId, input.title],
+          }
+        : undefined;
+    const guardCondition = titleGuard ? `AND ${titleGuard.condition}` : "";
+    const guardBindings = titleGuard?.bindings ?? [];
     const assignments = ["updated_at = ?", "updated_by = ?"];
     const values: Array<string | number | null> = [timestamp, user.id];
     const assign = (
@@ -606,8 +632,8 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       assign("version_reference_url", input.versionReferenceUrl ?? null);
     }
     const updateMovie = c.env.DB.prepare(
-      `UPDATE movies SET ${assignments.join(", ")} WHERE id = ?`,
-    ).bind(...values, movieId);
+      `UPDATE movies SET ${assignments.join(", ")} WHERE id = ? ${guardCondition}`,
+    ).bind(...values, movieId, ...guardBindings);
     const replaceTmdb = tmdbChangeRequested
       ? await replaceTmdbDataStatements(c.env, movieId, tmdbResult, {
           attributedBy: user.id,
@@ -645,14 +671,15 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
             targetCollectionName,
             timestamp,
             user.id,
+            titleGuard,
           )
         : null;
       if (collectionAppend) statements.push(collectionAppend.collection);
       if (existing.collection_id) {
         statements.push(
           c.env.DB.prepare(
-            "DELETE FROM collection_movies WHERE collection_id = ? AND movie_id = ?",
-          ).bind(existing.collection_id, movieId),
+            `DELETE FROM collection_movies WHERE collection_id = ? AND movie_id = ? ${guardCondition}`,
+          ).bind(existing.collection_id, movieId, ...guardBindings),
         );
       }
       if (collectionAppend) statements.push(collectionAppend.membership);
@@ -691,26 +718,39 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
              ) AND movie_id = ?
              AND NOT EXISTS (
                SELECT 1 FROM ratings WHERE ratings.movie_id = now_showing.movie_id
-             )`,
-        ).bind(movieId, timestamp, user.id, movieId, movieId),
+             ) ${guardCondition}`,
+        ).bind(movieId, timestamp, user.id, movieId, movieId, ...guardBindings),
       );
       if (existing.collection_id) {
         statements.push(
           c.env.DB.prepare(
-            "UPDATE collections SET updated_at = ?, updated_by = ? WHERE id = ?",
-          ).bind(timestamp, user.id, existing.collection_id),
+            `UPDATE collections SET updated_at = ?, updated_by = ? WHERE id = ? ${guardCondition}`,
+          ).bind(timestamp, user.id, existing.collection_id, ...guardBindings),
           c.env.DB.prepare(
             `DELETE FROM collections WHERE id = ?
              AND NOT EXISTS (
                SELECT 1 FROM collection_movies WHERE collection_id = ?
-             )`,
-          ).bind(existing.collection_id, existing.collection_id),
+             ) ${guardCondition}`,
+          ).bind(
+            existing.collection_id,
+            existing.collection_id,
+            ...guardBindings,
+          ),
         );
       }
     }
 
     try {
-      await c.env.DB.batch(statements);
+      const results = await c.env.DB.batch(statements);
+      if (titleGuard && results[0].meta.changes === 0) {
+        return c.json(
+          {
+            error:
+              "The movie's TMDB match changed. Reload and confirm or remove the match before changing the title.",
+          },
+          409,
+        );
+      }
     } catch (error) {
       if (
         error instanceof Error &&
