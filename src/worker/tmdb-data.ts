@@ -31,7 +31,7 @@ const addMilliseconds = (timestamp: string, milliseconds: number) =>
 
 const currentSnapshotCondition = `EXISTS (
   SELECT 1 FROM movie_tmdb_data
-  WHERE movie_id = ? AND tmdb_id = ? AND fetched_at = ?
+  WHERE movie_id = ? AND tmdb_id = ? AND snapshot_revision IS ?
 )`;
 
 const uniqueIdBatches = (ids: number[]) => {
@@ -117,6 +117,7 @@ export const purgeExpiredTmdbData = async (
          poster_path = NULL,
          runtime_minutes = NULL,
          tmdb_collection_id = NULL,
+         snapshot_revision = ?,
          expired_at = ?,
          updated_at = ?,
          updated_by = ?
@@ -125,6 +126,7 @@ export const purgeExpiredTmdbData = async (
          AND expires_at <= ?
          AND expired_at IS NULL`,
     ).bind(
+      crypto.randomUUID(),
       timestamp,
       timestamp,
       TMDB_REFRESH_ATTRIBUTION,
@@ -160,6 +162,56 @@ type TmdbStoredSnapshot = {
   tmdbId: number;
 };
 
+type TmdbRefreshSnapshot = {
+  movieId: string;
+  revision: string | null;
+  tmdbId: number;
+};
+
+type TmdbSharedObservation = {
+  fetchedAt: string;
+  name: string;
+  snapshot?: TmdbRefreshSnapshot;
+};
+
+const sharedEntityStatement = (
+  env: AppEnv["Bindings"],
+  table: "tmdb_collections" | "tmdb_people",
+  tmdbId: number,
+  observations: TmdbSharedObservation[],
+) => {
+  const newest = observations.reduce((left, right) =>
+    right.fetchedAt > left.fetchedAt ? right : left,
+  );
+  const conditional = newest.snapshot !== undefined;
+  // One JSON binding keeps shared observations within D1's parameter limit
+  // while selecting the newest still-current source in the persistence batch.
+  const source = conditional
+    ? `SELECT ?, json_extract(candidate.value, '$.name'),
+                json_extract(candidate.value, '$.fetchedAt')
+       FROM json_each(?) AS candidate
+       JOIN movie_tmdb_data AS linked
+         ON linked.movie_id = json_extract(candidate.value, '$.snapshot.movieId')
+        AND linked.tmdb_id = json_extract(candidate.value, '$.snapshot.tmdbId')
+        AND linked.snapshot_revision IS json_extract(candidate.value, '$.snapshot.revision')
+       WHERE json_extract(candidate.value, '$.fetchedAt') >= COALESCE(linked.fetched_at, '')
+       ORDER BY json_extract(candidate.value, '$.fetchedAt') DESC
+       LIMIT 1`
+    : "VALUES (?, ?, ?)";
+  return env.DB.prepare(
+    `INSERT INTO ${table} (tmdb_id, name, fetched_at)
+     ${source}
+     ON CONFLICT(tmdb_id) DO UPDATE SET
+       name = excluded.name,
+       fetched_at = excluded.fetched_at
+     WHERE excluded.fetched_at > ${table}.fetched_at`,
+  ).bind(
+    ...(conditional
+      ? [tmdbId, JSON.stringify(observations)]
+      : [tmdbId, newest.name, newest.fetchedAt]),
+  );
+};
+
 const tmdbSnapshotMatches = (
   snapshot: TmdbStoredSnapshot,
   result: TmdbMovieResult,
@@ -174,54 +226,42 @@ const tmdbSnapshotMatches = (
 export const tmdbSharedEntityStatements = (
   env: AppEnv["Bindings"],
   results: TmdbMovieResult[],
+  refreshSnapshots?: Map<number, TmdbRefreshSnapshot>,
 ) => {
-  const collections = new Map<number, { fetchedAt: string; name: string }>();
-  const people = new Map<number, { fetchedAt: string; name: string }>();
+  const collections = new Map<number, TmdbSharedObservation[]>();
+  const people = new Map<number, TmdbSharedObservation[]>();
   for (const result of results) {
     const data = tmdbMovieDetailSchema.parse(result.data);
-    if (
-      data.collection &&
-      (!collections.has(data.collection.id) ||
-        result.fetchedAt > collections.get(data.collection.id)!.fetchedAt)
-    ) {
-      collections.set(data.collection.id, {
+    const snapshot = refreshSnapshots?.get(data.id);
+    if (refreshSnapshots && !snapshot) {
+      throw new Error("TMDB refresh snapshot is missing");
+    }
+    if (data.collection) {
+      const observations = collections.get(data.collection.id) ?? [];
+      observations.push({
         fetchedAt: result.fetchedAt,
         name: data.collection.name,
+        snapshot,
       });
+      collections.set(data.collection.id, observations);
     }
     for (const person of [...data.cast, ...data.directors]) {
-      if (
-        !people.has(person.id) ||
-        result.fetchedAt > people.get(person.id)!.fetchedAt
-      ) {
-        people.set(person.id, {
-          fetchedAt: result.fetchedAt,
-          name: person.name,
-        });
-      }
+      const observations = people.get(person.id) ?? [];
+      observations.push({
+        fetchedAt: result.fetchedAt,
+        name: person.name,
+        snapshot,
+      });
+      people.set(person.id, observations);
     }
   }
 
   return [
-    ...[...collections.entries()].map(([tmdbId, collection]) =>
-      env.DB.prepare(
-        `INSERT INTO tmdb_collections (tmdb_id, name, fetched_at)
-         VALUES (?, ?, ?)
-         ON CONFLICT(tmdb_id) DO UPDATE SET
-           name = excluded.name,
-           fetched_at = excluded.fetched_at
-         WHERE excluded.fetched_at > tmdb_collections.fetched_at`,
-      ).bind(tmdbId, collection.name, collection.fetchedAt),
+    ...[...collections.entries()].map(([tmdbId, observations]) =>
+      sharedEntityStatement(env, "tmdb_collections", tmdbId, observations),
     ),
-    ...[...people.entries()].map(([tmdbId, person]) =>
-      env.DB.prepare(
-        `INSERT INTO tmdb_people (tmdb_id, name, fetched_at)
-         VALUES (?, ?, ?)
-         ON CONFLICT(tmdb_id) DO UPDATE SET
-           name = excluded.name,
-           fetched_at = excluded.fetched_at
-         WHERE excluded.fetched_at > tmdb_people.fetched_at`,
-      ).bind(tmdbId, person.name, person.fetchedAt),
+    ...[...people.entries()].map(([tmdbId, observations]) =>
+      sharedEntityStatement(env, "tmdb_people", tmdbId, observations),
     ),
   ];
 };
@@ -272,6 +312,7 @@ export const replaceTmdbDataStatements = async (
     existingCollectionId?: number | null;
     existingCredits?: TmdbCreditSnapshot[];
     existingSnapshot?: TmdbStoredSnapshot;
+    expectedRevision?: string | null;
     includeOrphanCleanup?: boolean;
     includeSharedEntities?: boolean;
     updatedAt?: string;
@@ -318,6 +359,8 @@ export const replaceTmdbDataStatements = async (
   }
 
   const data = tmdbMovieDetailSchema.parse(result.data);
+  const snapshotRevision = crypto.randomUUID();
+  const refreshOnly = options.expectedRevision !== undefined;
   const { fetchedAt } = result;
   const updatedAt = options.updatedAt ?? options.attemptedAt ?? fetchedAt;
   const attributionKey = options.attributedBy ?? TMDB_REFRESH_ATTRIBUTION;
@@ -366,10 +409,12 @@ export const replaceTmdbDataStatements = async (
              last_refresh_status = 'succeeded',
              last_refresh_error = NULL,
              expired_at = NULL,
+             snapshot_revision = ?,
              updated_at = ?,
              updated_by = ?
            WHERE movie_id = ?
              AND tmdb_id = ?
+             ${refreshOnly ? "AND snapshot_revision IS ?" : ""}
              AND ? >= COALESCE(fetched_at, '')`,
         ).bind(
           fetchedAt,
@@ -377,10 +422,12 @@ export const replaceTmdbDataStatements = async (
           expiresAt,
           contractId,
           options.attemptedAt ?? fetchedAt,
+          snapshotRevision,
           updatedAt,
           attributionKey,
           movieId,
           data.id,
+          ...(refreshOnly ? [options.expectedRevision!] : []),
           fetchedAt,
         )
       : env.DB.prepare(
@@ -388,8 +435,9 @@ export const replaceTmdbDataStatements = async (
          (movie_id, tmdb_id, title, release_date, poster_path, runtime_minutes,
           tmdb_collection_id, fetched_at, refresh_after, expires_at, contract_id,
           last_refresh_attempt_at, last_refresh_status, last_refresh_error,
-          updated_at, updated_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'succeeded', NULL, ?, ?)
+          updated_at, updated_by, snapshot_revision)
+         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'succeeded', NULL, ?, ?, ?
+         WHERE ${refreshOnly ? currentSnapshotCondition : "1"}
          ON CONFLICT(movie_id) DO UPDATE SET
            tmdb_id = excluded.tmdb_id,
            title = excluded.title,
@@ -405,9 +453,11 @@ export const replaceTmdbDataStatements = async (
            last_refresh_status = excluded.last_refresh_status,
            last_refresh_error = excluded.last_refresh_error,
            expired_at = NULL,
+           snapshot_revision = excluded.snapshot_revision,
            updated_at = excluded.updated_at,
            updated_by = excluded.updated_by
-         WHERE excluded.fetched_at >= COALESCE(movie_tmdb_data.fetched_at, '')`,
+         WHERE ${refreshOnly ? "" : "movie_tmdb_data.tmdb_id <> excluded.tmdb_id OR"}
+           excluded.fetched_at >= COALESCE(movie_tmdb_data.fetched_at, '')`,
         ).bind(
           movieId,
           data.id,
@@ -423,6 +473,8 @@ export const replaceTmdbDataStatements = async (
           options.attemptedAt ?? fetchedAt,
           updatedAt,
           attributionKey,
+          snapshotRevision,
+          ...(refreshOnly ? [movieId, data.id, options.expectedRevision!] : []),
         );
   statements.push(metadataStatement);
 
@@ -439,7 +491,7 @@ export const replaceTmdbDataStatements = async (
         movieId,
         movieId,
         data.id,
-        fetchedAt,
+        snapshotRevision,
         ...preservedCredits.flatMap((credit) => [
           credit.creditType,
           credit.personId,
@@ -462,7 +514,7 @@ export const replaceTmdbDataStatements = async (
         credit.position,
         movieId,
         data.id,
-        fetchedAt,
+        snapshotRevision,
       ),
     );
   }
@@ -480,6 +532,7 @@ export type TmdbRefreshReport = {
   haltedReason?: string;
   refreshed: number;
   rateLimited: boolean;
+  skipped?: number;
 };
 
 type TmdbFetchOutcome =
@@ -539,7 +592,7 @@ export const refreshDueTmdbData = async (
   const contractId = await getTmdbMetadataContractId();
   const due = await env.DB.prepare(
     `SELECT movie_id, tmdb_id, title, release_date, poster_path,
-            runtime_minutes, tmdb_collection_id
+            runtime_minutes, tmdb_collection_id, snapshot_revision
      FROM movie_tmdb_data
      WHERE refresh_after <= ? OR contract_id IS NULL OR contract_id <> ?
      ORDER BY refresh_after, movie_id
@@ -551,6 +604,7 @@ export const refreshDueTmdbData = async (
       poster_path: string | null;
       release_date: string | null;
       runtime_minutes: number | null;
+      snapshot_revision: string | null;
       tmdb_collection_id: number | null;
       tmdb_id: number;
       title: string | null;
@@ -649,8 +703,23 @@ export const refreshDueTmdbData = async (
     return result ? [result] : [];
   });
   persistenceStatements.push(
-    ...tmdbSharedEntityStatements(env, successfulResults),
+    ...tmdbSharedEntityStatements(
+      env,
+      successfulResults,
+      new Map(
+        due.results.map((row) => [
+          row.tmdb_id,
+          {
+            movieId: row.movie_id,
+            revision: row.snapshot_revision,
+            tmdbId: row.tmdb_id,
+          },
+        ]),
+      ),
+    ),
   );
+  const successfulWrites: number[] = [];
+  const failedWrites: number[] = [];
 
   for (const row of due.results) {
     const result = cached.results.get(row.tmdb_id) ?? fetched.get(row.tmdb_id);
@@ -673,12 +742,13 @@ export const refreshDueTmdbData = async (
         orphanCandidates.collectionIds.push(row.tmdb_collection_id);
       }
       report.attempted += 1;
-      report.refreshed += 1;
+      successfulWrites.push(persistenceStatements.length);
       persistenceStatements.push(
         ...(await replaceTmdbDataStatements(env, row.movie_id, result, {
           attributedBy: TMDB_REFRESH_ATTRIBUTION,
           attemptedAt: timestamp,
           existingCredits: creditSnapshots.get(row.movie_id) ?? [],
+          expectedRevision: row.snapshot_revision,
           existingSnapshot: {
             collectionId: row.tmdb_collection_id,
             posterPath: row.poster_path,
@@ -696,6 +766,7 @@ export const refreshDueTmdbData = async (
       report.attempted += 1;
       report.failed += 1;
       if (sharedFailureIds.has(row.tmdb_id)) continue;
+      failedWrites.push(persistenceStatements.length);
       persistenceStatements.push(
         env.DB.prepare(
           `UPDATE movie_tmdb_data SET
@@ -704,15 +775,19 @@ export const refreshDueTmdbData = async (
              last_refresh_error = ?,
              refresh_after = ?,
              updated_at = ?,
-             updated_by = ?
-           WHERE movie_id = ?`,
+             updated_by = ?,
+             snapshot_revision = ?
+           WHERE movie_id = ? AND tmdb_id = ? AND snapshot_revision IS ?`,
         ).bind(
           timestamp,
           refreshErrorMessage(failure),
           timestamp,
           timestamp,
           TMDB_REFRESH_ATTRIBUTION,
+          crypto.randomUUID(),
           row.movie_id,
+          row.tmdb_id,
+          row.snapshot_revision,
         ),
       );
     }
@@ -723,5 +798,14 @@ export const refreshDueTmdbData = async (
   );
   const persisted = await env.DB.batch(persistenceStatements);
   recordD1BatchUsage(usage, persisted);
+  report.refreshed = successfulWrites.filter(
+    (index) => persisted[index].meta.changes > 0,
+  ).length;
+  const skippedFailures = failedWrites.filter(
+    (index) => persisted[index].meta.changes === 0,
+  ).length;
+  report.failed -= skippedFailures;
+  const skipped = successfulWrites.length - report.refreshed + skippedFailures;
+  if (skipped > 0) report.skipped = skipped;
   return report;
 };
