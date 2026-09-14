@@ -43,15 +43,28 @@ const collectionAppendStatements = (
   collectionName: string,
   timestamp: string,
   userId: string,
-  guard?: MovieWriteGuard,
+  options: { guard?: MovieWriteGuard; replaceMembership?: boolean } = {},
 ) => {
   const normalizedName = normalizeCollectionName(collectionName);
+  const { guard, replaceMembership = false } = options;
   const guardBindings = guard?.bindings ?? [];
+  const collectionConditions = [
+    ...(guard ? [guard.condition] : []),
+    ...(replaceMembership
+      ? [
+          `NOT EXISTS (
+          SELECT 1 FROM collection_memberships
+          JOIN collections ON collections.id = collection_memberships.collection_id
+          WHERE collection_memberships.movie_id = ? AND collections.name_key = ?
+        )`,
+        ]
+      : []),
+  ];
   return {
     collection: env.DB.prepare(
       `INSERT INTO collections
        (id, name, name_key, created_at, updated_at, created_by, updated_by)
-       ${guard ? `SELECT ?, ?, ?, ?, ?, ?, ? WHERE ${guard.condition}` : "VALUES (?, ?, ?, ?, ?, ?, ?)"}
+       ${collectionConditions.length ? `SELECT ?, ?, ?, ?, ?, ?, ? WHERE ${collectionConditions.join(" AND ")}` : "VALUES (?, ?, ?, ?, ?, ?, ?)"}
        ON CONFLICT(name_key) DO UPDATE SET
          updated_at = excluded.updated_at,
          updated_by = excluded.updated_by`,
@@ -64,6 +77,7 @@ const collectionAppendStatements = (
       userId,
       userId,
       ...guardBindings,
+      ...(replaceMembership ? [movieId, normalizedName] : []),
     ),
     membership: env.DB.prepare(
       `INSERT INTO collection_memberships (collection_id, movie_id, position)
@@ -72,8 +86,25 @@ const collectionAppendStatements = (
          WHERE collection_id = collections.id
        ), 0) + 1
        FROM collections WHERE name_key = ?
-       ${guard ? `AND ${guard.condition}` : ""}`,
-    ).bind(movieId, normalizedName, ...guardBindings),
+       ${guard ? `AND ${guard.condition}` : ""}
+       ${
+         replaceMembership
+           ? `AND NOT EXISTS (
+              SELECT 1 FROM collection_memberships
+              WHERE movie_id = ? AND collection_id = collections.id
+            )
+            ON CONFLICT(movie_id) DO UPDATE SET
+              collection_id = excluded.collection_id,
+              position = excluded.position
+            WHERE collection_memberships.collection_id <> excluded.collection_id`
+           : ""
+       }`,
+    ).bind(
+      movieId,
+      normalizedName,
+      ...guardBindings,
+      ...(replaceMembership ? [movieId] : []),
+    ),
   };
 };
 
@@ -565,32 +596,11 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       );
     }
 
-    let targetCollectionId = existing.collection_id;
-    let targetCollectionName: string | null = null;
     const collectionChangeRequested = input.collectionName !== undefined;
-    if (collectionChangeRequested) {
-      targetCollectionName = input.collectionName || null;
-      if (!targetCollectionName) {
-        targetCollectionId = null;
-      } else if (
-        existing.collection_id &&
-        normalizeCollectionName(targetCollectionName) ===
-          normalizeCollectionName(existing.collection_name ?? "")
-      ) {
-        targetCollectionId = existing.collection_id;
-      } else {
-        const target = await c.env.DB.prepare(
-          "SELECT id FROM collections WHERE name_key = ?",
-        )
-          .bind(normalizeCollectionName(targetCollectionName))
-          .first<{ id: string }>();
-        targetCollectionId = target?.id ?? newId();
-      }
-    }
-
-    const membershipChanged =
-      collectionChangeRequested &&
-      targetCollectionId !== existing.collection_id;
+    const targetCollectionName = input.collectionName || null;
+    const targetCollectionKey = targetCollectionName
+      ? normalizeCollectionName(targetCollectionName)
+      : null;
 
     // This predicate stays stable throughout an unconfirmed-title batch,
     // which never changes the TMDB link. Every side effect uses the same guard.
@@ -666,7 +676,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       statements.push(updateMovie, ...replaceTmdb);
     }
 
-    if (membershipChanged) {
+    if (collectionChangeRequested) {
       const collectionAppend = targetCollectionName
         ? collectionAppendStatements(
             c.env,
@@ -674,21 +684,42 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
             targetCollectionName,
             timestamp,
             user.id,
-            titleGuard,
+            { guard: titleGuard, replaceMembership: true },
           )
         : null;
       if (collectionAppend) statements.push(collectionAppend.collection);
-      if (existing.collection_id) {
-        statements.push(
-          c.env.DB.prepare(
-            `DELETE FROM collection_memberships WHERE collection_id = ? AND movie_id = ? ${guardCondition}`,
-          ).bind(existing.collection_id, movieId, ...guardBindings),
-        );
-      }
-      if (collectionAppend) statements.push(collectionAppend.membership);
+      // Resolve the actual source in this batch. Deleting its sole membership
+      // by cascade leaves the movie intact and avoids stale source cleanup.
       statements.push(
         c.env.DB.prepare(
-          `WITH replacement AS (
+          `UPDATE collections SET updated_at = ?, updated_by = ?
+           WHERE id = (
+             SELECT collection_id FROM collection_memberships WHERE movie_id = ?
+           ) AND name_key IS NOT ? ${guardCondition}`,
+        ).bind(
+          timestamp,
+          user.id,
+          movieId,
+          targetCollectionKey,
+          ...guardBindings,
+        ),
+        c.env.DB.prepare(
+          `DELETE FROM collections WHERE id = (
+             SELECT collection_id FROM collection_memberships WHERE movie_id = ?
+           ) AND name_key IS NOT ?
+             AND NOT EXISTS (
+               SELECT 1 FROM collection_memberships
+               WHERE collection_id = collections.id AND movie_id <> ?
+             ) ${guardCondition}`,
+        ).bind(movieId, targetCollectionKey, movieId, ...guardBindings),
+      );
+      if (collectionAppend) {
+        // Keep membership and selection adjacent: changes() distinguishes an
+        // actual move from an already-satisfied destination without extra writes.
+        statements.push(collectionAppend.membership);
+        statements.push(
+          c.env.DB.prepare(
+            `WITH replacement AS (
              SELECT movies.id
              FROM collection_memberships
              JOIN movies ON movies.id = collection_memberships.movie_id
@@ -716,29 +747,26 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
                  ELSE rolled_by
                END,
                movie_id = COALESCE((SELECT id FROM replacement), movie_id)
-           WHERE id = 1 AND EXISTS (
+           WHERE id = 1 AND changes() > 0 AND EXISTS (
                SELECT 1 FROM collection_memberships WHERE movie_id = ?
              ) AND movie_id = ?
              AND NOT EXISTS (
                SELECT 1 FROM ratings WHERE ratings.movie_id = now_showing.movie_id
              ) ${guardCondition}`,
-        ).bind(movieId, timestamp, user.id, movieId, movieId, ...guardBindings),
-      );
-      if (existing.collection_id) {
-        statements.push(
-          c.env.DB.prepare(
-            `UPDATE collections SET updated_at = ?, updated_by = ? WHERE id = ? ${guardCondition}`,
-          ).bind(timestamp, user.id, existing.collection_id, ...guardBindings),
-          c.env.DB.prepare(
-            `DELETE FROM collections WHERE id = ?
-             AND NOT EXISTS (
-               SELECT 1 FROM collection_memberships WHERE collection_id = ?
-             ) ${guardCondition}`,
           ).bind(
-            existing.collection_id,
-            existing.collection_id,
+            movieId,
+            timestamp,
+            user.id,
+            movieId,
+            movieId,
             ...guardBindings,
           ),
+        );
+      } else {
+        statements.push(
+          c.env.DB.prepare(
+            `DELETE FROM collection_memberships WHERE movie_id = ? ${guardCondition}`,
+          ).bind(movieId, ...guardBindings),
         );
       }
     }
