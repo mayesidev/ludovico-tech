@@ -66,6 +66,40 @@ const seedMovies = async (count: number) => {
 };
 
 describe("Library counts and read costs", () => {
+  it.each([
+    { count: 0, status: "all", search: "", watched: false },
+    { count: 0, status: "all", search: "Absent", watched: false },
+    { count: 2000, status: "all", search: "Absent", watched: false },
+    { count: 30, status: "watched", search: "", watched: false },
+    { count: 30, status: "unwatched", search: "", watched: true },
+  ])(
+    "omits empty page reads for $count movies, $status, '$search'",
+    async ({ count, status, search, watched }) => {
+      await seedMovies(count);
+      if (watched) {
+        await env.DB.prepare(
+          `INSERT INTO ratings (movie_id, score, phrase)
+         SELECT id, 4, 'Watched' FROM movies`,
+        ).run();
+      }
+      const query = new URLSearchParams({
+        page: "999",
+        pageSize: "25",
+        status,
+        search,
+      });
+      const { body, usage } = await requestLibrary(`?${query}`);
+      expect(body).toEqual({
+        movies: [],
+        counts: { total: count, unwatched: watched ? 0 : count },
+        pagination: { page: 1, pageSize: 25, total: 0, totalPages: 1 },
+      });
+      // Only global counts and, when searching, filtered counts are needed.
+      expect(usage).toHaveLength(search ? 2 : 1);
+      expect(usage.every((entry) => entry.rows_written === 0)).toBe(true);
+    },
+  );
+
   it("preserves counts through rating, unrating, deletion, and new movies", async () => {
     const assertCounts = async (total: number, unwatched: number) => {
       for (const status of ["all", "watched", "unwatched"]) {

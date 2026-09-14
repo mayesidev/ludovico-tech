@@ -84,6 +84,11 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     }
     const totalPages = Math.max(1, Math.ceil(total / input.pageSize));
     const page = Math.min(input.page, totalPages);
+    const metadata = {
+      counts: { total: globalTotal, unwatched: globalUnwatched },
+      pagination: { page, pageSize: input.pageSize, total, totalPages },
+    };
+    if (total === 0) return c.json({ movies: [], ...metadata });
     const sortExpressions = {
       title: "movies.title COLLATE NOCASE",
       collection: "collections.name COLLATE NOCASE",
@@ -133,11 +138,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       .all<MovieRow>();
     return c.json({
       movies: result.results,
-      counts: {
-        total: globalTotal,
-        unwatched: globalUnwatched,
-      },
-      pagination: { page, pageSize: input.pageSize, total, totalPages },
+      ...metadata,
     });
   });
 
