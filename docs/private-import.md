@@ -79,3 +79,8 @@ import is a separate reviewed operator action. SQL files required by Wrangler ar
 created in a private temporary directory and removed when the command finishes.
 If a write or post-import check fails, stop and review the unreleased target
 before resetting or retrying it.
+
+Each normalized collection may contain at most 1,000 titles, including watched
+and unwatched titles. `COLLECTION_TITLE_LIMIT_EXCEEDED` identifies the first row
+above that boundary; split the grouping before retrying. Validation happens before
+any database writes. This is a per-collection limit, not a total catalog limit.

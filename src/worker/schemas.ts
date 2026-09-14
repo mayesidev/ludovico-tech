@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_COLLECTION_TITLES } from "../shared/collection-limits";
 import { parseImdbId } from "../shared/imdb";
 
 const imdbId = z
@@ -66,7 +67,10 @@ export const ratingInput = z.object({
 });
 
 export const orderInput = z.object({
-  movieIds: z.array(z.string().trim().min(1).max(200)).min(1),
+  movieIds: z
+    .array(z.string().trim().min(1).max(200))
+    .min(1)
+    .max(MAX_COLLECTION_TITLES),
 });
 
 export const libraryQueryInput = z.object({
