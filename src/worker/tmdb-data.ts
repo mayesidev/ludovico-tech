@@ -23,6 +23,8 @@ const REFRESH_AFTER_MS = 150 * 24 * 60 * 60 * 1000;
 const EXPIRES_AFTER_MS = 175 * 24 * 60 * 60 * 1000;
 export const DEFAULT_TMDB_REFRESH_BATCH_SIZE = 25;
 const TMDB_FETCH_CONCURRENCY = 6;
+// Each cleanup candidate consumes one of D1's 100 bound parameters per statement.
+const MAX_CLEANUP_IDS_PER_STATEMENT = 100;
 
 const addMilliseconds = (timestamp: string, milliseconds: number) =>
   new Date(new Date(timestamp).getTime() + milliseconds).toISOString();
@@ -32,16 +34,25 @@ const currentSnapshotCondition = `EXISTS (
   WHERE movie_id = ? AND tmdb_id = ? AND fetched_at = ?
 )`;
 
-const uniqueIds = (ids: number[]) => [...new Set(ids)];
+const uniqueIdBatches = (ids: number[]) => {
+  const unique = [...new Set(ids)];
+  const batches: number[][] = [];
+  for (
+    let offset = 0;
+    offset < unique.length;
+    offset += MAX_CLEANUP_IDS_PER_STATEMENT
+  ) {
+    batches.push(unique.slice(offset, offset + MAX_CLEANUP_IDS_PER_STATEMENT));
+  }
+  return batches;
+};
 
 export const tmdbCandidateOrphanCleanupStatements = (
   env: AppEnv["Bindings"],
   candidates: { collectionIds: number[]; personIds: number[] },
 ) => {
-  const personIds = uniqueIds(candidates.personIds);
-  const collectionIds = uniqueIds(candidates.collectionIds);
   const statements: D1PreparedStatement[] = [];
-  if (personIds.length > 0) {
+  for (const personIds of uniqueIdBatches(candidates.personIds)) {
     statements.push(
       env.DB.prepare(
         `DELETE FROM tmdb_people
@@ -53,7 +64,7 @@ export const tmdbCandidateOrphanCleanupStatements = (
       ).bind(...personIds),
     );
   }
-  if (collectionIds.length > 0) {
+  for (const collectionIds of uniqueIdBatches(candidates.collectionIds)) {
     statements.push(
       env.DB.prepare(
         `DELETE FROM tmdb_collections
