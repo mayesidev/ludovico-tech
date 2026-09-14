@@ -446,4 +446,90 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await expect(page).toHaveURL("http://127.0.0.1:5174/oauth-provider/google");
     expect(returnTo).toBe("/movies/movie-1?from=now-showing");
   });
+
+  test("completes a TMDB result choice by keyboard without another lookup", async ({
+    page,
+  }) => {
+    let detailLookups = 0;
+    let submittedMovie: unknown;
+    await page.route("**/api/tmdb/search?**", async (route) => {
+      await route.fulfill({
+        json: {
+          results: [
+            {
+              id: 42,
+              title: "Chosen Movie",
+              releaseDate: null,
+              posterPath: null,
+            },
+            {
+              id: 43,
+              title: "Another Movie",
+              releaseDate: null,
+              posterPath: null,
+            },
+          ],
+        },
+      });
+    });
+    await page.route("**/api/tmdb/movies/*", async (route) => {
+      detailLookups += 1;
+      await route.fulfill({
+        status: 500,
+        json: { error: "Unexpected extra lookup" },
+      });
+    });
+    await page.route("**/api/movies", async (route) => {
+      submittedMovie = route.request().postDataJSON();
+      await route.fulfill({
+        json: {
+          movie: {
+            id: "chosen-movie",
+            title: "Chosen Movie",
+            added_at: "2026-09-01T00:00:00.000Z",
+            collection_id: null,
+            imdb_id: null,
+            tmdb_id: 42,
+            poster_path: null,
+            release_date: null,
+            runtime_minutes: null,
+            version: null,
+            version_runtime: null,
+            version_reference_url: null,
+            rating_score: null,
+            rating_phrase: null,
+            watched_at: null,
+            cast: [],
+            directors: [],
+          },
+        },
+      });
+    });
+    await page.goto("/credits");
+    await page.getByRole("button", { name: "Add a Movie" }).click();
+    await page.getByRole("textbox", { name: "Movie title" }).fill("Candidate");
+    await page.getByRole("button", { name: "Search TMDB" }).click();
+    const result = page.getByRole("button", { name: /Chosen Movie/ });
+    await result.focus();
+    await page.keyboard.press("Enter");
+    await expect(result).toBeHidden();
+    await expect(
+      page.getByRole("button", { name: /Another Movie/ }),
+    ).toBeHidden();
+    await expect(page.getByRole("status")).toHaveText(
+      "Confirmed: Chosen Movie (TMDB #42)",
+    );
+    await expect(page.getByRole("status")).toBeFocused();
+    await expect(page.getByRole("button", { name: "Check ID" })).toBeHidden();
+    await page.keyboard.press("Tab");
+    await expect(
+      page.getByRole("button", { name: "Remove Match" }),
+    ).toBeFocused();
+    await page.getByRole("button", { name: "Add Movie", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Chosen Movie" }),
+    ).toBeVisible();
+    expect(submittedMovie).toMatchObject({ title: "Chosen Movie", tmdbId: 42 });
+    expect(detailLookups).toBe(0);
+  });
 });

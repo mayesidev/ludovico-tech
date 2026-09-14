@@ -96,6 +96,12 @@ describe("accessible dialogs", () => {
           releaseDate: "2026-08-10",
           title: "Authoritative Title",
         },
+        {
+          id: 43,
+          posterPath: null,
+          releaseDate: null,
+          title: "Another Title",
+        },
       ],
     });
     vi.spyOn(api, "updateMovie").mockResolvedValue({
@@ -105,6 +111,7 @@ describe("accessible dialogs", () => {
         tmdb_id: 42,
       },
     });
+    const checkId = vi.spyOn(api, "tmdbMovie");
     const user = userEvent.setup();
     render(<EditHarness />);
 
@@ -114,9 +121,23 @@ describe("accessible dialogs", () => {
     await user.type(title, "Candidate Title");
     expect(screen.queryByText(/TMDB #[0-9]+ will be checked/)).toBeNull();
     await user.click(screen.getByRole("button", { name: "Search TMDB" }));
-    await user.click(
-      await screen.findByRole("button", { name: /Authoritative Title/ }),
+    const result = await screen.findByRole("button", {
+      name: /Authoritative Title/,
+    });
+    await user.tab();
+    await user.tab();
+    expect(result).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(
+      screen.queryByRole("button", { name: /Authoritative Title/ }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /Another Title/ })).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Confirmed: Authoritative Title (TMDB #42)",
     );
+    expect(screen.getByRole("status")).toHaveFocus();
+    expect(screen.queryByRole("button", { name: "Check ID" })).toBeNull();
+    expect(checkId).not.toHaveBeenCalled();
     const collection = screen.getByRole("textbox", {
       name: "Collection",
     });

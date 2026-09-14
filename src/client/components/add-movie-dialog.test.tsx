@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api, ApiError, type MovieDetail } from "../api";
@@ -37,6 +37,58 @@ describe("add movie dialog", () => {
     });
   });
 
+  it("preserves focus in another field when a manual ID check finishes", async () => {
+    let finishCheck!: (
+      value: Awaited<ReturnType<typeof api.tmdbMovie>>,
+    ) => void;
+    vi.spyOn(api, "tmdbMovie").mockReturnValue(
+      new Promise((resolve) => {
+        finishCheck = resolve;
+      }),
+    );
+    const user = userEvent.setup();
+    render(
+      <AddMovieDialog
+        busy={false}
+        onAuthExpired={vi.fn()}
+        onClose={vi.fn()}
+        onCreated={vi.fn()}
+        run={run}
+      />,
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Movie title" }),
+      "Candidate",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "TMDB movie ID (optional)" }),
+      "42",
+    );
+    await user.click(screen.getByRole("button", { name: "Check ID" }));
+    const imdb = screen.getByRole("textbox", {
+      name: "IMDb ID or URL (optional)",
+    });
+    await user.click(imdb);
+    await user.type(imdb, "tt0133093");
+    await act(async () =>
+      finishCheck({
+        movie: {
+          id: 42,
+          title: "Matched Movie",
+          posterPath: null,
+          releaseDate: null,
+          collection: null,
+          runtimeMinutes: null,
+        },
+      }),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Confirmed: Matched Movie (TMDB #42)",
+    );
+    expect(imdb).toHaveFocus();
+    expect(imdb).toHaveValue("tt0133093");
+  });
+
   it("searches TMDB, confirms a candidate, and adds its identity", async () => {
     vi.spyOn(api, "tmdbSearch").mockResolvedValue({
       results: [
@@ -46,9 +98,16 @@ describe("add movie dialog", () => {
           releaseDate: "2021-03-04",
           title: "Matched Movie",
         },
+        {
+          id: 43,
+          posterPath: null,
+          releaseDate: "2022-03-04",
+          title: "Another Movie",
+        },
       ],
     });
     vi.spyOn(api, "addMovie").mockResolvedValue({ movie });
+    const checkId = vi.spyOn(api, "tmdbMovie");
     const onClose = vi.fn();
     const onCreated = vi.fn();
     const user = userEvent.setup();
@@ -80,6 +139,14 @@ describe("add movie dialog", () => {
     await user.click(
       await screen.findByRole("button", { name: /Matched Movie/ }),
     );
+    expect(screen.queryByRole("button", { name: /Matched Movie/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Another Movie/ })).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Confirmed: Matched Movie (TMDB #42)",
+    );
+    expect(screen.getByRole("status")).toHaveFocus();
+    expect(screen.queryByRole("button", { name: "Check ID" })).toBeNull();
+    expect(checkId).not.toHaveBeenCalled();
     const versionToggle = screen.getByRole("checkbox", {
       name: /Specify a Version/,
     });
