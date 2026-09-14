@@ -40,3 +40,10 @@ such as `docs`, `test`, `refactor`, and `chore` normally do not.
 `main` is protected by `CI / verify`. After merge, maintainers verify every
 applicable release or deployment workflow to a terminal state. The workflows and
 their tests—not this document—define the delivery mechanics.
+
+Deployment verification uses authenticated Cloudflare service bindings to run the
+deployed health and library checks. Cloudflare API checks also confirm the custom
+domain mapping and that the exact uploaded version receives all traffic. This
+verifies deployment configuration and application behavior, including maintenance
+before migrations; it does not test public DNS, TLS, or edge security behavior.
+The verifier keeps SDK output private and reports only fixed diagnostic messages.

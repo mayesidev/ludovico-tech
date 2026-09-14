@@ -35,6 +35,8 @@ jobs:
       - name: Preserve the trusted deployment gate
         run: |
           cp scripts/release-gates.ts "$RUNNER_TEMP/release-gates.ts"
+          cp scripts/cloudflare-deployment.ts "$RUNNER_TEMP/cloudflare-deployment.ts"
+          cp scripts/verify-cloudflare-deployment.ts "$RUNNER_TEMP/verify-cloudflare-deployment.ts"
           cp scripts/production-audit.ts "$RUNNER_TEMP/production-audit.ts"
 
       - name: Set up pnpm
@@ -115,6 +117,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/maintenance-deployment.ndjson
         run: |
           pnpm exec wrangler deploy \
             --secrets-file "$RUNNER_TEMP/production-secrets.json" \
@@ -122,10 +125,15 @@ jobs:
             --var "GIT_SHA:${RELEASE_SHA}" \
             --var "MAINTENANCE_MODE:true"
 
-      - name: Verify maintenance mode owns production traffic
+      - name: Verify deployed production maintenance mode
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: "false"
         run: |
-          node "$RUNNER_TEMP/release-gates.ts" verify-maintenance \
-            "$PRODUCTION_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" production
+          node "$RUNNER_TEMP/verify-cloudflare-deployment.ts" maintenance \
+            "$PRODUCTION_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" production \
+            "$RUNNER_TEMP/maintenance-deployment.ndjson"
 
       - name: Wait for production refresh activity to stop
         env:
@@ -196,6 +204,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/active-deployment.ndjson
         run: |
           pnpm exec wrangler deploy \
             --secrets-file "$RUNNER_TEMP/production-secrets.json" \
@@ -204,15 +213,21 @@ jobs:
             --var "MAINTENANCE_MODE:false"
 
       - name: Verify deployed release health
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: "false"
         run: |
-          node "$RUNNER_TEMP/release-gates.ts" verify-deployment \
-            "$PRODUCTION_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" production
+          node "$RUNNER_TEMP/verify-cloudflare-deployment.ts" active \
+            "$PRODUCTION_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" production \
+            "$RUNNER_TEMP/active-deployment.ndjson"
 
       - name: Restore maintenance mode after cutover failure
         if: ${{ failure() && steps.maintenance.outcome == 'success' }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/fallback-deployment.ndjson
         run: |
           pnpm exec wrangler deploy \
             --secrets-file "$RUNNER_TEMP/production-secrets.json" \
@@ -222,6 +237,11 @@ jobs:
 
       - name: Verify maintenance fallback
         if: ${{ failure() && steps.maintenance.outcome == 'success' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: "false"
         run: |
-          node "$RUNNER_TEMP/release-gates.ts" verify-maintenance \
-            "$PRODUCTION_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" production
+          node "$RUNNER_TEMP/verify-cloudflare-deployment.ts" maintenance \
+            "$PRODUCTION_BASE_URL" "$RELEASE_TAG" "$RELEASE_SHA" production \
+            "$RUNNER_TEMP/fallback-deployment.ndjson"

@@ -8,14 +8,17 @@ const deploymentTargets = {
   "production-family-bonding": {
     origin: "https://familybonding.ludovicotech.com",
     runtimeEnvironment: "production",
+    worker: "ludovico-tech-production-family-bonding",
   },
   production: {
     origin: "https://ludovicotech.com",
     runtimeEnvironment: "production",
+    worker: "ludovico-tech-production",
   },
   staging: {
     origin: "https://staging.ludovicotech.com",
     runtimeEnvironment: "staging",
+    worker: "ludovico-tech-staging",
   },
 } as const;
 const deploymentSmokePath =
@@ -26,7 +29,7 @@ type DeploymentTarget = keyof typeof deploymentTargets;
 const isDeploymentTarget = (value: string): value is DeploymentTarget =>
   value in deploymentTargets;
 
-const deploymentTarget = (value: string) => {
+export const deploymentTarget = (value: string) => {
   if (!isDeploymentTarget(value)) {
     throw new Error("Deployment target is invalid");
   }

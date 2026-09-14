@@ -116,6 +116,113 @@ describe("complete CI and deployment gates", () => {
     }
   });
 
+  it.each([
+    {
+      file: "deploy-staging.yml",
+      target: "staging",
+      label: "staging",
+      baseUrl: "STAGING_BASE_URL",
+    },
+    {
+      file: "deploy.yml",
+      target: "production",
+      label: "production",
+      baseUrl: "PRODUCTION_BASE_URL",
+    },
+    {
+      file: "deploy-production-family-bonding.yml",
+      target: "production-family-bonding",
+      label: "Family Bonding",
+      baseUrl: "PRODUCTION_FAMILY_BONDING_BASE_URL",
+    },
+  ])(
+    "authenticates every $target deployment check using the trusted verifier",
+    ({ file, target, label, baseUrl }) => {
+      const source = workflow(file);
+      const preserve = workflowStep(
+        source,
+        "Preserve the trusted deployment gate",
+      );
+      const preserveIndex = source.indexOf(preserve);
+      const checkoutIndex = source.indexOf("git checkout --detach");
+      const installIndex = source.indexOf(
+        "run: pnpm install --frozen-lockfile",
+      );
+      const gates = [
+        {
+          name: `Verify deployed ${label} maintenance mode`,
+          phase: "maintenance",
+          deployment: "Deploy exact release in maintenance mode",
+          record: "maintenance-deployment.ndjson",
+        },
+        {
+          name: "Verify deployed release health",
+          phase: "active",
+          deployment: "Deploy exact release commit",
+          record: "active-deployment.ndjson",
+        },
+        {
+          name: "Verify maintenance fallback",
+          phase: "maintenance",
+          deployment: "Restore maintenance mode after cutover failure",
+          record: "fallback-deployment.ndjson",
+        },
+      ];
+
+      expect(
+        workflowStep(source, "Check out the trusted deployment gate"),
+      ).toContain("ref: main");
+      for (const script of [
+        "release-gates.ts",
+        "cloudflare-deployment.ts",
+        "verify-cloudflare-deployment.ts",
+      ]) {
+        expect(preserve).toContain(
+          `cp scripts/${script} "$RUNNER_TEMP/${script}"`,
+        );
+      }
+      expect(preserveIndex).toBeLessThan(checkoutIndex);
+      expect(checkoutIndex).toBeLessThan(installIndex);
+      expect(
+        source.match(/node "\$RUNNER_TEMP\/verify-cloudflare-deployment\.ts"/g),
+      ).toHaveLength(gates.length);
+      expect(source).not.toMatch(/\bverify-(?:maintenance|deployment)\b/);
+
+      for (const { name, phase, deployment, record } of gates) {
+        const gate = workflowStep(source, name);
+        const deploy = workflowStep(source, deployment);
+        expect(source.indexOf(gate)).toBeGreaterThan(installIndex);
+        expect(source.indexOf(gate)).toBeGreaterThan(source.indexOf(deploy));
+        expect(deploy).toContain(
+          `WRANGLER_OUTPUT_FILE_PATH: \${{ runner.temp }}/${record}`,
+        );
+        expect(gate).toContain(
+          "CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}",
+        );
+        expect(gate).toContain(
+          "CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}",
+        );
+        expect(gate).toContain('WRANGLER_SEND_METRICS: "false"');
+        expect(gate).toContain(
+          `node "$RUNNER_TEMP/verify-cloudflare-deployment.ts" ${phase} \\\n            "$${baseUrl}" "$RELEASE_TAG" "$RELEASE_SHA" ${target} \\\n            "$RUNNER_TEMP/${record}"`,
+        );
+      }
+
+      expect(workflowStep(source, gates[0].name)).not.toContain("        if:");
+      const active = workflowStep(source, gates[1].name);
+      if (target === "production-family-bonding") {
+        expect(active).toContain(
+          "if: inputs.mode == 'activate' || inputs.mode == 'deploy'",
+        );
+      } else {
+        expect(active).not.toContain("        if:");
+      }
+      expect(workflowStep(source, gates[2].name)).toContain(
+        "if: ${{ failure() && steps.maintenance.outcome == 'success' }}",
+      );
+    },
+  );
+
   it("cuts over exact staging releases behind verified maintenance mode", () => {
     const source = workflow("deploy-staging.yml");
     const nodeSetup = source.indexOf("Set up Node.js");
@@ -129,7 +236,7 @@ describe("complete CI and deployment gates", () => {
       "Deploy exact release in maintenance mode",
     );
     const maintenanceGate = source.indexOf(
-      "Verify maintenance mode owns staging traffic",
+      "Verify deployed staging maintenance mode",
     );
     const migration = source.indexOf("wrangler d1 migrations apply DB");
     const migrationGate = source.indexOf("check-migrations");
@@ -180,7 +287,6 @@ describe("complete CI and deployment gates", () => {
     expect(smoke).toBeGreaterThan(deploy);
     expect(source).toContain('--var "MAINTENANCE_MODE:true"');
     expect(source).toContain('--var "MAINTENANCE_MODE:false"');
-    expect(source).toContain("verify-maintenance");
     expect(source).toContain("steps.maintenance.outcome == 'success'");
   });
 
@@ -196,7 +302,7 @@ describe("complete CI and deployment gates", () => {
       "Deploy exact release in maintenance mode",
     );
     const maintenanceGate = source.indexOf(
-      "Verify maintenance mode owns production traffic",
+      "Verify deployed production maintenance mode",
     );
     const refreshIdleGate = source.indexOf(
       "Wait for production refresh activity to stop",
@@ -207,7 +313,7 @@ describe("complete CI and deployment gates", () => {
     const migration = source.indexOf("wrangler d1 migrations apply DB");
     const migrationGate = source.indexOf("check-migrations");
     const deploy = source.indexOf("Deploy exact release commit");
-    const smoke = source.indexOf("verify-deployment");
+    const smoke = source.indexOf("Verify deployed release health");
     const fallback = source.indexOf(
       "Restore maintenance mode after cutover failure",
     );
@@ -259,7 +365,6 @@ describe("complete CI and deployment gates", () => {
     expect(source).toContain("D1_RECOVERY_BOOKMARK");
     expect(source).toContain('--var "MAINTENANCE_MODE:true"');
     expect(source).toContain('--var "MAINTENANCE_MODE:false"');
-    expect(source).toContain("verify-maintenance");
     expect(source).toContain("steps.maintenance.outcome == 'success'");
     expect(nodeSetup).toBeGreaterThan(0);
     expect(tagValidation).toBeGreaterThan(nodeSetup);
@@ -292,11 +397,14 @@ describe("complete CI and deployment gates", () => {
     const maintenanceDeploy = source.indexOf(
       "Deploy exact release in maintenance mode",
     );
+    const maintenanceGate = source.indexOf(
+      "Verify deployed Family Bonding maintenance mode",
+    );
     const migration = source.indexOf("wrangler d1 migrations apply DB");
     const emptyGate = source.indexOf("check-production-family-bonding-empty");
     const seedGate = source.indexOf("check-production-family-bonding-initial");
     const activateDeploy = source.indexOf("Deploy exact release commit");
-    const smoke = source.indexOf("verify-deployment");
+    const smoke = source.indexOf("Verify deployed release health");
 
     expect(source).toContain("environment: production-family-bonding");
     expect(source).toContain(
@@ -317,7 +425,8 @@ describe("complete CI and deployment gates", () => {
     );
     expect(source).not.toContain("import:catalog");
     expect(maintenanceDeploy).toBeGreaterThan(0);
-    expect(migration).toBeGreaterThan(maintenanceDeploy);
+    expect(maintenanceGate).toBeGreaterThan(maintenanceDeploy);
+    expect(migration).toBeGreaterThan(maintenanceGate);
     expect(emptyGate).toBeGreaterThan(migration);
     expect(seedGate).toBeGreaterThan(emptyGate);
     expect(activateDeploy).toBeGreaterThan(seedGate);
