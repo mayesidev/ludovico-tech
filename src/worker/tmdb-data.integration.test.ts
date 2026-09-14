@@ -8,6 +8,7 @@ import {
   type TmdbCreditSnapshot,
 } from "./tmdb-data";
 import { getTmdbMovie, type TmdbMovieResult } from "./tmdb";
+import { claimTmdbRefresh } from "./tmdb-refresh";
 import type { AppEnv } from "./env";
 import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
 
@@ -127,6 +128,54 @@ const creditResult = (
   },
   fetchedAt,
 });
+
+const seedCleanupBatch = async (batchSize: number) => {
+  const sharedPersonId = 10_000;
+  const referencedPersonIds = [
+    1_000,
+    1_000 + (batchSize - 1) * 10,
+    sharedPersonId,
+  ];
+  for (let index = 0; index < batchSize; index += 1) {
+    const movieId = `cleanup-${index}`;
+    const personId = 1_000 + index * 10;
+    await insertLinkedMovie(movieId, index + 1);
+    const result = creditResult(
+      index + 1,
+      Array.from({ length: 5 }, (_, castIndex) => personId + castIndex),
+      [personId + 5, personId + 6, sharedPersonId],
+      "2026-01-01T00:00:00.000Z",
+    );
+    result.data.collection = { id: 1_000 + index, name: `Collection ${index}` };
+    await env.DB.batch(await replaceTmdbDataStatements(env, movieId, result));
+  }
+  await insertLinkedMovie("cleanup-reference", 999);
+  const reference = creditResult(999, referencedPersonIds, [], timestamp);
+  reference.data.collection = { id: 1_000, name: "Referenced Collection" };
+  await env.DB.batch(
+    await replaceTmdbDataStatements(env, "cleanup-reference", reference),
+  );
+  await env.DB.prepare(
+    `INSERT INTO tmdb_people (tmdb_id, name, fetched_at)
+     VALUES (20000, 'Unrelated person', ?)`,
+  )
+    .bind(timestamp)
+    .run();
+  return referencedPersonIds;
+};
+
+const expectBoundedCleanup = (preparedQueries: string[], batchSize: number) => {
+  const cleanupQueries = preparedQueries.filter(
+    (query) =>
+      query.includes("DELETE FROM tmdb_people") ||
+      query.includes("DELETE FROM tmdb_collections"),
+  );
+  // Seven distinct people per title plus one director shared by the whole batch.
+  expect(cleanupQueries).toHaveLength(Math.ceil((batchSize * 7 + 1) / 100) + 1);
+  for (const query of preparedQueries) {
+    expect(query.match(/\?/g)?.length ?? 0).toBeLessThanOrEqual(100);
+  }
+};
 
 const installCreditWriteTracking = () =>
   env.DB.batch([
@@ -765,6 +814,111 @@ describe("scheduled TMDB enrichment refresh", () => {
       ).all(),
     ).toMatchObject({ results: [{ tmdb_id: 92 }] });
   });
+
+  it.each([25, 50])(
+    "refreshes a %i-title batch with more than 100 prior people in one transaction",
+    async (batchSize) => {
+      const referencedPersonIds = await seedCleanupBatch(batchSize);
+      const fetchMock = vi.fn(async (input: string) => {
+        const tmdbId = Number(new URL(input).pathname.split("/").at(-1));
+        return responseFor(tmdbId);
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      const tracked = trackDatabaseCalls();
+
+      await expect(
+        refreshDueTmdbData(tracked.bindings, timestamp, batchSize),
+      ).resolves.toEqual({
+        attempted: batchSize,
+        failed: 0,
+        rateLimited: false,
+        refreshed: batchSize,
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(batchSize);
+      expect(tracked.batches()).toBe(1);
+      expectBoundedCleanup(tracked.preparedQueries, batchSize);
+      expect(
+        await env.DB.prepare(
+          "SELECT tmdb_id FROM tmdb_people ORDER BY tmdb_id",
+        ).all(),
+      ).toMatchObject({
+        results: [101, 201, ...referencedPersonIds, 20_000]
+          .sort((left, right) => left - right)
+          .map((tmdb_id) => ({ tmdb_id })),
+      });
+      expect(
+        await env.DB.prepare(
+          "SELECT tmdb_id FROM tmdb_collections ORDER BY tmdb_id",
+        ).all(),
+      ).toMatchObject({ results: [{ tmdb_id: 70 }, { tmdb_id: 1_000 }] });
+      expect(
+        await env.DB.prepare(
+          "SELECT COUNT(*) AS count FROM movie_credits",
+        ).first(),
+      ).toEqual({ count: batchSize * 2 + referencedPersonIds.length });
+      expect(
+        await env.DB.prepare(
+          `SELECT COUNT(*) AS count FROM movie_tmdb_data
+           WHERE title = 'Current TMDB Title' AND last_refresh_status = 'succeeded'`,
+        ).first(),
+      ).toEqual({ count: batchSize });
+    },
+  );
+
+  it.each([25, 50])(
+    "purges a %i-title batch with more than 100 prior people before the next refresh claim",
+    async (batchSize) => {
+      const referencedPersonIds = await seedCleanupBatch(batchSize);
+      await env.DB.prepare("UPDATE tmdb_refresh_schedule SET batch_size = ?")
+        .bind(batchSize)
+        .run();
+      const tracked = trackDatabaseCalls();
+
+      await expect(
+        purgeExpiredTmdbData(tracked.bindings, timestamp),
+      ).resolves.toBe(batchSize);
+
+      expect(tracked.batches()).toBe(1);
+      expectBoundedCleanup(tracked.preparedQueries, batchSize);
+      expect(
+        await env.DB.prepare(
+          "SELECT tmdb_id FROM tmdb_people ORDER BY tmdb_id",
+        ).all(),
+      ).toMatchObject({
+        results: [...referencedPersonIds, 20_000]
+          .sort((left, right) => left - right)
+          .map((tmdb_id) => ({ tmdb_id })),
+      });
+      expect(
+        await env.DB.prepare(
+          "SELECT tmdb_id FROM tmdb_collections ORDER BY tmdb_id",
+        ).all(),
+      ).toMatchObject({ results: [{ tmdb_id: 1_000 }] });
+      expect(
+        await env.DB.prepare(
+          "SELECT COUNT(*) AS count FROM movie_credits",
+        ).first(),
+      ).toEqual({ count: referencedPersonIds.length });
+      expect(
+        await env.DB.prepare(
+          `SELECT COUNT(*) AS count FROM movie_tmdb_data
+           WHERE expired_at = ? AND title IS NULL`,
+        )
+          .bind(timestamp)
+          .first(),
+      ).toEqual({ count: batchSize });
+      expect(
+        await env.DB.prepare("SELECT COUNT(*) AS count FROM movies").first(),
+      ).toEqual({ count: batchSize + 1 });
+      await expect(
+        claimTmdbRefresh(tmdbEnv(), false, timestamp),
+      ).resolves.toMatchObject({
+        batchSize,
+        startedAt: timestamp,
+      });
+    },
+  );
 
   it("bounds direct replacement cleanup to the affected title's prior references", async () => {
     await insertLinkedMovie("direct-candidate", 95);
