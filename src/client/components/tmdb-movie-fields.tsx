@@ -1,4 +1,4 @@
-import { type RefObject, useId, useState } from "react";
+import { type RefObject, useEffect, useId, useRef, useState } from "react";
 import { Check, LoaderCircle, Search, Unlink } from "lucide-react";
 import { api, ApiError, type TmdbResult } from "../api";
 import { cn, formatDate } from "../lib/utils";
@@ -32,14 +32,55 @@ export function TmdbMovieFields({
   const [searching, setSearching] = useState(false);
   const [checkingId, setCheckingId] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestSequence = useRef(0);
+  const selectionRef = useRef<HTMLSpanElement>(null);
+  const checkIdRef = useRef<HTMLButtonElement>(null);
+  const focusSelectionRef = useRef(false);
   const titleId = useId();
   const tmdbIdId = useId();
   const parsedTmdbId = parseTmdbId(tmdbId);
 
-  const reportError = async (cause: unknown, action: string) => {
+  useEffect(
+    () => () => {
+      requestSequence.current += 1;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (selected && focusSelectionRef.current) {
+      selectionRef.current?.focus();
+      focusSelectionRef.current = false;
+    }
+  }, [selected]);
+
+  const invalidateLookups = () => {
+    requestSequence.current += 1;
+    setSearching(false);
+    setCheckingId(false);
+    setError(null);
+    return requestSequence.current;
+  };
+
+  const selectResult = (result: TmdbResult, focusSelection = true) => {
+    invalidateLookups();
+    focusSelectionRef.current = focusSelection;
+    setSelected(result);
+    setResults([]);
+    onTitleChange(result.title);
+    onTmdbIdChange(String(result.id));
+  };
+
+  const reportError = async (
+    cause: unknown,
+    action: string,
+    sequence: number,
+  ) => {
+    if (sequence !== requestSequence.current) return;
     if (cause instanceof ApiError && cause.status === 401) {
       await onAuthExpired();
     }
+    if (sequence !== requestSequence.current) return;
     setError(
       cause instanceof ApiError && cause.status === 401
         ? `Your session ended. Sign in again to ${action}.`
@@ -51,31 +92,31 @@ export function TmdbMovieFields({
 
   const search = async () => {
     if (!title.trim()) return;
+    const sequence = invalidateLookups();
     setSearching(true);
-    setError(null);
     try {
-      setResults((await api.tmdbSearch(title)).results);
+      const result = await api.tmdbSearch(title);
+      if (sequence === requestSequence.current) setResults(result.results);
     } catch (cause) {
-      await reportError(cause, "search TMDB");
+      await reportError(cause, "search TMDB", sequence);
     } finally {
-      setSearching(false);
+      if (sequence === requestSequence.current) setSearching(false);
     }
   };
 
   const checkId = async () => {
     if (parsedTmdbId === null || parsedTmdbId === undefined) return;
+    const sequence = invalidateLookups();
     setCheckingId(true);
-    setError(null);
     try {
       const { movie } = await api.tmdbMovie(parsedTmdbId);
-      setSelected(movie);
-      setResults([]);
-      onTitleChange(movie.title);
-      onTmdbIdChange(String(movie.id));
+      if (sequence === requestSequence.current) {
+        selectResult(movie, document.activeElement === checkIdRef.current);
+      }
     } catch (cause) {
-      await reportError(cause, "check that TMDB ID");
+      await reportError(cause, "check that TMDB ID", sequence);
     } finally {
-      setCheckingId(false);
+      if (sequence === requestSequence.current) setCheckingId(false);
     }
   };
 
@@ -93,6 +134,7 @@ export function TmdbMovieFields({
           required
           value={title}
           onChange={(event) => {
+            invalidateLookups();
             onTitleChange(event.target.value);
             onTmdbIdChange("");
             setSelected(null);
@@ -135,27 +177,32 @@ export function TmdbMovieFields({
           inputMode="numeric"
           value={tmdbId}
           onChange={(event) => {
+            invalidateLookups();
             onTmdbIdChange(event.target.value);
             setSelected(null);
+            setResults([]);
           }}
           placeholder="TMDB movie ID (optional)"
         />
-        <Button
-          className="justify-center"
-          disabled={
-            checkingId || parsedTmdbId === null || parsedTmdbId === undefined
-          }
-          onClick={() => void checkId()}
-          type="button"
-          variant="secondary"
-        >
-          {checkingId ? (
-            <LoaderCircle className="animate-spin" size={16} />
-          ) : (
-            <Check size={16} />
-          )}
-          Check ID
-        </Button>
+        {!selected && (
+          <Button
+            className="justify-center"
+            ref={checkIdRef}
+            disabled={
+              checkingId || parsedTmdbId === null || parsedTmdbId === undefined
+            }
+            onClick={() => void checkId()}
+            type="button"
+            variant="secondary"
+          >
+            {checkingId ? (
+              <LoaderCircle className="animate-spin" size={16} />
+            ) : (
+              <Check size={16} />
+            )}
+            Check ID
+          </Button>
+        )}
       </div>
       {parsedTmdbId === undefined && (
         <p
@@ -179,11 +226,7 @@ export function TmdbMovieFields({
             <button
               key={result.id}
               aria-pressed={selected?.id === result.id}
-              onClick={() => {
-                setSelected(result);
-                onTitleChange(result.title);
-                onTmdbIdChange(String(result.id));
-              }}
+              onClick={() => selectResult(result)}
               className={cn(
                 "flex items-center gap-3 rounded-sm border p-3 text-left transition",
                 selected?.id === result.id
@@ -210,15 +253,18 @@ export function TmdbMovieFields({
 
       {parsedTmdbId !== null && parsedTmdbId !== undefined && (
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-text-muted">
-          <span>
+          <span ref={selectionRef} role="status" tabIndex={-1}>
             {selected
               ? `Confirmed: ${selected.title} (TMDB #${selected.id})`
               : `TMDB #${parsedTmdbId} will be checked when saved.`}
           </span>
           <Button
             onClick={() => {
+              invalidateLookups();
               onTmdbIdChange("");
               setSelected(null);
+              setResults([]);
+              titleInputRef.current?.focus();
             }}
             type="button"
             variant="ghost"
