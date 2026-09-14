@@ -21,7 +21,6 @@ const addMilliseconds = (timestamp: string, milliseconds: number) =>
 
 type TmdbRefreshClaim = {
   batchSize: number;
-  intervalMinutes: number;
   leaseExpiresAt: string;
   startedAt: string;
 };
@@ -96,7 +95,7 @@ export const claimTmdbRefresh = async (
        AND (? = 1 OR enabled = 1)
        AND (? = 1 OR next_run_at <= ?)
        AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
-     RETURNING interval_minutes, batch_size`,
+     RETURNING batch_size`,
   )
     .bind(
       leaseExpiresAt,
@@ -109,11 +108,10 @@ export const claimTmdbRefresh = async (
       timestamp,
       timestamp,
     )
-    .first<{ batch_size: number; interval_minutes: number }>();
+    .first<{ batch_size: number }>();
   return row
     ? {
         batchSize: row.batch_size,
-        intervalMinutes: row.interval_minutes,
         leaseExpiresAt,
         startedAt: timestamp,
       }
@@ -128,10 +126,6 @@ const finishClaim = async (
   usage: D1ProcessingUsage,
 ) => {
   const completedAt = new Date().toISOString();
-  const nextRunAt = addMilliseconds(
-    claim.startedAt,
-    claim.intervalMinutes * 60 * 1000,
-  );
   const lastError = report.rateLimited
     ? "TMDB rate limited the refresh"
     : (report.haltedReason ??
@@ -140,7 +134,7 @@ const finishClaim = async (
         : null));
   await env.DB.prepare(
     `UPDATE tmdb_refresh_schedule SET
-       next_run_at = ?,
+       next_run_at = strftime('%Y-%m-%dT%H:%M:%fZ', ?, '+' || interval_minutes || ' minutes'),
        lease_expires_at = NULL,
        last_completed_at = ?,
        last_attempted_count = ?,
@@ -157,7 +151,7 @@ const finishClaim = async (
      WHERE id = ? AND lease_expires_at = ?`,
   )
     .bind(
-      nextRunAt,
+      claim.startedAt,
       completedAt,
       report.attempted,
       report.refreshed,
@@ -184,7 +178,7 @@ const failClaim = async (
   const completedAt = new Date().toISOString();
   await env.DB.prepare(
     `UPDATE tmdb_refresh_schedule SET
-       next_run_at = ?,
+       next_run_at = strftime('%Y-%m-%dT%H:%M:%fZ', ?, '+' || interval_minutes || ' minutes'),
        lease_expires_at = NULL,
        last_completed_at = ?,
        last_processing_rows_read = ?,
@@ -196,7 +190,7 @@ const failClaim = async (
      WHERE id = ? AND lease_expires_at = ?`,
   )
     .bind(
-      addMilliseconds(claim.startedAt, claim.intervalMinutes * 60 * 1000),
+      claim.startedAt,
       completedAt,
       usage.rowsRead,
       usage.rowsWritten,
