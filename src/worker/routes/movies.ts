@@ -818,7 +818,6 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
        (movie_id, watched_at, score, phrase, recorded_at, recorded_by)
        VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(movie_id) DO UPDATE SET
-       watched_at = COALESCE(ratings.watched_at, excluded.watched_at),
        score = excluded.score,
        phrase = excluded.phrase,
        recorded_at = excluded.recorded_at,
