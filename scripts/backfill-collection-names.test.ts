@@ -26,6 +26,35 @@ const options = () =>
     "data/synthetic-backfill",
     "--execute",
   ]);
+const remoteOptions = () =>
+  parseCollectionBackfillArguments([
+    "--environment",
+    "staging",
+    "--database",
+    "ludovico-tech-staging",
+    "--execute",
+  ]);
+const importOutput = `├ Checking if file needs uploading
+│
+├ 🌌 Uploading synthetic.sql
+│ 🌌 Uploading complete.
+│
+${JSON.stringify([{ success: true, results: [{ "Rows written": 1 }] }])}`;
+const createDatabase = () => {
+  const database = new DatabaseSync(":memory:");
+  for (const name of migrations())
+    database.exec(readFileSync(`migrations/${name}`, "utf8"));
+  database.exec(`INSERT INTO collections (id, name, name_key, created_at, updated_at)
+    VALUES ('private-id', '東宝', '', '2026-08-01', '2026-08-01');`);
+  return database;
+};
+const queryOutput = (database: DatabaseSync, args: string[]) => {
+  const command = args[args.indexOf("--command") + 1];
+  const results = command.includes("d1_migrations")
+    ? migrations().map((name) => ({ name }))
+    : database.prepare(command).all();
+  return JSON.stringify([{ success: true, results }]);
+};
 
 describe("collection backfill operator boundary", () => {
   it("bounds each response for supported names with large Unicode expansions", () => {
@@ -80,45 +109,164 @@ describe("collection backfill operator boundary", () => {
       expect(() => parseCollectionBackfillArguments(args)).toThrow("Usage:");
   });
 
-  it("captures private SQL and output, verifies migrations, and removes temporary files", async () => {
-    const database = new DatabaseSync(":memory:");
-    const files = new Set<string>();
-    try {
-      for (const name of migrations())
-        database.exec(readFileSync(`migrations/${name}`, "utf8"));
-      database.exec(`INSERT INTO collections (id, name, name_key, created_at, updated_at)
-        VALUES ('private-id', '東宝', '', '2026-08-01', '2026-08-01');`);
-      const runner = vi.fn(async (_executable: string, args: string[]) => {
-        expect(args).toContain("--local");
-        expect(args).not.toContain("--remote");
-        expect(args.join(" ")).not.toContain("private-id");
-        expect(args.join(" ")).not.toContain("東宝");
-        const command = args[args.indexOf("--command") + 1];
-        let results: unknown[];
-        if (args.includes("--file")) {
+  it.each(["local", "remote"])(
+    "verifies %s writes privately and removes temporary files",
+    async (target) => {
+      const database = createDatabase();
+      const files = new Set<string>();
+      try {
+        const runner = vi.fn(async (_executable: string, args: string[]) => {
+          expect(args).toContain(`--${target}`);
+          expect(args).not.toContain(
+            target === "local" ? "--remote" : "--local",
+          );
+          expect(args.join(" ")).not.toContain("private-id");
+          expect(args.join(" ")).not.toContain("東宝");
+          if (args.includes("--file")) {
+            const path = args[args.indexOf("--file") + 1];
+            files.add(path);
+            expect(statSync(path).mode & 0o777).toBe(0o600);
+            database.exec(readFileSync(path, "utf8"));
+            return target === "remote"
+              ? importOutput
+              : JSON.stringify([{ success: true, results: [] }]);
+          }
+          return queryOutput(database, args);
+        });
+        const selectedOptions =
+          target === "local" ? options() : remoteOptions();
+        expect(
+          await runCollectionNameBackfill(selectedOptions, runner),
+        ).toEqual({
+          alreadyComplete: false,
+          updated: 1,
+        });
+        expect(
+          database.prepare("SELECT name_key FROM collections").get(),
+        ).toEqual({ name_key: "東宝" });
+        expect(
+          database
+            .prepare("SELECT completed FROM collection_name_backfill")
+            .get(),
+        ).toEqual({ completed: 1 });
+        expect(files.size).toBe(1);
+        for (const path of files) expect(existsSync(path)).toBe(false);
+      } finally {
+        database.close();
+      }
+    },
+  );
+
+  it.each(["keys", "marker"])(
+    "rejects a failed %s write and can retry after rollback",
+    async (failure) => {
+      const database = createDatabase();
+      const files = new Set<string>();
+      let failOnce = true;
+      try {
+        const runner = vi.fn(async (_executable: string, args: string[]) => {
+          if (!args.includes("--file")) return queryOutput(database, args);
           const path = args[args.indexOf("--file") + 1];
           files.add(path);
-          expect(statSync(path).mode & 0o777).toBe(0o600);
-          database.exec(readFileSync(path, "utf8"));
-          results = [];
-        } else if (command.includes("d1_migrations"))
-          results = migrations().map((name) => ({ name }));
-        else results = database.prepare(command).all();
-        return JSON.stringify([{ success: true, results }]);
-      });
-      expect(await runCollectionNameBackfill(options(), runner)).toEqual({
-        alreadyComplete: false,
-        updated: 1,
-      });
-      expect(
-        database.prepare("SELECT name_key FROM collections").get(),
-      ).toEqual({ name_key: "東宝" });
-      expect(files.size).toBe(1);
-      for (const path of files) expect(existsSync(path)).toBe(false);
-    } finally {
-      database.close();
-    }
-  });
+          const sql = readFileSync(path, "utf8");
+          const phase = sql.includes("UPDATE collections") ? "keys" : "marker";
+          // Simulate a failed remote import after SQL execution, with its
+          // transaction rolled back before the child reports a nonzero exit.
+          database.exec("BEGIN");
+          try {
+            database.exec(sql);
+            if (failOnce && phase === failure) {
+              failOnce = false;
+              throw new Error("private failed command output");
+            }
+            database.exec("COMMIT");
+          } catch (error) {
+            database.exec("ROLLBACK");
+            throw error;
+          }
+          return importOutput;
+        });
+        await expect(
+          runCollectionNameBackfill(remoteOptions(), runner),
+        ).rejects.toThrow(
+          "Collection name backfill command failed; keep maintenance enabled",
+        );
+        expect(
+          database
+            .prepare("SELECT completed FROM collection_name_backfill")
+            .get(),
+        ).toEqual({ completed: 0 });
+        expect(
+          database.prepare("SELECT name_key FROM collections").get(),
+        ).toEqual({ name_key: failure === "keys" ? "" : "東宝" });
+        for (const path of files) expect(existsSync(path)).toBe(false);
+        expect(
+          await runCollectionNameBackfill(remoteOptions(), runner),
+        ).toEqual({
+          alreadyComplete: false,
+          updated: failure === "keys" ? 1 : 0,
+        });
+        expect(
+          database.prepare("SELECT name_key FROM collections").get(),
+        ).toEqual({ name_key: "東宝" });
+        expect(
+          database
+            .prepare("SELECT completed FROM collection_name_backfill")
+            .get(),
+        ).toEqual({ completed: 1 });
+        for (const path of files) expect(existsSync(path)).toBe(false);
+      } finally {
+        database.close();
+      }
+    },
+  );
+
+  it.each(["keys", "marker"])(
+    "does not accept successful %s output without persisted state",
+    async (skipped) => {
+      const database = createDatabase();
+      try {
+        const runner = vi.fn(async (_executable: string, args: string[]) => {
+          if (!args.includes("--file")) return queryOutput(database, args);
+          const sql = readFileSync(args[args.indexOf("--file") + 1], "utf8");
+          const phase = sql.includes("UPDATE collections") ? "keys" : "marker";
+          if (phase !== skipped) database.exec(sql);
+          return importOutput;
+        });
+        await expect(
+          runCollectionNameBackfill(remoteOptions(), runner),
+        ).rejects.toThrow(
+          skipped === "keys"
+            ? "verification failed"
+            : "completion could not be verified",
+        );
+        expect(
+          database
+            .prepare("SELECT completed FROM collection_name_backfill")
+            .get(),
+        ).toEqual({ completed: 0 });
+      } finally {
+        database.close();
+      }
+    },
+  );
+
+  it.each([
+    "private malformed read output",
+    importOutput,
+    JSON.stringify([{ success: false, results: [] }]),
+    JSON.stringify([]),
+  ])(
+    "rejects invalid read output without executing writes (%#)",
+    async (output) => {
+      const runner = vi.fn().mockResolvedValue(output);
+      await expect(
+        runCollectionNameBackfill(remoteOptions(), runner),
+      ).rejects.toThrow("Collection name backfill query returned invalid data");
+      expect(runner).toHaveBeenCalledTimes(1);
+      expect(runner.mock.calls[0][1]).toContain("--command");
+    },
+  );
 
   it("refuses incomplete migrations before reading or changing catalog data", async () => {
     const runner = vi
