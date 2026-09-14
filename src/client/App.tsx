@@ -398,7 +398,11 @@ export default function App() {
           auth === null ? (
             <LoadingState />
           ) : (
-            <TmdbStatusPage canMutate={canMutate} onNavigate={navigate} />
+            <TmdbStatusPage
+              canMutate={canMutate}
+              onAuthExpired={refreshAuth}
+              onNavigate={navigate}
+            />
           )
         ) : loading ? (
           <LoadingState />

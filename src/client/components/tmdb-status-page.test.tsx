@@ -7,8 +7,10 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { StrictMode } from "react";
 import {
   api,
+  ApiError,
   type TmdbRefreshItem,
   type TmdbRefreshQueueQuery,
   type TmdbRefreshQueueResponse,
@@ -110,6 +112,107 @@ afterEach(() => {
 });
 
 describe("TMDB refresh status page", () => {
+  it("shows an initial failure and retries the combined overview through the UI", async () => {
+    let finishRetry!: (
+      value: Awaited<ReturnType<typeof api.tmdbRefreshOverview>>,
+    ) => void;
+    const loadOverview = vi
+      .spyOn(api, "tmdbRefreshOverview")
+      .mockRejectedValueOnce(new ApiError("Service unavailable", 503))
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishRetry = resolve;
+        }),
+      );
+    render(
+      <StrictMode>
+        <TmdbStatusPage canMutate onNavigate={vi.fn()} />
+      </StrictMode>,
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Service unavailable",
+    );
+    expect(screen.queryByText("Loading refresh data…")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(screen.getByRole("button", { name: "Retrying…" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Retrying…" }));
+    expect(loadOverview).toHaveBeenCalledTimes(2);
+    await act(async () => finishRetry({ queue: queue(), summary }));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Refresh status" }),
+    ).toBeEnabled();
+    expect(screen.getByRole("link", { name: "Current Movie" })).toBeVisible();
+  });
+
+  it.each(["overview", "queue"])(
+    "refreshes session presentation after a %s read returns 401",
+    async (stage) => {
+      const overview = vi.spyOn(api, "tmdbRefreshOverview");
+      if (stage === "overview")
+        overview.mockRejectedValue(
+          new ApiError("Authentication required", 401),
+        );
+      else overview.mockResolvedValue({ queue: queue(), summary });
+      vi.spyOn(api, "tmdbRefreshQueue").mockRejectedValue(
+        new ApiError("Authentication required", 401),
+      );
+      const onAuthExpired = vi.fn().mockResolvedValue(undefined);
+      const view = render(
+        <TmdbStatusPage
+          canMutate
+          onAuthExpired={onAuthExpired}
+          onNavigate={vi.fn()}
+        />,
+      );
+      if (stage === "queue") {
+        fireEvent.change(
+          await screen.findByRole("combobox", {
+            name: "Filter refresh status",
+          }),
+          { target: { value: "failed" } },
+        );
+      }
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Your session ended. Sign in again to view Library refresh status.",
+      );
+      expect(onAuthExpired).toHaveBeenCalledOnce();
+      view.rerender(
+        <TmdbStatusPage
+          canMutate={false}
+          onAuthExpired={onAuthExpired}
+          onNavigate={vi.fn()}
+        />,
+      );
+      expect(
+        screen.getByText("Sign in to view or run Library update operations."),
+      ).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+      expect(screen.queryByRole("link", { name: "Current Movie" })).toBeNull();
+    },
+  );
+
+  it("keeps loaded data visible after a queue failure and recovers with Refresh status", async () => {
+    const overview = vi
+      .spyOn(api, "tmdbRefreshOverview")
+      .mockResolvedValue({ queue: queue(), summary });
+    vi.spyOn(api, "tmdbRefreshQueue").mockRejectedValue(
+      new Error("Queue unavailable"),
+    );
+    render(<TmdbStatusPage canMutate onNavigate={vi.fn()} />);
+    fireEvent.change(
+      await screen.findByRole("combobox", { name: "Filter refresh status" }),
+      { target: { value: "failed" } },
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Queue unavailable",
+    );
+    expect(screen.getByRole("link", { name: "Current Movie" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(overview).toHaveBeenCalledTimes(2);
+  });
+
   it("refreshes the overview on demand and after focus data becomes stale", async () => {
     let timestamp = 1_000;
     vi.spyOn(Date, "now").mockImplementation(() => timestamp);

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshCw, Search } from "lucide-react";
 import {
   api,
+  ApiError,
   type TmdbRefreshItem,
   type TmdbRefreshQueueQuery,
   type TmdbRefreshQueueResponse,
@@ -105,9 +106,11 @@ const dateSearchValue = (value: string) => {
 
 export function TmdbStatusPage({
   canMutate,
+  onAuthExpired,
   onNavigate,
 }: {
   canMutate: boolean;
+  onAuthExpired?: () => Promise<void>;
   onNavigate: Navigate;
 }) {
   const [summary, setSummary] = useState<TmdbRefreshSummary | null>(null);
@@ -130,6 +133,23 @@ export function TmdbStatusPage({
   const lastOverviewLoadedAt = useRef<number | null>(null);
   const manualRunRefreshDeadline = useRef(0);
 
+  const reportReadError = useCallback(
+    async (cause: unknown, fallback: string, sequence: number) => {
+      if (sequence !== requestSequence.current) return;
+      const authExpired = cause instanceof ApiError && cause.status === 401;
+      if (authExpired) await onAuthExpired?.();
+      if (sequence !== requestSequence.current) return;
+      setError(
+        authExpired
+          ? "Your session ended. Sign in again to view Library refresh status."
+          : cause instanceof Error
+            ? cause.message
+            : fallback,
+      );
+    },
+    [onAuthExpired],
+  );
+
   const loadQueue = useCallback(async () => {
     if (!canMutate) return;
     const sequence = ++requestSequence.current;
@@ -140,16 +160,15 @@ export function TmdbStatusPage({
       setQueue(response);
       setError(null);
     } catch (cause) {
-      if (sequence !== requestSequence.current) return;
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Unable to load the refresh queue",
+      await reportReadError(
+        cause,
+        "Unable to load the refresh queue",
+        sequence,
       );
     } finally {
       if (sequence === requestSequence.current) setRefreshing(false);
     }
-  }, [canMutate, queueQuery]);
+  }, [canMutate, queueQuery, reportReadError]);
 
   const load = useCallback(async () => {
     if (!canMutate) return;
@@ -163,11 +182,10 @@ export function TmdbStatusPage({
       lastOverviewLoadedAt.current = Date.now();
       setError(null);
     } catch (cause) {
-      if (sequence !== requestSequence.current) return;
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Unable to load Library refresh status",
+      await reportReadError(
+        cause,
+        "Unable to load Library refresh status",
+        sequence,
       );
     } finally {
       if (sequence === requestSequence.current) {
@@ -175,7 +193,7 @@ export function TmdbStatusPage({
         setRefreshing(false);
       }
     }
-  }, [canMutate, queueQuery]);
+  }, [canMutate, queueQuery, reportReadError]);
 
   const loadRunStatus = useCallback(async () => {
     if (!canMutate) return null;
@@ -212,12 +230,19 @@ export function TmdbStatusPage({
       initialLoad.current = true;
       return;
     }
-    if (initialLoad.current) {
-      initialLoad.current = false;
-      void Promise.resolve().then(load);
-      return;
-    }
-    void Promise.resolve().then(loadQueue);
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (cancelled) return;
+      if (initialLoad.current) {
+        initialLoad.current = false;
+        return load();
+      }
+      return loadQueue();
+    });
+    return () => {
+      cancelled = true;
+      requestSequence.current += 1;
+    };
   }, [canMutate, load, loadQueue]);
 
   const hasStatus = summary !== null && queue !== null;
@@ -279,8 +304,29 @@ export function TmdbStatusPage({
     );
   }
 
-  if (loading || !summary || !queue) {
+  if (loading || ((!summary || !queue) && !error)) {
     return <p className="text-text-muted">Loading refresh data…</p>;
+  }
+
+  if (!summary || !queue) {
+    return (
+      <div>
+        <h1 className="font-heading text-3xl font-medium leading-none tracking-[0.01em] text-text-primary sm:text-4xl">
+          Manager's Office
+        </h1>
+        <p className="mt-3 text-sm text-danger" role="alert">
+          {error ?? "Unable to load Library refresh status"}
+        </p>
+        <Button
+          className="mt-5"
+          disabled={refreshing}
+          onClick={() => void load()}
+          variant="secondary"
+        >
+          {refreshing ? "Retrying…" : "Retry"}
+        </Button>
+      </div>
+    );
   }
 
   const { schedule, counts } = summary;
@@ -413,7 +459,10 @@ export function TmdbStatusPage({
       </div>
 
       {error && (
-        <p className="mb-6 rounded-sm border border-danger/50 bg-danger-surface px-4 py-3 text-sm text-danger">
+        <p
+          className="mb-6 rounded-sm border border-danger/50 bg-danger-surface px-4 py-3 text-sm text-danger"
+          role="alert"
+        >
           {error}
         </p>
       )}
