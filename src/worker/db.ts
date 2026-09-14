@@ -96,8 +96,8 @@ export const movieFrom = `
   FROM movies
   LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
   LEFT JOIN tmdb_collections ON tmdb_collections.tmdb_id = movie_tmdb_data.tmdb_collection_id
-  LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
-  LEFT JOIN collections ON collections.id = collection_movies.collection_id
+  LEFT JOIN collection_memberships ON collection_memberships.movie_id = movies.id
+  LEFT JOIN collections ON collections.id = collection_memberships.collection_id
   LEFT JOIN ratings ON ratings.movie_id = movies.id
 `;
 
@@ -113,7 +113,7 @@ export const movieSelect = `
     tmdb_collections.name AS tmdb_collection_name,
     collections.name AS collection_name,
     collections.order_confirmed AS collection_order_confirmed,
-    collection_movies.collection_id, collection_movies.position AS collection_position,
+    collection_memberships.collection_id, collection_memberships.position AS collection_position,
     ratings.score AS rating_score, ratings.phrase AS rating_phrase,
     ratings.watched_at
   ${movieFrom}
@@ -246,14 +246,14 @@ export const getNowShowing = async (env: AppEnv["Bindings"]) =>
         movie_tmdb_data.poster_path,
         movie_tmdb_data.runtime_minutes,
         ratings.score AS rating_score, ratings.phrase AS rating_phrase,
-        ratings.watched_at, collection_movies.collection_id,
+        ratings.watched_at, collection_memberships.collection_id,
         collections.name AS collection_name
        FROM now_showing
        LEFT JOIN movies ON movies.id = now_showing.movie_id
        LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
        LEFT JOIN ratings ON ratings.movie_id = movies.id
-       LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
-       LEFT JOIN collections ON collections.id = collection_movies.collection_id
+       LEFT JOIN collection_memberships ON collection_memberships.movie_id = movies.id
+       LEFT JOIN collections ON collections.id = collection_memberships.collection_id
        WHERE now_showing.id = 1`,
   ).first<NowShowingRow>();
 
@@ -396,10 +396,10 @@ export const getRandomUnwatchedMovie = async (
   randomIndex?: (upperBound: number) => number,
 ) => {
   const select = `SELECT movies.id, movies.title,
-      collection_movies.collection_id
+      collection_memberships.collection_id
     FROM roll_candidates
     JOIN movies ON movies.id = roll_candidates.movie_id
-    LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
+    LEFT JOIN collection_memberships ON collection_memberships.movie_id = movies.id
   `;
   const [movie] = await getRandomRollCandidateRows<RandomMovieRow>(
     env,
@@ -432,9 +432,9 @@ export const hasRemainingCollectionMovie = async (
   Boolean(
     await env.DB.prepare(
       `SELECT 1
-       FROM collection_movies
-       LEFT JOIN ratings ON ratings.movie_id = collection_movies.movie_id
-       WHERE collection_movies.collection_id = ? AND ratings.movie_id IS NULL
+       FROM collection_memberships
+       LEFT JOIN ratings ON ratings.movie_id = collection_memberships.movie_id
+       WHERE collection_memberships.collection_id = ? AND ratings.movie_id IS NULL
        LIMIT 1`,
     )
       .bind(collectionId)
@@ -447,9 +447,9 @@ export const getCollectionMovies = async (
 ) => {
   const result = await env.DB.prepare(
     `${movieSelect}
-     WHERE collection_movies.collection_id = ?
+     WHERE collection_memberships.collection_id = ?
      ORDER BY
-       CASE WHEN collections.order_confirmed = 1 THEN collection_movies.position END ASC,
+       CASE WHEN collections.order_confirmed = 1 THEN collection_memberships.position END ASC,
        CASE WHEN collections.order_confirmed = 0 THEN movies.added_at END ASC,
        movies.added_at ASC,
        movies.id ASC`,

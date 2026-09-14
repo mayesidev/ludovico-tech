@@ -154,11 +154,11 @@ describe("D1 literal searches", () => {
         "UPDATE movies SET version = 'Extended Cut' WHERE id = 'fields'",
       ),
       env.DB.prepare(
-        `INSERT INTO collections (id, name, name_normalized, created_at, updated_at)
+        `INSERT INTO collections (id, name, name_key, created_at, updated_at)
         VALUES ('collection', 'Catalog Saga', 'catalog saga', ?, ?)`,
       ).bind(timestamp, timestamp),
       env.DB
-        .prepare(`INSERT INTO collection_movies (collection_id, movie_id, position)
+        .prepare(`INSERT INTO collection_memberships (collection_id, movie_id, position)
         VALUES ('collection', 'fields', 1)`),
       env.DB.prepare(`INSERT INTO ratings (movie_id, score, phrase)
         VALUES ('fields', 4.5, 'Phrase_100%')`),
@@ -220,7 +220,7 @@ describe("D1 literal searches", () => {
       names.map((name, index) =>
         env.DB.prepare(
           `INSERT INTO collections
-        (id, name, name_normalized, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+        (id, name, name_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
         ).bind(
           `collection-${index}`,
           name,
@@ -243,7 +243,7 @@ describe("D1 literal searches", () => {
         const name = `${search} ${index}`;
         return env.DB.prepare(
           `INSERT INTO collections
-        (id, name, name_normalized, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+        (id, name, name_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
         ).bind(
           `extra-${index}`,
           name,

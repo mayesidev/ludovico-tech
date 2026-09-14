@@ -84,7 +84,7 @@ describe("atomic catalog mutations", () => {
     const secondId = "20000000-0000-4000-8000-000000000003";
     await env.DB.prepare(
       `INSERT INTO collections
-       (id, name, name_normalized, created_at, updated_at)
+       (id, name, name_key, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?)`,
     )
       .bind(collectionId, "Atomic Order", "atomic order", timestamp, timestamp)
@@ -93,10 +93,10 @@ describe("atomic catalog mutations", () => {
     await insertMovie(secondId, "Atomic Order Two");
     await env.DB.batch([
       env.DB.prepare(
-        "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
+        "INSERT INTO collection_memberships (collection_id, movie_id, position) VALUES (?, ?, ?)",
       ).bind(collectionId, firstId, 1),
       env.DB.prepare(
-        "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
+        "INSERT INTO collection_memberships (collection_id, movie_id, position) VALUES (?, ?, ?)",
       ).bind(collectionId, secondId, 2),
       env.DB.prepare(
         `UPDATE now_showing
@@ -113,8 +113,8 @@ describe("atomic catalog mutations", () => {
       `SELECT collections.updated_by AS collection_attribution,
               now_showing.rolled_by AS selection_attribution
        FROM collections
-       JOIN collection_movies ON collection_movies.collection_id = collections.id
-       JOIN now_showing ON now_showing.movie_id = collection_movies.movie_id
+       JOIN collection_memberships ON collection_memberships.collection_id = collections.id
+       JOIN now_showing ON now_showing.movie_id = collection_memberships.movie_id
        WHERE collections.id = ?`,
     )
       .bind(collectionId)

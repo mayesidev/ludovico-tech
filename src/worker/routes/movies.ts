@@ -20,7 +20,8 @@ import {
   movieInput,
   ratingInput,
 } from "../schemas";
-import { getAuthenticatedUser, newId, normalizeTitle, now } from "../env";
+import { normalizeCollectionName } from "../../shared/normalize-collection-name";
+import { getAuthenticatedUser, newId, now } from "../env";
 import { attributionDisplayName } from "../attribution";
 import { getTmdbMovie, type TmdbMovieResult } from "../tmdb";
 import {
@@ -44,14 +45,14 @@ const collectionAppendStatements = (
   userId: string,
   guard?: MovieWriteGuard,
 ) => {
-  const normalizedName = normalizeTitle(collectionName);
+  const normalizedName = normalizeCollectionName(collectionName);
   const guardBindings = guard?.bindings ?? [];
   return {
     collection: env.DB.prepare(
       `INSERT INTO collections
-       (id, name, name_normalized, created_at, updated_at, created_by, updated_by)
+       (id, name, name_key, created_at, updated_at, created_by, updated_by)
        ${guard ? `SELECT ?, ?, ?, ?, ?, ?, ? WHERE ${guard.condition}` : "VALUES (?, ?, ?, ?, ?, ?, ?)"}
-       ON CONFLICT(name_normalized) DO UPDATE SET
+       ON CONFLICT(name_key) DO UPDATE SET
          updated_at = excluded.updated_at,
          updated_by = excluded.updated_by`,
     ).bind(
@@ -65,12 +66,12 @@ const collectionAppendStatements = (
       ...guardBindings,
     ),
     membership: env.DB.prepare(
-      `INSERT INTO collection_movies (collection_id, movie_id, position)
+      `INSERT INTO collection_memberships (collection_id, movie_id, position)
        SELECT collections.id, ?, COALESCE((
-         SELECT MAX(position) FROM collection_movies
+         SELECT MAX(position) FROM collection_memberships
          WHERE collection_id = collections.id
        ), 0) + 1
-       FROM collections WHERE name_normalized = ?
+       FROM collections WHERE name_key = ?
        ${guard ? `AND ${guard.condition}` : ""}`,
     ).bind(movieId, normalizedName, ...guardBindings),
   };
@@ -118,8 +119,8 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         `SELECT COUNT(*) AS total
          FROM movies
          LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
-         LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
-         LEFT JOIN collections ON collections.id = collection_movies.collection_id
+         LEFT JOIN collection_memberships ON collection_memberships.movie_id = movies.id
+         LEFT JOIN collections ON collections.id = collection_memberships.collection_id
          LEFT JOIN ratings ON ratings.movie_id = movies.id
          ${where}`,
       )
@@ -158,8 +159,8 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       input.sort === "rating";
     const pageFrom = `FROM movies
       ${needsTmdbData ? "LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id" : ""}
-      ${needsCollection ? "LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id" : ""}
-      ${needsCollection ? "LEFT JOIN collections ON collections.id = collection_movies.collection_id" : ""}
+      ${needsCollection ? "LEFT JOIN collection_memberships ON collection_memberships.movie_id = movies.id" : ""}
+      ${needsCollection ? "LEFT JOIN collections ON collections.id = collection_memberships.collection_id" : ""}
       ${needsRatings ? "LEFT JOIN ratings ON ratings.movie_id = movies.id" : ""}`;
     const directTitlePage =
       !input.search && input.status === "all" && input.sort === "title";
@@ -191,16 +192,18 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     "/collections/suggestions",
     zValidator("query", collectionSuggestionQueryInput),
     async (c) => {
-      const normalizedSearch = normalizeTitle(c.req.valid("query").search);
+      const normalizedSearch = normalizeCollectionName(
+        c.req.valid("query").search,
+      );
       if (!normalizedSearch) return c.json({ collections: [] });
       const search = literalSubstringSearch(normalizedSearch);
       const collections = await c.env.DB.prepare(
         `SELECT id, name
          FROM collections
-         WHERE ${search.condition("name_normalized")}
+         WHERE ${search.condition("name_key")}
          ORDER BY
-           CASE WHEN name_normalized = ? THEN 0
-                WHEN INSTR(${sqliteSearchText("name_normalized")}, ?) = 1 THEN 1
+           CASE WHEN name_key = ? THEN 0
+                WHEN INSTR(${sqliteSearchText("name_key")}, ?) = 1 THEN 1
                 ELSE 2
            END,
            name COLLATE NOCASE,
@@ -248,9 +251,9 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
 
     const movies = await c.env.DB.prepare(
       `${movieSelect}
-       WHERE collection_movies.collection_id = ?
+       WHERE collection_memberships.collection_id = ?
        ORDER BY
-         CASE WHEN collections.order_confirmed = 1 THEN collection_movies.position END ASC,
+         CASE WHEN collections.order_confirmed = 1 THEN collection_memberships.position END ASC,
          CASE WHEN collections.order_confirmed = 0 THEN movies.added_at END ASC,
          movies.added_at ASC,
          movies.id ASC`,
@@ -571,15 +574,15 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         targetCollectionId = null;
       } else if (
         existing.collection_id &&
-        normalizeTitle(targetCollectionName) ===
-          normalizeTitle(existing.collection_name ?? "")
+        normalizeCollectionName(targetCollectionName) ===
+          normalizeCollectionName(existing.collection_name ?? "")
       ) {
         targetCollectionId = existing.collection_id;
       } else {
         const target = await c.env.DB.prepare(
-          "SELECT id FROM collections WHERE name_normalized = ?",
+          "SELECT id FROM collections WHERE name_key = ?",
         )
-          .bind(normalizeTitle(targetCollectionName))
+          .bind(normalizeCollectionName(targetCollectionName))
           .first<{ id: string }>();
         targetCollectionId = target?.id ?? newId();
       }
@@ -678,7 +681,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       if (existing.collection_id) {
         statements.push(
           c.env.DB.prepare(
-            `DELETE FROM collection_movies WHERE collection_id = ? AND movie_id = ? ${guardCondition}`,
+            `DELETE FROM collection_memberships WHERE collection_id = ? AND movie_id = ? ${guardCondition}`,
           ).bind(existing.collection_id, movieId, ...guardBindings),
         );
       }
@@ -687,15 +690,15 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         c.env.DB.prepare(
           `WITH replacement AS (
              SELECT movies.id
-             FROM collection_movies
-             JOIN movies ON movies.id = collection_movies.movie_id
+             FROM collection_memberships
+             JOIN movies ON movies.id = collection_memberships.movie_id
              LEFT JOIN ratings ON ratings.movie_id = movies.id
-             JOIN collections ON collections.id = collection_movies.collection_id
-             WHERE collection_movies.collection_id = (
-               SELECT collection_id FROM collection_movies WHERE movie_id = ?
+             JOIN collections ON collections.id = collection_memberships.collection_id
+             WHERE collection_memberships.collection_id = (
+               SELECT collection_id FROM collection_memberships WHERE movie_id = ?
              ) AND ratings.movie_id IS NULL
              ORDER BY
-               CASE WHEN collections.order_confirmed = 1 THEN collection_movies.position END ASC,
+               CASE WHEN collections.order_confirmed = 1 THEN collection_memberships.position END ASC,
                CASE WHEN collections.order_confirmed = 0 THEN movies.added_at END ASC,
                movies.added_at ASC,
                movies.id ASC
@@ -714,7 +717,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
                END,
                movie_id = COALESCE((SELECT id FROM replacement), movie_id)
            WHERE id = 1 AND EXISTS (
-               SELECT 1 FROM collection_movies WHERE movie_id = ?
+               SELECT 1 FROM collection_memberships WHERE movie_id = ?
              ) AND movie_id = ?
              AND NOT EXISTS (
                SELECT 1 FROM ratings WHERE ratings.movie_id = now_showing.movie_id
@@ -729,7 +732,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
           c.env.DB.prepare(
             `DELETE FROM collections WHERE id = ?
              AND NOT EXISTS (
-               SELECT 1 FROM collection_movies WHERE collection_id = ?
+               SELECT 1 FROM collection_memberships WHERE collection_id = ?
              ) ${guardCondition}`,
           ).bind(
             existing.collection_id,
@@ -818,7 +821,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
            SET updated_at = ?, updated_by = ?
            WHERE id = ?
              AND EXISTS (
-               SELECT 1 FROM collection_movies WHERE collection_id = ?
+               SELECT 1 FROM collection_memberships WHERE collection_id = ?
              )`,
         ).bind(
           timestamp,
@@ -829,7 +832,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         c.env.DB.prepare(
           `DELETE FROM collections WHERE id = ?
            AND NOT EXISTS (
-             SELECT 1 FROM collection_movies WHERE collection_id = ?
+             SELECT 1 FROM collection_memberships WHERE collection_id = ?
            )`,
         ).bind(existing.collection_id, existing.collection_id),
       );

@@ -28,6 +28,7 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "backfill:collection-names": "tsx scripts/backfill-collection-names.ts",
     "import:catalog": "tsx scripts/import-catalog.ts",
     "release:gate": "node scripts/release-gates.ts"
   },

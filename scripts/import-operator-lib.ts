@@ -134,7 +134,7 @@ type DatabaseSummary = {
 const databaseSummaryQuery = `SELECT
   (SELECT COUNT(*) FROM movies) AS movies,
   (SELECT COUNT(*) FROM collections) AS collections,
-  (SELECT COUNT(*) FROM collection_movies) AS collection_memberships,
+  (SELECT COUNT(*) FROM collection_memberships) AS collection_memberships,
   (SELECT COUNT(*) FROM ratings) AS ratings,
   (SELECT COUNT(*) FROM movie_tmdb_data) AS tmdb_links,
   (SELECT CASE
@@ -145,9 +145,9 @@ const databaseSummaryQuery = `SELECT
      ELSE 'ready'
    END FROM now_showing WHERE id = 1) AS now_showing_status,
   (SELECT movie_id FROM now_showing WHERE id = 1) AS now_showing_movie_id,
-  (SELECT collection_movies.collection_id
+  (SELECT collection_memberships.collection_id
    FROM now_showing
-   LEFT JOIN collection_movies ON collection_movies.movie_id = now_showing.movie_id
+   LEFT JOIN collection_memberships ON collection_memberships.movie_id = now_showing.movie_id
    WHERE now_showing.id = 1) AS now_showing_collection_id`;
 const migrationsQuery = "SELECT name FROM d1_migrations ORDER BY id";
 const countSchema = z.number().int().nonnegative();

@@ -31,6 +31,36 @@ describe("GitHub Actions supply-chain boundary", () => {
 });
 
 describe("complete CI and deployment gates", () => {
+  it.each([
+    ["deploy-staging.yml", "staging"],
+    ["deploy.yml", "production"],
+    ["deploy-production-family-bonding.yml", "production-family-bonding"],
+  ])(
+    "requires the collection backfill before activating %s",
+    (file, target) => {
+      const source = workflow(file);
+      const step = workflowStep(
+        source,
+        "Verify collection name backfill before activation",
+      );
+      expect(source.indexOf(step)).toBeGreaterThan(
+        source.indexOf("check-migrations"),
+      );
+      expect(source.indexOf(step)).toBeLessThan(
+        source.indexOf("Deploy exact release commit"),
+      );
+      expect(step).toContain(
+        "if [ -f migrations/0029_collection_name_backfill.sql ]; then",
+      );
+      expect(step).toContain("pnpm backfill:collection-names --");
+      expect(step).toContain(`--environment ${target}`);
+      expect(step).toContain(`--database ludovico-tech-${target} --execute`);
+      expect(step).not.toContain("continue-on-error");
+      expect(step).not.toContain("|| true");
+      expect(step).not.toContain("if: failure()");
+    },
+  );
+
   it("keeps expensive application checks behind conservative path classification", () => {
     const source = workflow("ci.yml");
     const fullVerificationSteps = [

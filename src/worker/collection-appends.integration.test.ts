@@ -149,7 +149,7 @@ describe("atomic collection appends", () => {
         expect(first.status).toBe(firstMovie ? 200 : 201);
         expect(second.status).toBe(secondMovie ? 200 : 201);
         const collections = await env.DB.prepare(
-          "SELECT id, name, order_confirmed, created_by, updated_by FROM collections WHERE name_normalized = 'target'",
+          "SELECT id, name, order_confirmed, created_by, updated_by FROM collections WHERE name_key = 'target'",
         ).all<{
           id: string;
           name: string;
@@ -167,8 +167,8 @@ describe("atomic collection appends", () => {
           updated_by: expect.any(String),
         });
         const members = await env.DB.prepare(
-          `SELECT movies.title, collection_movies.position
-           FROM collection_movies JOIN movies ON movies.id = collection_movies.movie_id
+          `SELECT movies.title, collection_memberships.position
+           FROM collection_memberships JOIN movies ON movies.id = collection_memberships.movie_id
            WHERE collection_id = ? ORDER BY position`,
         )
           .bind(collection.id)
@@ -181,10 +181,10 @@ describe("atomic collection appends", () => {
         expect(
           (
             await env.DB.prepare(
-              `SELECT movies.title FROM collection_movies
-           JOIN movies ON movies.id = collection_movies.movie_id
-           JOIN collections ON collections.id = collection_movies.collection_id
-           WHERE collections.name_normalized = 'source'`,
+              `SELECT movies.title FROM collection_memberships
+           JOIN movies ON movies.id = collection_memberships.movie_id
+           JOIN collections ON collections.id = collection_memberships.collection_id
+           WHERE collections.name_key = 'source'`,
             ).all()
           ).results,
         ).toEqual([{ title: "Source anchor" }]);

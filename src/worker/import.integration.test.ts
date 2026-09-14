@@ -36,7 +36,7 @@ describe("catalog import", () => {
       `SELECT
          (SELECT COUNT(*) FROM movies) AS movies,
          (SELECT COUNT(*) FROM collections) AS collections,
-         (SELECT COUNT(*) FROM collection_movies) AS collection_memberships,
+         (SELECT COUNT(*) FROM collection_memberships) AS collection_memberships,
          (SELECT COUNT(*) FROM ratings) AS ratings,
          (SELECT COUNT(*) FROM movie_tmdb_data) AS tmdb_links`,
     ).first();
@@ -92,10 +92,10 @@ describe("catalog import", () => {
               ratings.recorded_by,
               movie_tmdb_data.updated_by AS tmdb_updated_by
        FROM movies
-       LEFT JOIN collection_movies
-         ON collection_movies.movie_id = movies.id
+       LEFT JOIN collection_memberships
+         ON collection_memberships.movie_id = movies.id
        LEFT JOIN collections
-         ON collections.id = collection_movies.collection_id
+         ON collections.id = collection_memberships.collection_id
        LEFT JOIN ratings ON ratings.movie_id = movies.id
        LEFT JOIN movie_tmdb_data ON movie_tmdb_data.movie_id = movies.id
        ORDER BY movies.title`,
@@ -178,8 +178,8 @@ Starting Movie,Synthetic Saga,2,true
               now_showing.rolled_at, now_showing.rolled_by
        FROM now_showing
        JOIN movies ON movies.id = now_showing.movie_id
-       LEFT JOIN collection_movies ON collection_movies.movie_id = now_showing.movie_id
-       LEFT JOIN collections ON collections.id = collection_movies.collection_id
+       LEFT JOIN collection_memberships ON collection_memberships.movie_id = now_showing.movie_id
+       LEFT JOIN collections ON collections.id = collection_memberships.collection_id
        WHERE now_showing.id = 1`,
     ).first();
 

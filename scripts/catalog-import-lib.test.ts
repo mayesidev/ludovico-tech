@@ -207,9 +207,46 @@ describe("catalog import template", () => {
     ]);
   });
 
-  it("rejects collection labels that cannot form application identity", () => {
+  it("accepts distinct Unicode and symbol collection identities", () => {
+    const parsed = parseCatalogCsv(
+      "title,collection,collection_position,now_showing\nOne,東宝,1,false\nTwo,松竹,1,false\nThree,🎬,1,true\nFour,☀️,1,false\nFive,☂️,1,false\n",
+    );
+    expect(parsed.diagnostics).toEqual([]);
+    const plan = buildCatalogImportPlan(
+      parsed.movies,
+      parsed.nowShowingTitle,
+      importedAt,
+    );
+    expect(plan.counts.collections).toBe(5);
+    expect(plan.counts.collectionMemberships).toBe(5);
+    expect(plan.nowShowing?.collectionId).toBeTruthy();
+    expect(plan.statements.join("\n")).toContain("'東宝'");
+    expect(plan.statements.join("\n")).toContain("'松竹'");
+  });
+
+  it("checks collection positions across equivalent accent/case names", () => {
     expect(
-      parseCatalogCsv("title,collection\nSynthetic Movie,🎬\n").diagnostics,
+      parseCatalogCsv(
+        "title,collection,collection_position\nOne,Café,1\nTwo,CAFE,1\n",
+      ).diagnostics,
+    ).toContainEqual({
+      code: "DUPLICATE_COLLECTION_POSITION",
+      row: 3,
+      severity: "error",
+    });
+    const parsed = parseCatalogCsv(
+      "title,collection,collection_position\nOne,Café,1\nTwo,CAFE,2\n",
+    );
+    expect(parsed.diagnostics).toEqual([]);
+    expect(
+      buildCatalogImportPlan(parsed.movies, null, importedAt).counts
+        .collections,
+    ).toBe(1);
+  });
+
+  it("retains the collection length limit", () => {
+    expect(
+      parseCatalogCsv(`title,collection\nOne,${"A".repeat(201)}\n`).diagnostics,
     ).toEqual([{ code: "INVALID_COLLECTION", row: 2, severity: "error" }]);
   });
 
@@ -309,7 +346,7 @@ describe("catalog import SQL chunks", () => {
     for (const table of [
       "movies",
       "movie_tmdb_data",
-      "collection_movies",
+      "collection_memberships",
       "ratings",
     ]) {
       const inserts = plan.statements.filter((statement) =>

@@ -204,7 +204,7 @@ describe("catalog schema", () => {
   it("enforces positive unique collection positions and one membership per movie", async () => {
     await env.DB.prepare(
       `INSERT INTO collections
-       (id, name, name_normalized, created_at, updated_at)
+       (id, name, name_key, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?)`,
     )
       .bind(
@@ -218,21 +218,21 @@ describe("catalog schema", () => {
     await insertMovie("collection-movie-one");
     await insertMovie("collection-movie-two");
     await env.DB.prepare(
-      "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
+      "INSERT INTO collection_memberships (collection_id, movie_id, position) VALUES (?, ?, ?)",
     )
       .bind("collection-one", "collection-movie-one", 1)
       .run();
 
     await expect(
       env.DB.prepare(
-        "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
+        "INSERT INTO collection_memberships (collection_id, movie_id, position) VALUES (?, ?, ?)",
       )
         .bind("collection-one", "collection-movie-two", 1)
         .run(),
     ).rejects.toThrow();
     await expect(
       env.DB.prepare(
-        "INSERT INTO collection_movies (collection_id, movie_id, position) VALUES (?, ?, ?)",
+        "INSERT INTO collection_memberships (collection_id, movie_id, position) VALUES (?, ?, ?)",
       )
         .bind("collection-one", "collection-movie-two", 0)
         .run(),

@@ -12,7 +12,7 @@ beforeEach(async () => {
     env.DB.prepare("DELETE FROM tmdb_cache"),
     env.DB.prepare("DELETE FROM now_showing"),
     env.DB.prepare("DELETE FROM ratings"),
-    env.DB.prepare("DELETE FROM collection_movies"),
+    env.DB.prepare("DELETE FROM collection_memberships"),
     env.DB.prepare("DELETE FROM movies"),
     env.DB.prepare("DELETE FROM tmdb_people"),
     env.DB.prepare("DELETE FROM tmdb_collections"),
