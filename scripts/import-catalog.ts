@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { COLLECTION_LIMIT_MESSAGE } from "../src/shared/collection-limits";
 import { buildCatalogImportPlan, parseCatalogCsv } from "./catalog-import-lib";
 import {
   executeCatalogImport,
@@ -41,7 +42,9 @@ const main = async () => {
     const diagnostics = parsed.diagnostics
       .map(({ code, row }) => `${code}${row === null ? "" : ` (row ${row})`}`)
       .join(", ");
-    throw new ImportOperatorError(`CSV validation failed: ${diagnostics}`);
+    throw new ImportOperatorError(
+      `CSV validation failed: ${diagnostics}${parsed.diagnostics.some(({ code }) => code === "COLLECTION_TITLE_LIMIT_EXCEEDED") ? ` (${COLLECTION_LIMIT_MESSAGE})` : ""}`,
+    );
   }
   const plan = buildCatalogImportPlan(
     parsed.movies,

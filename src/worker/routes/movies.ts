@@ -31,6 +31,10 @@ import {
 } from "../tmdb-data";
 import { tmdbErrorResponse } from "./tmdb";
 import { literalSubstringSearch, sqliteSearchText } from "../sqlite-search";
+import { COLLECTION_LIMIT_MESSAGE } from "../../shared/collection-limits";
+const isCollectionLimitError = (error: unknown) =>
+  error instanceof Error &&
+  error.message.includes("Collection title limit exceeded");
 
 type MovieWriteGuard = {
   condition: string;
@@ -488,7 +492,13 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     }
 
     if (collectionAppend) statements.push(collectionAppend.membership);
-    await c.env.DB.batch(statements);
+    try {
+      await c.env.DB.batch(statements);
+    } catch (error) {
+      if (isCollectionLimitError(error))
+        return c.json({ error: COLLECTION_LIMIT_MESSAGE }, 409);
+      throw error;
+    }
     return c.json({ movie: await getMovieDetail(c.env, id, true) }, 201);
   });
 
@@ -783,6 +793,8 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
         );
       }
     } catch (error) {
+      if (isCollectionLimitError(error))
+        return c.json({ error: COLLECTION_LIMIT_MESSAGE }, 409);
       if (
         error instanceof Error &&
         (error.message.includes("Movie version requires a TMDB link") ||

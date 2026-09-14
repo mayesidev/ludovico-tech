@@ -369,3 +369,42 @@ describe("catalog import SQL chunks", () => {
     }
   });
 });
+
+describe("collection import capacity", () => {
+  const csv = (count: number) =>
+    "title,collection\n" +
+    Array.from(
+      { length: count },
+      (_, index) => `Title ${index},${index % 2 ? "Café" : "Cafe"}`,
+    ).join("\n");
+
+  it("accepts 1,000 normalized collection members and rejects the next before planning writes", () => {
+    const accepted = parseCatalogCsv(csv(1000));
+    expect(accepted.diagnostics).toEqual([]);
+    expect(
+      buildCatalogImportPlan(accepted.movies, null, importedAt).counts
+        .collectionMemberships,
+    ).toBe(1000);
+    const rejected = parseCatalogCsv(csv(1001));
+    expect(rejected.diagnostics).toEqual([
+      { code: "COLLECTION_TITLE_LIMIT_EXCEEDED", row: 1002, severity: "error" },
+    ]);
+    expect(() =>
+      buildCatalogImportPlan(rejected.movies, null, importedAt),
+    ).toThrow("1,000 titles");
+  });
+
+  it("does not restrict the total catalog or combine distinct Unicode collections", () => {
+    const parsed = parseCatalogCsv(
+      "title,collection\n" +
+        Array.from(
+          { length: 1002 },
+          (_, index) => `Title ${index},${index % 2 ? "東京" : "大阪"}`,
+        ).join("\n"),
+    );
+    expect(parsed.diagnostics).toEqual([]);
+    expect(
+      buildCatalogImportPlan(parsed.movies, null, importedAt).counts,
+    ).toMatchObject({ movies: 1002, collections: 2 });
+  });
+});

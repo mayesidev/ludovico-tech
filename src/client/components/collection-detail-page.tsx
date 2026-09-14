@@ -1,5 +1,9 @@
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowUp, ExternalLink } from "lucide-react";
+import {
+  MAX_COLLECTION_TITLES,
+  COLLECTION_LIMIT_MESSAGE,
+} from "../../shared/collection-limits";
 import { api, type AuditAttribution, type Movie } from "../api";
 import type { Navigate, ReturnTarget, RunAction } from "../types";
 import { cn, formatMovieTitle } from "../lib/utils";
@@ -66,6 +70,7 @@ export function CollectionDetailPage({
       .map(([id, name]) => ({ id, name }))
       .sort((left, right) => left.name.localeCompare(right.name));
   }, [members]);
+  const exceedsLimit = members.length > MAX_COLLECTION_TITLES;
   const [draft, setDraft] = useState(members);
   const [saved, setSaved] = useState(false);
   const returnHref =
@@ -189,6 +194,12 @@ export function CollectionDetailPage({
             </p>
           )}
         </header>
+        {exceedsLimit && canMutate && (
+          <p className="px-5 py-4 text-sm text-text-muted" role="status">
+            {COLLECTION_LIMIT_MESSAGE} Move or remove titles before saving an
+            order.
+          </p>
+        )}
         <ol className="data-surface">
           {draft.map((movie, index) => {
             const watched = movie.rating_score !== null;
@@ -228,7 +239,7 @@ export function CollectionDetailPage({
                     <button
                       aria-label={`Move ${title} Up`}
                       className="grid size-9 place-items-center rounded-sm border border-border-primary bg-surface/75 text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary disabled:cursor-default disabled:opacity-30"
-                      disabled={busy || index === 0}
+                      disabled={busy || exceedsLimit || index === 0}
                       onClick={() => move(index, -1)}
                     >
                       <ArrowUp size={16} />
@@ -236,7 +247,9 @@ export function CollectionDetailPage({
                     <button
                       aria-label={`Move ${title} Down`}
                       className="grid size-9 place-items-center rounded-sm border border-border-primary bg-surface/75 text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary disabled:cursor-default disabled:opacity-30"
-                      disabled={busy || index === draft.length - 1}
+                      disabled={
+                        busy || exceedsLimit || index === draft.length - 1
+                      }
                       onClick={() => move(index, 1)}
                     >
                       <ArrowDown size={16} />
@@ -256,7 +269,7 @@ export function CollectionDetailPage({
           )}
           {canMutate ? (
             <Button
-              disabled={busy}
+              disabled={busy || exceedsLimit}
               onClick={() =>
                 void run(
                   () =>

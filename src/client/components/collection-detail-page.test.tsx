@@ -278,3 +278,42 @@ describe("collection details", () => {
     expect(returnLink).toHaveAttribute("href", "/");
   });
 });
+
+it("explains the collection limit and disables oversized ordering while retaining movie links", () => {
+  const oversized = Array.from({ length: 1001 }, (_, index) =>
+    movie({
+      id: `title-${index}`,
+      title: `Title ${index}`,
+      collection_position: index + 1,
+    }),
+  );
+  const { container } = render(
+    <CollectionDetailPage
+      busy={false}
+      canMutate
+      collectionId="collection-id"
+      movies={oversized}
+      onLogin={vi.fn()}
+      onNavigate={vi.fn()}
+      returnTo="library"
+      run={run}
+    />,
+  );
+  // Query the explicit labels directly instead of repeatedly walking thousands
+  // of unrelated elements to compute accessible names in this boundary fixture.
+  const message = container.querySelector('[role="status"]');
+  expect(message).toHaveTextContent("1,000 titles");
+  expect(message).toHaveTextContent(
+    "Move or remove titles before saving an order",
+  );
+  expect(container.querySelector("footer button")).toBeDisabled();
+  expect(
+    container.querySelector('[aria-label="Move Title 0 Down"]'),
+  ).toBeDisabled();
+  expect(
+    container.querySelector('[aria-label="Move Title 1000 Up"]'),
+  ).toBeDisabled();
+  expect(
+    container.querySelector('a[href="/movies/title-1000"]'),
+  ).toHaveTextContent("Title 1000");
+});

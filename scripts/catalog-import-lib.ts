@@ -1,4 +1,8 @@
 import { parse } from "csv-parse/sync";
+import {
+  MAX_COLLECTION_TITLES,
+  COLLECTION_LIMIT_MESSAGE,
+} from "../src/shared/collection-limits";
 import { normalizeCollectionName } from "../src/shared/normalize-collection-name";
 import { normalizeTitle } from "../src/shared/normalize-title";
 
@@ -21,6 +25,7 @@ export const CATALOG_IMPORT_COLUMNS = [
 type CatalogImportColumn = (typeof CATALOG_IMPORT_COLUMNS)[number];
 
 export type CatalogImportDiagnosticCode =
+  | "COLLECTION_TITLE_LIMIT_EXCEEDED"
   | "COLLECTION_ORDER_INCOMPLETE"
   | "DUPLICATE_COLLECTION_POSITION"
   | "DUPLICATE_TMDB_ID"
@@ -373,6 +378,14 @@ export const parseCatalogCsv = (source: string): CatalogCsvResult => {
     }
   }
   for (const members of collections.values()) {
+    if (members.length > MAX_COLLECTION_TITLES) {
+      diagnostics.push(
+        diagnostic(
+          "COLLECTION_TITLE_LIMIT_EXCEEDED",
+          members[MAX_COLLECTION_TITLES].row,
+        ),
+      );
+    }
     const positioned = members.filter(
       ({ movie }) => movie.collectionPosition !== null,
     );
@@ -498,6 +511,8 @@ export const buildCatalogImportPlan = (
       orderConfirmed: movie.collectionPosition !== null,
     };
     collection.members.push(movie);
+    if (collection.members.length > MAX_COLLECTION_TITLES)
+      throw new Error(COLLECTION_LIMIT_MESSAGE);
     collections.set(normalized, collection);
   }
 

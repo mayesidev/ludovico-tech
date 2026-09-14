@@ -39,6 +39,12 @@ one group viewing state.
   An imported rating establishes watched state without inventing unknown rating or
   watch times.
 
+Collections allow up to 1,000 titles, counting watched and unwatched members.
+The limit applies to additions, moves, CSV imports and saved orders. Existing
+larger collections retain their titles and can still be edited or reduced, but
+cannot grow or save a new order until they contain at most 1,000 titles. A move
+into a full collection fails without saving any part of the movie edit.
+
 Behavioral details belong in named tests, schemas, migrations, and runtime code.
 Environment and delivery mechanics belong in checked-in configuration, validators,
 and workflows.
