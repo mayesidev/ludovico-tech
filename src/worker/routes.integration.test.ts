@@ -42,6 +42,10 @@ const request = async (
     bindings,
   );
 
+const testCodeVerifier = "v".repeat(43);
+const oauthCookie = (state: string) =>
+  `__Host-ludovico_tech_oauth_${state}=${testCodeVerifier}`;
+
 const insertOauthState = async (
   state = "test-oauth-state",
   expiresAt = future,
@@ -50,7 +54,7 @@ const insertOauthState = async (
   await env.DB.prepare(
     "INSERT INTO oauth_states (state, code_verifier, created_at, expires_at, return_to) VALUES (?, ?, ?, ?, ?)",
   )
-    .bind(state, "test-code-verifier", past, expiresAt, returnTo)
+    .bind(state, testCodeVerifier, past, expiresAt, returnTo)
     .run();
   return state;
 };
@@ -187,6 +191,15 @@ describe("Google authentication", () => {
     );
 
     expect(response.status).toBe(302);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    const transactionCookie = response.headers.getSetCookie()[0];
+    expect(transactionCookie).toContain("__Host-ludovico_tech_oauth_");
+    expect(transactionCookie).toContain("Max-Age=600");
+    expect(transactionCookie).toContain("HttpOnly");
+    expect(transactionCookie).toContain("Secure");
+    expect(transactionCookie).toContain("Path=/");
+    expect(transactionCookie).toContain("SameSite=Lax");
+    expect(transactionCookie).not.toContain("Domain=");
     const location = new URL(response.headers.get("Location") ?? "");
     const state = location.searchParams.get("state");
     expect(location.origin).toBe("https://accounts.google.com");
@@ -235,6 +248,162 @@ describe("Google authentication", () => {
     },
   );
 
+  const beginSignIn = async (returnTo = "/") => {
+    const response = await request(
+      `/api/auth/google?returnTo=${encodeURIComponent(returnTo)}`,
+      productionEnv(googleConfiguration),
+    );
+    const state = new URL(response.headers.get("Location")!).searchParams.get(
+      "state",
+    )!;
+    const cookie = response.headers.getSetCookie()[0].split(";")[0];
+    return { state, cookie };
+  };
+
+  const mockGoogleSignIn = () =>
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input) === "https://oauth2.googleapis.com/token") {
+        return Response.json({ access_token: "test-access-token" });
+      }
+      if (
+        String(input) === "https://openidconnect.googleapis.com/v1/userinfo"
+      ) {
+        return Response.json({
+          email: invitedEmail,
+          email_verified: true,
+          sub: "google-subject",
+          name: "Invited User",
+        });
+      }
+      throw new Error("Unexpected provider endpoint");
+    });
+
+  it("rejects a callback from another browser without consuming its valid sign-in", async () => {
+    const intended = await beginSignIn("/movies/movie-1");
+    const other = await beginSignIn();
+    const name = intended.cookie.split("=")[0];
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    for (const cookie of [
+      undefined,
+      other.cookie,
+      `${name}=${"w".repeat(43)}`,
+      `${name}=malformed`,
+      intended.cookie.replace("__Host-", ""),
+    ]) {
+      const response = await request(
+        `/api/auth/google/callback?code=test-code&state=${intended.state}`,
+        productionEnv(googleConfiguration),
+        cookie ? { headers: { Cookie: cookie } } : undefined,
+      );
+      expect(response.status).toBe(400);
+      expect(
+        response.headers
+          .getSetCookie()
+          .some((value) => value.startsWith("ludovico_tech_session=")),
+      ).toBe(false);
+      expect(
+        await env.DB.prepare("SELECT state FROM oauth_states WHERE state = ?")
+          .bind(intended.state)
+          .first(),
+      ).not.toBeNull();
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+    const provider = mockGoogleSignIn();
+    const response = await request(
+      `/api/auth/google/callback?code=test-code&state=${intended.state}`,
+      productionEnv(googleConfiguration),
+      { headers: { Cookie: intended.cookie } },
+    );
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe("/movies/movie-1");
+    expect(provider).toHaveBeenCalledTimes(2);
+  });
+
+  it("allows independent sign-ins in two tabs and clears only the completed transaction cookie", async () => {
+    const first = await beginSignIn("/movies/movie-1");
+    const second = await beginSignIn("/library");
+    const provider = mockGoogleSignIn();
+    const cookies = `${first.cookie}; ${second.cookie}`;
+    for (const [transaction, returnTo] of [
+      [first, "/movies/movie-1"],
+      [second, "/library"],
+    ] as const) {
+      const response = await request(
+        `/api/auth/google/callback?code=test-code&state=${transaction.state}`,
+        productionEnv(googleConfiguration),
+        { headers: { Cookie: cookies } },
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("Location")).toBe(returnTo);
+      const cleared = response.headers
+        .getSetCookie()
+        .filter((value) => value.includes("Max-Age=0"));
+      expect(cleared).toHaveLength(1);
+      expect(cleared[0]).toContain(`${transaction.cookie.split("=")[0]}=;`);
+      expect(
+        response.headers
+          .getSetCookie()
+          .some((value) => value.startsWith("ludovico_tech_session=")),
+      ).toBe(true);
+    }
+    expect(provider).toHaveBeenCalledTimes(4);
+  });
+
+  it("completes a bound sign-in only once under concurrent callbacks", async () => {
+    const transaction = await beginSignIn();
+    const provider = mockGoogleSignIn();
+    const responses = await Promise.all(
+      [1, 2].map(() =>
+        request(
+          `/api/auth/google/callback?code=test-code&state=${transaction.state}`,
+          productionEnv(googleConfiguration),
+          { headers: { Cookie: transaction.cookie } },
+        ),
+      ),
+    );
+    expect(responses.map((response) => response.status).sort()).toEqual([
+      302, 400,
+    ]);
+    expect(provider).toHaveBeenCalledTimes(2);
+  });
+
+  it("clears a cancelled transaction while preserving an existing session", async () => {
+    const transaction = await beginSignIn();
+    const session = await authenticated(googleConfiguration);
+    const provider = vi.spyOn(globalThis, "fetch");
+    const response = await request(
+      `/api/auth/google/callback?error=access_denied&state=${transaction.state}`,
+      session.bindings,
+      { headers: { Cookie: `${transaction.cookie}; ${session.cookie}` } },
+    );
+    expect(response.status).toBe(400);
+    expect(response.headers.getSetCookie()).toHaveLength(1);
+    expect(response.headers.getSetCookie()[0]).toContain("Max-Age=0");
+    expect(
+      await env.DB.prepare("SELECT state FROM oauth_states WHERE state = ?")
+        .bind(transaction.state)
+        .first(),
+    ).toBeNull();
+    expect(provider).not.toHaveBeenCalled();
+    const me = await request("/api/auth/me", session.bindings, {
+      headers: { Cookie: session.cookie },
+    });
+    expect(await me.json()).toMatchObject({ authenticated: true });
+  });
+
+  it.each(["bad;state", "x".repeat(129)])(
+    "rejects malformed callback state without a server error",
+    async (state) => {
+      const provider = vi.spyOn(globalThis, "fetch");
+      const response = await request(
+        `/api/auth/google/callback?code=test-code&state=${encodeURIComponent(state)}`,
+        productionEnv(googleConfiguration),
+      );
+      expect(response.status).toBe(400);
+      expect(provider).not.toHaveBeenCalled();
+    },
+  );
+
   it("rejects callbacks without a valid unexpired state", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch");
     const missing = await request(
@@ -245,6 +414,7 @@ describe("Google authentication", () => {
     const expired = await request(
       `/api/auth/google/callback?code=test-code&state=${expiredState}`,
       productionEnv(googleConfiguration),
+      { headers: { Cookie: oauthCookie(expiredState) } },
     );
 
     expect(missing.status).toBe(400);
@@ -264,10 +434,12 @@ describe("Google authentication", () => {
     const first = await request(
       `/api/auth/google/callback?code=test-code&state=${state}`,
       productionEnv(googleConfiguration),
+      { headers: { Cookie: oauthCookie(state) } },
     );
     const replay = await request(
       `/api/auth/google/callback?code=test-code&state=${state}`,
       productionEnv(googleConfiguration),
+      { headers: { Cookie: oauthCookie(state) } },
     );
 
     expect(first.status).toBe(502);
@@ -285,6 +457,7 @@ describe("Google authentication", () => {
     const tokenFailure = await request(
       `/api/auth/google/callback?code=test-code&state=${tokenState}`,
       productionEnv(googleConfiguration),
+      { headers: { Cookie: oauthCookie(tokenState) } },
     );
 
     const profileState = await insertOauthState("profile-state");
@@ -300,6 +473,7 @@ describe("Google authentication", () => {
     const profileFailure = await request(
       `/api/auth/google/callback?code=test-code&state=${profileState}`,
       productionEnv(googleConfiguration),
+      { headers: { Cookie: oauthCookie(profileState) } },
     );
 
     expect(tokenFailure.status).toBe(502);
@@ -335,6 +509,7 @@ describe("Google authentication", () => {
       const response = await request(
         `/api/auth/google/callback?code=test-code&state=${state}`,
         productionEnv(googleConfiguration),
+        { headers: { Cookie: oauthCookie(state) } },
       );
       expect(response.status).toBe(403);
       vi.restoreAllMocks();
@@ -369,12 +544,16 @@ describe("Google authentication", () => {
     const callback = await request(
       `/api/auth/google/callback?code=test-code&state=${state}`,
       productionEnv(googleConfiguration),
+      { headers: { Cookie: oauthCookie(state) } },
     );
     expect(callback.status).toBe(302);
     expect(callback.headers.get("Location")).toBe(
       "/movies/movie-1?from=now-showing",
     );
-    const cookie = callback.headers.get("Set-Cookie") ?? "";
+    const cookie =
+      callback.headers
+        .getSetCookie()
+        .find((value) => value.startsWith("ludovico_tech_session=")) ?? "";
     expect(cookie).toContain("HttpOnly");
     expect(cookie).toContain("SameSite=Lax");
     expect(cookie).toContain("Secure");

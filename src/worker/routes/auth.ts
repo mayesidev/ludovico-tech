@@ -1,4 +1,5 @@
 import { type Hono } from "hono";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import {
   createCodeVerifier,
   createSessionId,
@@ -15,6 +16,14 @@ import {
   sha256Base64Url,
   type AppEnv,
 } from "../env";
+
+const OAUTH_LIFETIME_SECONDS = 10 * 60;
+const oauthCookieName = (state: string) => `ludovico_tech_oauth_${state}`;
+const oauthCookieOptions = {
+  httpOnly: true,
+  prefix: "host",
+  sameSite: "Lax",
+} as const;
 
 const googleJson = async (
   url: string,
@@ -58,6 +67,7 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
 
   app.get("/auth/google", async (c) => {
     if (isDevelopmentAuth(c.env)) return c.redirect("/");
+    c.header("Cache-Control", "no-store");
     if (!c.env.GOOGLE_CLIENT_ID || !c.env.GOOGLE_REDIRECT_URI) {
       return c.text("Google OAuth is not configured", 503);
     }
@@ -66,7 +76,9 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
     const verifier = createCodeVerifier();
     const challenge = await sha256Base64Url(verifier);
     const createdAt = now();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const expiresAt = new Date(
+      Date.now() + OAUTH_LIFETIME_SECONDS * 1000,
+    ).toISOString();
     const returnTo = normalizeReturnTo(c.req.query("returnTo"));
 
     await c.env.DB.batch([
@@ -77,6 +89,11 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
         "INSERT INTO oauth_states (state, code_verifier, created_at, expires_at, return_to) VALUES (?, ?, ?, ?, ?)",
       ).bind(state, verifier, createdAt, expiresAt, returnTo),
     ]);
+
+    setCookie(c, oauthCookieName(state), verifier, {
+      ...oauthCookieOptions,
+      maxAge: OAUTH_LIFETIME_SECONDS,
+    });
 
     const params = new URLSearchParams({
       client_id: c.env.GOOGLE_CLIENT_ID,
@@ -103,6 +120,7 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
     const state = c.req.query("state");
     if (
       !state ||
+      !/^[A-Za-z0-9_-]{1,128}$/.test(state) ||
       !c.env.GOOGLE_CLIENT_ID ||
       !c.env.GOOGLE_CLIENT_SECRET ||
       !c.env.GOOGLE_REDIRECT_URI
@@ -110,13 +128,19 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
       return c.text("Invalid OAuth callback", 400);
     }
 
+    const browserVerifier = getCookie(c, oauthCookieName(state), "host");
+    if (!browserVerifier || !/^[A-Za-z0-9_-]{43}$/.test(browserVerifier)) {
+      return c.text("Invalid OAuth callback", 400);
+    }
+
     const oauthState = await c.env.DB.prepare(
       `DELETE FROM oauth_states
-       WHERE state = ? AND expires_at > ?
+       WHERE state = ? AND code_verifier = ? AND expires_at > ?
        RETURNING code_verifier, return_to`,
     )
-      .bind(state, now())
+      .bind(state, browserVerifier, now())
       .first<{ code_verifier: string; return_to: string }>();
+    deleteCookie(c, oauthCookieName(state), oauthCookieOptions);
     if (!oauthState) {
       return c.text("OAuth state expired", 400);
     }
@@ -205,6 +229,7 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
     c.header(
       "Set-Cookie",
       sessionCookie(sessionId, isSecureEnvironment(config.environment)),
+      { append: true },
     );
     return c.redirect(oauthState.return_to);
   });
