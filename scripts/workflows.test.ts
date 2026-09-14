@@ -238,6 +238,20 @@ describe("complete CI and deployment gates", () => {
     const maintenanceGate = source.indexOf(
       "Verify deployed staging maintenance mode",
     );
+    const refreshIdleGate = source.indexOf(
+      "Wait for staging refresh activity to stop",
+    );
+    const refreshIdleStep = workflowStep(
+      source,
+      "Wait for staging refresh activity to stop",
+    );
+    expect(refreshIdleStep).toContain("for attempt in $(seq 1 21)");
+    expect(refreshIdleStep).toContain("--remote --env staging");
+    expect(refreshIdleStep).toContain("WHERE id = 1");
+    expect(refreshIdleStep).toContain("check-refresh-idle");
+    expect(refreshIdleStep).toContain('if [ "$attempt" -eq 21 ]');
+    expect(refreshIdleStep).toContain("sleep 15");
+    expect(refreshIdleStep).not.toContain("        if:");
     const migration = source.indexOf("wrangler d1 migrations apply DB");
     const migrationGate = source.indexOf("check-migrations");
     const deploy = source.indexOf("Deploy exact release commit");
@@ -281,7 +295,8 @@ describe("complete CI and deployment gates", () => {
     expect(maintenanceDeploy).toBeGreaterThan(build);
     expect(maintenanceGate).toBeGreaterThan(maintenanceDeploy);
     expect(migration).toBeGreaterThan(releaseCheckout);
-    expect(migration).toBeGreaterThan(maintenanceGate);
+    expect(refreshIdleGate).toBeGreaterThan(maintenanceGate);
+    expect(migration).toBeGreaterThan(refreshIdleGate);
     expect(migrationGate).toBeGreaterThan(migration);
     expect(deploy).toBeGreaterThan(migrationGate);
     expect(smoke).toBeGreaterThan(deploy);
