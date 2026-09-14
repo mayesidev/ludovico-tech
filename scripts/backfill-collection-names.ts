@@ -101,7 +101,7 @@ export const runCollectionNameBackfill = async (
   const path = join(directory, "backfill.sql");
   const run = async (arguments_: string[]) => {
     try {
-      const output = await runner("pnpm", [
+      return await runner("pnpm", [
         "exec",
         "wrangler",
         "d1",
@@ -121,15 +121,24 @@ export const runCollectionNameBackfill = async (
         "--json",
         ...arguments_,
       ]);
-      return responseSchema.parse(JSON.parse(output));
     } catch {
       throw new CollectionNameBackfillError(
         "Collection name backfill command failed; keep maintenance enabled",
       );
     }
   };
+  const read = async (sql: string) => {
+    const output = await run(["--command", sql]);
+    try {
+      return responseSchema.parse(JSON.parse(output));
+    } catch {
+      throw new CollectionNameBackfillError(
+        "Collection name backfill query returned invalid data",
+      );
+    }
+  };
   const query = async (sql: string) => {
-    const response = await run(["--command", sql]);
+    const response = await read(sql);
     if (response.length !== 1)
       throw new CollectionNameBackfillError(
         "Collection name backfill query returned invalid data",
@@ -137,10 +146,7 @@ export const runCollectionNameBackfill = async (
     return response[0].results;
   };
   try {
-    const migrations = await run([
-      "--command",
-      "SELECT name FROM d1_migrations ORDER BY id",
-    ]);
+    const migrations = await read("SELECT name FROM d1_migrations ORDER BY id");
     try {
       assertReleaseMigrationsApplied(
         readdirSync("migrations")
@@ -157,6 +163,8 @@ export const runCollectionNameBackfill = async (
       query,
       execute: async (sql) => {
         writeFileSync(path, sql, { mode: 0o600 });
+        // Remote file imports can emit progress before JSON. Verify writes by
+        // reading the database; the child exit status still rejects failures.
         await run(["--file", path]);
       },
     });
