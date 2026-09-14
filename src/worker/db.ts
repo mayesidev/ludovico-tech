@@ -302,24 +302,6 @@ export const getNowShowingDetail = async (
   };
 };
 
-export const getRemainingCollectionMovies = async (
-  env: AppEnv["Bindings"],
-  collectionId: string,
-) => {
-  const result = await env.DB.prepare(
-    `${movieSelect}
-       WHERE collection_movies.collection_id = ? AND ratings.movie_id IS NULL
-       ORDER BY
-         CASE WHEN collections.order_confirmed = 1 THEN collection_movies.position END ASC,
-         CASE WHEN collections.order_confirmed = 0 THEN movies.added_at END ASC,
-         movies.added_at ASC,
-         movies.id ASC`,
-  )
-    .bind(collectionId)
-    .all<MovieRow>();
-  return result.results;
-};
-
 const homeMovieSelect = `
   SELECT movies.id, movies.title, movies.version,
     movie_tmdb_data.poster_path,

@@ -5,12 +5,27 @@ import {
   getNowShowing,
   getNowShowingDetail,
   getRandomUnwatchedMovie,
-  getRemainingCollectionMovies,
+  hasRemainingCollectionMovie,
 } from "../db";
 import { type AppEnv, now } from "../env";
 import { mutationUser } from "../middleware";
 import { orderInput } from "../schemas";
-import { selectQueuedMovie } from "../selection";
+
+// Keep collection ordering identical to the catalog and collection detail views.
+const firstUnwatchedCollectionMovie = `
+  SELECT movies.id
+  FROM collection_movies
+  JOIN movies ON movies.id = collection_movies.movie_id
+  JOIN collections ON collections.id = collection_movies.collection_id
+  WHERE collection_movies.collection_id = ?
+    AND NOT EXISTS (SELECT 1 FROM ratings WHERE ratings.movie_id = movies.id)
+  ORDER BY
+    CASE WHEN collections.order_confirmed = 1 THEN collection_movies.position END ASC,
+    CASE WHEN collections.order_confirmed = 0 THEN movies.added_at END ASC,
+    movies.added_at ASC,
+    movies.id ASC
+  LIMIT 1
+`;
 
 export const registerRotationRoutes = (app: Hono<AppEnv>) => {
   app.post("/roll", async (c) => {
@@ -31,21 +46,33 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
     }
 
     const timestamp = now();
-    const remainingCollectionMovies = rolled.collection_id
-      ? await getRemainingCollectionMovies(c.env, rolled.collection_id)
-      : [];
-    const actual = selectQueuedMovie(rolled, remainingCollectionMovies);
-
     const stateUpdate = await c.env.DB.prepare(
-      `UPDATE now_showing
-       SET movie_id = ?, rolled_at = ?, rolled_by = ?
-       WHERE id = 1 AND (
+      `WITH eligible_roll AS (
+         SELECT movies.id, collection_movies.collection_id
+         FROM movies
+         LEFT JOIN collection_movies ON collection_movies.movie_id = movies.id
+         WHERE movies.id = ? AND collection_movies.collection_id IS ?
+           AND NOT EXISTS (SELECT 1 FROM ratings WHERE ratings.movie_id = movies.id)
+       ), candidate AS (
+         SELECT CASE WHEN collection_id IS NULL THEN id
+           ELSE (${firstUnwatchedCollectionMovie}) END AS id
+         FROM eligible_roll
+       )
+       UPDATE now_showing
+       SET movie_id = (SELECT id FROM candidate), rolled_at = ?, rolled_by = ?
+       WHERE id = 1 AND (SELECT id FROM candidate) IS NOT NULL AND (
          movie_id IS NULL OR EXISTS (
            SELECT 1 FROM ratings WHERE ratings.movie_id = now_showing.movie_id
          )
        )`,
     )
-      .bind(actual.id, timestamp, user.id)
+      .bind(
+        rolled.id,
+        rolled.collection_id,
+        rolled.collection_id,
+        timestamp,
+        user.id,
+      )
       .run();
     if (!stateUpdate.meta.changes) {
       return c.json(
@@ -161,10 +188,7 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
         409,
       );
     }
-    const next = (
-      await getRemainingCollectionMovies(c.env, current.collection_id)
-    )[0];
-    if (!next) {
+    if (!(await hasRemainingCollectionMovie(c.env, current.collection_id))) {
       return c.json(
         { error: "This collection is complete", complete: true },
         409,
@@ -173,14 +197,26 @@ export const registerRotationRoutes = (app: Hono<AppEnv>) => {
 
     const timestamp = now();
     const stateUpdate = await c.env.DB.prepare(
-      `UPDATE now_showing
-       SET movie_id = ?, rolled_at = ?, rolled_by = ?
+      `WITH candidate AS (${firstUnwatchedCollectionMovie})
+       UPDATE now_showing
+       SET movie_id = (SELECT id FROM candidate), rolled_at = ?, rolled_by = ?
        WHERE id = 1 AND movie_id = ?
+         AND (SELECT id FROM candidate) IS NOT NULL
+         AND EXISTS (
+           SELECT 1 FROM collection_movies
+           WHERE movie_id = now_showing.movie_id AND collection_id = ?
+         )
          AND EXISTS (
            SELECT 1 FROM ratings WHERE ratings.movie_id = now_showing.movie_id
          )`,
     )
-      .bind(next.id, timestamp, user.id, current.movie_id)
+      .bind(
+        current.collection_id,
+        timestamp,
+        user.id,
+        current.movie_id,
+        current.collection_id,
+      )
       .run();
     if (!stateUpdate.meta.changes) {
       return c.json(
