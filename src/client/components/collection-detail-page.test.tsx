@@ -287,7 +287,7 @@ it("explains the collection limit and disables oversized ordering while retainin
       collection_position: index + 1,
     }),
   );
-  render(
+  const { container } = render(
     <CollectionDetailPage
       busy={false}
       canMutate
@@ -299,19 +299,21 @@ it("explains the collection limit and disables oversized ordering while retainin
       run={run}
     />,
   );
-  expect(screen.getByRole("status")).toHaveTextContent("1,000 titles");
-  expect(screen.getByRole("status")).toHaveTextContent(
+  // Query the explicit labels directly instead of repeatedly walking thousands
+  // of unrelated elements to compute accessible names in this boundary fixture.
+  const message = container.querySelector('[role="status"]');
+  expect(message).toHaveTextContent("1,000 titles");
+  expect(message).toHaveTextContent(
     "Move or remove titles before saving an order",
   );
-  expect(screen.getByRole("button", { name: "Save Order" })).toBeDisabled();
+  expect(container.querySelector("footer button")).toBeDisabled();
   expect(
-    screen.getByRole("button", { name: "Move Title 0 Down" }),
+    container.querySelector('[aria-label="Move Title 0 Down"]'),
   ).toBeDisabled();
   expect(
-    screen.getByRole("button", { name: "Move Title 1000 Up" }),
+    container.querySelector('[aria-label="Move Title 1000 Up"]'),
   ).toBeDisabled();
-  expect(screen.getByRole("link", { name: "Title 1000" })).toHaveAttribute(
-    "href",
-    "/movies/title-1000",
-  );
+  expect(
+    container.querySelector('a[href="/movies/title-1000"]'),
+  ).toHaveTextContent("Title 1000");
 });
