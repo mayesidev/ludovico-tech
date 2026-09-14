@@ -53,14 +53,13 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       bindings.push(...fields.flatMap(() => search.bindings));
     }
     const where = filters.length > 0 ? `WHERE ${filters.join(" AND ")}` : "";
+    // Movie/rating triggers keep one dense candidate slot per unwatched movie.
     const globalCounts = await c.env.DB.prepare(
-      `SELECT COUNT(*) AS total,
-        SUM(CASE WHEN ratings.movie_id IS NULL THEN 1 ELSE 0 END) AS unwatched
-       FROM movies
-       LEFT JOIN ratings ON ratings.movie_id = movies.id`,
-    ).first<{ total: number; unwatched: number | null }>();
-    const globalTotal = globalCounts?.total ?? 0;
+      `SELECT (SELECT COUNT(*) FROM ratings) AS watched,
+        COALESCE((SELECT MAX(slot) FROM roll_candidates), 0) AS unwatched`,
+    ).first<{ watched: number; unwatched: number }>();
     const globalUnwatched = globalCounts?.unwatched ?? 0;
+    const globalTotal = (globalCounts?.watched ?? 0) + globalUnwatched;
     let total: number;
     if (!input.search) {
       total =
@@ -85,6 +84,11 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
     }
     const totalPages = Math.max(1, Math.ceil(total / input.pageSize));
     const page = Math.min(input.page, totalPages);
+    const metadata = {
+      counts: { total: globalTotal, unwatched: globalUnwatched },
+      pagination: { page, pageSize: input.pageSize, total, totalPages },
+    };
+    if (total === 0) return c.json({ movies: [], ...metadata });
     const sortExpressions = {
       title: "movies.title COLLATE NOCASE",
       collection: "collections.name COLLATE NOCASE",
@@ -134,11 +138,7 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       .all<MovieRow>();
     return c.json({
       movies: result.results,
-      counts: {
-        total: globalTotal,
-        unwatched: globalUnwatched,
-      },
-      pagination: { page, pageSize: input.pageSize, total, totalPages },
+      ...metadata,
     });
   });
 
