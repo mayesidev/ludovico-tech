@@ -53,14 +53,13 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       bindings.push(...fields.flatMap(() => search.bindings));
     }
     const where = filters.length > 0 ? `WHERE ${filters.join(" AND ")}` : "";
+    // Movie/rating triggers keep one dense candidate slot per unwatched movie.
     const globalCounts = await c.env.DB.prepare(
-      `SELECT COUNT(*) AS total,
-        SUM(CASE WHEN ratings.movie_id IS NULL THEN 1 ELSE 0 END) AS unwatched
-       FROM movies
-       LEFT JOIN ratings ON ratings.movie_id = movies.id`,
-    ).first<{ total: number; unwatched: number | null }>();
-    const globalTotal = globalCounts?.total ?? 0;
+      `SELECT (SELECT COUNT(*) FROM ratings) AS watched,
+        COALESCE((SELECT MAX(slot) FROM roll_candidates), 0) AS unwatched`,
+    ).first<{ watched: number; unwatched: number }>();
     const globalUnwatched = globalCounts?.unwatched ?? 0;
+    const globalTotal = (globalCounts?.watched ?? 0) + globalUnwatched;
     let total: number;
     if (!input.search) {
       total =
