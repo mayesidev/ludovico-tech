@@ -507,28 +507,25 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       }
     }
     const metadata = tmdbResult?.data ?? null;
-    const title = metadata?.title ?? input.title ?? existing.title;
     const tmdbChangeRequested = input.tmdbId !== undefined;
     const resolvedTmdbId = tmdbChangeRequested
       ? (input.tmdbId ?? null)
       : existing.tmdb_id;
-    const resolvedImdbId =
-      input.imdbId !== undefined ? input.imdbId : existing.imdb_id;
     const tmdbIdentityChanged =
       tmdbChangeRequested && resolvedTmdbId !== existing.tmdb_id;
-    let version =
+    const version =
       input.version !== undefined
         ? input.version
         : tmdbIdentityChanged
           ? null
           : existing.version;
-    let versionRuntime =
+    const versionRuntime =
       input.versionRuntime !== undefined
         ? input.versionRuntime
         : input.version === null || tmdbIdentityChanged
           ? null
           : existing.version_runtime;
-    let versionReferenceUrl =
+    const versionReferenceUrl =
       input.versionReferenceUrl !== undefined
         ? input.versionReferenceUrl
         : input.version === null || tmdbIdentityChanged
@@ -546,9 +543,6 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
           400,
         );
       }
-      version = null;
-      versionRuntime = null;
-      versionReferenceUrl = null;
     } else if (
       version === null &&
       (versionRuntime !== null || versionReferenceUrl !== null)
@@ -586,26 +580,34 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       collectionChangeRequested &&
       targetCollectionId !== existing.collection_id;
 
+    const assignments = ["updated_at = ?", "updated_by = ?"];
+    const values: Array<string | number | null> = [timestamp, user.id];
+    const assign = (
+      column:
+        | "title"
+        | "imdb_id"
+        | "version"
+        | "version_runtime"
+        | "version_reference_url",
+      value: string | number | null,
+    ) => {
+      assignments.push(`${column} = ?`);
+      values.push(value);
+    };
+    if (metadata || input.title !== undefined) {
+      assign("title", metadata?.title ?? input.title!);
+    }
+    if (input.imdbId !== undefined) assign("imdb_id", input.imdbId);
+    if (input.version !== undefined) assign("version", input.version);
+    if (input.versionRuntime !== undefined || input.version === null) {
+      assign("version_runtime", input.versionRuntime ?? null);
+    }
+    if (input.versionReferenceUrl !== undefined || input.version === null) {
+      assign("version_reference_url", input.versionReferenceUrl ?? null);
+    }
     const updateMovie = c.env.DB.prepare(
-      `UPDATE movies SET
-           title = ?,
-           imdb_id = ?,
-           version = ?,
-           version_runtime = ?,
-           version_reference_url = ?,
-           updated_at = ?,
-           updated_by = ?
-         WHERE id = ?`,
-    ).bind(
-      title,
-      resolvedImdbId,
-      version,
-      versionRuntime,
-      versionReferenceUrl,
-      timestamp,
-      user.id,
-      movieId,
-    );
+      `UPDATE movies SET ${assignments.join(", ")} WHERE id = ?`,
+    ).bind(...values, movieId);
     const replaceTmdb = tmdbChangeRequested
       ? await replaceTmdbDataStatements(c.env, movieId, tmdbResult, {
           attributedBy: user.id,
@@ -614,10 +616,26 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
           updatedAt: timestamp,
         })
       : [];
-    const statements: D1PreparedStatement[] =
-      tmdbChangeRequested && tmdbResult
-        ? [...replaceTmdb, updateMovie]
-        : [updateMovie, ...replaceTmdb];
+    const statements: D1PreparedStatement[] = [];
+    if (tmdbResult) {
+      // Clear version defaults against the current identity before replacing it;
+      // explicit version fields are applied after the requested link exists.
+      statements.push(
+        c.env.DB.prepare(
+          `UPDATE movies SET
+             version = NULL, version_runtime = NULL, version_reference_url = NULL
+           WHERE id = ? AND version IS NOT NULL
+             AND NOT EXISTS (
+               SELECT 1 FROM movie_tmdb_data
+               WHERE movie_id = movies.id AND tmdb_id = ?
+             )`,
+        ).bind(movieId, tmdbResult.data.id),
+        ...replaceTmdb,
+        updateMovie,
+      );
+    } else {
+      statements.push(updateMovie, ...replaceTmdb);
+    }
 
     if (membershipChanged) {
       const collectionAppend = targetCollectionName
@@ -691,7 +709,26 @@ export const registerMovieRoutes = (app: Hono<AppEnv>) => {
       }
     }
 
-    await c.env.DB.batch(statements);
+    try {
+      await c.env.DB.batch(statements);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.message.includes("Movie version requires a TMDB link") ||
+          /CHECK constraint failed: version_(runtime|reference_url)\b/.test(
+            error.message,
+          ))
+      ) {
+        return c.json(
+          {
+            error:
+              "The movie's TMDB match or version changed. Reload and try again.",
+          },
+          409,
+        );
+      }
+      throw error;
+    }
     return c.json({ movie: await getMovieDetail(c.env, movieId, true) });
   });
 
