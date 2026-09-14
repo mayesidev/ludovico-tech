@@ -46,6 +46,22 @@ const movie: Movie = {
 
 const movieDetail: MovieDetail = { ...movie, cast: [], directors: [] };
 
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  let reject!: (cause: unknown) => void;
+  const promise = new Promise<T>((yes, no) => {
+    resolve = yes;
+    reject = no;
+  });
+  return { promise, resolve, reject };
+};
+
+const followHistory = (path: string) =>
+  act(() => {
+    window.history.pushState(null, "", path);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+
 const anonymous: AuthState = {
   user: null,
   authenticated: false,
@@ -139,7 +155,7 @@ describe("application authorization presentation", () => {
     expect(window.location.pathname).toBe("/library");
     expect(library).toHaveAttribute("aria-current", "page");
     expect(api.library).toHaveBeenCalledOnce();
-    await user.click(screen.getByRole("link", { name: "Test Movie" }));
+    await user.click(await screen.findByRole("link", { name: "Test Movie" }));
     expect(window.location.pathname).toBe("/movies/movie-id");
     expect(
       screen.getByRole("heading", { level: 1, name: "Test Movie" }),
@@ -186,7 +202,7 @@ describe("application authorization presentation", () => {
     await user.click(screen.getByRole("link", { name: "Library" }));
     expect(window.location.pathname).toBe("/library");
     expect(screen.getByRole("button", { name: "Add a Movie" })).toBeVisible();
-    await user.click(screen.getByRole("link", { name: "Test Movie" }));
+    await user.click(await screen.findByRole("link", { name: "Test Movie" }));
     await user.click(screen.getByRole("button", { name: "Edit Movie" }));
     expect(screen.getByRole("dialog", { name: "Edit Movie" })).toBeVisible();
     await user.keyboard("{Escape}");
@@ -529,5 +545,204 @@ describe("application authorization presentation", () => {
       screen.getByRole("button", { name: "Sign In to Set the Order" }),
     ).toBeVisible();
     expect(api.order).toHaveBeenCalledWith("collection-id", ["movie-id"]);
+  });
+});
+
+describe("active route responses", () => {
+  const otherMovie: MovieDetail = {
+    ...movieDetail,
+    id: "other-movie",
+    title: "Other Movie",
+  };
+
+  it.each(["success", "failure"])(
+    "keeps the current movie and edit target after an older %s",
+    async (outcome) => {
+      arrange(authenticated);
+      const old = deferred<{ movie: MovieDetail }>();
+      vi.mocked(api.movie)
+        .mockReturnValueOnce(old.promise)
+        .mockResolvedValue({ movie: otherMovie });
+      vi.spyOn(api, "updateMovie").mockResolvedValue({ movie: otherMovie });
+      window.history.replaceState(null, "", "/movies/movie-id");
+      render(<App />);
+      await waitFor(() => expect(api.movie).toHaveBeenCalledWith("movie-id"));
+      followHistory("/movies/other-movie");
+      expect(
+        await screen.findByRole("heading", { name: "Other Movie" }),
+      ).toBeVisible();
+      await act(async () => {
+        if (outcome === "success") old.resolve({ movie: movieDetail });
+        else old.reject(new ApiError("Old request failed", 500));
+      });
+      expect(
+        screen.getByRole("heading", { name: "Other Movie" }),
+      ).toBeVisible();
+      expect(screen.queryByText("Old request failed")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Edit Movie" }));
+      fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+      await waitFor(() =>
+        expect(api.updateMovie).toHaveBeenCalledWith(
+          "other-movie",
+          expect.anything(),
+        ),
+      );
+    },
+  );
+
+  it("keeps a newer movie loading when an old request finishes first", async () => {
+    arrange(anonymous);
+    const old = deferred<{ movie: MovieDetail }>();
+    const current = deferred<{ movie: MovieDetail }>();
+    vi.mocked(api.movie)
+      .mockReturnValueOnce(old.promise)
+      .mockReturnValueOnce(current.promise);
+    window.history.replaceState(null, "", "/movies/movie-id");
+    render(<App />);
+    await waitFor(() => expect(api.movie).toHaveBeenCalledWith("movie-id"));
+    followHistory("/movies/other-movie");
+    await waitFor(() => expect(api.movie).toHaveBeenCalledWith("other-movie"));
+    await act(async () => old.resolve({ movie: movieDetail }));
+    expect(
+      screen.queryByRole("heading", {
+        name: /Test Movie|Other Movie|Movie Not Found/,
+      }),
+    ).toBeNull();
+    await act(async () => current.resolve({ movie: otherMovie }));
+    expect(screen.getByRole("heading", { name: "Other Movie" })).toBeVisible();
+  });
+
+  it("does not clear the active route's error when an earlier request succeeds", async () => {
+    arrange(anonymous);
+    const old = deferred<{ movie: MovieDetail }>();
+    vi.mocked(api.movie)
+      .mockReturnValueOnce(old.promise)
+      .mockRejectedValueOnce(new ApiError("Current request failed", 503));
+    window.history.replaceState(null, "", "/movies/movie-id");
+    render(<App />);
+    await waitFor(() => expect(api.movie).toHaveBeenCalledWith("movie-id"));
+    followHistory("/movies/other-movie");
+    expect(await screen.findByText("Current request failed")).toBeVisible();
+    await act(async () => old.resolve({ movie: movieDetail }));
+    expect(screen.getByText("Current request failed")).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Test Movie" })).toBeNull();
+  });
+
+  it("clears a current movie error when a mutation refresh confirms it is missing", async () => {
+    arrange(authenticated);
+    const rating = deferred<Awaited<ReturnType<typeof api.rate>>>();
+    vi.spyOn(api, "rate").mockReturnValue(rating.promise);
+    vi.mocked(api.home).mockResolvedValue({
+      hasNextCollectionMovie: false,
+      nowShowing: {
+        ...currentNowShowing,
+        status: "ready",
+        rating_score: null,
+        rating_phrase: null,
+      },
+      posterReelMovies: [],
+      watchedMovies: [],
+    });
+    vi.mocked(api.movie)
+      .mockRejectedValueOnce(new ApiError("Temporary movie failure", 503))
+      .mockRejectedValueOnce(new ApiError("Movie not found", 404));
+    window.history.replaceState(null, "", "/");
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(
+      await screen.findByRole("textbox", {
+        name: "Custom rating phrase (required)",
+      }),
+      "Group phrase",
+    );
+    await user.click(screen.getByRole("button", { name: "Rate It" }));
+    followHistory("/movies/movie-id");
+    expect(await screen.findByText("Temporary movie failure")).toBeVisible();
+    await act(async () => rating.resolve({ nowShowing: currentNowShowing }));
+    await waitFor(() => expect(api.movie).toHaveBeenCalledTimes(2));
+    expect(
+      screen.getByRole("heading", { name: "Movie Not Found" }),
+    ).toBeVisible();
+    expect(screen.queryByText("Temporary movie failure")).toBeNull();
+  });
+
+  it.each(["success", "not found"])(
+    "keeps a newer collection after an old collection %s",
+    async (outcome) => {
+      arrange(authenticated);
+      const old = deferred<Awaited<ReturnType<typeof api.collection>>>();
+      vi.mocked(api.collection)
+        .mockReturnValueOnce(old.promise)
+        .mockResolvedValue({
+          collection: { id: "other-collection", name: "Other Saga" },
+          movies: [
+            {
+              ...otherMovie,
+              collection_id: "other-collection",
+              collection_name: "Other Saga",
+            },
+          ],
+          tmdbCollections: [],
+        });
+      vi.spyOn(api, "order").mockResolvedValue({
+        nowShowing: currentNowShowing,
+      });
+      window.history.replaceState(null, "", "/collections/collection-id");
+      render(<App />);
+      await waitFor(() =>
+        expect(api.collection).toHaveBeenCalledWith("collection-id"),
+      );
+      followHistory("/collections/other-collection");
+      expect(
+        await screen.findByRole("heading", { name: "Other Saga" }),
+      ).toBeVisible();
+      await act(async () => {
+        if (outcome === "success")
+          old.resolve({
+            collection: { id: "collection-id", name: "Test Saga" },
+            movies: [movie],
+            tmdbCollections: [],
+          });
+        else old.reject(new ApiError("Old collection missing", 404));
+      });
+      expect(screen.getByRole("heading", { name: "Other Saga" })).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: "Save Order" }));
+      await waitFor(() =>
+        expect(api.order).toHaveBeenCalledWith("other-collection", [
+          "other-movie",
+        ]),
+      );
+    },
+  );
+
+  it("refreshes the current route when a mutation finishes after navigation", async () => {
+    arrange(authenticated);
+    const mutation = deferred<Awaited<ReturnType<typeof api.updateMovie>>>();
+    vi.spyOn(api, "updateMovie").mockReturnValue(mutation.promise);
+    vi.mocked(api.movie)
+      .mockResolvedValueOnce({ movie: movieDetail })
+      .mockResolvedValueOnce({ movie: otherMovie })
+      .mockResolvedValue({
+        movie: { ...otherMovie, title: "Other Movie Refreshed" },
+      });
+    window.history.replaceState(null, "", "/movies/movie-id");
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Edit Movie" }));
+    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    followHistory("/movies/other-movie");
+    expect(
+      await screen.findByRole("heading", { name: "Other Movie" }),
+    ).toBeVisible();
+    await act(async () => mutation.resolve({ movie }));
+    expect(
+      await screen.findByRole("heading", { name: "Other Movie Refreshed" }),
+    ).toBeVisible();
+    expect(vi.mocked(api.movie).mock.calls.map(([id]) => id)).toEqual([
+      "movie-id",
+      "other-movie",
+      "other-movie",
+    ]);
   });
 });

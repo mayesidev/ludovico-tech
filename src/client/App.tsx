@@ -77,6 +77,21 @@ export default function App() {
   const addedMovieDetailRef = useRef<MovieDetail | null>(null);
   const preparedPosterReelRef = useRef<Promise<HomeMovie[]> | null>(null);
   const preparedPosterReelSourceRef = useRef<string | null>(null);
+  const activeRouteRef = useRef(route);
+  const pageRequestSequence = useRef(0);
+  const movieRequestSequence = useRef(0);
+
+  const syncRoute = useCallback(() => {
+    const nextRoute = parseRoute(
+      window.location.pathname,
+      window.location.search,
+    );
+    activeRouteRef.current = nextRoute;
+    setRoute(nextRoute);
+    setLoading(nextRoute.page === "home" || nextRoute.page === "collection");
+    setMovieDetailLoading(nextRoute.page === "movie");
+    setError(null);
+  }, []);
 
   const refreshAuth = useCallback(async () => {
     try {
@@ -86,92 +101,119 @@ export default function App() {
     }
   }, []);
 
-  const refresh = useCallback(
-    async (showLoading = true) => {
+  const refresh = useCallback(async (showLoading = true) => {
+    const requestRoute = activeRouteRef.current;
+    const sequence = ++pageRequestSequence.current;
+    const isCurrent = () =>
+      activeRouteRef.current === requestRoute &&
+      sequence === pageRequestSequence.current;
+    if (
+      requestRoute.page !== "home" &&
+      requestRoute.page !== "library" &&
+      requestRoute.page !== "collection"
+    ) {
+      if (isCurrent()) setLoading(false);
+      return;
+    }
+    if (showLoading) setLoading(true);
+    try {
+      if (requestRoute.page === "home") {
+        const home = await api.home();
+        if (!isCurrent()) return;
+        setNowShowing(home.nowShowing);
+        setHasNextCollectionMovie(home.hasNextCollectionMovie);
+        setWatchedMovies(home.watchedMovies);
+        setPosterReelMovies(home.posterReelMovies);
+      } else if (requestRoute.page === "collection") {
+        const result = await api.collection(requestRoute.collectionId);
+        if (!isCurrent()) return;
+        setCollectionMovies(result.movies);
+        setCollectionDetail(result.collection);
+      }
+      setError(null);
+    } catch (cause) {
+      if (!isCurrent()) return;
       if (
-        route.page !== "home" &&
-        route.page !== "library" &&
-        route.page !== "collection"
+        requestRoute.page === "collection" &&
+        cause instanceof ApiError &&
+        cause.status === 404
       ) {
-        if (showLoading) setLoading(false);
-        return;
-      }
-      if (showLoading) setLoading(true);
-      try {
-        if (route.page === "home") {
-          const home = await api.home();
-          setNowShowing(home.nowShowing);
-          setHasNextCollectionMovie(home.hasNextCollectionMovie);
-          setWatchedMovies(home.watchedMovies);
-          setPosterReelMovies(home.posterReelMovies);
-        } else if (route.page === "collection") {
-          const result = await api.collection(route.collectionId);
-          setCollectionMovies(result.movies);
-          setCollectionDetail(result.collection);
-        }
+        setCollectionMovies([]);
+        setCollectionDetail(null);
         setError(null);
-      } catch (cause) {
-        if (
-          route.page === "collection" &&
-          cause instanceof ApiError &&
-          cause.status === 404
-        ) {
-          setCollectionMovies([]);
-          setCollectionDetail(null);
-          setError(null);
-        } else {
-          setError(
-            cause instanceof Error ? cause.message : "Unable to load this page",
-          );
-        }
-      } finally {
-        if (showLoading) setLoading(false);
+      } else {
+        setError(
+          cause instanceof Error ? cause.message : "Unable to load this page",
+        );
       }
-    },
-    [route],
-  );
+    } finally {
+      if (isCurrent()) setLoading(false);
+    }
+  }, []);
 
-  const refreshMovieDetail = useCallback(
-    async (showLoading = true) => {
-      if (route.page !== "movie") {
-        setMovieDetail(null);
-        setMovieDetailLoading(false);
-        return;
+  const refreshMovieDetail = useCallback(async (showLoading = true) => {
+    const requestRoute = activeRouteRef.current;
+    const sequence = ++movieRequestSequence.current;
+    const isCurrent = () =>
+      activeRouteRef.current === requestRoute &&
+      sequence === movieRequestSequence.current;
+    if (requestRoute.page !== "movie") {
+      setMovieDetail(null);
+      setMovieDetailLoading(false);
+      return;
+    }
+    if (addedMovieDetailRef.current?.id === requestRoute.movieId) {
+      setMovieDetail(addedMovieDetailRef.current);
+      addedMovieDetailRef.current = null;
+      setMovieDetailLoading(false);
+      return;
+    }
+    if (showLoading) setMovieDetailLoading(true);
+    try {
+      const result = await api.movie(requestRoute.movieId);
+      if (!isCurrent()) return;
+      setMovieDetail(result.movie);
+      setError(null);
+    } catch (cause) {
+      if (!isCurrent()) return;
+      setMovieDetail(null);
+      if (cause instanceof ApiError && cause.status === 404) {
+        setError(null);
+      } else {
+        setError(
+          cause instanceof Error ? cause.message : "Unable to load the movie",
+        );
       }
-      if (addedMovieDetailRef.current?.id === route.movieId) {
-        setMovieDetail(addedMovieDetailRef.current);
-        addedMovieDetailRef.current = null;
-        setMovieDetailLoading(false);
-        return;
-      }
-      if (showLoading) setMovieDetailLoading(true);
-      try {
-        setMovieDetail((await api.movie(route.movieId)).movie);
-      } catch (cause) {
-        setMovieDetail(null);
-        if (!(cause instanceof ApiError && cause.status === 404)) {
-          setError(
-            cause instanceof Error ? cause.message : "Unable to load the movie",
-          );
-        }
-      } finally {
-        if (showLoading) setMovieDetailLoading(false);
-      }
-    },
-    [route],
-  );
+    } finally {
+      if (isCurrent()) setMovieDetailLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    void Promise.resolve().then(() => refresh());
-  }, [refresh]);
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) return refresh();
+    });
+    return () => {
+      cancelled = true;
+      pageRequestSequence.current += 1;
+    };
+  }, [refresh, route]);
 
   useEffect(() => {
     void Promise.resolve().then(refreshAuth);
   }, [refreshAuth]);
 
   useEffect(() => {
-    void Promise.resolve().then(() => refreshMovieDetail());
-  }, [refreshMovieDetail]);
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) return refreshMovieDetail();
+    });
+    return () => {
+      cancelled = true;
+      movieRequestSequence.current += 1;
+    };
+  }, [refreshMovieDetail, route]);
 
   useEffect(() => {
     if (
@@ -205,16 +247,17 @@ export default function App() {
   }, [auth?.authenticated, posterReelMovies, route.page]);
 
   useEffect(() => {
-    const handlePopState = () =>
-      setRoute(parseRoute(window.location.pathname, window.location.search));
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+    window.addEventListener("popstate", syncRoute);
+    return () => window.removeEventListener("popstate", syncRoute);
+  }, [syncRoute]);
 
-  const navigate = useCallback((path: string) => {
-    window.history.pushState(null, "", path);
-    setRoute(parseRoute(window.location.pathname, window.location.search));
-  }, []);
+  const navigate = useCallback(
+    (path: string) => {
+      window.history.pushState(null, "", path);
+      syncRoute();
+    },
+    [syncRoute],
+  );
 
   const run = useCallback<RunAction>(
     async (action, after) => {
