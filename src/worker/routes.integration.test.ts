@@ -62,6 +62,7 @@ const insertOauthState = async (
 const authenticated = async (
   overrides: Partial<AppEnv["Bindings"]> = {},
   expiresAt = future,
+  lastActiveAt = new Date().toISOString(),
 ) => {
   const existing = await env.DB.prepare("SELECT id FROM users WHERE email = ?")
     .bind(invitedEmail)
@@ -76,9 +77,11 @@ const authenticated = async (
       .run();
   }
   await env.DB.prepare(
-    "INSERT INTO auth_sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
+    `INSERT INTO auth_sessions
+       (id, user_id, created_at, expires_at, last_active_at)
+     VALUES (?, ?, ?, ?, ?)`,
   )
-    .bind(sessionId, userId, past, expiresAt)
+    .bind(sessionId, userId, past, expiresAt, lastActiveAt)
     .run();
   return {
     bindings: productionEnv({
@@ -92,6 +95,7 @@ const authenticated = async (
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe("production runtime configuration", () => {
@@ -517,6 +521,8 @@ describe("Google authentication", () => {
   });
 
   it("creates an allowlisted session and returns only the public user", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime("2026-09-14T12:00:00.000Z");
     const state = await insertOauthState(
       "successful-state",
       future,
@@ -556,7 +562,22 @@ describe("Google authentication", () => {
         .find((value) => value.startsWith("ludovico_tech_session=")) ?? "";
     expect(cookie).toContain("HttpOnly");
     expect(cookie).toContain("SameSite=Lax");
+    expect(cookie).toContain("Max-Age=604800");
     expect(cookie).toContain("Secure");
+    const sessionId = cookie.match(/^ludovico_tech_session=([^;]+)/)?.[1];
+    expect(sessionId).toBeTruthy();
+    expect(
+      await env.DB.prepare(
+        `SELECT created_at, expires_at, last_active_at
+         FROM auth_sessions WHERE id = ?`,
+      )
+        .bind(sessionId)
+        .first(),
+    ).toEqual({
+      created_at: "2026-09-14T12:00:00.000Z",
+      expires_at: "2026-09-21T12:00:00.000Z",
+      last_active_at: "2026-09-14T12:00:00.000Z",
+    });
 
     const me = await request(
       "/api/auth/me",
@@ -585,6 +606,76 @@ describe("Google authentication", () => {
         .bind(session.sessionId)
         .first(),
     ).toBeNull();
+  });
+
+  it.each([
+    [
+      "absolute lifetime",
+      "2026-09-14T12:00:00.000Z",
+      "2026-09-14T11:59:59.999Z",
+    ],
+    ["idle lifetime", "2099-08-04T00:00:00.000Z", "2026-09-13T12:00:00.000Z"],
+  ])(
+    "rejects a session exactly at its %s boundary",
+    async (_, expiry, active) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime("2026-09-14T12:00:00.000Z");
+      const session = await authenticated({}, expiry, active);
+
+      const response = await request("/api/auth/me", session.bindings, {
+        headers: { Cookie: session.cookie },
+      });
+
+      expect(await response.json()).toMatchObject({ authenticated: false });
+      expect(
+        await env.DB.prepare("SELECT id FROM auth_sessions WHERE id = ?")
+          .bind(session.sessionId)
+          .first(),
+      ).toBeNull();
+    },
+  );
+
+  it("touches hourly activity without extending absolute expiry", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime("2026-09-14T12:00:00.000Z");
+    const expiry = "2026-09-20T12:00:00.000Z";
+    const session = await authenticated({}, expiry, "2026-09-14T11:00:00.000Z");
+
+    const response = await request("/api/auth/me", session.bindings, {
+      headers: { Cookie: session.cookie },
+    });
+
+    expect(await response.json()).toMatchObject({ authenticated: true });
+    expect(
+      await env.DB.prepare(
+        `SELECT expires_at, last_active_at FROM auth_sessions WHERE id = ?`,
+      )
+        .bind(session.sessionId)
+        .first(),
+    ).toEqual({
+      expires_at: expiry,
+      last_active_at: "2026-09-14T12:00:00.000Z",
+    });
+  });
+
+  it("does not rewrite recent session activity", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime("2026-09-14T12:00:00.000Z");
+    const lastActiveAt = "2026-09-14T11:00:00.001Z";
+    const session = await authenticated({}, future, lastActiveAt);
+
+    const response = await request("/api/auth/me", session.bindings, {
+      headers: { Cookie: session.cookie },
+    });
+
+    expect(await response.json()).toMatchObject({ authenticated: true });
+    expect(
+      await env.DB.prepare(
+        "SELECT last_active_at FROM auth_sessions WHERE id = ?",
+      )
+        .bind(session.sessionId)
+        .first(),
+    ).toEqual({ last_active_at: lastActiveAt });
   });
 
   it("stops authorizing a session after its email leaves the allowlist", async () => {
