@@ -192,6 +192,68 @@ describe("TMDB refresh status page", () => {
     },
   );
 
+  it.each(["run", "schedule toggle", "schedule save", "title refetch"])(
+    "refreshes session presentation after a %s mutation returns 401",
+    async (stage) => {
+      vi.spyOn(api, "tmdbRefreshOverview").mockResolvedValue({
+        queue: queue(),
+        summary,
+      });
+      vi.spyOn(api, "runTmdbRefresh").mockRejectedValue(
+        new ApiError("Authentication required", 401),
+      );
+      vi.spyOn(api, "updateTmdbRefreshSchedule").mockRejectedValue(
+        new ApiError("Authentication required", 401),
+      );
+      vi.spyOn(api, "queueTmdbRefetch").mockRejectedValue(
+        new ApiError("Authentication required", 401),
+      );
+      const onAuthExpired = vi.fn().mockResolvedValue(undefined);
+      const onNavigate = vi.fn();
+      const view = render(
+        <TmdbStatusPage
+          canMutate
+          onAuthExpired={onAuthExpired}
+          onNavigate={onNavigate}
+        />,
+      );
+
+      await screen.findByRole("button", { name: "Run now" });
+      if (stage === "run") {
+        fireEvent.click(screen.getByRole("button", { name: "Run now" }));
+      } else if (stage === "schedule toggle") {
+        fireEvent.click(
+          screen.getByRole("button", { name: "Pause automatic updates" }),
+        );
+      } else if (stage === "schedule save") {
+        fireEvent.change(screen.getByLabelText("Frequency (minutes)"), {
+          target: { value: "720" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Save schedule" }));
+      } else {
+        fireEvent.click(
+          screen.getByRole("button", {
+            name: "Queue Current Movie for refetch",
+          }),
+        );
+      }
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Your session ended. Sign in again to view Library refresh status.",
+      );
+      expect(onAuthExpired).toHaveBeenCalledOnce();
+      view.rerender(
+        <TmdbStatusPage
+          canMutate={false}
+          onAuthExpired={onAuthExpired}
+          onNavigate={onNavigate}
+        />,
+      );
+      expect(screen.queryByRole("button", { name: "Run now" })).toBeNull();
+      expect(screen.getByText(/Sign in to view or run/)).toBeVisible();
+    },
+  );
+
   it("keeps loaded data visible after a queue failure and recovers with Refresh status", async () => {
     const overview = vi
       .spyOn(api, "tmdbRefreshOverview")
@@ -582,6 +644,91 @@ describe("TMDB refresh status page", () => {
     expect(loadRunStatus).toHaveBeenCalledTimes(2);
     expect(loadOverview).toHaveBeenCalledTimes(2);
     expect(loadQueue).not.toHaveBeenCalled();
+  });
+
+  it("stops manual-run polling when the session expires", async () => {
+    vi.useFakeTimers();
+    const loadOverview = vi
+      .spyOn(api, "tmdbRefreshOverview")
+      .mockResolvedValue({ queue: queue(), summary });
+    const loadRunStatus = vi
+      .spyOn(api, "tmdbRefreshRunStatus")
+      .mockRejectedValue(new ApiError("Authentication required", 401));
+    vi.spyOn(api, "runTmdbRefresh").mockResolvedValue({ started: true });
+    const onAuthExpired = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <TmdbStatusPage
+        canMutate
+        onAuthExpired={onAuthExpired}
+        onNavigate={vi.fn()}
+      />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Run now" }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(loadRunStatus).toHaveBeenCalledOnce();
+    expect(onAuthExpired).toHaveBeenCalledOnce();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Your session ended. Sign in again to view Library refresh status.",
+    );
+
+    await act(async () => vi.advanceTimersByTimeAsync(2 * 60 * 1_000));
+    expect(loadRunStatus).toHaveBeenCalledOnce();
+    expect(loadOverview).toHaveBeenCalledOnce();
+  });
+
+  it("retries a transient manual-run status failure", async () => {
+    vi.useFakeTimers();
+    const loadOverview = vi
+      .spyOn(api, "tmdbRefreshOverview")
+      .mockResolvedValue({ queue: queue(), summary });
+    const loadRunStatus = vi
+      .spyOn(api, "tmdbRefreshRunStatus")
+      .mockRejectedValueOnce(new Error("Status temporarily unavailable"))
+      .mockResolvedValueOnce({ schedule: summary.schedule });
+    vi.spyOn(api, "runTmdbRefresh").mockResolvedValue({ started: true });
+    const onAuthExpired = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <TmdbStatusPage
+        canMutate
+        onAuthExpired={onAuthExpired}
+        onNavigate={vi.fn()}
+      />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Run now" }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(loadRunStatus).toHaveBeenCalledOnce();
+    expect(loadOverview).toHaveBeenCalledOnce();
+    expect(onAuthExpired).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Status temporarily unavailable",
+    );
+
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(loadRunStatus).toHaveBeenCalledTimes(2);
+    expect(loadOverview).toHaveBeenCalledTimes(2);
+
+    await act(async () => vi.advanceTimersByTimeAsync(2 * 60 * 1_000));
+    expect(loadRunStatus).toHaveBeenCalledTimes(2);
   });
 
   it("allows a manual run while automatic updates are paused", async () => {
