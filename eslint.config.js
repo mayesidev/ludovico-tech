@@ -5,7 +5,21 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "build", ".wrangler"] },
+  {
+    ignores: [
+      ".agents/**",
+      ".e2e-state/**",
+      ".react-router/**",
+      ".wrangler/**",
+      "blob-report/**",
+      "build/**",
+      "coverage/**",
+      "data/**",
+      "dist/**",
+      "playwright-report/**",
+      "test-results/**",
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
