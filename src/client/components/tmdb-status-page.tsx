@@ -133,12 +133,16 @@ export function TmdbStatusPage({
   const lastOverviewLoadedAt = useRef<number | null>(null);
   const manualRunRefreshDeadline = useRef(0);
 
-  const reportReadError = useCallback(
-    async (cause: unknown, fallback: string, sequence: number) => {
-      if (sequence !== requestSequence.current) return;
+  const reportError = useCallback(
+    async (
+      cause: unknown,
+      fallback: string,
+      isCurrent: () => boolean = () => true,
+    ) => {
+      if (!isCurrent()) return false;
       const authExpired = cause instanceof ApiError && cause.status === 401;
       if (authExpired) await onAuthExpired?.();
-      if (sequence !== requestSequence.current) return;
+      if (!isCurrent()) return authExpired;
       setError(
         authExpired
           ? "Your session ended. Sign in again to view Library refresh status."
@@ -146,6 +150,7 @@ export function TmdbStatusPage({
             ? cause.message
             : fallback,
       );
+      return authExpired;
     },
     [onAuthExpired],
   );
@@ -160,15 +165,15 @@ export function TmdbStatusPage({
       setQueue(response);
       setError(null);
     } catch (cause) {
-      await reportReadError(
+      await reportError(
         cause,
         "Unable to load the refresh queue",
-        sequence,
+        () => sequence === requestSequence.current,
       );
     } finally {
       if (sequence === requestSequence.current) setRefreshing(false);
     }
-  }, [canMutate, queueQuery, reportReadError]);
+  }, [canMutate, queueQuery, reportError]);
 
   const load = useCallback(async () => {
     if (!canMutate) return;
@@ -182,10 +187,10 @@ export function TmdbStatusPage({
       lastOverviewLoadedAt.current = Date.now();
       setError(null);
     } catch (cause) {
-      await reportReadError(
+      await reportError(
         cause,
         "Unable to load Library refresh status",
-        sequence,
+        () => sequence === requestSequence.current,
       );
     } finally {
       if (sequence === requestSequence.current) {
@@ -193,21 +198,24 @@ export function TmdbStatusPage({
         setRefreshing(false);
       }
     }
-  }, [canMutate, queueQuery, reportReadError]);
+  }, [canMutate, queueQuery, reportError]);
 
   const loadRunStatus = useCallback(async () => {
-    if (!canMutate) return null;
+    if (!canMutate) return { kind: "stop" } as const;
     try {
-      return await api.tmdbRefreshRunStatus();
+      return {
+        kind: "status",
+        status: await api.tmdbRefreshRunStatus(),
+      } as const;
     } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Unable to load Library refresh status",
+      const authExpired = await reportError(
+        cause,
+        "Unable to load Library refresh status",
       );
-      return null;
+      if (authExpired) return { kind: "stop" } as const;
+      return { kind: "retry" } as const;
     }
-  }, [canMutate]);
+  }, [canMutate, reportError]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -266,10 +274,14 @@ export function TmdbStatusPage({
     let cancelled = false;
     let timeout: number | undefined;
     const refreshManualRun = async () => {
-      const nextStatus = await loadRunStatus();
+      const result = await loadRunStatus();
       if (cancelled) return;
+      if (result.kind === "stop") {
+        setWatchingManualRun(false);
+        return;
+      }
       if (
-        (nextStatus === null || nextStatus.schedule.running) &&
+        (result.kind === "retry" || result.status.schedule.running) &&
         Date.now() < manualRunRefreshDeadline.current
       ) {
         timeout = window.setTimeout(
@@ -378,11 +390,7 @@ export function TmdbStatusPage({
       );
       await loadQueue();
     } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Unable to queue the title for refetch",
-      );
+      await reportError(cause, "Unable to queue the title for refetch");
     } finally {
       setQueueingMovieId(null);
     }
@@ -441,11 +449,7 @@ export function TmdbStatusPage({
               void api
                 .runTmdbRefresh()
                 .then(() => setWatchingManualRun(true))
-                .catch((cause) =>
-                  setError(
-                    cause instanceof Error ? cause.message : "Refresh failed",
-                  ),
-                )
+                .catch((cause) => reportError(cause, "Refresh failed"))
                 .finally(() => setStarting(false));
             }}
           >
@@ -511,11 +515,7 @@ export function TmdbStatusPage({
                   .updateTmdbRefreshSchedule({ enabled: !schedule.enabled })
                   .then(load)
                   .catch((cause) =>
-                    setError(
-                      cause instanceof Error
-                        ? cause.message
-                        : "Unable to update automatic refresh",
-                    ),
+                    reportError(cause, "Unable to update automatic refresh"),
                   )
                   .finally(() => setUpdatingSchedule(false));
               }}
@@ -544,11 +544,7 @@ export function TmdbStatusPage({
                   return load();
                 })
                 .catch((cause) =>
-                  setError(
-                    cause instanceof Error
-                      ? cause.message
-                      : "Unable to save refresh schedule",
-                  ),
+                  reportError(cause, "Unable to save refresh schedule"),
                 )
                 .finally(() => setUpdatingSchedule(false));
             }}
