@@ -40,6 +40,52 @@ describe("Ludovico Tech Worker routes", () => {
     expect(catalog.body.movies).toEqual([]);
   });
 
+  it("keeps development contributor authority within the local origin", async () => {
+    const untrustedHeaders = {
+      "Content-Type": "application/json",
+      Origin: "https://attacker.example",
+      "Sec-Fetch-Site": "cross-site",
+    };
+    const untrustedMutation = await request<{ error: string }>("/api/movies", {
+      body: JSON.stringify({ title: "Cross-origin movie" }),
+      headers: untrustedHeaders,
+      method: "POST",
+    });
+    expect(untrustedMutation.response.status).toBe(401);
+    expect(untrustedMutation.body).toEqual({
+      error: "Authentication required",
+    });
+    expect(
+      await env.DB.prepare("SELECT id FROM movies WHERE title = ?")
+        .bind("Cross-origin movie")
+        .first(),
+    ).toBeNull();
+
+    const untrustedProviderRead = await request<{ error: string }>(
+      "/api/tmdb/search?query=Cross-origin",
+      { headers: untrustedHeaders },
+    );
+    expect(untrustedProviderRead.response.status).toBe(401);
+    expect(untrustedProviderRead.body).toEqual({
+      error: "Authentication required",
+    });
+
+    const trustedMutation = await request<{ movie: { title: string } }>(
+      "/api/movies",
+      {
+        body: JSON.stringify({ title: "Same-origin movie" }),
+        headers: {
+          "Content-Type": "application/json",
+          Origin: "https://ludovico-tech.test",
+          "Sec-Fetch-Site": "same-origin",
+        },
+        method: "POST",
+      },
+    );
+    expect(trustedMutation.response.status).toBe(201);
+    expect(trustedMutation.body.movie.title).toBe("Same-origin movie");
+  });
+
   it("serves bounded Home data independently of catalog size", async () => {
     const movies = Array.from({ length: 16 }, (_, index) => ({
       id: `home-movie-${String(index).padStart(2, "0")}`,

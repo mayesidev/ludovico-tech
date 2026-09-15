@@ -7,7 +7,7 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "CLOUDFLARE_ENV=development vite --host 0.0.0.0",
+    "dev": "CLOUDFLARE_ENV=development vite --host 127.0.0.1",
     "build": "pnpm build:production",
     "build:production": "CLOUDFLARE_ENV=production vite build",
     "build:staging": "CLOUDFLARE_ENV=staging vite build",
