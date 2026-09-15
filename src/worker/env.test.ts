@@ -28,7 +28,7 @@ describe("session cookie namespace", () => {
 
     expect(sessionIdFromRequest(request)).toBe("current-session");
     expect(sessionCookie("current-session", false)).toBe(
-      "ludovico_tech_session=current-session; HttpOnly; Path=/; SameSite=Lax; Max-Age=2592000",
+      "ludovico_tech_session=current-session; HttpOnly; Path=/; SameSite=Lax; Max-Age=604800",
     );
     expect(sessionCookie("", true, 0)).toBe(
       "ludovico_tech_session=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0; Secure",

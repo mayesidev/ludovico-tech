@@ -11,6 +11,7 @@ import {
   isSecureEnvironment,
   newId,
   now,
+  SESSION_ABSOLUTE_LIFETIME_SECONDS,
   sessionIdFromRequest,
   sessionCookie,
   sha256Base64Url,
@@ -217,12 +218,17 @@ export const registerAuthRoutes = (app: Hono<AppEnv>) => {
         timestamp,
       ),
       c.env.DB.prepare(
-        "INSERT INTO auth_sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
+        `INSERT INTO auth_sessions
+           (id, user_id, created_at, expires_at, last_active_at)
+         VALUES (?, ?, ?, ?, ?)`,
       ).bind(
         sessionId,
         user.id,
         timestamp,
-        new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        new Date(
+          Date.parse(timestamp) + SESSION_ABSOLUTE_LIFETIME_SECONDS * 1000,
+        ).toISOString(),
+        timestamp,
       ),
     ]);
     const config = getRuntimeConfig(c.env);

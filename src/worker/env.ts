@@ -37,6 +37,9 @@ export type AuthenticatedUser = {
 };
 
 export const SESSION_COOKIE_NAME = "ludovico_tech_session";
+export const SESSION_ABSOLUTE_LIFETIME_SECONDS = 7 * 24 * 60 * 60;
+export const SESSION_IDLE_LIFETIME_SECONDS = 24 * 60 * 60;
+const SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS = 60 * 60;
 
 export const getRuntimeConfig = (env: AppEnv["Bindings"]): RuntimeConfig => {
   const environment = env.APP_ENV;
@@ -161,7 +164,8 @@ export const getAuthenticatedUser = async (
   const sessionId = getCookie(request, SESSION_COOKIE_NAME);
   if (!sessionId) return null;
   const session = await env.DB.prepare(
-    `SELECT users.id, users.email, users.display_name, auth_sessions.expires_at
+    `SELECT users.id, users.email, users.display_name,
+            auth_sessions.expires_at, auth_sessions.last_active_at
      FROM auth_sessions JOIN users ON users.id = auth_sessions.user_id
      WHERE auth_sessions.id = ?`,
   )
@@ -171,15 +175,37 @@ export const getAuthenticatedUser = async (
       email: string;
       display_name: string | null;
       expires_at: string;
+      last_active_at: string;
     }>();
   if (!session) return null;
-  if (session.expires_at <= now()) {
+  const timestamp = now();
+  const timestampMs = Date.parse(timestamp);
+  const expiresAtMs = Date.parse(session.expires_at);
+  const lastActiveAtMs = Date.parse(session.last_active_at);
+  if (
+    !Number.isFinite(expiresAtMs) ||
+    !Number.isFinite(lastActiveAtMs) ||
+    expiresAtMs <= timestampMs ||
+    lastActiveAtMs > timestampMs ||
+    lastActiveAtMs <= timestampMs - SESSION_IDLE_LIFETIME_SECONDS * 1000
+  ) {
     await env.DB.prepare("DELETE FROM auth_sessions WHERE id = ?")
       .bind(sessionId)
       .run();
     return null;
   }
   if (!getAllowedEmails(env).has(session.email.toLowerCase())) return null;
+  if (
+    lastActiveAtMs <=
+    timestampMs - SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS * 1000
+  ) {
+    await env.DB.prepare(
+      `UPDATE auth_sessions SET last_active_at = ?
+       WHERE id = ? AND last_active_at = ?`,
+    )
+      .bind(timestamp, sessionId, session.last_active_at)
+      .run();
+  }
   return {
     id: session.id,
     email: session.email,
@@ -190,7 +216,7 @@ export const getAuthenticatedUser = async (
 export const sessionCookie = (
   value: string,
   production: boolean,
-  maxAge = 60 * 60 * 24 * 30,
+  maxAge = SESSION_ABSOLUTE_LIFETIME_SECONDS,
 ) =>
   `${SESSION_COOKIE_NAME}=${value}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAge}${production ? "; Secure" : ""}`;
 

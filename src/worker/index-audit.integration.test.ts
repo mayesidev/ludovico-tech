@@ -97,6 +97,19 @@ describe("D1 index alignment", () => {
     expect(plan.some((detail) => detail.startsWith("SCAN "))).toBe(false);
   });
 
+  it("touches session activity through the session primary key", async () => {
+    const plan = await queryPlan(
+      `UPDATE auth_sessions SET last_active_at = ?
+       WHERE id = ? AND last_active_at = ?`,
+      ["2026-09-14T12:00:00.000Z", "session-id", "2026-09-14T11:00:00.000Z"],
+    );
+
+    expect(plan).toContain(
+      "SEARCH auth_sessions USING INDEX sqlite_autoindex_auth_sessions_1 (id=?)",
+    );
+    expect(plan.some((detail) => detail.startsWith("SCAN "))).toBe(false);
+  });
+
   it("searches selective expiry, cleanup, and catalog paths", async () => {
     const plans = await Promise.all([
       queryPlan("DELETE FROM auth_sessions WHERE expires_at <= ?", [
