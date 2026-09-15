@@ -134,12 +134,23 @@ const getCookie = (request: Request, name: string) => {
   return match?.[1] ?? null;
 };
 
+const isTrustedDevelopmentRequest = (request: Request) => {
+  const origin = request.headers.get("Origin");
+  if (origin !== null) return origin === new URL(request.url).origin;
+
+  const fetchSite = request.headers.get("Sec-Fetch-Site");
+  return (
+    fetchSite === null || fetchSite === "none" || fetchSite === "same-origin"
+  );
+};
+
 export const getAuthenticatedUser = async (
   env: AppEnv["Bindings"],
   request: Request,
 ): Promise<AuthenticatedUser | null> => {
   const config = getRuntimeConfig(env);
   if (config.authMode === "development") {
+    if (!isTrustedDevelopmentRequest(request)) return null;
     return {
       id: "local-developer",
       email: "local@example.test",

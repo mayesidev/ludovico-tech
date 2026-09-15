@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getAuthenticatedUser,
   getRuntimeConfig,
   isDeploymentReady,
   isMaintenanceMode,
@@ -33,6 +34,44 @@ describe("session cookie namespace", () => {
       "ludovico_tech_session=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0; Secure",
     );
   });
+});
+
+describe("development authentication", () => {
+  const bindings = {
+    APP_ENV: "development",
+    AUTH_MODE: "development",
+  } as AppEnv["Bindings"];
+
+  it.each([
+    ["a direct local request", undefined, undefined, true],
+    [
+      "a same-origin browser request",
+      "https://example.test",
+      "same-origin",
+      true,
+    ],
+    [
+      "a cross-origin browser request",
+      "https://attacker.test",
+      "cross-site",
+      false,
+    ],
+    ["an opaque browser origin", "null", "cross-site", false],
+    ["a browser request without Origin", undefined, "same-site", false],
+  ])(
+    "trusts %s only when it is local",
+    async (_, origin, fetchSite, trusted) => {
+      const headers = new Headers();
+      if (origin !== undefined) headers.set("Origin", origin);
+      if (fetchSite !== undefined) headers.set("Sec-Fetch-Site", fetchSite);
+      const user = await getAuthenticatedUser(
+        bindings,
+        new Request("https://example.test/api/auth/me", { headers }),
+      );
+
+      expect(Boolean(user)).toBe(trusted);
+    },
+  );
 });
 
 describe("runtime configuration", () => {

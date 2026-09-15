@@ -39,11 +39,11 @@ pnpm backfill:collection-names -- --environment development --database ludovico-
 pnpm dev
 ```
 
-The browser app runs at `http://localhost:5173` and proxies `/api` to the Worker
-at `http://localhost:8787`. A migrated empty database is a complete development
-environment. The collection-name backfill is verified once and is a no-op on later
-runs. Existing local databases must also complete it before starting the updated
-application; see the [collection identity cutover](docs/collection-identity.md).
+Open the local URL reported by `pnpm dev`. A migrated empty database is a complete
+development environment. The collection-name backfill is verified once and is a
+no-op on later runs. Existing local databases must also complete it before starting
+the updated application; see the
+[collection identity cutover](docs/collection-identity.md).
 
 For optional local provider access, copy `.dev.vars.development.example` to
 `.dev.vars.development` and add only the requested values. Local secrets and
