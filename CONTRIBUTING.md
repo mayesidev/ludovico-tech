@@ -41,6 +41,10 @@ such as `docs`, `test`, `refactor`, and `chore` normally do not.
 applicable release or deployment workflow to a terminal state. The workflows and
 their tests—not this document—define the delivery mechanics.
 
+Renovate PRs receive manual review and merge. If a reviewed PR is behind `main`,
+check its rebase/retry box and wait for Renovate's updated branch and fresh CI
+before merging. Renovate continues to rebase branches with conflicts automatically.
+
 Deployment verification uses authenticated Cloudflare service bindings to run the
 deployed health and library checks. Cloudflare API checks also confirm the custom
 domain mapping and that the exact uploaded version receives all traffic. This
