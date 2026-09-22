@@ -71,7 +71,7 @@
     "jsdom": "30.0.1",
     "jsonc-parser": "3.3.1",
     "postcss": "8.5.28",
-    "prettier": "3.9.6",
+    "prettier": "3.9.8",
     "semantic-release": "25.0.9",
     "tailwindcss": "4.3.3",
     "tsx": "4.23.13",
