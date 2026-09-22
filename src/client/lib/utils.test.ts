@@ -1,10 +1,27 @@
 import { describe, expect, it } from "vitest";
 import {
+  cn,
   formatDate,
   formatMovieTitle,
   formatRuntime,
   posterUrl,
 } from "./utils";
+
+describe("class names", () => {
+  it("joins conditional classes and lets later Tailwind classes override earlier ones", () => {
+    const isHidden = false;
+    expect(
+      cn(
+        "surface-panel px-2 bg-action hover:bg-action-hover",
+        isHidden && "hidden",
+        { "px-4": true, "text-text-primary": true },
+        "hover:bg-surface-interactive",
+      ),
+    ).toBe(
+      "surface-panel bg-action px-4 text-text-primary hover:bg-surface-interactive",
+    );
+  });
+});
 
 describe("movie display helpers", () => {
   it("builds a TMDB poster URL from a path", () => {
