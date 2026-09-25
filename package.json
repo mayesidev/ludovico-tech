@@ -43,8 +43,8 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.57.1",
-    "@cloudflare/vitest-plugin": "1.2.1",
+    "@cloudflare/vite-plugin": "1.57.2",
+    "@cloudflare/vitest-plugin": "1.2.2",
     "@cloudflare/workers-types": "5.20260922.1",
     "@commitlint/cli": "21.2.3",
     "@commitlint/config-conventional": "21.2.3",
@@ -79,6 +79,6 @@
     "typescript-eslint": "8.70.1",
     "vite": "8.3.0",
     "vitest": "4.1.11",
-    "wrangler": "4.136.1"
+    "wrangler": "4.136.2"
   }
 }
