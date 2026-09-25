@@ -29,21 +29,13 @@ complete valid import.
 | `tmdb_id`             | Optional positive integer; unique in the import                     | Creates only a TMDB link due for application-managed backfill.                        |
 | `now_showing`         | Optional; blank or `false`, with at most one `true` value           | Sets that unwatched title as Now Showing.                                             |
 
-The importer rejects duplicate normalized titles, duplicate TMDB IDs, partial
-ratings, a watched or multiply selected Now Showing title, and partial or
-non-contiguous collection ordering. It does not accept IMDb IDs, prior-viewed
-flags, source provenance, provider metadata, users, sessions, or unknown
-timestamps. User emails are normalized and resolved to existing application
-users during execution; an absent or unresolved user remains null. Users must
-sign in before import to be eligible for resolution. The importer never creates
-accounts. Rows that it materializes use `automation:catalog-import` for
-`updated_by`. An imported Now Showing selection leaves `rolled_at` and
-`rolled_by` null because the import does not establish a roll event.
+The importer rejects duplicate normalized titles or TMDB IDs, incomplete
+ratings, multiple Now Showing selections, and incomplete or conflicting
+collection positions. Each collection may contain at most 1,000 titles. To
+attribute imported records to a member, that member must sign in before the
+import. The importer does not create accounts.
 
 ## Preflight and import
-
-The command start time defaults blank `added_at` values. Imported ratings create
-watched state without inventing rating or watch times.
 
 ```sh
 pnpm import:catalog -- \
@@ -53,12 +45,11 @@ pnpm import:catalog -- \
 ```
 
 Without `--execute`, the command validates the CSV and reports counts without
-contacting a database. Review that summary before adding `--execute`. Execution
-validates the checked-in environment configuration and applied migrations,
-requires an empty migrated target, imports bounded multi-row inserts, and verifies
-exact movie, collection, membership, rating, TMDB-link, and Now Showing state
-afterward. The database confirmation must exactly match the selected environment.
-TMDB IDs create only link rows queued for the application's normal TMDB refresh.
+contacting a database. Review that summary before adding `--execute`. The
+target must be empty and migrated, and its database confirmation must match
+the selected environment. The command verifies the imported catalog before
+reporting success. TMDB metadata is filled in by the application's normal
+refresh process.
 
 Exercise the CSV first against a newly migrated isolated local database. Use the
 same persistence directory for migration and import:
@@ -75,12 +66,5 @@ pnpm import:catalog -- \
 ```
 
 Do not run private imports in CI or as part of application deployment. A remote
-import is a separate reviewed operator action. SQL files required by Wrangler are
-created in a private temporary directory and removed when the command finishes.
-If a write or post-import check fails, stop and review the unreleased target
-before resetting or retrying it.
-
-Each normalized collection may contain at most 1,000 titles, including watched
-and unwatched titles. `COLLECTION_TITLE_LIMIT_EXCEEDED` identifies the first row
-above that boundary; split the grouping before retrying. Validation happens before
-any database writes. This is a per-collection limit, not a total catalog limit.
+import is a separate reviewed operator action. If execution fails, inspect the
+target before resetting or retrying it.

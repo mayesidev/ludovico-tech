@@ -18,8 +18,7 @@ The application provides a shared movie catalog, random selection, and viewing
 history. It uses movie and collection data from
 [TMDB](https://www.themoviedb.org/) for quick reference, visual context, and
 categorization. Anyone can browse, while allowlisted members sign in with Google to
-make changes. See [product intent](docs/product.md) for more detail about the
-application and how it functions.
+make changes.
 
 ## Tech stack
 
@@ -40,10 +39,9 @@ pnpm dev
 ```
 
 Open the local URL reported by `pnpm dev`. A migrated empty database is a complete
-development environment. The collection-name backfill is verified once and is a
-no-op on later runs. Existing local databases must also complete it before starting
-the updated application; see the
-[collection identity cutover](docs/collection-identity.md).
+development environment. Use the same local persistence directory for the
+migration and backfill commands. Existing local databases must complete the
+backfill before starting the application; rerunning it after completion is safe.
 
 For optional local provider access, copy `.dev.vars.development.example` to
 `.dev.vars.development` and add only the requested values. Local secrets and
