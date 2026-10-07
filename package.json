@@ -36,7 +36,7 @@
     "@hono/zod-validator": "0.9.1",
     "@tanstack/react-table": "9.2.4",
     "cn": "0.4.0",
-    "hono": "4.13.12",
+    "hono": "4.13.13",
     "lucide-react": "1.50.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
