@@ -22,7 +22,7 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     // Playwright must terminate Vite directly; pnpm exec can outlive teardown.
-    command: `corepack pnpm exec wrangler d1 migrations apply ludovico-tech-development --config wrangler.jsonc --local --env development --persist-to ${stateDirectory} && node ./node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5174`,
+    command: `node ./node_modules/wrangler/bin/wrangler.js d1 migrations apply ludovico-tech-development --config wrangler.jsonc --local --env development --persist-to ${stateDirectory} && node ./node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5174`,
     env: {
       CI: "1",
       CLOUDFLARE_ENV: "development",
