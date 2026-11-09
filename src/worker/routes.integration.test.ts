@@ -99,6 +99,28 @@ afterEach(() => {
 });
 
 describe("production runtime configuration", () => {
+  it.each(["false", "true"])(
+    "reports the serving version on API probes with maintenance=%s",
+    async (maintenance) => {
+      const versionId = "11111111-2222-4333-8444-555555555555";
+      const bindings = productionEnv({
+        ...googleConfiguration,
+        TMDB_READ_ACCESS_TOKEN: "test-token",
+        MAINTENANCE_MODE: maintenance,
+        CF_VERSION_METADATA: { id: versionId },
+      });
+      for (const path of ["/api/health", "/api/library?page=1&pageSize=25"]) {
+        const response = await request(path, bindings, {
+          headers: { "X-Ludovico-Worker-Version": "client-supplied-version" },
+        });
+        expect(response.headers.get("X-Ludovico-Worker-Version")).toBe(
+          versionId,
+        );
+        expect(response.status).toBe(maintenance === "true" ? 503 : 200);
+      }
+    },
+  );
+
   it("serves no application routes while a release is in maintenance", async () => {
     const bindings = productionEnv({
       ...googleConfiguration,
