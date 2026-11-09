@@ -20,6 +20,9 @@
       "triggers": {
         "crons": [],
       },
+      "version_metadata": {
+        "binding": "CF_VERSION_METADATA",
+      },
       "vars": {
         "APP_ENV": "development",
         "AUTH_MODE": "development",
@@ -49,6 +52,9 @@
           "custom_domain": true,
         },
       ],
+      "version_metadata": {
+        "binding": "CF_VERSION_METADATA",
+      },
       "vars": {
         "APP_ENV": "staging",
         "AUTH_MODE": "google",
@@ -83,6 +89,9 @@
           "custom_domain": true,
         },
       ],
+      "version_metadata": {
+        "binding": "CF_VERSION_METADATA",
+      },
       "vars": {
         "APP_ENV": "production",
         "AUTH_MODE": "google",
@@ -117,6 +126,9 @@
           "custom_domain": true,
         },
       ],
+      "version_metadata": {
+        "binding": "CF_VERSION_METADATA",
+      },
       "vars": {
         "APP_ENV": "production",
         "AUTH_MODE": "google",

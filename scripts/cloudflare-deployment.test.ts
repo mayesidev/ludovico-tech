@@ -103,7 +103,7 @@ const fixture = (scenario: Scenario = scenarios[0]) => {
                 version: "v13.0.0",
               }
             : { maintenance: true },
-          { status: 503 },
+          { status: 503, headers: { "X-Ludovico-Worker-Version": versionId } },
         );
       }
       return Response.json(
@@ -115,6 +115,7 @@ const fixture = (scenario: Scenario = scenarios[0]) => {
               version: "v13.0.0",
             }
           : { movies: [], pagination: { page: 1, pageSize: 25 } },
+        { headers: { "X-Ludovico-Worker-Version": versionId } },
       );
     },
   );
@@ -375,6 +376,31 @@ describe("authenticated runtime verification and connection lifecycle", () => {
     },
   );
 
+  it.each(scenarios)(
+    "rejects another serving version even with matching release metadata for $target $phase",
+    async (scenario) => {
+      for (const path of ["/api/health", "/api/library"]) {
+        for (const identity of [null, "invalid-version", otherVersionId]) {
+          const f = fixture(scenario);
+          const original = f.fetch.getMockImplementation()!;
+          f.fetch.mockImplementation(async (url, init) => {
+            const response = await original(url, init);
+            if (new URL(url).pathname === path) {
+              if (identity === null)
+                response.headers.delete("X-Ludovico-Worker-Version");
+              else response.headers.set("X-Ludovico-Worker-Version", identity);
+            }
+            return response;
+          });
+          await expect(f.verify()).rejects.toThrow(
+            verificationErrors.runtimeVersion,
+          );
+          expect(f.dispose).toHaveBeenCalledTimes(1);
+        }
+      }
+    },
+  );
+
   it.each([0, 14, 1.5, NaN])(
     "rejects invalid attempt count %s before API or proxy calls",
     async (attempts) => {
@@ -430,7 +456,10 @@ describe("authenticated runtime verification and connection lifecycle", () => {
     async (scenario) => {
       const f = fixture(scenario);
       f.fetch.mockImplementation(async () =>
-        Response.json({ commit: "b".repeat(40) }),
+        Response.json(
+          { commit: "b".repeat(40) },
+          { headers: { "X-Ludovico-Worker-Version": versionId } },
+        ),
       );
       await expect(f.verify(2)).rejects.toThrow(verificationErrors.runtime);
       expect(f.fetch).toHaveBeenCalledTimes(2);
@@ -449,7 +478,10 @@ describe("authenticated runtime verification and connection lifecycle", () => {
       f.fetch.mockImplementation((url, init) =>
         url.includes("/api/library")
           ? Promise.resolve(
-              Response.json({ unexpected: "private catalog failure" }),
+              Response.json(
+                { unexpected: "private catalog failure" },
+                { headers: { "X-Ludovico-Worker-Version": versionId } },
+              ),
             )
           : original(url, init),
       );

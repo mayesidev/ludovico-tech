@@ -1,6 +1,7 @@
 export type AppEnv = {
   Bindings: {
     DB: D1Database;
+    CF_VERSION_METADATA?: { id: string };
     ASSETS?: Fetcher;
     TMDB_READ_ACCESS_TOKEN?: string;
     APP_ENV?: string;

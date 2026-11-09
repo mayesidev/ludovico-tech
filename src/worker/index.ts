@@ -19,6 +19,9 @@ export const createApp = () => {
   const api = new Hono<AppEnv>();
 
   app.use("*", async (c, next) => {
+    if (c.env.CF_VERSION_METADATA?.id) {
+      c.header("X-Ludovico-Worker-Version", c.env.CF_VERSION_METADATA.id);
+    }
     if (!isMaintenanceMode(c.env)) return next();
     const config = getRuntimeConfig(c.env);
     const metadata = {

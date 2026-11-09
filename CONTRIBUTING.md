@@ -47,3 +47,10 @@ domain mapping and that the exact uploaded version receives all traffic. This
 verifies deployment configuration and application behavior, including maintenance
 before migrations; it does not test public DNS, TLS, or edge security behavior.
 The verifier keeps SDK output private and reports only fixed diagnostic messages.
+
+Authenticated deployment verification also requires the serving Worker to report
+its Cloudflare version-metadata ID in `X-Ludovico-Worker-Version`. Every health
+and library response must match the uploaded version ID; release tags and commit
+SHAs alone cannot distinguish maintenance and active uploads of the same release.
+Releases predating this binding/header are unsupported by the strengthened gate.
+Keep an identity-capable release available as the rollback target.

@@ -16,6 +16,8 @@ export const verificationErrors = {
   allocation: "Cloudflare has not assigned the expected version all traffic",
   version: "Cloudflare version metadata does not match the expected release",
   connection: "Authenticated Worker connection failed",
+  runtimeVersion:
+    "Worker response does not identify the expected deployment version",
   runtime: "Deployed Worker did not pass the release and application checks",
   cleanup: "Authenticated Worker connection cleanup failed",
   timeout: "Authenticated deployment verification timed out",
@@ -194,9 +196,20 @@ export const verifyCloudflareDeployment = async (
       expected.phase === "maintenance"
         ? verifyMaintenanceDeployment
         : verifyDeployment;
+    let unexpectedVersion = false;
     try {
       await verify(
-        (input, init) => connection.fetch(String(input), init),
+        async (input, init) => {
+          const response = await connection.fetch(String(input), init);
+          if (
+            response.headers.get("X-Ludovico-Worker-Version") !==
+            expected.versionId
+          ) {
+            unexpectedVersion = true;
+            throw new VerificationError("runtimeVersion");
+          }
+          return response;
+        },
         sleep,
         expected.baseUrl,
         expected.releaseTag,
@@ -205,7 +218,9 @@ export const verifyCloudflareDeployment = async (
         attempts,
       );
     } catch {
-      throw new VerificationError("runtime");
+      throw new VerificationError(
+        unexpectedVersion ? "runtimeVersion" : "runtime",
+      );
     }
     // Detect a deployment or domain change while the runtime checks were running.
     await assertCloudflareDeployment(expected, read);
