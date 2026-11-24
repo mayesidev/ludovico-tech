@@ -1,13 +1,27 @@
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript"],
-  "categories": {
-    "correctness": "off"
+import reactHooks from "eslint-plugin-react-hooks";
+import { defineConfig } from "oxlint";
+
+// Oxlint reserves the react-hooks namespace for its native rules.
+const reactHooksAlias = "react-hooks-upstream";
+const reactHooksRules = Object.fromEntries(
+  Object.entries(reactHooks.configs.flat["recommended-latest"].rules).map(
+    ([rule, setting]) => [
+      rule.replace("react-hooks/", `${reactHooksAlias}/`),
+      setting,
+    ],
+  ),
+);
+
+export default defineConfig({
+  plugins: ["typescript"],
+  // Keep the migrated JavaScript and TypeScript rule selection.
+  categories: {
+    correctness: "off",
   },
-  "env": {
-    "builtin": true
+  env: {
+    builtin: true,
   },
-  "ignorePatterns": [
+  ignorePatterns: [
     ".agents/**",
     ".e2e-state/**",
     ".react-router/**",
@@ -18,9 +32,9 @@
     "data/**",
     "dist/**",
     "playwright-report/**",
-    "test-results/**"
+    "test-results/**",
   ],
-  "rules": {
+  rules: {
     "constructor-super": "error",
     "for-direction": "error",
     "getter-return": "error",
@@ -101,12 +115,12 @@
     "typescript/no-wrapper-object-types": "error",
     "typescript/prefer-as-const": "error",
     "typescript/prefer-namespace-keyword": "error",
-    "typescript/triple-slash-reference": "error"
+    "typescript/triple-slash-reference": "error",
   },
-  "overrides": [
+  overrides: [
     {
-      "files": ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
-      "rules": {
+      files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+      rules: {
         "constructor-super": "off",
         "getter-return": "off",
         "no-class-assign": "off",
@@ -127,51 +141,35 @@
         "no-with": "off",
         "prefer-const": "error",
         "prefer-rest-params": "error",
-        "prefer-spread": "error"
-      }
+        "prefer-spread": "error",
+      },
     },
     {
-      "files": ["**/*.{ts,tsx}"],
-      "rules": {
-        "react-hooks-upstream/rules-of-hooks": "error",
-        "react-hooks-upstream/exhaustive-deps": "warn",
-        "react-hooks-upstream/static-components": "error",
-        "react-hooks-upstream/use-memo": "error",
-        "react-hooks-upstream/void-use-memo": "error",
-        "react-hooks-upstream/preserve-manual-memoization": "error",
-        "react-hooks-upstream/incompatible-library": "warn",
-        "react-hooks-upstream/immutability": "error",
-        "react-hooks-upstream/globals": "error",
-        "react-hooks-upstream/refs": "error",
-        "react-hooks-upstream/set-state-in-effect": "error",
-        "react-hooks-upstream/error-boundaries": "error",
-        "react-hooks-upstream/purity": "error",
-        "react-hooks-upstream/set-state-in-render": "error",
-        "react-hooks-upstream/unsupported-syntax": "warn",
-        "react-hooks-upstream/config": "error",
-        "react-hooks-upstream/gating": "error",
+      files: ["**/*.{ts,tsx}"],
+      rules: {
+        ...reactHooksRules,
         "react-refresh-upstream/only-export-components": [
           "warn",
           {
-            "allowConstantExport": true
-          }
-        ]
+            allowConstantExport: true,
+          },
+        ],
       },
-      "env": {
-        "es2022": true,
-        "browser": true,
-        "node": true
+      env: {
+        es2022: true,
+        browser: true,
+        node: true,
       },
-      "jsPlugins": [
+      jsPlugins: [
         {
-          "name": "react-hooks-upstream",
-          "specifier": "eslint-plugin-react-hooks"
+          name: reactHooksAlias,
+          specifier: "eslint-plugin-react-hooks",
         },
         {
-          "name": "react-refresh-upstream",
-          "specifier": "eslint-plugin-react-refresh"
-        }
-      ]
-    }
-  ]
-}
+          name: "react-refresh-upstream",
+          specifier: "eslint-plugin-react-refresh",
+        },
+      ],
+    },
+  ],
+});
