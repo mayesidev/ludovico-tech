@@ -1,13 +1,13 @@
-import { useId, useState, type CSSProperties } from "react";
 import { ArrowDown, LoaderCircle, RotateCw } from "lucide-react";
+import { useId, useState, type CSSProperties } from "react";
 import { api, type HomeMovie, type NowShowing } from "../api";
-import type { Navigate, RunAction } from "../types";
 import { cn, formatDate, formatMovieTitle, formatRuntime } from "../lib/utils";
+import type { Navigate, RunAction } from "../types";
 import { AppLink } from "./app-link";
-import { Badge, Button, Card, Input } from "./ui";
+import { AuditDetails } from "./audit-details";
 import { Poster } from "./poster";
 import { RatingSlider } from "./rating-slider";
-import { AuditDetails } from "./audit-details";
+import { Badge, Button, Card, Input } from "./ui";
 
 type HomePageProps = {
   nowShowing: NowShowing | null;

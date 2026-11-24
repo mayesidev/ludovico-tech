@@ -2,8 +2,8 @@ import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppEnv } from "./env";
 import { createApp } from "./index";
-import { replaceTmdbDataStatements } from "./tmdb-data";
 import type { TmdbMovieResult } from "./tmdb";
+import { replaceTmdbDataStatements } from "./tmdb-data";
 
 const app = createApp();
 const timestamp = "2026-09-14T00:00:00.000Z";

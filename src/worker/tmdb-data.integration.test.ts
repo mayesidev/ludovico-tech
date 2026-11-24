@@ -1,5 +1,8 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
+import type { AppEnv } from "./env";
+import { getTmdbMovie, type TmdbMovieResult } from "./tmdb";
 import {
   getTmdbCreditSnapshots,
   purgeExpiredTmdbData,
@@ -7,10 +10,7 @@ import {
   replaceTmdbDataStatements,
   type TmdbCreditSnapshot,
 } from "./tmdb-data";
-import { getTmdbMovie, type TmdbMovieResult } from "./tmdb";
 import { claimTmdbRefresh } from "./tmdb-refresh";
-import type { AppEnv } from "./env";
-import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
 
 const timestamp = "2026-08-23T12:00:00.000Z";
 const tmdbEnv = () =>

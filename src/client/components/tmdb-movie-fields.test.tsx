@@ -1,6 +1,6 @@
-import { useRef, useState } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { api, ApiError, type TmdbMovieDetail, type TmdbResult } from "../api";
 import { TmdbMovieFields } from "./tmdb-movie-fields";

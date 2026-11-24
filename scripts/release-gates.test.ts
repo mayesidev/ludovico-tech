@@ -1,13 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  assertReleaseMigrationsApplied,
   assertFamilyBondingEmpty,
   assertFamilyBondingInitialCatalog,
   assertFamilyBondingPopulated,
+  assertReleaseMigrationsApplied,
   assertTmdbRefreshDisabled,
   assertTmdbRefreshIdle,
   isReleaseTag,

@@ -1,5 +1,5 @@
-import { appendFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { appendFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 

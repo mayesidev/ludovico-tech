@@ -1,8 +1,8 @@
-import { type RefObject, useEffect, useId, useRef, useState } from "react";
 import { Check, LoaderCircle, Search, Unlink } from "lucide-react";
+import { type RefObject, useEffect, useId, useRef, useState } from "react";
 import { api, ApiError, type TmdbResult } from "../api";
-import { cn, formatDate } from "../lib/utils";
 import { parseTmdbId } from "../lib/tmdb-id";
+import { cn, formatDate } from "../lib/utils";
 import { Poster } from "./poster";
 import { Button, Input } from "./ui";
 

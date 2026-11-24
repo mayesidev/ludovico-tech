@@ -1,7 +1,7 @@
 import { parse } from "csv-parse/sync";
 import {
-  MAX_COLLECTION_TITLES,
   COLLECTION_LIMIT_MESSAGE,
+  MAX_COLLECTION_TITLES,
 } from "../src/shared/collection-limits";
 import { normalizeCollectionName } from "../src/shared/normalize-collection-name";
 import { normalizeTitle } from "../src/shared/normalize-title";

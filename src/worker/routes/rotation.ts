@@ -1,6 +1,10 @@
 import { zValidator } from "@hono/zod-validator";
 import { type Hono } from "hono";
 import {
+  COLLECTION_LIMIT_MESSAGE,
+  MAX_COLLECTION_TITLES,
+} from "../../shared/collection-limits";
+import {
   getMovie,
   getNowShowing,
   getNowShowingDetail,
@@ -9,10 +13,6 @@ import {
 } from "../db";
 import { type AppEnv, now } from "../env";
 import { mutationUser } from "../middleware";
-import {
-  COLLECTION_LIMIT_MESSAGE,
-  MAX_COLLECTION_TITLES,
-} from "../../shared/collection-limits";
 import { orderInput } from "../schemas";
 
 // Keep collection ordering identical to the catalog and collection detail views.

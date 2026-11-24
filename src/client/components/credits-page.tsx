@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
+import { useEffect, useState } from "react";
 import { api } from "../api";
 import tmdbLogo from "../assets/tmdb-logo.svg";
 

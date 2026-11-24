@@ -1,9 +1,9 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { createApp } from "./index";
-import { literalSubstringSearch } from "./sqlite-search";
 import { normalizeTitle } from "../shared/normalize-title";
 import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
+import { createApp } from "./index";
+import { literalSubstringSearch } from "./sqlite-search";
 
 const timestamp = "2026-06-01T12:30:00.000Z";
 const app = createApp();

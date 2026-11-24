@@ -1,5 +1,5 @@
-import type { AppEnv } from "./env";
 import { attributionDisplayName } from "./attribution";
+import type { AppEnv } from "./env";
 import { createRandomIndexSampler } from "./random-sample";
 
 export type MovieRow = {

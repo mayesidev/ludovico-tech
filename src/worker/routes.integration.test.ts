@@ -1,8 +1,8 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
 import { sha256Base64Url, type AppEnv } from "./env";
 import { createApp } from "./index";
-import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
 
 const app = createApp();
 const future = "2099-08-04T00:00:00.000Z";

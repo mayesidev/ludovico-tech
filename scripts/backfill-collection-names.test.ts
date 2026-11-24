@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it, vi } from "vitest";
+import { normalizeCollectionName } from "../src/shared/normalize-collection-name";
 import {
   COLLECTION_BACKFILL_MAX_BUFFER,
   parseCollectionBackfillArguments,
@@ -10,7 +11,6 @@ import {
   COLLECTION_NAME_BACKFILL_LIMIT,
   COLLECTION_NAME_READ_SIZE,
 } from "./collection-name-backfill";
-import { normalizeCollectionName } from "../src/shared/normalize-collection-name";
 
 const migrations = () =>
   readdirSync("migrations")

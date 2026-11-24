@@ -1,5 +1,5 @@
-import { useId, useRef } from "react";
 import { Trash2, X } from "lucide-react";
+import { useId, useRef } from "react";
 import type { Movie } from "../api";
 import { formatMovieTitle } from "../lib/utils";
 import { Dialog } from "./dialog";

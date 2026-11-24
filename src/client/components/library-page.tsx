@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from "react";
 import { ExternalLink, Pencil, Search } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { imdbTitleUrl } from "../../shared/imdb";
 import {
   api,
   type LibraryQuery,
   type LibraryResponse,
   type Movie,
 } from "../api";
-import { imdbTitleUrl } from "../../shared/imdb";
-import type { Navigate } from "../types";
 import { formatDate, formatMovieTitle } from "../lib/utils";
+import type { Navigate } from "../types";
 import { AppLink } from "./app-link";
 import { PaginationControls } from "./pagination-controls";
 import { Card, Input } from "./ui";

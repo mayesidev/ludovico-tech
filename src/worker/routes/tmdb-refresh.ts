@@ -1,9 +1,9 @@
 import { zValidator } from "@hono/zod-validator";
 import type { Hono } from "hono";
 import { z } from "zod";
+import { getTmdbMetadataContractId } from "../../shared/tmdb-metadata-contract";
 import { now, type AppEnv } from "../env";
 import { mutationUser } from "../middleware";
-import { getTmdbMetadataContractId } from "../../shared/tmdb-metadata-contract";
 import {
   claimTmdbRefresh,
   executeTmdbRefreshClaim,
