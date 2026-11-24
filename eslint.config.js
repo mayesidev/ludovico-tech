@@ -33,8 +33,7 @@ export default tseslint.config(
       "react-refresh": reactRefresh,
     },
     rules: {
-      ...reactHooks.configs.recommended.rules,
-      "react-hooks/incompatible-library": "off",
+      ...reactHooks.configs.flat["recommended-latest"].rules,
       "react-refresh/only-export-components": [
         "warn",
         { allowConstantExport: true },
