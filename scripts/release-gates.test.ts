@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -15,6 +16,8 @@ import {
   verifyDeployment,
   verifyMaintenanceDeployment,
 } from "./release-gates";
+
+vi.mock("node:child_process", () => ({ execFileSync: vi.fn() }));
 
 describe("release input validation", () => {
   it("accepts only exact stable semantic-release tags", () => {
@@ -134,6 +137,105 @@ describe("release migration gate", () => {
     expect(() => assertReleaseMigrationsApplied([], {})).toThrow();
     expect(() => assertReleaseMigrationsApplied([], response([]))).toThrow(
       "Release migration set is invalid",
+    );
+  });
+});
+
+describe("migration preflight CLI", () => {
+  const wrangler = vi.mocked(execFileSync);
+  const ledger = "d1_migrations";
+  const initial = "0001_initial.sql";
+  const next = "0002_next.sql";
+  const queryResult = (...names: string[]) =>
+    JSON.stringify([
+      { success: true, results: names.map((name) => ({ name })) },
+    ]);
+
+  beforeEach(() => wrangler.mockReset());
+
+  const preflight = async (names: string[]) => {
+    const directory = mkdtempSync(join(tmpdir(), "migration-preflight-"));
+    try {
+      for (const name of names) {
+        writeFileSync(join(directory, name), "SELECT 1;\n");
+      }
+      await runReleaseGate([
+        "check-migration-compatibility",
+        directory,
+        "production-family-bonding",
+      ]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  };
+
+  it("blocks an older release when the database has a newer applied migration", async () => {
+    wrangler.mockReturnValueOnce(queryResult(ledger, "titles"));
+    wrangler.mockReturnValueOnce(queryResult(initial, next));
+    await expect(preflight([initial])).rejects.toThrow(
+      "1 migration not present in release",
+    );
+    expect(wrangler).toHaveBeenCalledTimes(2);
+    expect(wrangler).toHaveBeenLastCalledWith(
+      "pnpm",
+      [
+        "exec",
+        "wrangler",
+        "d1",
+        "execute",
+        "DB",
+        "--config",
+        "wrangler.jsonc",
+        "--remote",
+        "--env",
+        "production-family-bonding",
+        "--command",
+        "SELECT name FROM d1_migrations ORDER BY id",
+        "--json",
+      ],
+      expect.objectContaining({ encoding: "utf8" }),
+    );
+  });
+
+  it("allows pending release migrations", async () => {
+    wrangler.mockReturnValueOnce(queryResult(ledger, "titles"));
+    wrangler.mockReturnValueOnce(queryResult(initial));
+    await expect(preflight([initial, next])).resolves.toBeUndefined();
+  });
+
+  it("allows a fresh database with no migration ledger", async () => {
+    wrangler.mockReturnValueOnce(queryResult());
+    await expect(preflight([initial])).resolves.toBeUndefined();
+    expect(wrangler).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects an application database with no migration ledger", async () => {
+    wrangler.mockReturnValueOnce(queryResult("titles"));
+    await expect(preflight([initial])).rejects.toThrow(
+      "application tables without a migration ledger",
+    );
+  });
+
+  it.each([
+    ["invalid JSON", "unparseable", "returned invalid JSON"],
+    [
+      "an invalid row",
+      '[{"success":true,"results":[{"name":null}]}]',
+      "invalid row",
+    ],
+    ["a failed query", '[{"success":false,"results":[]}]', "query failed"],
+  ])("rejects a migration query returning %s", async (_, output, error) => {
+    wrangler.mockReturnValueOnce(queryResult(ledger));
+    wrangler.mockReturnValueOnce(output);
+    await expect(preflight([initial])).rejects.toThrow(error);
+  });
+
+  it("fails closed when Wrangler exits nonzero", async () => {
+    wrangler.mockImplementationOnce(() => {
+      throw new Error("Wrangler failed");
+    });
+    await expect(preflight([initial])).rejects.toThrow(
+      "preflight query failed",
     );
   });
 });

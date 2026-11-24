@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
@@ -27,7 +28,7 @@ const deploymentSmokePath =
 type DeploymentTarget = keyof typeof deploymentTargets;
 
 const isDeploymentTarget = (value: string): value is DeploymentTarget =>
-  value in deploymentTargets;
+  Object.hasOwn(deploymentTargets, value);
 
 export const deploymentTarget = (value: string) => {
   if (!isDeploymentTarget(value)) {
@@ -74,7 +75,7 @@ export const validateDeploymentTarget = (
   return url;
 };
 
-const appliedMigrationNames = (value: unknown) => {
+const d1MigrationQueryNames = (value: unknown) => {
   if (!Array.isArray(value) || value.length !== 1) {
     throw new Error("D1 migration response is invalid");
   }
@@ -100,13 +101,10 @@ const appliedMigrationNames = (value: unknown) => {
   if (new Set(names).size !== names.length) {
     throw new Error("D1 migration response contains duplicate names");
   }
-  return names.sort();
+  return names;
 };
 
-export const assertReleaseMigrationsApplied = (
-  expectedNames: string[],
-  response: unknown,
-) => {
+const validateReleaseMigrationNames = (expectedNames: string[]) => {
   if (
     !expectedNames.length ||
     expectedNames.some((name) => !/^\d+.*\.sql$/.test(name)) ||
@@ -114,20 +112,93 @@ export const assertReleaseMigrationsApplied = (
   ) {
     throw new Error("Release migration set is invalid");
   }
-  const expected = [...expectedNames].sort();
-  const applied = appliedMigrationNames(response);
-  const pending = expected.filter((name) => !applied.includes(name));
-  if (pending.length) {
-    throw new Error(
-      `Target database has ${pending.length} pending release migration${pending.length === 1 ? "" : "s"}`,
-    );
-  }
-  const unexpected = applied.filter((name) => !expected.includes(name));
+};
+
+const assertNoUnexpectedMigrations = (
+  expectedNames: string[],
+  applied: string[],
+) => {
+  const unexpected = applied.filter((name) => !expectedNames.includes(name));
   if (unexpected.length) {
     throw new Error(
       `Target database has ${unexpected.length} migration${unexpected.length === 1 ? "" : "s"} not present in release`,
     );
   }
+};
+
+export const assertReleaseMigrationsApplied = (
+  expectedNames: string[],
+  response: unknown,
+) => {
+  validateReleaseMigrationNames(expectedNames);
+  const applied = d1MigrationQueryNames(response);
+  const pending = expectedNames.filter((name) => !applied.includes(name));
+  if (pending.length) {
+    throw new Error(
+      `Target database has ${pending.length} pending release migration${pending.length === 1 ? "" : "s"}`,
+    );
+  }
+  assertNoUnexpectedMigrations(expectedNames, applied);
+};
+
+const queryD1MigrationNames = (target: DeploymentTarget, sql: string) => {
+  let output: string;
+  try {
+    output = execFileSync(
+      "pnpm",
+      [
+        "exec",
+        "wrangler",
+        "d1",
+        "execute",
+        "DB",
+        "--config",
+        "wrangler.jsonc",
+        "--remote",
+        "--env",
+        target,
+        "--command",
+        sql,
+        "--json",
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    );
+  } catch {
+    throw new Error("D1 migration preflight query failed");
+  }
+  let response: unknown;
+  try {
+    response = JSON.parse(output) as unknown;
+  } catch {
+    throw new Error("D1 migration preflight returned invalid JSON");
+  }
+  return d1MigrationQueryNames(response);
+};
+
+const checkReleaseMigrationCompatibility = (
+  expectedNames: string[],
+  target: DeploymentTarget,
+) => {
+  validateReleaseMigrationNames(expectedNames);
+  // A fresh database has no migration ledger. Exclude SQLite and D1 internals
+  // so bootstrap works, and require a ledger once application tables exist.
+  const tables = queryD1MigrationNames(
+    target,
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT GLOB 'sqlite_*' AND name NOT GLOB '_cf_*'",
+  );
+  const hasLedger = tables.includes("d1_migrations");
+  if (!hasLedger && tables.length > 0) {
+    throw new Error(
+      "Target database has application tables without a migration ledger",
+    );
+  }
+  const applied = hasLedger
+    ? queryD1MigrationNames(
+        target,
+        "SELECT name FROM d1_migrations ORDER BY id",
+      )
+    : [];
+  assertNoUnexpectedMigrations(expectedNames, applied);
 };
 
 export const assertTmdbRefreshIdle = (response: unknown) => {
@@ -400,7 +471,7 @@ const migrationNames = (directory: string) =>
 
 const usage = () => {
   throw new Error(
-    "Usage: release-gates.ts <validate-tag|validate-target|check-migrations|check-refresh-idle|check-refresh-disabled|check-production-family-bonding-empty|check-production-family-bonding-initial|check-production-family-bonding-populated|verify-deployment|verify-maintenance> ...",
+    "Usage: release-gates.ts <validate-tag|validate-target|check-migration-compatibility|check-migrations|check-refresh-idle|check-refresh-disabled|check-production-family-bonding-empty|check-production-family-bonding-initial|check-production-family-bonding-populated|verify-deployment|verify-maintenance> ...",
   );
 };
 
@@ -412,6 +483,13 @@ export const runReleaseGate = async (args: string[]) => {
   }
   if (command === "validate-target" && values.length === 4) {
     validateDeploymentTarget(values[0], values[1], values[2], values[3]);
+    return;
+  }
+  if (command === "check-migration-compatibility" && values.length === 2) {
+    const [directory, target] = values;
+    if (!isDeploymentTarget(target))
+      throw new Error("Deployment target is invalid");
+    checkReleaseMigrationCompatibility(migrationNames(directory), target);
     return;
   }
   if (command === "check-migrations" && values.length === 2) {

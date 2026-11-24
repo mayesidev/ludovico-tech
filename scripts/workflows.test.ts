@@ -253,6 +253,49 @@ describe("complete CI and deployment gates", () => {
     },
   );
 
+  it.each([
+    ["deploy-staging.yml", "staging"],
+    ["deploy.yml", "production"],
+    ["deploy-production-family-bonding.yml", "production-family-bonding"],
+  ])(
+    "preflights %s before the first live Worker mutation for %s",
+    (file, target) => {
+      const source = workflow(file);
+      const preflight = workflowStep(
+        source,
+        "Check migration compatibility before maintenance",
+      );
+      const maintenance = workflowStep(
+        source,
+        "Deploy exact release in maintenance mode",
+      );
+      const exact = workflowStep(source, "Verify exact release migration set");
+
+      expect(preflight).toMatch(
+        /node "\$RUNNER_TEMP\/release-gates\.ts" check-migration-compatibility\s+migrations /,
+      );
+      expect(preflight).toContain(`migrations ${target}\n`);
+      expect(preflight).not.toMatch(/^\s+(?:if|continue-on-error):/m);
+      expect(source.indexOf(preflight)).toBeGreaterThan(
+        source.indexOf("git checkout --detach"),
+      );
+      const deployCommand = "pnpm exec wrangler deploy";
+      expect(maintenance).toContain(deployCommand);
+      expect(source.indexOf(deployCommand)).toBe(
+        source.indexOf(maintenance) + maintenance.indexOf(deployCommand),
+      );
+      expect(source.indexOf(preflight)).toBeLessThan(
+        source.indexOf(maintenance),
+      );
+      expect(exact).toContain(
+        'node "$RUNNER_TEMP/release-gates.ts" check-migrations',
+      );
+      expect(source.indexOf(exact)).toBeGreaterThan(
+        source.indexOf("wrangler d1 migrations apply DB"),
+      );
+    },
+  );
+
   it("cuts over exact staging releases behind verified maintenance mode", () => {
     const source = workflow("deploy-staging.yml");
     const nodeSetup = source.indexOf("Set up Node.js");
