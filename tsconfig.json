@@ -30,7 +30,6 @@
     "e2e",
     "vite.config.ts",
     "vitest.config.ts",
-    "playwright.config.ts",
-    "eslint.config.js"
+    "playwright.config.ts"
   ]
 }
