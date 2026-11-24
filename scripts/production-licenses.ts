@@ -1,5 +1,5 @@
-import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const allowedLicenses = new Set(["Apache-2.0", "ISC", "MIT"]);
 

@@ -3,14 +3,14 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import type { GetPlatformProxyOptions } from "wrangler";
 import {
   deploymentVersion,
   validateExpectation,
-  verificationErrors,
   VerificationError,
+  verificationErrors,
   verifyCloudflareDeployment,
   type CloudflareReader,
   type DeploymentExpectation,

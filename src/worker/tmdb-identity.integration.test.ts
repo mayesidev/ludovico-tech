@@ -1,14 +1,14 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createApp } from "./index";
+import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
 import type { AppEnv } from "./env";
+import { createApp } from "./index";
 import {
   getTmdbMovieCacheKey,
   tmdbMovieCachePersistenceStatements,
   type TmdbMovieResult,
 } from "./tmdb";
 import { refreshDueTmdbData, replaceTmdbDataStatements } from "./tmdb-data";
-import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
 
 const timestamp = "2026-09-13T12:00:00.000Z";
 const yesterday = "2026-09-12T12:00:00.000Z";

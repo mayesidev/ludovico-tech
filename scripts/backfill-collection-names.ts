@@ -1,8 +1,8 @@
 import { execFile } from "node:child_process";
 import {
   mkdtempSync,
-  readFileSync,
   readdirSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";

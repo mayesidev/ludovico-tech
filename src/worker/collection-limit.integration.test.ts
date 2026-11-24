@@ -1,10 +1,10 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { createApp } from "./index";
 import {
   COLLECTION_LIMIT_MESSAGE,
   MAX_COLLECTION_TITLES,
 } from "../shared/collection-limits";
+import { createApp } from "./index";
 
 const app = createApp();
 const timestamp = "2026-09-14T00:00:00.000Z";

@@ -3,9 +3,9 @@ import { basename } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { type CatalogImportPlan } from "./catalog-import-lib";
 import {
+  ImportOperatorError,
   executeCatalogImport,
   importPreflightSummary,
-  ImportOperatorError,
   parseImportOperatorArguments,
   type CommandRunner,
   type ImportOperatorOptions,

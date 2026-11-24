@@ -1,15 +1,15 @@
-import { useMemo, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowUp, ExternalLink } from "lucide-react";
+import { useMemo, useState } from "react";
 import {
-  MAX_COLLECTION_TITLES,
   COLLECTION_LIMIT_MESSAGE,
+  MAX_COLLECTION_TITLES,
 } from "../../shared/collection-limits";
 import { api, type AuditAttribution, type Movie } from "../api";
-import type { Navigate, ReturnTarget, RunAction } from "../types";
 import { cn, formatMovieTitle } from "../lib/utils";
+import type { Navigate, ReturnTarget, RunAction } from "../types";
 import { AppLink } from "./app-link";
-import { Button } from "./ui";
 import { AuditDetails } from "./audit-details";
+import { Button } from "./ui";
 
 type CollectionDetailPageProps = {
   busy: boolean;

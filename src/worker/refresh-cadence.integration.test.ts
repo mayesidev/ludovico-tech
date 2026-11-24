@@ -1,8 +1,8 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import { TMDB_REFRESH_ATTRIBUTION } from "./attribution";
 import { createApp } from "./index";
 import { claimTmdbRefresh, executeTmdbRefreshClaim } from "./tmdb-refresh";
-import { TMDB_REFRESH_ATTRIBUTION } from "./attribution";
 
 const startedAt = "2026-08-24T01:30:00.123Z";
 const failure = new Error("Synthetic refresh read failure");

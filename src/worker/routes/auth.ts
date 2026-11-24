@@ -12,8 +12,8 @@ import {
   newId,
   now,
   SESSION_ABSOLUTE_LIFETIME_SECONDS,
-  sessionIdFromRequest,
   sessionCookie,
+  sessionIdFromRequest,
   sha256Base64Url,
   type AppEnv,
 } from "../env";

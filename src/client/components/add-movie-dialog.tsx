@@ -1,15 +1,15 @@
-import { useId, useRef, useState } from "react";
 import { LoaderCircle, Plus, X } from "lucide-react";
+import { useId, useRef, useState } from "react";
+import { parseImdbId } from "../../shared/imdb";
 import { api, type MovieDetail } from "../api";
 import {
   parseVersionReferenceUrl,
   parseVersionRuntime,
 } from "../lib/movie-version";
 import { parseTmdbId } from "../lib/tmdb-id";
-import { parseImdbId } from "../../shared/imdb";
 import type { RunAction } from "../types";
-import { Dialog } from "./dialog";
 import { CollectionNameField } from "./collection-name-field";
+import { Dialog } from "./dialog";
 import { ImdbMovieField } from "./imdb-movie-field";
 import { MovieVersionFields } from "./movie-version-fields";
 import { TmdbMovieFields } from "./tmdb-movie-fields";

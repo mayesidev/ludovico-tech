@@ -1,4 +1,3 @@
-import type { AppEnv } from "./env";
 import {
   distinctTmdbPeople,
   parseTmdbCredits,
@@ -13,6 +12,7 @@ import {
   type TmdbMovieDetail,
 } from "../shared/tmdb-metadata-contract";
 import { recordD1Usage, type D1ProcessingUsage } from "./d1-usage";
+import type { AppEnv } from "./env";
 
 const TMDB_API_ORIGIN = "https://api.themoviedb.org";
 const TMDB_MAX_REDIRECTS = 2;

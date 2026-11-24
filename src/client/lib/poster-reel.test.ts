@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Movie } from "../api";
 import {
   POSTER_REEL_IMAGE_WIDTH,
+  posterReelDurationMs,
   preloadPosterPath,
   preloadPosterReel,
-  posterReelDurationMs,
   selectPosterReel,
 } from "./poster-reel";
 

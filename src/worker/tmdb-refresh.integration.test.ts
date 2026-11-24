@@ -4,11 +4,11 @@ import {
 } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
+import { TMDB_REFRESH_ATTRIBUTION } from "./attribution";
 import type { AppEnv } from "./env";
 import { createApp } from "./index";
-import { getTmdbMetadataContractId } from "../shared/tmdb-metadata-contract";
 import { refreshDueTmdbData } from "./tmdb-data";
-import { TMDB_REFRESH_ATTRIBUTION } from "./attribution";
 import {
   claimTmdbRefresh,
   executeTmdbRefreshClaim,

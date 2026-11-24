@@ -5,8 +5,8 @@ import { COLLECTION_LIMIT_MESSAGE } from "../src/shared/collection-limits";
 import { buildCatalogImportPlan, parseCatalogCsv } from "./catalog-import-lib";
 import {
   executeCatalogImport,
-  importPreflightSummary,
   ImportOperatorError,
+  importPreflightSummary,
   parseImportOperatorArguments,
   type CommandRunner,
 } from "./import-operator-lib";

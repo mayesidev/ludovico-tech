@@ -1,15 +1,15 @@
-import { useEffect, useState, type ReactNode } from "react";
 import { LoaderCircle, Ticket, X } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { AuthState, HomeMovie } from "../api";
-import type { Navigate, Tab } from "../types";
-import { Button } from "./ui";
-import { cn, formatMovieTitle } from "../lib/utils";
-import { AppLink } from "./app-link";
 import {
   POSTER_REEL_IMAGE_WIDTH,
   POSTER_REEL_INTERVAL_MS,
 } from "../lib/poster-reel";
+import { cn, formatMovieTitle } from "../lib/utils";
+import type { Navigate, Tab } from "../types";
+import { AppLink } from "./app-link";
 import { Poster } from "./poster";
+import { Button } from "./ui";
 
 type AppHeaderProps = {
   action?: ReactNode;

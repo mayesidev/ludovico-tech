@@ -21,6 +21,9 @@ application until the new release finishes deploying.
 
 ## Checks
 
+`pnpm format` formats code and organizes imports, including removing unused imports.
+`pnpm format:check` enforces the same formatting and import organization in CI.
+
 ```sh
 pnpm install
 pnpm check

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   api,
   ApiError,
@@ -10,25 +10,22 @@ import {
   type MovieDetail,
   type NowShowing,
 } from "./api";
+import { AddMovieDialog } from "./components/add-movie-dialog";
 import {
   AppHeader,
   ErrorNotice,
   LoadingState,
   RollReveal,
 } from "./components/app-shell";
-import { AddMovieDialog } from "./components/add-movie-dialog";
-import { DeleteMovieDialog } from "./components/delete-movie-dialog";
-import { EditMovieDialog } from "./components/edit-movie-dialog";
 import { CollectionDetailPage } from "./components/collection-detail-page";
 import { CreditsPage } from "./components/credits-page";
+import { DeleteMovieDialog } from "./components/delete-movie-dialog";
+import { EditMovieDialog } from "./components/edit-movie-dialog";
 import { HomePage } from "./components/home-page";
 import { LibraryPage } from "./components/library-page";
 import { MovieDetailPage } from "./components/movie-detail-page";
 import { TmdbStatusPage } from "./components/tmdb-status-page";
 import { Button } from "./components/ui";
-import { parseRoute } from "./route";
-import type { RunAction, Tab } from "./types";
-import { formatMovieTitle } from "./lib/utils";
 import {
   POSTER_REEL_LEAD_IN_MS,
   POSTER_REEL_LIMIT,
@@ -39,6 +36,9 @@ import {
   selectPosterReel,
   wait,
 } from "./lib/poster-reel";
+import { formatMovieTitle } from "./lib/utils";
+import { parseRoute } from "./route";
+import type { RunAction, Tab } from "./types";
 
 type RollRevealState = {
   reel: HomeMovie[];

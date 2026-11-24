@@ -1,6 +1,6 @@
 import { ArrowLeft, ExternalLink, Pencil, Trash2 } from "lucide-react";
-import type { Movie, MovieDetail } from "../api";
 import { imdbTitleUrl } from "../../shared/imdb";
+import type { Movie, MovieDetail } from "../api";
 import { formatDate, formatMovieTitle, formatRuntime } from "../lib/utils";
 import type { ReturnTarget } from "../types";
 import { AppLink } from "./app-link";

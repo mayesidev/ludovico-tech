@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { Readable } from "node:stream";
+import { describe, expect, it } from "vitest";
 import {
   assertAllowedProductionLicenses,
   runProductionLicenseCheck,
