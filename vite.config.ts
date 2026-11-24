@@ -1,6 +1,7 @@
 import { cloudflare } from "@cloudflare/vite-plugin";
+import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
-import react from "@vitejs/plugin-react";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 export default defineConfig(() => {
@@ -10,6 +11,10 @@ export default defineConfig(() => {
   return {
     plugins: [
       react(),
+      babel({
+        include: /[/\\]src[/\\]client[/\\].*\.[tj]sx?$/,
+        presets: [reactCompilerPreset()],
+      }),
       tailwindcss(),
       cloudflare({
         config: e2eStateDirectory
