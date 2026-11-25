@@ -48,7 +48,24 @@ export default tseslint.config(
     settings: {
       "react-doctor": {
         ...reactDoctor.configs.recommended.settings["react-doctor"],
-        capabilities: ["react-compiler"],
+        capabilities: [
+          "client-only",
+          "pre-es2023",
+          "react",
+          "react:17",
+          "react:18",
+          "react:19",
+          "react:19.2",
+          "react-compiler",
+          "tailwind",
+          "tailwind:3.4",
+          "tailwind:4",
+          "tanstack-table",
+          "typescript",
+          "vite",
+          "zod",
+          "zod:4",
+        ],
       },
     },
     rules: {

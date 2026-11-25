@@ -275,9 +275,10 @@ describe("TMDB refresh status page", () => {
     expect(overview).toHaveBeenCalledTimes(2);
   });
 
-  it("refreshes the overview on demand and after focus data becomes stale", async () => {
+  it("refreshes stale overview data with the current filters without resubscribing", async () => {
     let timestamp = 1_000;
     vi.spyOn(Date, "now").mockImplementation(() => timestamp);
+    const addListener = vi.spyOn(window as Window, "addEventListener");
     const loadOverview = vi
       .spyOn(api, "tmdbRefreshOverview")
       .mockResolvedValue({ queue: queue(), summary });
@@ -311,11 +312,29 @@ describe("TMDB refresh status page", () => {
     expect(loadOverview).toHaveBeenCalledTimes(2);
     expect(loadQueue).not.toHaveBeenCalled();
 
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Filter refresh status" }),
+      {
+        target: { value: "failed" },
+      },
+    );
+    await waitFor(() => {
+      expect(loadQueue).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ state: "failed" }),
+      );
+    });
+    expect(
+      addListener.mock.calls.filter(([type]) => type === "focus"),
+    ).toHaveLength(1);
+
     timestamp += 60_000;
     fireEvent.focus(window);
     await waitFor(() => {
       expect(loadOverview).toHaveBeenCalledTimes(3);
-      expect(loadQueue).not.toHaveBeenCalled();
+      expect(loadOverview).toHaveBeenLastCalledWith(
+        expect.objectContaining({ state: "failed" }),
+      );
+      expect(loadQueue).toHaveBeenCalledTimes(1);
     });
   });
 

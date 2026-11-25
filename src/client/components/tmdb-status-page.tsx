@@ -2,6 +2,7 @@ import { RefreshCw, Search } from "lucide-react";
 import {
   useCallback,
   useEffect,
+  useEffectEvent,
   useRef,
   useState,
   type Dispatch,
@@ -249,20 +250,21 @@ export function TmdbStatusPage({
   }, [canMutate, load, loadQueue]);
 
   const hasStatus = summary !== null && queue !== null;
+  const refreshOnFocus = useEffectEvent(() => {
+    if (
+      lastOverviewLoadedAt.current !== null &&
+      Date.now() - lastOverviewLoadedAt.current < FOCUS_REFRESH_FRESHNESS_MS
+    ) {
+      return;
+    }
+    void load();
+  });
   useEffect(() => {
     if (!hasStatus) return;
-    const refreshOnFocus = () => {
-      if (
-        lastOverviewLoadedAt.current !== null &&
-        Date.now() - lastOverviewLoadedAt.current < FOCUS_REFRESH_FRESHNESS_MS
-      ) {
-        return;
-      }
-      void load();
-    };
-    window.addEventListener("focus", refreshOnFocus);
-    return () => window.removeEventListener("focus", refreshOnFocus);
-  }, [hasStatus, load]);
+    const onFocus = () => refreshOnFocus();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [hasStatus]);
 
   if (!canMutate) {
     return (
