@@ -9,13 +9,15 @@ import { cn } from "../lib/utils";
 export const Button = forwardRef<
   HTMLButtonElement,
   ButtonHTMLAttributes<HTMLButtonElement> & {
-    variant?: "primary" | "secondary" | "ghost" | "danger";
+    labelStyle?: "header";
+    size?: "compact" | "responsive";
+    variant?: "primary" | "secondary" | "ghost" | "danger" | "rating";
   }
->(({ className, variant = "primary", ...props }, ref) => (
+>(({ className, labelStyle, size, variant = "primary", ...props }, ref) => (
   <button
     className={cn(
       "ui-label inline-flex min-h-11 items-center justify-center gap-2 rounded-sm px-4 transition focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-canvas focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-45",
-      variant === "primary" &&
+      (variant === "primary" || variant === "rating") &&
         "border border-action bg-action text-text-primary shadow-lg shadow-black/15 hover:border-action-hover hover:bg-action-hover",
       variant === "secondary" &&
         "border border-border-primary bg-surface/75 text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary",
@@ -23,6 +25,10 @@ export const Button = forwardRef<
         "text-text-secondary hover:bg-surface-interactive hover:text-text-primary",
       variant === "danger" &&
         "border border-danger/45 bg-danger-surface/35 text-danger hover:border-danger hover:bg-danger-surface",
+      variant === "rating" && "min-h-16 rounded-none",
+      size === "compact" && "min-h-9 px-3",
+      size === "responsive" && "px-3 sm:px-4",
+      labelStyle === "header" && "header-label",
       className,
     )}
     ref={ref}
@@ -34,11 +40,21 @@ Button.displayName = "Button";
 export const Card = ({
   className,
   children,
+  variant,
 }: {
   className?: string;
   children: ReactNode;
+  variant?: "empty" | "interactive";
 }) => (
-  <section className={cn("surface-panel rounded-sm border", className)}>
+  <section
+    className={cn(
+      "surface-panel rounded-sm border",
+      variant === "empty" && "p-6 text-sm text-text-muted",
+      variant === "interactive" &&
+        "p-4 transition hover:border-highlight/35 hover:bg-surface-interactive/55",
+      className,
+    )}
+  >
     {children}
   </section>
 );
@@ -62,11 +78,15 @@ export const Badge = ({
 
 export const Input = forwardRef<
   HTMLInputElement,
-  InputHTMLAttributes<HTMLInputElement>
->(({ className, ...props }, ref) => (
+  InputHTMLAttributes<HTMLInputElement> & {
+    adornment?: "start" | "end";
+  }
+>(({ adornment, className, ...props }, ref) => (
   <input
     className={cn(
       "h-11 w-full rounded-sm border border-border-subtle bg-canvas/75 px-3.5 text-sm text-text-primary outline-none placeholder:text-text-muted/65 focus:border-highlight focus:ring-2 focus:ring-highlight/15 aria-invalid:border-danger/70 aria-invalid:focus:border-danger",
+      adornment === "start" && "pl-9",
+      adornment === "end" && "pr-10",
       className,
     )}
     ref={ref}

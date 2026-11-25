@@ -53,7 +53,7 @@ export function AppHeader({
             </span>
             <span
               aria-label="A Pop Culture Re-education Program"
-              className="hidden text-sm leading-[1.3] font-normal tracking-normal text-text-muted md:block"
+              className="hidden text-sm leading-tagline font-normal tracking-normal text-text-muted md:block"
             >
               <span aria-hidden="true" className="block whitespace-nowrap">
                 A Pop Culture
@@ -148,7 +148,8 @@ function AuthControls({
   if (!auth.authenticated) {
     return (
       <Button
-        className="header-label shrink-0 whitespace-nowrap"
+        className="shrink-0 whitespace-nowrap"
+        labelStyle="header"
         variant="secondary"
         onClick={onLogin}
       >

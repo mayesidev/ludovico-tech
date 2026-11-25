@@ -18,7 +18,7 @@ describe("credits page", () => {
       name: "Credits",
     });
     expect(pageHeading).toBeVisible();
-    expect(pageHeading).toHaveClass("tracking-[0.01em]");
+    expect(pageHeading).toHaveClass("tracking-heading");
     expect(pageHeading.closest("article")).toHaveClass("w-full");
     expect(pageHeading.closest("article")).not.toHaveClass("py-2", "sm:py-4");
     const pageHeader = pageHeading.closest("header");

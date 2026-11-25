@@ -1,4 +1,5 @@
 import js from "@eslint/js";
+import { plugin as shadcn } from "@shadcn/lint";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 import globals from "globals";
@@ -38,6 +39,22 @@ export default tseslint.config(
         "warn",
         { allowConstantExport: true },
       ],
+    },
+  },
+  {
+    files: ["src/client/**/*.{ts,tsx}"],
+    ignores: ["**/*.test.{ts,tsx}"],
+    plugins: { shadcn },
+    settings: {
+      shadcn: { componentImports: ["^\\./(?:components/)?ui$"] },
+    },
+    rules: {
+      "shadcn/no-arbitrary-values": ["error", { allow: ["layout"] }],
+      "shadcn/no-inline-styles": "error",
+      "shadcn/no-raw-colors": "error",
+      "shadcn/no-restyle": ["error", { allow: ["layout"] }],
+      "shadcn/no-unknown-classes": "error",
+      "shadcn/require-static-classes": "error",
     },
   },
 );

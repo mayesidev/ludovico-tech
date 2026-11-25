@@ -55,7 +55,7 @@ export function HomePage({
   return (
     <div className="space-y-14">
       <section aria-labelledby="now-showing-title">
-        <div className="grid items-start gap-10 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)] lg:gap-[clamp(42px,6vw,96px)]">
+        <div className="grid items-start gap-10 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)] lg:gap-feature-layout">
           <div className="mx-auto w-full max-w-[340px]">
             <Poster
               path={nowShowing?.poster_path}
@@ -67,7 +67,7 @@ export function HomePage({
           <div className="min-w-0 pt-1 sm:pt-4 lg:pt-10">
             <div className="feature-title-container w-full">
               <h1
-                className="feature-title font-heading font-medium tracking-[0.01em] text-text-primary"
+                className="feature-title font-heading font-medium tracking-heading text-text-primary"
                 id="now-showing-title"
                 style={
                   {
@@ -327,7 +327,7 @@ function RatingForm({
           </p>
         )}
       </div>
-      <Button className="min-h-16 rounded-none" type="submit" disabled={busy}>
+      <Button variant="rating" type="submit" disabled={busy}>
         Rate It
       </Button>
     </form>
@@ -356,9 +356,7 @@ function HistorySection({
           ))}
         </div>
       ) : (
-        <Card className="p-6 text-sm text-text-muted">
-          No movies have been rated yet.
-        </Card>
+        <Card variant="empty">No movies have been rated yet.</Card>
       )}
     </section>
   );
@@ -379,7 +377,7 @@ function HistoryCard({
       href={`/movies/${encodeURIComponent(movie.id)}?from=now-showing`}
       onNavigate={onNavigate}
     >
-      <Card className="h-full overflow-hidden p-4 transition hover:border-highlight/35 hover:bg-surface-interactive/55">
+      <Card className="h-full overflow-hidden" variant="interactive">
         <div className="flex items-start gap-4">
           <div className="w-[72px] shrink-0">
             <Poster path={movie.poster_path} title={title} />

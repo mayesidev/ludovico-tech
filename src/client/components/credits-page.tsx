@@ -26,7 +26,7 @@ export function CreditsPage() {
     <article className="w-full">
       <header className="flex items-center justify-center gap-4 text-center sm:gap-5">
         <span aria-hidden="true" className="block h-px w-12 bg-highlight/70" />
-        <h1 className="font-heading text-3xl leading-none font-medium tracking-[0.01em] text-text-primary sm:text-4xl">
+        <h1 className="font-heading text-3xl leading-none font-medium tracking-heading text-text-primary sm:text-4xl">
           Credits
         </h1>
         <span aria-hidden="true" className="block h-px w-12 bg-highlight/70" />

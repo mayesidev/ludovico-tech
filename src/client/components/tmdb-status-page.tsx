@@ -306,7 +306,7 @@ export function TmdbStatusPage({
   if (!canMutate) {
     return (
       <div>
-        <h1 className="font-heading text-3xl leading-none font-medium tracking-[0.01em] text-text-primary sm:text-4xl">
+        <h1 className="font-heading text-3xl leading-none font-medium tracking-heading text-text-primary sm:text-4xl">
           Manager's Office
         </h1>
         <p className="mt-3 text-sm text-text-muted">
@@ -323,7 +323,7 @@ export function TmdbStatusPage({
   if (!summary || !queue) {
     return (
       <div>
-        <h1 className="font-heading text-3xl leading-none font-medium tracking-[0.01em] text-text-primary sm:text-4xl">
+        <h1 className="font-heading text-3xl leading-none font-medium tracking-heading text-text-primary sm:text-4xl">
           Manager's Office
         </h1>
         <p className="mt-3 text-sm text-danger" role="alert">
@@ -423,7 +423,7 @@ export function TmdbStatusPage({
     <div>
       <div className="mb-7 flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
         <div>
-          <h1 className="font-heading text-3xl leading-none font-medium tracking-[0.01em] text-text-primary sm:text-4xl">
+          <h1 className="font-heading text-3xl leading-none font-medium tracking-heading text-text-primary sm:text-4xl">
             Manager's Office
           </h1>
         </div>
@@ -724,7 +724,7 @@ export function TmdbStatusPage({
             Search metadata refresh status
           </label>
           <Input
-            className="pl-9"
+            adornment="start"
             id="tmdb-status-search"
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
@@ -746,7 +746,7 @@ export function TmdbStatusPage({
               <col className="w-[140px]" />
               <col className="w-[180px]" />
             </colgroup>
-            <thead className="ui-label border-b border-highlight/15 bg-[#7a1d30] text-text-primary/80">
+            <thead className="ui-label border-b border-highlight/15 bg-table-header text-text-primary/80">
               <tr>
                 {sortHeader("Title", "title")}
                 {sortHeader("TMDB ID", "tmdbId")}
@@ -825,11 +825,11 @@ export function TmdbStatusPage({
                     {item.state === "current" ? (
                       <Button
                         aria-label={`Queue ${item.title} for refetch`}
-                        className="min-h-9 px-3"
                         disabled={
                           refreshing || queueingMovieId === item.movieId
                         }
                         onClick={() => void queueRefetch(item)}
+                        size="compact"
                         variant="secondary"
                       >
                         <RefreshCw

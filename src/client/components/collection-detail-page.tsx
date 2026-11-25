@@ -137,7 +137,7 @@ export function CollectionDetailPage({
 
       <div className="mb-8 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
         <div>
-          <h1 className="font-heading text-5xl leading-[0.95] font-medium tracking-[-0.045em] text-text-primary sm:text-7xl">
+          <h1 className="font-heading text-5xl leading-display-tight font-medium tracking-display-tight text-text-primary sm:text-7xl">
             {collectionName}
           </h1>
           <p className="mt-4 text-sm text-text-muted">
