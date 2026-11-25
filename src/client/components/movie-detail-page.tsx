@@ -7,6 +7,7 @@ import { AppLink } from "./app-link";
 import { AuditDetails } from "./audit-details";
 import { Poster } from "./poster";
 import { Button } from "./ui/button";
+import { Link } from "./ui/link";
 
 type MovieDetailPageProps = {
   canMutate?: boolean;
@@ -49,7 +50,10 @@ export function MovieDetailPage({
           This movie is not in the catalog.
         </p>
         <AppLink
-          className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-highlight-soft hover:text-text-primary"
+          className="mt-7"
+          size="sm"
+          withIcon
+          variant="accent"
           href={returnHref}
           onNavigate={onNavigate}
         >
@@ -66,7 +70,8 @@ export function MovieDetailPage({
   return (
     <div className="w-full">
       <AppLink
-        className="ui-label mb-6 inline-flex items-center gap-2 text-text-muted hover:text-highlight-soft"
+        className="mb-6"
+        variant="muted"
         href={returnHref}
         onNavigate={onNavigate}
       >
@@ -141,15 +146,16 @@ function MovieMetadata({
           <dt className="ui-label text-text-muted">Version</dt>
           <dd className="text-text-secondary">
             {movie.version_reference_url ? (
-              <a
-                className="inline-flex items-center gap-1.5 font-semibold text-highlight-soft hover:text-text-primary"
+              <Link
+                withIcon
+                variant="accent"
                 href={movie.version_reference_url}
                 rel="noreferrer"
                 target="_blank"
               >
                 {movie.version}
                 <ExternalLink size={13} />
-              </a>
+              </Link>
             ) : (
               movie.version
             )}
@@ -187,7 +193,7 @@ function MovieMetadata({
           <dt className="ui-label text-text-muted">Collection</dt>
           <dd>
             <AppLink
-              className="font-semibold text-highlight-soft hover:text-text-primary"
+              variant="accent"
               href={`/collections/${encodeURIComponent(movie.collection_id)}${returnQuery}`}
               onNavigate={onNavigate}
             >
@@ -201,15 +207,16 @@ function MovieMetadata({
           <div>
             <dt className="ui-label text-text-muted">TMDB collection</dt>
             <dd>
-              <a
-                className="inline-flex items-center gap-1.5 font-semibold text-highlight-soft hover:text-text-primary"
+              <Link
+                withIcon
+                variant="accent"
                 href={`https://www.themoviedb.org/collection/${movie.tmdb_collection_id}`}
                 rel="noreferrer"
                 target="_blank"
               >
                 {movie.tmdb_collection_name}
                 <ExternalLink size={13} />
-              </a>
+              </Link>
             </dd>
           </div>
         )}
@@ -308,26 +315,30 @@ function MovieProviders({
   return (
     <div className="flex flex-wrap items-center gap-4">
       {tmdbId !== null && (
-        <a
-          className="inline-flex items-center gap-2 text-sm font-semibold text-highlight-soft hover:text-text-primary"
+        <Link
+          size="sm"
+          withIcon
+          variant="accent"
           href={`https://www.themoviedb.org/movie/${tmdbId}`}
           rel="noreferrer"
           target="_blank"
         >
           View on TMDB
           <ExternalLink size={15} />
-        </a>
+        </Link>
       )}
       {imdbId !== null && (
-        <a
-          className="inline-flex items-center gap-2 text-sm font-semibold text-highlight-soft hover:text-text-primary"
+        <Link
+          size="sm"
+          withIcon
+          variant="accent"
           href={imdbTitleUrl(imdbId)}
           rel="noreferrer"
           target="_blank"
         >
           View on IMDb
           <ExternalLink size={15} />
-        </a>
+        </Link>
       )}
     </div>
   );

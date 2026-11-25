@@ -2,9 +2,7 @@ import { ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import tmdbLogo from "../assets/tmdb-logo.svg";
-
-const linkClassName =
-  "inline-flex items-center gap-2 font-normal text-highlight-soft transition hover:text-text-primary";
+import { Link } from "./ui/link";
 
 export function CreditsPage() {
   const [version, setVersion] = useState<string | null>(null);
@@ -80,29 +78,31 @@ export function CreditsPage() {
             <div>
               <dt className="text-text-muted">Source Code</dt>
               <dd className="mt-1">
-                <a
-                  className={linkClassName}
+                <Link
+                  withIcon
+                  variant="reference"
                   href="https://github.com/mayesidev/ludovico-tech"
                   rel="noreferrer"
                   target="_blank"
                 >
                   Ludovico Tech on GitHub
                   <ExternalLink size={15} />
-                </a>
+                </Link>
               </dd>
             </div>
             <div>
               <dt className="text-text-muted">License</dt>
               <dd className="mt-1">
-                <a
-                  className={linkClassName}
+                <Link
+                  withIcon
+                  variant="reference"
                   href="https://github.com/mayesidev/ludovico-tech/blob/main/LICENSE"
                   rel="noreferrer"
                   target="_blank"
                 >
                   MIT License
                   <ExternalLink size={15} />
-                </a>
+                </Link>
               </dd>
             </div>
           </dl>
@@ -116,15 +116,16 @@ export function CreditsPage() {
             Movie Data
           </h2>
           <div className="mt-5">
-            <a
+            <Link
               aria-label="The Movie Database"
               className="inline-block"
+              variant="inherit"
               href="https://www.themoviedb.org/"
               rel="noreferrer"
               target="_blank"
             >
               <img alt="TMDB" className="h-5 w-auto sm:h-6" src={tmdbLogo} />
-            </a>
+            </Link>
             <p className="mx-auto mt-4 max-w-xl text-base leading-7 font-normal text-text-secondary">
               This application uses TMDB and the TMDB APIs but is not endorsed,
               certified, or otherwise approved by TMDB.

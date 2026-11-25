@@ -5,7 +5,7 @@ import {
   POSTER_REEL_IMAGE_WIDTH,
   POSTER_REEL_INTERVAL_MS,
 } from "../lib/poster-reel";
-import { cn, formatMovieTitle, type PosterImageWidth } from "../lib/utils";
+import { formatMovieTitle, type PosterImageWidth } from "../lib/utils";
 import type { Navigate, Tab } from "../types";
 import { AppLink } from "./app-link";
 import { Poster } from "./poster";
@@ -36,9 +36,9 @@ export function AppHeader({
       <div className="mx-auto grid min-h-[88px] max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 px-5 md:grid-cols-[minmax(260px,1fr)_auto_minmax(260px,1fr)] lg:px-8">
         <AppLink
           aria-label="Ludovico Tech home"
-          className="flex min-w-0 items-center gap-2.5 py-3 text-left sm:gap-3"
           href="/"
           onNavigate={onNavigate}
+          variant="brand"
         >
           <span className="grid size-9 shrink-0 place-items-center sm:size-10">
             <img
@@ -123,12 +123,7 @@ function NavButton({
       aria-current={active ? "page" : undefined}
       href={href}
       onNavigate={onNavigate}
-      className={cn(
-        "nav-label relative grid shrink-0 place-items-center px-3 whitespace-nowrap transition sm:min-w-32 sm:px-6",
-        active
-          ? "text-text-primary after:absolute after:inset-x-5 after:bottom-[-1px] after:h-[3px] after:bg-action"
-          : "text-text-muted hover:text-text-primary",
-      )}
+      variant="navigation"
     >
       {children}
     </AppLink>

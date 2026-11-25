@@ -14,7 +14,16 @@ import { PaginationControls } from "./pagination-controls";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Input } from "./ui/input";
-import { Table, TableBody, TableHeader } from "./ui/table";
+import { Label } from "./ui/label";
+import { Link } from "./ui/link";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./ui/table";
 
 type LibraryPageProps = {
   canMutate: boolean;
@@ -99,7 +108,7 @@ export function LibraryPage({
   const sortHeader = (label: string, sort: LibrarySort) => {
     const active = query.sort === sort;
     return (
-      <th
+      <TableHead
         aria-sort={
           active
             ? query.direction === "asc"
@@ -107,7 +116,7 @@ export function LibraryPage({
               : "descending"
             : "none"
         }
-        className="border-r border-highlight/10 px-5 py-4 font-semibold last:border-r-0"
+        divided
       >
         <Button
           labelStyle="plain"
@@ -118,7 +127,7 @@ export function LibraryPage({
           {label}
           {active ? (query.direction === "asc" ? " ↑" : " ↓") : ""}
         </Button>
-      </th>
+      </TableHead>
     );
   };
 
@@ -146,9 +155,9 @@ export function LibraryPage({
             className="absolute top-3.5 left-3 text-text-muted"
             size={16}
           />
-          <label className="sr-only" htmlFor="library-search">
+          <Label className="sr-only" htmlFor="library-search">
             Search movie library
-          </label>
+          </Label>
           <Input
             adornment="start"
             id="library-search"
@@ -177,66 +186,54 @@ export function LibraryPage({
             {canMutate && <col className="w-[120px]" />}
           </colgroup>
           <TableHeader>
-            <tr>
+            <TableRow>
               {sortHeader("Title", "title")}
               {sortHeader("Collection", "collection")}
               {sortHeader("Release", "releaseDate")}
               {sortHeader("Date Added", "addedAt")}
               {sortHeader("Rating", "rating")}
-              <th className="border-r border-highlight/10 px-5 py-4 font-semibold last:border-r-0">
-                Links
-              </th>
-              {canMutate && (
-                <th className="px-5 py-4 font-semibold">Actions</th>
-              )}
-            </tr>
+              <TableHead divided>Links</TableHead>
+              {canMutate && <TableHead>Actions</TableHead>}
+            </TableRow>
           </TableHeader>
           <TableBody>
             {movies.map((movie) => {
               const title = formatMovieTitle(movie.title, movie.version);
               return (
-                <tr
-                  className="bg-canvas/35 transition hover:bg-action/15"
-                  key={movie.id}
-                >
-                  <td className="px-5 py-4 break-words text-text-muted">
+                <TableRow variant="data" key={movie.id}>
+                  <TableCell variant="wrap">
                     <AppLink
-                      className="font-semibold text-text-primary hover:text-highlight-soft"
+                      variant="title"
                       href={`/movies/${encodeURIComponent(movie.id)}?from=library`}
                       onNavigate={onNavigate}
                     >
                       {title}
                     </AppLink>
-                  </td>
-                  <td className="px-5 py-4 break-words text-text-muted">
+                  </TableCell>
+                  <TableCell variant="wrap">
                     {movie.collection_id && movie.collection_name ? (
                       <AppLink
-                        className="hover:text-highlight-soft"
                         href={`/collections/${encodeURIComponent(movie.collection_id)}`}
                         onNavigate={onNavigate}
                       >
                         {movie.collection_name}
                       </AppLink>
                     ) : null}
-                  </td>
-                  <td className="px-5 py-4 text-text-muted">
-                    {formatDate(movie.release_date)}
-                  </td>
-                  <td className="px-5 py-4 text-text-muted">
-                    {formatDate(movie.added_at)}
-                  </td>
-                  <td className="px-5 py-4 break-words text-text-muted">
+                  </TableCell>
+                  <TableCell>{formatDate(movie.release_date)}</TableCell>
+                  <TableCell>{formatDate(movie.added_at)}</TableCell>
+                  <TableCell variant="wrap">
                     {movie.rating_score !== null ? (
                       <span className="text-highlight-soft">
                         {movie.rating_score} · {movie.rating_phrase}
                       </span>
                     ) : null}
-                  </td>
-                  <td className="px-5 py-4 text-text-muted">
+                  </TableCell>
+                  <TableCell>
                     <MovieLinks movie={movie} />
-                  </td>
+                  </TableCell>
                   {canMutate && (
-                    <td className="px-5 py-4 text-text-muted">
+                    <TableCell>
                       <Button
                         onClick={() => onEdit(movie)}
                         size="compact"
@@ -245,20 +242,17 @@ export function LibraryPage({
                         <Pencil size={13} />
                         Edit
                       </Button>
-                    </td>
+                    </TableCell>
                   )}
-                </tr>
+                </TableRow>
               );
             })}
             {!refreshing && movies.length === 0 && (
-              <tr>
-                <td
-                  className="px-5 py-8 text-center text-text-muted"
-                  colSpan={canMutate ? 7 : 6}
-                >
+              <TableRow>
+                <TableCell variant="empty" colSpan={canMutate ? 7 : 6}>
                   No movies match this search.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
           </TableBody>
         </Table>
@@ -292,15 +286,16 @@ function MovieLinks({ movie }: { movie: Movie }) {
   return (
     <span className="inline-flex items-center gap-2 font-semibold whitespace-nowrap text-highlight-soft">
       {tmdbId !== null && (
-        <a
-          className="inline-flex items-center gap-1 hover:text-text-primary"
+        <Link
+          withIcon
+          variant="accent"
           href={`https://www.themoviedb.org/movie/${tmdbId}`}
           rel="noreferrer"
           target="_blank"
         >
           TMDB
           <ExternalLink size={13} />
-        </a>
+        </Link>
       )}
       {tmdbId !== null && imdbId !== null && (
         <span aria-hidden="true" className="text-border-primary">
@@ -308,15 +303,16 @@ function MovieLinks({ movie }: { movie: Movie }) {
         </span>
       )}
       {imdbId !== null && (
-        <a
-          className="inline-flex items-center gap-1 hover:text-text-primary"
+        <Link
+          withIcon
+          variant="accent"
           href={imdbTitleUrl(imdbId)}
           rel="noreferrer"
           target="_blank"
         >
           IMDb
           <ExternalLink size={13} />
-        </a>
+        </Link>
       )}
     </span>
   );

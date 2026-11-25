@@ -6,6 +6,7 @@ import { formatDate } from "../lib/utils";
 import { Poster } from "./poster";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 import { Toggle } from "./ui/toggle";
 
 type TmdbMovieFieldsProps = {
@@ -125,9 +126,9 @@ export function TmdbMovieFields({
   return (
     <div className="grid gap-4">
       <div className="flex gap-2">
-        <label className="sr-only" htmlFor={titleId}>
+        <Label className="sr-only" htmlFor={titleId}>
           Movie title
-        </label>
+        </Label>
         <Input
           aria-describedby={titleInvalid ? titleErrorId : undefined}
           aria-invalid={titleInvalid}
@@ -168,9 +169,9 @@ export function TmdbMovieFields({
       </div>
 
       <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-        <label className="sr-only" htmlFor={tmdbIdId}>
+        <Label className="sr-only" htmlFor={tmdbIdId}>
           TMDB movie ID (optional)
-        </label>
+        </Label>
         <Input
           aria-describedby={
             parsedTmdbId === undefined ? `${tmdbIdId}-error` : undefined

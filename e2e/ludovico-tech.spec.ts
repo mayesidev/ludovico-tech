@@ -143,11 +143,15 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       const collection = page.getByRole("combobox", {
         name: "Collection (optional)",
       });
-      await collection.fill(index === 1 ? "Browser" : "Browser Saga");
       if (index === 1) {
+        await collection.pressSequentially("Browser");
         await expect(
-          page.locator('datalist option[value="Browser Saga"]'),
-        ).toBeAttached();
+          page.getByRole("option", { name: "Browser Saga" }),
+        ).toBeVisible();
+        await collection.press("ArrowDown");
+        await collection.press("Enter");
+        await expect(collection).toHaveValue("Browser Saga");
+      } else {
         await collection.fill("Browser Saga");
       }
       await page
@@ -232,7 +236,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       .getByRole("textbox", { name: "Movie title" })
       .fill("Browser Edited Movie");
     await page
-      .getByRole("textbox", { name: "Collection" })
+      .getByRole("combobox", { name: "Collection" })
       .fill("Browser Edit Saga");
     await page.getByRole("button", { name: "Save Changes" }).click();
 
@@ -585,5 +589,38 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     ).toBeVisible();
     expect(submittedMovie).toMatchObject({ title: "Chosen Movie", tmdbId: 42 });
     expect(detailLookups).toBe(0);
+  });
+});
+
+test.describe("collection suggestions on a phone", () => {
+  test.use({
+    hasTouch: true,
+    isMobile: true,
+    viewport: { width: 390, height: 660 },
+  });
+
+  test("selects a suggestion by touch inside the add dialog", async ({
+    page,
+  }) => {
+    await page.route("**/api/collections/suggestions?search=*", (route) =>
+      route.fulfill({
+        json: { collections: [{ id: "moon", name: "Moon Saga" }] },
+      }),
+    );
+    await page.goto("/");
+    await page.getByRole("button", { name: "Add a Movie" }).tap();
+    const dialog = page.getByRole("dialog", { name: "Add a Movie" });
+    const collection = page.getByRole("combobox", {
+      name: "Collection (optional)",
+    });
+    await collection.tap();
+    await collection.pressSequentially("Moon");
+
+    const suggestion = page.getByRole("option", { name: "Moon Saga" });
+    await expect(suggestion).toBeInViewport({ ratio: 1 });
+    await suggestion.tap();
+    await expect(collection).toHaveValue("Moon Saga");
+    await expect(collection).toHaveAttribute("aria-expanded", "false");
+    await expect(dialog).toBeVisible();
   });
 });

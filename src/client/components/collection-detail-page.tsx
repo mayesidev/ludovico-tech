@@ -10,6 +10,7 @@ import type { Navigate, ReturnTarget, RunAction } from "../types";
 import { AppLink } from "./app-link";
 import { AuditDetails } from "./audit-details";
 import { Button } from "./ui/button";
+import { Link } from "./ui/link";
 
 type CollectionDetailPageProps = {
   busy: boolean;
@@ -81,7 +82,10 @@ export function CollectionDetailPage({
           This collection is not in the catalog.
         </p>
         <AppLink
-          className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-highlight-soft hover:text-text-primary"
+          className="mt-7"
+          size="sm"
+          withIcon
+          variant="accent"
           href={returnHref}
           onNavigate={onNavigate}
         >
@@ -106,7 +110,8 @@ export function CollectionDetailPage({
   return (
     <div className="w-full">
       <AppLink
-        className="ui-label mb-6 inline-flex items-center gap-2 text-text-muted hover:text-highlight-soft"
+        className="mb-6"
+        variant="muted"
         href={returnHref}
         onNavigate={onNavigate}
       >
@@ -163,7 +168,7 @@ export function CollectionDetailPage({
                 </span>
                 <div className="flex min-w-0 flex-col justify-center px-4 py-3 sm:px-5">
                   <AppLink
-                    className="font-semibold text-text-primary hover:text-highlight-soft"
+                    variant="title"
                     href={`/movies/${encodeURIComponent(movie.id)}${returnQuery}`}
                     onNavigate={onNavigate}
                   >
@@ -282,8 +287,9 @@ function CollectionHeading({
               : "Related TMDB Collections"}
           </span>
           {tmdbCollections.map((tmdbCollection) => (
-            <a
-              className="inline-flex items-center gap-1.5 font-semibold text-highlight-soft hover:text-text-primary"
+            <Link
+              withIcon
+              variant="accent"
               href={`https://www.themoviedb.org/collection/${tmdbCollection.id}`}
               key={tmdbCollection.id}
               rel="noreferrer"
@@ -291,7 +297,7 @@ function CollectionHeading({
             >
               {tmdbCollection.name}
               <ExternalLink size={13} />
-            </a>
+            </Link>
           ))}
         </div>
       )}

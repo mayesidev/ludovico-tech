@@ -1,6 +1,7 @@
 import { useId } from "react";
 import { Checkbox } from "./ui/checkbox";
 import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 
 type MovieVersionFieldsProps = {
   attempted: boolean;
@@ -46,10 +47,7 @@ export function MovieVersionFields({
 
   return (
     <section className="rounded-sm border border-border-subtle bg-canvas/35 p-4">
-      <label
-        className="flex cursor-pointer items-start gap-3 text-sm text-text-primary has-data-disabled:cursor-not-allowed has-data-disabled:opacity-50"
-        htmlFor={toggleId}
-      >
+      <Label variant="choice" htmlFor={toggleId}>
         <Checkbox
           checked={versionEnabled}
           className="mt-0.5"
@@ -64,11 +62,11 @@ export function MovieVersionFields({
             edition, release, or fan edit.
           </span>
         </span>
-      </label>
+      </Label>
 
       {versionEnabled && (
         <div className="mt-4 grid gap-4 border-t border-border-subtle pt-4">
-          <label className="ui-label block text-text-muted" htmlFor={versionId}>
+          <Label variant="field" htmlFor={versionId}>
             Version
             <Input
               aria-describedby={versionInvalid ? versionErrorId : undefined}
@@ -80,14 +78,14 @@ export function MovieVersionFields({
               placeholder="Director's Cut"
               value={version}
             />
-          </label>
+          </Label>
           {versionInvalid && (
             <p className="text-sm text-danger" id={versionErrorId} role="alert">
               Enter the version name.
             </p>
           )}
 
-          <label className="ui-label block text-text-muted" htmlFor={runtimeId}>
+          <Label variant="field" htmlFor={runtimeId}>
             Version Runtime (minutes)
             <Input
               aria-describedby={runtimeInvalid ? runtimeErrorId : undefined}
@@ -103,17 +101,14 @@ export function MovieVersionFields({
               type="number"
               value={versionRuntime}
             />
-          </label>
+          </Label>
           {runtimeInvalid && (
             <p className="text-sm text-danger" id={runtimeErrorId} role="alert">
               Enter a positive whole number of minutes.
             </p>
           )}
 
-          <label
-            className="ui-label block text-text-muted"
-            htmlFor={referenceId}
-          >
+          <Label variant="field" htmlFor={referenceId}>
             Version Reference URL
             <Input
               aria-describedby={referenceInvalid ? referenceErrorId : undefined}
@@ -129,7 +124,7 @@ export function MovieVersionFields({
               type="url"
               value={versionReferenceUrl}
             />
-          </label>
+          </Label>
           {referenceInvalid && (
             <p
               className="text-sm text-danger"

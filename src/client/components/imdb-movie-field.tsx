@@ -1,6 +1,7 @@
 import { useId } from "react";
 import { parseImdbId } from "../../shared/imdb";
 import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 
 export function ImdbMovieField({
   onChange,
@@ -16,9 +17,9 @@ export function ImdbMovieField({
 
   return (
     <div>
-      <label className="ui-label block text-text-muted" htmlFor={inputId}>
+      <Label variant="field" htmlFor={inputId}>
         IMDb ID or URL (optional)
-      </label>
+      </Label>
       <Input
         aria-describedby={parsedImdbId === undefined ? errorId : helpId}
         aria-invalid={parsedImdbId === undefined}

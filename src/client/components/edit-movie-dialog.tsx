@@ -9,6 +9,7 @@ import {
 } from "../lib/movie-version";
 import { parseTmdbId } from "../lib/tmdb-id";
 import type { RunAction } from "../types";
+import { CollectionNameField } from "./collection-name-field";
 import { ImdbMovieField } from "./imdb-movie-field";
 import { MovieVersionFields } from "./movie-version-fields";
 import { TmdbMovieFields } from "./tmdb-movie-fields";
@@ -20,7 +21,6 @@ import {
   DialogDescription,
   DialogTitle,
 } from "./ui/dialog";
-import { Input } from "./ui/input";
 
 export function EditMovieDialog({
   busy,
@@ -58,7 +58,6 @@ export function EditMovieDialog({
   const [attempted, setAttempted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const errorId = useId();
-  const collectionId = useId();
   const parsedTmdbId = parseTmdbId(tmdbId);
   const parsedImdbId = parseImdbId(imdbId);
   const parsedVersionRuntime = parseVersionRuntime(versionRuntime);
@@ -168,16 +167,11 @@ export function EditMovieDialog({
                 usingVersion && parsedVersionRuntime === undefined
               }
             />
-            <label className="ui-label block text-text-muted">
-              Collection
-              <Input
-                className="mt-2"
-                id={collectionId}
-                value={collectionName}
-                onChange={(event) => setCollectionName(event.target.value)}
-                placeholder="Optional"
-              />
-            </label>
+            <CollectionNameField
+              label="Collection"
+              onChange={setCollectionName}
+              value={collectionName}
+            />
           </div>
 
           <div className="mt-6 flex justify-end gap-2">

@@ -32,3 +32,16 @@ export function NativeSelect({
     </span>
   );
 }
+
+export function NativeSelectOption({
+  className,
+  ...props
+}: ComponentProps<"option">) {
+  return (
+    <option
+      data-slot="native-select-option"
+      className={cn("bg-canvas text-text-primary", className)}
+      {...props}
+    />
+  );
+}

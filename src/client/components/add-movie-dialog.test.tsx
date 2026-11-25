@@ -182,9 +182,10 @@ describe("add movie dialog", () => {
   });
 
   it("suggests existing collections without requiring one", async () => {
-    vi.mocked(api.collectionSuggestions).mockResolvedValue({
-      collections: [{ id: "known-id", name: "Known Saga" }],
-    });
+    vi.mocked(api.collectionSuggestions).mockImplementation(async (search) => ({
+      collections:
+        search === "Kno" ? [{ id: "known-id", name: "Known Saga" }] : [],
+    }));
     vi.spyOn(api, "addMovie").mockResolvedValue({ movie });
     const user = userEvent.setup();
     render(
@@ -209,10 +210,10 @@ describe("add movie dialog", () => {
     await waitFor(() =>
       expect(api.collectionSuggestions).toHaveBeenCalledWith("Kno"),
     );
-    expect(collection).toHaveAttribute("list");
-    expect(
-      document.querySelector('option[value="Known Saga"]'),
-    ).toBeInTheDocument();
+    await screen.findByRole("option", { name: "Known Saga" });
+    expect(collection).toHaveAccessibleName("Collection (optional)");
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(collection).toHaveValue("Known Saga");
 
     await user.clear(collection);
     await user.type(collection, "Entirely New Collection");
