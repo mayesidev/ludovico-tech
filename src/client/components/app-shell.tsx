@@ -5,7 +5,7 @@ import {
   POSTER_REEL_IMAGE_WIDTH,
   POSTER_REEL_INTERVAL_MS,
 } from "../lib/poster-reel";
-import { cn, formatMovieTitle } from "../lib/utils";
+import { cn, formatMovieTitle, type PosterImageWidth } from "../lib/utils";
 import type { Navigate, Tab } from "../types";
 import { AppLink } from "./app-link";
 import { Poster } from "./poster";
@@ -198,14 +198,42 @@ export function ErrorNotice({
   );
 }
 
+type RevealMovie = { posterPath: string | null; title: string };
+type ReelPoster = RevealMovie & { imageWidth: PosterImageWidth; key: string };
+
+const resolveReelPoster = (
+  reelMovie: HomeMovie | undefined,
+  starting: RevealMovie | null,
+  selected: RevealMovie | null,
+): ReelPoster | null => {
+  if (selected) {
+    return {
+      ...selected,
+      imageWidth: POSTER_REEL_IMAGE_WIDTH,
+      key: selected.title,
+    };
+  }
+  if (reelMovie) {
+    return {
+      imageWidth: POSTER_REEL_IMAGE_WIDTH,
+      key: reelMovie.id,
+      posterPath: reelMovie.poster_path,
+      title: formatMovieTitle(reelMovie.title, reelMovie.version),
+    };
+  }
+  return starting
+    ? { ...starting, imageWidth: 500, key: starting.title }
+    : null;
+};
+
 export function RollReveal({
   reel,
   starting,
   selected,
 }: {
   reel: HomeMovie[];
-  starting: { posterPath: string | null; title: string } | null;
-  selected: { posterPath: string | null; title: string } | null;
+  starting: RevealMovie | null;
+  selected: RevealMovie | null;
 }) {
   const [reelIndex, setReelIndex] = useState(0);
 
@@ -223,18 +251,7 @@ export function RollReveal({
     return () => window.clearInterval(interval);
   }, [reel, selected]);
 
-  const reelMovie = reel[reelIndex];
-  const visibleMovie = selected
-    ? { poster_path: selected.posterPath, title: selected.title }
-    : (reelMovie ??
-      (starting
-        ? { poster_path: starting.posterPath, title: starting.title }
-        : null));
-  const visibleTitle = selected
-    ? selected.title
-    : reelMovie
-      ? formatMovieTitle(reelMovie.title, reelMovie.version)
-      : starting?.title;
+  const poster = resolveReelPoster(reel[reelIndex], starting, selected);
   const announcement = selected
     ? `Now showing: ${selected.title}`
     : "Rolling...";
@@ -249,19 +266,13 @@ export function RollReveal({
       <span className="sr-only">{announcement}</span>
       <div aria-hidden="true" className="w-full max-w-sm text-center">
         <div className="mx-auto mb-6 w-full max-w-[220px]">
-          {visibleMovie ? (
+          {poster ? (
             <Poster
-              imageWidth={
-                !selected && !reelMovie && starting
-                  ? 500
-                  : POSTER_REEL_IMAGE_WIDTH
-              }
-              key={
-                selected?.title ?? reelMovie?.id ?? starting?.title ?? "empty"
-              }
+              imageWidth={poster.imageWidth}
+              key={poster.key}
               large
-              path={visibleMovie.poster_path}
-              title={visibleTitle ?? visibleMovie.title}
+              path={poster.posterPath}
+              title={poster.title}
             />
           ) : (
             <div className="poster-frame mx-auto grid aspect-[2/3] w-full max-w-[220px] place-items-center text-highlight">
@@ -273,7 +284,7 @@ export function RollReveal({
           {selected ? "Now Showing" : "Rolling..."}
         </p>
         <h2 className="font-heading text-4xl font-medium tracking-tight text-text-primary sm:text-6xl">
-          {visibleTitle ?? "The Posters Are Shuffling"}
+          {poster?.title ?? "The Posters Are Shuffling"}
         </h2>
       </div>
     </div>

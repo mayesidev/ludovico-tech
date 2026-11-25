@@ -57,8 +57,8 @@ export function EditMovieDialog({
   const parsedVersionRuntime = parseVersionRuntime(versionRuntime);
   const parsedVersionReferenceUrl =
     parseVersionReferenceUrl(versionReferenceUrl);
-  const usingVersion =
-    parsedTmdbId !== null && parsedTmdbId !== undefined && versionSpecified;
+  const tmdbSelected = typeof parsedTmdbId === "number";
+  const usingVersion = tmdbSelected && versionSpecified;
   const invalidTitle = attempted && !title.trim();
 
   const changeTmdbId = (value: string) => {
@@ -162,7 +162,7 @@ export function EditMovieDialog({
             onVersionReferenceUrlChange={setVersionReferenceUrl}
             onVersionRuntimeChange={setVersionRuntime}
             specified={versionSpecified}
-            tmdbSelected={parsedTmdbId !== null && parsedTmdbId !== undefined}
+            tmdbSelected={tmdbSelected}
             version={version}
             versionReferenceUrl={versionReferenceUrl}
             versionReferenceUrlInvalid={

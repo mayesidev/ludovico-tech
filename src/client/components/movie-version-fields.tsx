@@ -40,6 +40,8 @@ export function MovieVersionFields({
   const versionEnabled = specified && tmdbSelected;
   const detailsEnabled = versionEnabled && Boolean(version.trim());
   const versionInvalid = attempted && versionEnabled && !version.trim();
+  const runtimeInvalid = attempted && versionRuntimeInvalid;
+  const referenceInvalid = attempted && versionReferenceUrlInvalid;
 
   return (
     <section className="rounded-sm border border-border-subtle bg-canvas/35 p-4">
@@ -48,7 +50,7 @@ export function MovieVersionFields({
         htmlFor={toggleId}
       >
         <input
-          checked={specified && tmdbSelected}
+          checked={versionEnabled}
           className="mt-0.5 size-4 accent-highlight"
           disabled={!tmdbSelected}
           id={toggleId}
@@ -88,10 +90,8 @@ export function MovieVersionFields({
           <label className="ui-label block text-text-muted" htmlFor={runtimeId}>
             Version Runtime (minutes)
             <Input
-              aria-describedby={
-                attempted && versionRuntimeInvalid ? runtimeErrorId : undefined
-              }
-              aria-invalid={attempted && versionRuntimeInvalid}
+              aria-describedby={runtimeInvalid ? runtimeErrorId : undefined}
+              aria-invalid={runtimeInvalid}
               className="mt-2"
               disabled={!detailsEnabled}
               id={runtimeId}
@@ -104,7 +104,7 @@ export function MovieVersionFields({
               value={versionRuntime}
             />
           </label>
-          {attempted && versionRuntimeInvalid && (
+          {runtimeInvalid && (
             <p className="text-sm text-danger" id={runtimeErrorId} role="alert">
               Enter a positive whole number of minutes.
             </p>
@@ -116,12 +116,8 @@ export function MovieVersionFields({
           >
             Version Reference URL
             <Input
-              aria-describedby={
-                attempted && versionReferenceUrlInvalid
-                  ? referenceErrorId
-                  : undefined
-              }
-              aria-invalid={attempted && versionReferenceUrlInvalid}
+              aria-describedby={referenceInvalid ? referenceErrorId : undefined}
+              aria-invalid={referenceInvalid}
               className="mt-2"
               disabled={!detailsEnabled}
               id={referenceId}
@@ -134,7 +130,7 @@ export function MovieVersionFields({
               value={versionReferenceUrl}
             />
           </label>
-          {attempted && versionReferenceUrlInvalid && (
+          {referenceInvalid && (
             <p
               className="text-sm text-danger"
               id={referenceErrorId}

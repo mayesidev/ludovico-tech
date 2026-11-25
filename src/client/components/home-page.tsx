@@ -32,20 +32,13 @@ export function HomePage({
   roll,
   run,
 }: HomePageProps) {
-  const isWatched =
-    nowShowing?.rating_score !== null && nowShowing?.rating_score !== undefined;
-  const hasSelection = Boolean(nowShowing?.movie_id);
+  const movieId = nowShowing?.movie_id;
   const collectionId = nowShowing?.collection_id;
   const collectionHref = collectionId
     ? `/collections/${encodeURIComponent(collectionId)}?from=now-showing`
     : null;
 
   const releaseYear = nowShowing?.release_date?.slice(0, 4) ?? null;
-  const runtime = nowShowing
-    ? (nowShowing.version_runtime ?? nowShowing.runtime_minutes ?? null)
-    : null;
-  const cast = nowShowing?.cast ?? [];
-  const directors = nowShowing?.directors ?? [];
   const nowShowingTitle = formatMovieTitle(
     nowShowing?.title,
     nowShowing?.version,
@@ -76,11 +69,11 @@ export function HomePage({
                   } as CSSProperties
                 }
               >
-                {nowShowing?.movie_id ? (
+                {movieId ? (
                   <AppLink
                     aria-label={`${nowShowingTitle}${releaseYear ? ` (${releaseYear})` : ""}`}
                     className="transition hover:text-highlight-soft"
-                    href={`/movies/${encodeURIComponent(nowShowing.movie_id)}?from=now-showing`}
+                    href={`/movies/${encodeURIComponent(movieId)}?from=now-showing`}
                     onNavigate={onNavigate}
                   >
                     {nowShowingTitle}
@@ -91,63 +84,14 @@ export function HomePage({
               </h1>
             </div>
 
-            {hasSelection && (
-              <dl className="feature-metadata">
-                {releaseYear && (
-                  <div>
-                    <dt className="ui-label text-text-muted">Release</dt>
-                    <dd className="metadata-value mt-2 text-text-secondary">
-                      {releaseYear}
-                    </dd>
-                  </div>
-                )}
-                {runtime !== null && (
-                  <div>
-                    <dt className="ui-label text-text-muted">Runtime</dt>
-                    <dd className="metadata-value mt-2 text-text-secondary">
-                      {formatRuntime(runtime)}
-                    </dd>
-                  </div>
-                )}
-                {nowShowing?.added_at && (
-                  <div>
-                    <dt className="ui-label text-text-muted">Added</dt>
-                    <dd className="metadata-value mt-2 text-text-secondary">
-                      {formatDate(nowShowing.added_at)}
-                    </dd>
-                  </div>
-                )}
-              </dl>
+            {movieId && (
+              <>
+                <FeatureFacts movie={nowShowing} />
+                <FeatureCredits movie={nowShowing} />
+              </>
             )}
 
-            {hasSelection && (directors.length > 0 || cast.length > 0) && (
-              <dl
-                className={cn(
-                  "feature-credits",
-                  (directors.length === 0 || cast.length === 0) &&
-                    "feature-credits-single",
-                )}
-              >
-                {directors.length > 0 && (
-                  <div>
-                    <dt className="ui-label text-text-muted">Directed by</dt>
-                    <dd className="metadata-value mt-2 text-text-secondary">
-                      {directors.map((person) => person.name).join(", ")}
-                    </dd>
-                  </div>
-                )}
-                {cast.length > 0 && (
-                  <div>
-                    <dt className="ui-label text-text-muted">Starring</dt>
-                    <dd className="metadata-value mt-2 text-text-secondary">
-                      {cast.map((person) => person.name).join(", ")}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-            )}
-
-            {hasSelection && (
+            {movieId && (
               <div className="flex w-full flex-wrap items-baseline justify-between gap-4 pt-5">
                 {nowShowing?.collection_name && collectionHref ? (
                   <AppLink href={collectionHref} onNavigate={onNavigate}>
@@ -158,7 +102,7 @@ export function HomePage({
                 )}
                 <AppLink
                   className="ml-auto text-sm font-semibold tracking-normal text-highlight-soft hover:text-text-primary"
-                  href={`/movies/${encodeURIComponent(nowShowing!.movie_id!)}?from=now-showing`}
+                  href={`/movies/${encodeURIComponent(movieId)}?from=now-showing`}
                   onNavigate={onNavigate}
                 >
                   Movie Details →
@@ -166,7 +110,7 @@ export function HomePage({
               </div>
             )}
 
-            {isWatched && nowShowing?.rating_score !== null && (
+            {nowShowing?.rating_score != null && (
               <div
                 aria-label={`Rating: ${nowShowing.rating_score} ${nowShowing.rating_phrase ?? ""}`}
                 className="rating-surface mt-7 flex w-full max-w-sm items-baseline gap-4 border px-5 py-4"
@@ -180,76 +124,18 @@ export function HomePage({
               </div>
             )}
 
-            {canMutate && nowShowing?.movie_id && !isWatched ? (
-              <RatingForm busy={busy} movieId={nowShowing.movie_id} run={run} />
-            ) : canMutate ? (
-              <div className="mt-7 flex flex-wrap gap-3">
-                {isWatched && collectionId && hasNextCollectionMovie && (
-                  <Button
-                    onClick={() => void run(() => api.next())}
-                    disabled={busy}
-                  >
-                    <ArrowDown size={16} />
-                    Continue Collection
-                  </Button>
-                )}
-                <Button
-                  onClick={roll}
-                  disabled={busy}
-                  variant={
-                    isWatched && collectionId && hasNextCollectionMovie
-                      ? "secondary"
-                      : "primary"
-                  }
-                >
-                  {busy ? (
-                    <LoaderCircle className="animate-spin" size={16} />
-                  ) : (
-                    <RotateCw size={16} />
-                  )}
-                  Roll What’s Next
-                </Button>
-              </div>
-            ) : (
-              <div className="mt-7">
-                <Button onClick={onLogin} variant="secondary">
-                  {isWatched || !hasSelection
-                    ? "Sign In to Roll What’s Next"
-                    : "Sign In to Rate This Movie"}
-                </Button>
-              </div>
-            )}
+            <FeatureActions
+              busy={busy}
+              canMutate={canMutate}
+              hasNextCollectionMovie={hasNextCollectionMovie}
+              nowShowing={nowShowing}
+              onLogin={onLogin}
+              roll={roll}
+              run={run}
+            />
 
             {canMutate && nowShowing?.audit && (
-              <AuditDetails
-                className="mt-6"
-                entries={[
-                  {
-                    attribution: nowShowing.audit.rolled,
-                    label: "Rolled at",
-                  },
-                  ...(nowShowing.audit.movie
-                    ? [
-                        {
-                          attribution: nowShowing.audit.movie.added,
-                          label: "Movie added",
-                        },
-                        {
-                          attribution: nowShowing.audit.movie.updated,
-                          label: "Movie last updated",
-                        },
-                        {
-                          attribution: nowShowing.audit.movie.rating,
-                          label: "Rating recorded",
-                        },
-                        {
-                          attribution: nowShowing.audit.movie.metadata,
-                          label: "TMDB metadata updated",
-                        },
-                      ]
-                    : []),
-                ]}
-              />
+              <FeatureAudit audit={nowShowing.audit} />
             )}
           </div>
         </div>
@@ -257,6 +143,158 @@ export function HomePage({
 
       <HistorySection movies={watchedMovies} onNavigate={onNavigate} />
     </div>
+  );
+}
+
+function FeatureFacts({ movie }: { movie: NowShowing }) {
+  const releaseYear = movie.release_date?.slice(0, 4) ?? null;
+  const runtime = movie.version_runtime ?? movie.runtime_minutes ?? null;
+  return (
+    <dl className="feature-metadata">
+      {releaseYear && (
+        <div>
+          <dt className="ui-label text-text-muted">Release</dt>
+          <dd className="metadata-value mt-2 text-text-secondary">
+            {releaseYear}
+          </dd>
+        </div>
+      )}
+      {runtime !== null && (
+        <div>
+          <dt className="ui-label text-text-muted">Runtime</dt>
+          <dd className="metadata-value mt-2 text-text-secondary">
+            {formatRuntime(runtime)}
+          </dd>
+        </div>
+      )}
+      {movie.added_at && (
+        <div>
+          <dt className="ui-label text-text-muted">Added</dt>
+          <dd className="metadata-value mt-2 text-text-secondary">
+            {formatDate(movie.added_at)}
+          </dd>
+        </div>
+      )}
+    </dl>
+  );
+}
+
+function FeatureCredits({ movie }: { movie: NowShowing }) {
+  const cast = movie.cast ?? [];
+  const directors = movie.directors ?? [];
+  if (!directors.length && !cast.length) return null;
+
+  return (
+    <dl
+      className={cn(
+        "feature-credits",
+        (directors.length === 0 || cast.length === 0) &&
+          "feature-credits-single",
+      )}
+    >
+      {directors.length > 0 && (
+        <div>
+          <dt className="ui-label text-text-muted">Directed by</dt>
+          <dd className="metadata-value mt-2 text-text-secondary">
+            {directors.map((person) => person.name).join(", ")}
+          </dd>
+        </div>
+      )}
+      {cast.length > 0 && (
+        <div>
+          <dt className="ui-label text-text-muted">Starring</dt>
+          <dd className="metadata-value mt-2 text-text-secondary">
+            {cast.map((person) => person.name).join(", ")}
+          </dd>
+        </div>
+      )}
+    </dl>
+  );
+}
+
+function FeatureActions({
+  busy,
+  canMutate,
+  hasNextCollectionMovie,
+  nowShowing,
+  onLogin,
+  roll,
+  run,
+}: Omit<HomePageProps, "onNavigate" | "watchedMovies">) {
+  const movieId = nowShowing?.movie_id;
+  const isWatched = nowShowing?.rating_score != null;
+  if (!canMutate) {
+    return (
+      <div className="mt-7">
+        <Button onClick={onLogin} variant="secondary">
+          {isWatched || !movieId
+            ? "Sign In to Roll What’s Next"
+            : "Sign In to Rate This Movie"}
+        </Button>
+      </div>
+    );
+  }
+  if (movieId && !isWatched) {
+    return <RatingForm busy={busy} movieId={movieId} run={run} />;
+  }
+
+  const canContinue =
+    isWatched && nowShowing?.collection_id && hasNextCollectionMovie;
+  return (
+    <div className="mt-7 flex flex-wrap gap-3">
+      {canContinue && (
+        <Button onClick={() => void run(() => api.next())} disabled={busy}>
+          <ArrowDown size={16} />
+          Continue Collection
+        </Button>
+      )}
+      <Button
+        onClick={roll}
+        disabled={busy}
+        variant={canContinue ? "secondary" : "primary"}
+      >
+        {busy ? (
+          <LoaderCircle className="animate-spin" size={16} />
+        ) : (
+          <RotateCw size={16} />
+        )}
+        Roll What’s Next
+      </Button>
+    </div>
+  );
+}
+
+function FeatureAudit({ audit }: { audit: NonNullable<NowShowing["audit"]> }) {
+  return (
+    <AuditDetails
+      className="mt-6"
+      entries={[
+        {
+          attribution: audit.rolled,
+          label: "Rolled at",
+        },
+        ...(audit.movie
+          ? [
+              {
+                attribution: audit.movie.added,
+                label: "Movie added",
+              },
+              {
+                attribution: audit.movie.updated,
+                label: "Movie last updated",
+              },
+              {
+                attribution: audit.movie.rating,
+                label: "Rating recorded",
+              },
+              {
+                attribution: audit.movie.metadata,
+                label: "TMDB metadata updated",
+              },
+            ]
+          : []),
+      ]}
+    />
   );
 }
 

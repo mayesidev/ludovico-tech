@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -71,6 +71,32 @@ const renderLibrary = (canMutate = true) =>
 afterEach(() => vi.restoreAllMocks());
 
 describe("movie library", () => {
+  it("does not replace a newer page with an out-of-order response", async () => {
+    let resolveEarlier!: (value: LibraryResponse) => void;
+    const earlier = new Promise<LibraryResponse>((resolve) => {
+      resolveEarlier = resolve;
+    });
+    const load = vi
+      .spyOn(api, "library")
+      .mockReturnValueOnce(earlier)
+      .mockResolvedValueOnce(response([movies[0]]));
+    const user = userEvent.setup();
+    renderLibrary();
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+
+    await user.click(screen.getByRole("button", { name: /Title/ }));
+    expect(
+      await screen.findByRole("link", { name: "Zulu Movie" }),
+    ).toBeVisible();
+
+    await act(async () => {
+      resolveEarlier(response([movies[1]]));
+      await earlier;
+    });
+    expect(screen.getByRole("link", { name: "Zulu Movie" })).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Alpha Movie" })).toBeNull();
+  });
+
   it("renders the bounded server page with catalog-wide totals and links", async () => {
     vi.spyOn(api, "library").mockResolvedValue(
       response([{ ...movies[1], title: "Batman", version: "Director's Cut" }]),

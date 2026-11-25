@@ -1,5 +1,6 @@
 import js from "@eslint/js";
 import { plugin as shadcn } from "@shadcn/lint";
+import reactDoctor from "eslint-plugin-react-doctor";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 import globals from "globals";
@@ -40,6 +41,27 @@ export default tseslint.config(
         { allowConstantExport: true },
       ],
     },
+  },
+  {
+    ...reactDoctor.configs.recommended,
+    files: ["src/client/**/*.{ts,tsx}"],
+    settings: {
+      "react-doctor": {
+        ...reactDoctor.configs.recommended.settings["react-doctor"],
+        capabilities: ["react-compiler"],
+      },
+    },
+    rules: {
+      ...reactDoctor.configs.recommended.rules,
+      "react-doctor/exhaustive-deps": "off",
+      "react-doctor/no-ref-current-in-render": "off",
+      "react-doctor/no-set-state-in-render": "off",
+      "react-doctor/rules-of-hooks": "off",
+    },
+  },
+  {
+    files: ["src/client/components/dialog.tsx"],
+    rules: { "react-doctor/prefer-html-dialog": "off" },
   },
   {
     files: ["src/client/**/*.{ts,tsx}"],
