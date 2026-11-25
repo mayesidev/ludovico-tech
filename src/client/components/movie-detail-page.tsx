@@ -83,7 +83,7 @@ export function MovieDetailPage({
         </div>
         <div className="min-w-0 pt-2">
           <div className="grid gap-5 border-b border-border-subtle pb-7 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-            <h1 className="font-heading text-5xl font-medium leading-[0.95] tracking-[-0.045em] text-text-primary sm:text-6xl">
+            <h1 className="font-heading text-5xl leading-[0.95] font-medium tracking-[-0.045em] text-text-primary sm:text-6xl">
               {title}
             </h1>
             {watched && movie.rating_phrase !== null && (
@@ -94,7 +94,7 @@ export function MovieDetailPage({
                 <span className="text-2xl font-semibold text-highlight-soft">
                   {movie.rating_score}
                 </span>
-                <span className="min-w-0 text-sm italic text-text-primary">
+                <span className="min-w-0 text-sm text-text-primary italic">
                   {movie.rating_phrase}
                 </span>
               </div>

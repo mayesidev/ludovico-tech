@@ -21,8 +21,8 @@ application until the new release finishes deploying.
 
 ## Checks
 
-`pnpm format` formats code and organizes imports, including removing unused imports.
-`pnpm format:check` enforces the same formatting and import organization in CI.
+`pnpm format` formats code, organizes imports (including removing unused imports),
+and sorts Tailwind utility classes. `pnpm format:check` enforces the same rules in CI.
 
 ```sh
 pnpm install

@@ -128,7 +128,7 @@ export function LibraryPage({
     <div>
       <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <h1 className="font-heading text-3xl font-medium leading-none tracking-[0.01em] text-text-primary sm:text-4xl">
+          <h1 className="font-heading text-3xl leading-none font-medium tracking-[0.01em] text-text-primary sm:text-4xl">
             Library
           </h1>
           <p className="mt-3 text-sm text-text-muted">
@@ -139,7 +139,7 @@ export function LibraryPage({
         </div>
         <div className="relative w-full sm:w-72">
           <Search
-            className="absolute left-3 top-3.5 text-text-muted"
+            className="absolute top-3.5 left-3 text-text-muted"
             size={16}
           />
           <label className="sr-only" htmlFor="library-search">
@@ -196,7 +196,7 @@ export function LibraryPage({
                     className="bg-canvas/35 transition hover:bg-action/15"
                     key={movie.id}
                   >
-                    <td className="break-words px-5 py-4 text-text-muted">
+                    <td className="px-5 py-4 break-words text-text-muted">
                       <AppLink
                         className="font-semibold text-text-primary hover:text-highlight-soft"
                         href={`/movies/${encodeURIComponent(movie.id)}?from=library`}
@@ -205,7 +205,7 @@ export function LibraryPage({
                         {title}
                       </AppLink>
                     </td>
-                    <td className="break-words px-5 py-4 text-text-muted">
+                    <td className="px-5 py-4 break-words text-text-muted">
                       {movie.collection_id && movie.collection_name ? (
                         <AppLink
                           className="hover:text-highlight-soft"
@@ -222,7 +222,7 @@ export function LibraryPage({
                     <td className="px-5 py-4 text-text-muted">
                       {formatDate(movie.added_at)}
                     </td>
-                    <td className="break-words px-5 py-4 text-text-muted">
+                    <td className="px-5 py-4 break-words text-text-muted">
                       {movie.rating_score !== null ? (
                         <span className="text-highlight-soft">
                           {movie.rating_score} · {movie.rating_phrase}
@@ -287,7 +287,7 @@ function MovieLinks({ movie }: { movie: Movie }) {
   const { imdb_id: imdbId, tmdb_id: tmdbId } = movie;
   if (tmdbId === null && imdbId === null) return null;
   return (
-    <span className="inline-flex items-center gap-2 whitespace-nowrap font-semibold text-highlight-soft">
+    <span className="inline-flex items-center gap-2 font-semibold whitespace-nowrap text-highlight-soft">
       {tmdbId !== null && (
         <a
           className="inline-flex items-center gap-1 hover:text-text-primary"

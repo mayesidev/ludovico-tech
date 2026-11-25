@@ -14,7 +14,7 @@ export const Button = forwardRef<
 >(({ className, variant = "primary", ...props }, ref) => (
   <button
     className={cn(
-      "ui-label inline-flex min-h-11 items-center justify-center gap-2 rounded-sm px-4 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:cursor-not-allowed disabled:opacity-45",
+      "ui-label inline-flex min-h-11 items-center justify-center gap-2 rounded-sm px-4 transition focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-canvas focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-45",
       variant === "primary" &&
         "border border-action bg-action text-text-primary shadow-lg shadow-black/15 hover:border-action-hover hover:bg-action-hover",
       variant === "secondary" &&

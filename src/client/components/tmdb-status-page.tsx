@@ -306,7 +306,7 @@ export function TmdbStatusPage({
   if (!canMutate) {
     return (
       <div>
-        <h1 className="font-heading text-3xl font-medium leading-none tracking-[0.01em] text-text-primary sm:text-4xl">
+        <h1 className="font-heading text-3xl leading-none font-medium tracking-[0.01em] text-text-primary sm:text-4xl">
           Manager's Office
         </h1>
         <p className="mt-3 text-sm text-text-muted">
@@ -323,7 +323,7 @@ export function TmdbStatusPage({
   if (!summary || !queue) {
     return (
       <div>
-        <h1 className="font-heading text-3xl font-medium leading-none tracking-[0.01em] text-text-primary sm:text-4xl">
+        <h1 className="font-heading text-3xl leading-none font-medium tracking-[0.01em] text-text-primary sm:text-4xl">
           Manager's Office
         </h1>
         <p className="mt-3 text-sm text-danger" role="alert">
@@ -423,7 +423,7 @@ export function TmdbStatusPage({
     <div>
       <div className="mb-7 flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
         <div>
-          <h1 className="font-heading text-3xl font-medium leading-none tracking-[0.01em] text-text-primary sm:text-4xl">
+          <h1 className="font-heading text-3xl leading-none font-medium tracking-[0.01em] text-text-primary sm:text-4xl">
             Manager's Office
           </h1>
         </div>
@@ -717,7 +717,7 @@ export function TmdbStatusPage({
         </label>
         <div className="relative w-full sm:w-72">
           <Search
-            className="absolute left-3 top-3.5 text-text-muted"
+            className="absolute top-3.5 left-3 text-text-muted"
             size={16}
           />
           <label className="sr-only" htmlFor="tmdb-status-search">
@@ -766,7 +766,7 @@ export function TmdbStatusPage({
                   className="bg-canvas/35 transition hover:bg-action/15"
                   key={item.movieId}
                 >
-                  <td className="break-words px-5 py-4 text-text-muted">
+                  <td className="px-5 py-4 break-words text-text-muted">
                     <AppLink
                       className="font-semibold text-text-primary hover:text-highlight-soft"
                       href={`/movies/${encodeURIComponent(item.movieId)}?from=manager-office`}
@@ -778,7 +778,7 @@ export function TmdbStatusPage({
                   <td className="px-5 py-4 text-text-muted">
                     {item.tmdbId ?? "—"}
                   </td>
-                  <td className="break-words px-5 py-4 text-text-muted">
+                  <td className="px-5 py-4 break-words text-text-muted">
                     <span
                       className={
                         item.state === "failed"

@@ -48,12 +48,12 @@ export function AppHeader({
             />
           </span>
           <span className="w-min min-w-0">
-            <span className="block whitespace-nowrap font-heading text-lg font-semibold tracking-tight text-text-primary sm:text-xl">
+            <span className="block font-heading text-lg font-semibold tracking-tight whitespace-nowrap text-text-primary sm:text-xl">
               Ludovico Tech
             </span>
             <span
               aria-label="A Pop Culture Re-education Program"
-              className="hidden text-sm font-normal leading-[1.3] tracking-normal text-text-muted md:block"
+              className="hidden text-sm leading-[1.3] font-normal tracking-normal text-text-muted md:block"
             >
               <span aria-hidden="true" className="block whitespace-nowrap">
                 A Pop Culture
@@ -123,7 +123,7 @@ function NavButton({
       href={href}
       onNavigate={onNavigate}
       className={cn(
-        "nav-label relative grid shrink-0 place-items-center whitespace-nowrap px-3 transition sm:min-w-32 sm:px-6",
+        "nav-label relative grid shrink-0 place-items-center px-3 whitespace-nowrap transition sm:min-w-32 sm:px-6",
         active
           ? "text-text-primary after:absolute after:inset-x-5 after:bottom-[-1px] after:h-[3px] after:bg-action"
           : "text-text-muted hover:text-text-primary",
@@ -161,7 +161,7 @@ function AuthControls({
     <button
       aria-label={`Sign Out${auth.user?.displayName ? ` ${auth.user.displayName}` : ""}`}
       onClick={onLogout}
-      className="header-label max-w-[120px] shrink-0 whitespace-nowrap rounded-sm border border-border-primary bg-surface/75 px-3 py-2 text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary sm:max-w-[180px]"
+      className="header-label max-w-[120px] shrink-0 rounded-sm border border-border-primary bg-surface/75 px-3 py-2 whitespace-nowrap text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary sm:max-w-[180px]"
     >
       Sign Out
     </button>
@@ -186,7 +186,7 @@ export function ErrorNotice({
   return (
     <div
       aria-live="assertive"
-      className="fixed left-1/2 top-4 z-[60] flex w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 items-center justify-between gap-4 rounded-sm border border-danger/50 bg-danger-surface px-4 py-3 text-sm text-text-primary shadow-2xl shadow-black/60"
+      className="fixed top-4 left-1/2 z-[60] flex w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 items-center justify-between gap-4 rounded-sm border border-danger/50 bg-danger-surface px-4 py-3 text-sm text-text-primary shadow-2xl shadow-black/60"
       role="alert"
     >
       <span>{message}</span>

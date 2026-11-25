@@ -30,7 +30,7 @@ export function ImdbMovieField({
       />
       {parsedImdbId === undefined ? (
         <span
-          className="mt-2 block text-sm font-normal normal-case tracking-normal text-danger"
+          className="mt-2 block text-sm font-normal tracking-normal text-danger normal-case"
           id={errorId}
           role="alert"
         >
@@ -38,7 +38,7 @@ export function ImdbMovieField({
         </span>
       ) : (
         <span
-          className="mt-2 block text-xs font-normal normal-case tracking-normal text-text-muted"
+          className="mt-2 block text-xs font-normal tracking-normal text-text-muted normal-case"
           id={helpId}
         >
           Used only for an external link. TMDB remains the source for movie
