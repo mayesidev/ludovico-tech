@@ -19,7 +19,20 @@ import {
 import type { Navigate } from "../types";
 import { AppLink } from "./app-link";
 import { PaginationControls } from "./pagination-controls";
-import { Button, Card, Input } from "./ui";
+import { Alert } from "./ui/alert";
+import { Button } from "./ui/button";
+import { Card } from "./ui/card";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { NativeSelect, NativeSelectOption } from "./ui/native-select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./ui/table";
 
 const timestampFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: "medium",
@@ -359,14 +372,7 @@ export function TmdbStatusPage({
         </div>
       </div>
 
-      {error && (
-        <p
-          className="mb-6 rounded-sm border border-danger/50 bg-danger-surface px-4 py-3 text-sm text-danger"
-          role="alert"
-        >
-          {error}
-        </p>
-      )}
+      {error && <Alert className="mb-6">{error}</Alert>}
       <RefreshScheduleCard
         clearError={clearError}
         draft={scheduleDraft}
@@ -605,12 +611,13 @@ function RefreshScheduleCard({
           }}
         >
           <div className="text-sm text-text-secondary">
-            <label
-              className="ui-label mb-2 block text-text-muted"
+            <Label
+              className="mb-2"
+              variant="field"
               htmlFor="tmdb-refresh-frequency"
             >
               Frequency (minutes)
-            </label>
+            </Label>
             <Input
               aria-describedby="tmdb-refresh-frequency-help"
               aria-invalid={intervalMinutes !== "" && !intervalValid}
@@ -630,12 +637,13 @@ function RefreshScheduleCard({
             </span>
           </div>
           <div className="text-sm text-text-secondary">
-            <label
-              className="ui-label mb-2 block text-text-muted"
+            <Label
+              className="mb-2"
+              variant="field"
               htmlFor="tmdb-refresh-batch-size"
             >
               Batch size
-            </label>
+            </Label>
             <Input
               aria-describedby="tmdb-refresh-batch-size-help"
               aria-invalid={batchSize !== "" && !batchSizeValid}
@@ -780,7 +788,7 @@ function RefreshQueue({
   const sortHeader = (label: string, sort: TmdbRefreshQueueQuery["sort"]) => {
     const active = queueQuery.sort === sort;
     return (
-      <th
+      <TableHead
         aria-sort={
           active
             ? queueQuery.direction === "asc"
@@ -788,27 +796,28 @@ function RefreshQueue({
               : "descending"
             : "none"
         }
-        className="border-r border-highlight/10 px-5 py-4 font-semibold last:border-r-0"
+        divided
       >
-        <button
-          className="text-text-primary hover:text-highlight-soft"
+        <Button
+          labelStyle="plain"
           onClick={() => changeSort(sort)}
+          size="bare"
+          variant="text"
         >
           {label}
           {active ? (queueQuery.direction === "asc" ? " ↑" : " ↓") : ""}
-        </button>
-      </th>
+        </Button>
+      </TableHead>
     );
   };
   const { page, pageSize, total, totalPages } = queue.pagination;
   return (
     <>
       <div className="mb-5 flex flex-col justify-end gap-3 sm:flex-row sm:items-end">
-        <label className="grid gap-1.5 text-xs text-text-muted">
+        <Label variant="stacked">
           <span className="ui-label">Status</span>
-          <select
+          <NativeSelect
             aria-label="Filter refresh status"
-            className="h-11 rounded-sm border border-border-subtle bg-canvas/75 px-3 text-sm text-text-primary"
             value={queueQuery.state}
             onChange={(event) =>
               setQueueQuery((current) => ({
@@ -818,24 +827,28 @@ function RefreshQueue({
               }))
             }
           >
-            <option value="all">All statuses</option>
-            <option value="current">Current</option>
-            <option value="due">Due</option>
-            <option value="expired">Expired</option>
-            <option value="failed">Failed</option>
-            <option value="never_fetched">Never fetched</option>
-            <option value="unlinked">Not linked</option>
-            <option value="contract_stale">Contract stale</option>
-          </select>
-        </label>
+            <NativeSelectOption value="all">All statuses</NativeSelectOption>
+            <NativeSelectOption value="current">Current</NativeSelectOption>
+            <NativeSelectOption value="due">Due</NativeSelectOption>
+            <NativeSelectOption value="expired">Expired</NativeSelectOption>
+            <NativeSelectOption value="failed">Failed</NativeSelectOption>
+            <NativeSelectOption value="never_fetched">
+              Never fetched
+            </NativeSelectOption>
+            <NativeSelectOption value="unlinked">Not linked</NativeSelectOption>
+            <NativeSelectOption value="contract_stale">
+              Contract stale
+            </NativeSelectOption>
+          </NativeSelect>
+        </Label>
         <div className="relative w-full sm:w-72">
           <Search
             className="absolute top-3.5 left-3 text-text-muted"
             size={16}
           />
-          <label className="sr-only" htmlFor="tmdb-status-search">
+          <Label className="sr-only" htmlFor="tmdb-status-search">
             Search metadata refresh status
-          </label>
+          </Label>
           <Input
             adornment="start"
             id="tmdb-status-search"
@@ -847,56 +860,49 @@ function RefreshQueue({
       </div>
 
       <Card aria-busy={refreshing} className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1180px] table-fixed text-left text-sm">
-            <colgroup>
-              <col className="w-[220px]" />
-              <col className="w-[90px]" />
-              <col className="w-[160px]" />
-              <col className="w-[130px]" />
-              <col className="w-[130px]" />
-              <col className="w-[130px]" />
-              <col className="w-[140px]" />
-              <col className="w-[180px]" />
-            </colgroup>
-            <thead className="ui-label border-b border-highlight/15 bg-table-header text-text-primary/80">
-              <tr>
-                {sortHeader("Title", "title")}
-                {sortHeader("TMDB ID", "tmdbId")}
-                {sortHeader("Status", "state")}
-                {sortHeader("Last fetched", "fetchedAt")}
-                {sortHeader("Last attempt", "lastAttemptAt")}
-                {sortHeader("Refresh after", "refreshAfter")}
-                {sortHeader("Fetch contract", "contractId")}
-                <th className="px-5 py-4 font-semibold" scope="col">
-                  Action
-                </th>
-              </tr>
-            </thead>
-            <tbody className="data-surface divide-y divide-border-subtle">
-              {queue.items.map((item) => (
-                <RefreshQueueRow
-                  key={item.movieId}
-                  item={item}
-                  onNavigate={onNavigate}
-                  onRefetch={queueRefetch}
-                  queueing={queueingMovieId === item.movieId}
-                  refreshing={refreshing}
-                />
-              ))}
-              {!refreshing && queue.items.length === 0 && (
-                <tr>
-                  <td
-                    className="px-5 py-8 text-center text-text-muted"
-                    colSpan={8}
-                  >
-                    No Library titles match these filters.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <Table className="min-w-[1180px]">
+          <colgroup>
+            <col className="w-[220px]" />
+            <col className="w-[90px]" />
+            <col className="w-[160px]" />
+            <col className="w-[130px]" />
+            <col className="w-[130px]" />
+            <col className="w-[130px]" />
+            <col className="w-[140px]" />
+            <col className="w-[180px]" />
+          </colgroup>
+          <TableHeader>
+            <TableRow>
+              {sortHeader("Title", "title")}
+              {sortHeader("TMDB ID", "tmdbId")}
+              {sortHeader("Status", "state")}
+              {sortHeader("Last fetched", "fetchedAt")}
+              {sortHeader("Last attempt", "lastAttemptAt")}
+              {sortHeader("Refresh after", "refreshAfter")}
+              {sortHeader("Fetch contract", "contractId")}
+              <TableHead>Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {queue.items.map((item) => (
+              <RefreshQueueRow
+                key={item.movieId}
+                item={item}
+                onNavigate={onNavigate}
+                onRefetch={queueRefetch}
+                queueing={queueingMovieId === item.movieId}
+                refreshing={refreshing}
+              />
+            ))}
+            {!refreshing && queue.items.length === 0 && (
+              <TableRow>
+                <TableCell variant="empty" colSpan={8}>
+                  No Library titles match these filters.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
         <PaginationControls
           context="Manager's Office"
           itemLabel="Library titles"
@@ -935,18 +941,18 @@ function RefreshQueueRow({
   refreshing: boolean;
 }) {
   return (
-    <tr className="bg-canvas/35 transition hover:bg-action/15">
-      <td className="px-5 py-4 break-words text-text-muted">
+    <TableRow variant="data">
+      <TableCell variant="wrap">
         <AppLink
-          className="font-semibold text-text-primary hover:text-highlight-soft"
+          variant="title"
           href={`/movies/${encodeURIComponent(item.movieId)}?from=manager-office`}
           onNavigate={onNavigate}
         >
           {item.title}
         </AppLink>
-      </td>
-      <td className="px-5 py-4 text-text-muted">{item.tmdbId ?? "—"}</td>
-      <td className="px-5 py-4 break-words text-text-muted">
+      </TableCell>
+      <TableCell>{item.tmdbId ?? "—"}</TableCell>
+      <TableCell variant="wrap">
         <span
           className={
             item.state === "failed"
@@ -963,20 +969,20 @@ function RefreshQueueRow({
             </span>
           )}
         </span>
-      </td>
-      <td className="px-5 py-4 text-text-muted">
+      </TableCell>
+      <TableCell>
         <QueueTimestamp
           fallback={item.state === "unlinked" ? "—" : "Never"}
           value={item.fetchedAt}
         />
-      </td>
-      <td className="px-5 py-4 text-text-muted">
+      </TableCell>
+      <TableCell>
         <QueueTimestamp fallback="—" value={item.lastAttemptAt} />
-      </td>
-      <td className="px-5 py-4 text-text-muted">
+      </TableCell>
+      <TableCell>
         <QueueTimestamp due fallback="—" value={item.refreshAfter} />
-      </td>
-      <td className="px-5 py-4 text-text-muted">
+      </TableCell>
+      <TableCell>
         {item.contractId === null ? (
           "—"
         ) : (
@@ -984,8 +990,8 @@ function RefreshQueueRow({
             {shortContractId(item.contractId)}
           </span>
         )}
-      </td>
-      <td className="px-5 py-4 text-text-muted">
+      </TableCell>
+      <TableCell>
         {item.state === "current" ? (
           <Button
             aria-label={`Queue ${item.title} for refetch`}
@@ -1005,7 +1011,7 @@ function RefreshQueueRow({
         ) : (
           "Queued"
         )}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { api, type Movie, type NowShowing } from "../api";
@@ -86,7 +86,7 @@ describe("home workflows", () => {
     });
     const user = userEvent.setup();
     const { rerender, props } = renderHome({ nowShowing: attributed });
-    const history = screen.getByText("History", { selector: "summary" });
+    const history = screen.getByRole("button", { name: "History" });
     expect(history).toBeVisible();
     expect(
       screen
@@ -204,7 +204,9 @@ describe("home workflows", () => {
     );
     expect(api.rate).not.toHaveBeenCalled();
 
-    fireEvent.change(slider, { target: { value: "4.5" } });
+    await user.click(screen.getByText("Rating", { exact: true }));
+    expect(slider).toHaveFocus();
+    await user.keyboard("{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}");
     expect(slider).toHaveValue("4.5");
     expect(screen.getByLabelText("Selected rating")).toHaveTextContent("4.5");
     await user.type(

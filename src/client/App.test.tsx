@@ -262,7 +262,7 @@ describe("application authorization presentation", () => {
     await user.type(title, "Existing TMDB Movie");
     await user.click(within(dialog).getByRole("button", { name: "Add Movie" }));
 
-    const alert = await screen.findByRole("alert");
+    const alert = await within(dialog).findByRole("alert");
     expect(alert).toHaveTextContent(
       "That TMDB movie is already in the catalog",
     );

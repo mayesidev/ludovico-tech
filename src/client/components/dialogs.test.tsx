@@ -138,7 +138,7 @@ describe("accessible dialogs", () => {
     expect(screen.getByRole("status")).toHaveFocus();
     expect(screen.queryByRole("button", { name: "Check ID" })).toBeNull();
     expect(checkId).not.toHaveBeenCalled();
-    const collection = screen.getByRole("textbox", {
+    const collection = screen.getByRole("combobox", {
       name: "Collection",
     });
     await user.clear(collection);

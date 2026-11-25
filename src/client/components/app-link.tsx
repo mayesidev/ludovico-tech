@@ -1,7 +1,7 @@
-import type { AnchorHTMLAttributes, MouseEvent } from "react";
+import type { ComponentProps, MouseEvent } from "react";
+import { Link } from "./ui/link";
 
-type AppLinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
-  href: string;
+type AppLinkProps = ComponentProps<typeof Link> & {
   onNavigate: (path: string) => void;
 };
 
@@ -23,5 +23,5 @@ export function AppLink({ href, onClick, onNavigate, ...props }: AppLinkProps) {
     onNavigate(href);
   };
 
-  return <a href={href} onClick={handleClick} {...props} />;
+  return <Link href={href} onClick={handleClick} {...props} />;
 }

@@ -16,7 +16,7 @@ import { HomePage } from "./components/home-page";
 import { LibraryPage } from "./components/library-page";
 import { MovieDetailPage } from "./components/movie-detail-page";
 import { TmdbStatusPage } from "./components/tmdb-status-page";
-import { Button } from "./components/ui";
+import { Button } from "./components/ui/button";
 import { useCatalogRoute } from "./lib/use-catalog-route";
 import { usePosterRoll } from "./lib/use-poster-roll";
 import type { ReturnTarget, RunAction, Tab } from "./types";
@@ -120,6 +120,9 @@ export default function App() {
         : route.page === "tmdb-status"
           ? "tmdb-status"
           : "library";
+  const errorNotice = error && (
+    <ErrorNotice message={error} onDismiss={() => setError(null)} />
+  );
   return (
     <div className="app-background min-h-screen overflow-x-hidden text-text-primary">
       <AppHeader
@@ -163,9 +166,7 @@ export default function App() {
         />
       </main>
 
-      {error && (
-        <ErrorNotice message={error} onDismiss={() => setError(null)} />
-      )}
+      {!addingMovie && !editingMovie && !deletingMovie && errorNotice}
       {rollReveal && (
         <RollReveal
           reel={rollReveal.reel}
@@ -176,6 +177,7 @@ export default function App() {
       {addingMovie && (
         <AddMovieDialog
           busy={busy}
+          notice={errorNotice}
           onAuthExpired={refreshAuth}
           onClose={() => setAddingMovie(false)}
           onCreated={openCreatedMovie}
@@ -186,6 +188,7 @@ export default function App() {
         <EditMovieDialog
           busy={busy}
           movie={editingMovie}
+          notice={errorNotice}
           onAuthExpired={refreshAuth}
           onClose={() => setEditingMovie(null)}
           run={run}
@@ -195,6 +198,7 @@ export default function App() {
         <DeleteMovieDialog
           busy={busy}
           movie={deletingMovie.movie}
+          notice={errorNotice}
           onClose={() => setDeletingMovie(null)}
           onConfirm={() => {
             const { movie, returnTo } = deletingMovie;

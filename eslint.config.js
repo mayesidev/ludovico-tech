@@ -70,15 +70,11 @@ export default tseslint.config(
     },
   },
   {
-    files: ["src/client/components/dialog.tsx"],
-    rules: { "react-doctor/prefer-html-dialog": "off" },
-  },
-  {
     files: ["src/client/**/*.{ts,tsx}"],
     ignores: ["**/*.test.{ts,tsx}"],
     plugins: { shadcn },
     settings: {
-      shadcn: { componentImports: ["^\\./(?:components/)?ui$"] },
+      shadcn: { componentImports: ["^\\./(?:components/)?ui/"] },
     },
     rules: {
       "shadcn/no-arbitrary-values": ["error", { allow: ["layout"] }],

@@ -60,7 +60,27 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await page
       .getByRole("textbox", { name: "Movie title" })
       .fill("Browser Test Feature");
-    await page.getByRole("button", { name: "Add Movie", exact: true }).click();
+    const addDialog = page.getByRole("dialog", { name: "Add a Movie" });
+    const saveMovie = addDialog.getByRole("button", {
+      name: "Add Movie",
+      exact: true,
+    });
+    await page.route(
+      "**/api/movies",
+      (route) =>
+        route.fulfill({
+          status: 409,
+          json: { error: "This movie could not be added" },
+        }),
+      { times: 1 },
+    );
+    await saveMovie.click();
+    await expect(addDialog.getByRole("alert")).toHaveText(
+      "This movie could not be added",
+    );
+    await addDialog.getByRole("button", { name: "Dismiss Error" }).click();
+    await expect(addDialog.getByRole("alert")).toBeHidden();
+    await saveMovie.click();
     await expect(
       page.getByRole("heading", { level: 1, name: "Browser Test Feature" }),
     ).toBeVisible();
@@ -76,7 +96,10 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       timeout: 5_000,
     });
 
-    await page.getByRole("slider", { name: "Rating" }).fill("4.5");
+    const rating = page.getByRole("slider", { name: "Rating" });
+    await rating.fill("4");
+    await rating.press("ArrowRight");
+    await expect(rating).toHaveValue("4.5");
     await page
       .getByRole("textbox", { name: "Custom rating phrase (required)" })
       .fill("A browser-tested classic");
@@ -120,11 +143,15 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       const collection = page.getByRole("combobox", {
         name: "Collection (optional)",
       });
-      await collection.fill(index === 1 ? "Browser" : "Browser Saga");
       if (index === 1) {
+        await collection.pressSequentially("Browser");
         await expect(
-          page.locator('datalist option[value="Browser Saga"]'),
-        ).toBeAttached();
+          page.getByRole("option", { name: "Browser Saga" }),
+        ).toBeVisible();
+        await collection.press("ArrowDown");
+        await collection.press("Enter");
+        await expect(collection).toHaveValue("Browser Saga");
+      } else {
         await collection.fill("Browser Saga");
       }
       await page
@@ -209,7 +236,7 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       .getByRole("textbox", { name: "Movie title" })
       .fill("Browser Edited Movie");
     await page
-      .getByRole("textbox", { name: "Collection" })
+      .getByRole("combobox", { name: "Collection" })
       .fill("Browser Edit Saga");
     await page.getByRole("button", { name: "Save Changes" }).click();
 
@@ -259,6 +286,18 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await page.keyboard.press("Escape");
     await expect(confirmation).toBeHidden();
     await expect(deleteTrigger).toBeFocused();
+
+    await page.setViewportSize({ width: 390, height: 660 });
+    await deleteTrigger.click();
+    await expect(confirmation).toBeInViewport({ ratio: 1 });
+    await expect(page.locator("body")).toHaveCSS("overflow", "hidden");
+    await expect(
+      confirmation.getByRole("button", { name: "Keep Movie" }),
+    ).toBeFocused();
+    await page.mouse.click(5, 5);
+    await expect(confirmation).toBeHidden();
+    await expect(deleteTrigger).toBeFocused();
+
     await deleteTrigger.click();
     await confirmation.getByRole("button", { name: "Delete Movie" }).click();
 
@@ -550,5 +589,38 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     ).toBeVisible();
     expect(submittedMovie).toMatchObject({ title: "Chosen Movie", tmdbId: 42 });
     expect(detailLookups).toBe(0);
+  });
+});
+
+test.describe("collection suggestions on a phone", () => {
+  test.use({
+    hasTouch: true,
+    isMobile: true,
+    viewport: { width: 390, height: 660 },
+  });
+
+  test("selects a suggestion by touch inside the add dialog", async ({
+    page,
+  }) => {
+    await page.route("**/api/collections/suggestions?search=*", (route) =>
+      route.fulfill({
+        json: { collections: [{ id: "moon", name: "Moon Saga" }] },
+      }),
+    );
+    await page.goto("/");
+    await page.getByRole("button", { name: "Add a Movie" }).tap();
+    const dialog = page.getByRole("dialog", { name: "Add a Movie" });
+    const collection = page.getByRole("combobox", {
+      name: "Collection (optional)",
+    });
+    await collection.tap();
+    await collection.pressSequentially("Moon");
+
+    const suggestion = page.getByRole("option", { name: "Moon Saga" });
+    await expect(suggestion).toBeInViewport({ ratio: 1 });
+    await suggestion.tap();
+    await expect(collection).toHaveValue("Moon Saga");
+    await expect(collection).toHaveAttribute("aria-expanded", "false");
+    await expect(dialog).toBeVisible();
   });
 });

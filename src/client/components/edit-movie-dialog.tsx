@@ -1,5 +1,5 @@
 import { Pencil, X } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { parseImdbId } from "../../shared/imdb";
 import type { Movie } from "../api";
 import { api } from "../api";
@@ -9,21 +9,30 @@ import {
 } from "../lib/movie-version";
 import { parseTmdbId } from "../lib/tmdb-id";
 import type { RunAction } from "../types";
-import { Dialog } from "./dialog";
+import { CollectionNameField } from "./collection-name-field";
 import { ImdbMovieField } from "./imdb-movie-field";
 import { MovieVersionFields } from "./movie-version-fields";
 import { TmdbMovieFields } from "./tmdb-movie-fields";
-import { Button, Input } from "./ui";
+import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "./ui/dialog";
 
 export function EditMovieDialog({
   busy,
   movie,
+  notice,
   onAuthExpired,
   onClose,
   run,
 }: {
   busy: boolean;
   movie: Movie;
+  notice?: ReactNode;
   onAuthExpired: () => Promise<void>;
   onClose: () => void;
   run: RunAction;
@@ -48,10 +57,7 @@ export function EditMovieDialog({
   );
   const [attempted, setAttempted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const titleId = useId();
-  const descriptionId = useId();
   const errorId = useId();
-  const collectionId = useId();
   const parsedTmdbId = parseTmdbId(tmdbId);
   const parsedImdbId = parseImdbId(imdbId);
   const parsedVersionRuntime = parseVersionRuntime(versionRuntime);
@@ -72,134 +78,118 @@ export function EditMovieDialog({
   };
 
   return (
-    <Dialog
-      describedBy={descriptionId}
-      initialFocus={inputRef}
-      labelledBy={titleId}
-      onClose={onClose}
-    >
-      <form
-        noValidate
-        onSubmit={(event) => {
-          event.preventDefault();
-          setAttempted(true);
-          if (
-            !title.trim() ||
-            parsedImdbId === undefined ||
-            parsedTmdbId === undefined ||
-            (usingVersion &&
-              (!version.trim() ||
-                parsedVersionRuntime === undefined ||
-                parsedVersionReferenceUrl === undefined))
-          )
-            return;
-          const titleChanged = title.trim() !== movie.title;
-          const tmdbChanged = parsedTmdbId !== movie.tmdb_id;
-          void run(
-            () =>
-              api.updateMovie(movie.id, {
-                collectionName,
-                imdbId: parsedImdbId,
-                title,
-                tmdbId: titleChanged || tmdbChanged ? parsedTmdbId : undefined,
-                version: usingVersion ? version.trim() : null,
-                versionRuntime: usingVersion ? parsedVersionRuntime : null,
-                versionReferenceUrl: usingVersion
-                  ? parsedVersionReferenceUrl
-                  : null,
-              }),
-            onClose,
-          );
-        }}
-      >
-        <div className="mb-6 flex items-start justify-between">
-          <div>
-            <h2
-              className="font-heading text-3xl font-medium tracking-tight text-text-primary"
-              id={titleId}
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent initialFocus={inputRef}>
+        {notice}
+        <form
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            setAttempted(true);
+            if (
+              !title.trim() ||
+              parsedImdbId === undefined ||
+              parsedTmdbId === undefined ||
+              (usingVersion &&
+                (!version.trim() ||
+                  parsedVersionRuntime === undefined ||
+                  parsedVersionReferenceUrl === undefined))
+            )
+              return;
+            const titleChanged = title.trim() !== movie.title;
+            const tmdbChanged = parsedTmdbId !== movie.tmdb_id;
+            void run(
+              () =>
+                api.updateMovie(movie.id, {
+                  collectionName,
+                  imdbId: parsedImdbId,
+                  title,
+                  tmdbId:
+                    titleChanged || tmdbChanged ? parsedTmdbId : undefined,
+                  version: usingVersion ? version.trim() : null,
+                  versionRuntime: usingVersion ? parsedVersionRuntime : null,
+                  versionReferenceUrl: usingVersion
+                    ? parsedVersionReferenceUrl
+                    : null,
+                }),
+              onClose,
+            );
+          }}
+        >
+          <div className="mb-6 flex items-start justify-between">
+            <div>
+              <DialogTitle>Edit Movie</DialogTitle>
+              <DialogDescription className="mt-2">
+                Update the catalog title, collection, or external movie
+                references.
+              </DialogDescription>
+            </div>
+            <DialogClose
+              aria-label="Close Edit Dialog"
+              render={<Button labelStyle="plain" size="bare" variant="text" />}
             >
-              Edit Movie
-            </h2>
-            <p
-              className="mt-2 text-sm leading-6 text-text-muted"
-              id={descriptionId}
-            >
-              Update the catalog title, collection, or external movie
-              references.
-            </p>
+              <X />
+            </DialogClose>
           </div>
-          <button
-            className="text-text-muted hover:text-highlight-soft"
-            onClick={onClose}
-            aria-label="Close Edit Dialog"
-            type="button"
-          >
-            <X />
-          </button>
-        </div>
 
-        <div className="space-y-4">
-          <TmdbMovieFields
-            onAuthExpired={onAuthExpired}
-            onTitleChange={setTitle}
-            onTmdbIdChange={changeTmdbId}
-            title={title}
-            titleErrorId={errorId}
-            titleInputRef={inputRef}
-            titleInvalid={invalidTitle}
-            tmdbId={tmdbId}
-          />
-          {invalidTitle && (
-            <p className="mt-2 text-sm text-danger" id={errorId} role="alert">
-              Enter a movie title.
-            </p>
-          )}
-          <ImdbMovieField onChange={setImdbId} value={imdbId} />
-          <MovieVersionFields
-            attempted={attempted}
-            onSpecifiedChange={setVersionSpecified}
-            onVersionChange={setVersion}
-            onVersionReferenceUrlChange={setVersionReferenceUrl}
-            onVersionRuntimeChange={setVersionRuntime}
-            specified={versionSpecified}
-            tmdbSelected={tmdbSelected}
-            version={version}
-            versionReferenceUrl={versionReferenceUrl}
-            versionReferenceUrlInvalid={
-              usingVersion && parsedVersionReferenceUrl === undefined
-            }
-            versionRuntime={versionRuntime}
-            versionRuntimeInvalid={
-              usingVersion && parsedVersionRuntime === undefined
-            }
-          />
-          <label className="ui-label block text-text-muted">
-            Collection
-            <Input
-              className="mt-2"
-              id={collectionId}
-              value={collectionName}
-              onChange={(event) => setCollectionName(event.target.value)}
-              placeholder="Optional"
+          <div className="space-y-4">
+            <TmdbMovieFields
+              onAuthExpired={onAuthExpired}
+              onTitleChange={setTitle}
+              onTmdbIdChange={changeTmdbId}
+              title={title}
+              titleErrorId={errorId}
+              titleInputRef={inputRef}
+              titleInvalid={invalidTitle}
+              tmdbId={tmdbId}
             />
-          </label>
-        </div>
+            {invalidTitle && (
+              <p className="mt-2 text-sm text-danger" id={errorId} role="alert">
+                Enter a movie title.
+              </p>
+            )}
+            <ImdbMovieField onChange={setImdbId} value={imdbId} />
+            <MovieVersionFields
+              attempted={attempted}
+              onSpecifiedChange={setVersionSpecified}
+              onVersionChange={setVersion}
+              onVersionReferenceUrlChange={setVersionReferenceUrl}
+              onVersionRuntimeChange={setVersionRuntime}
+              specified={versionSpecified}
+              tmdbSelected={tmdbSelected}
+              version={version}
+              versionReferenceUrl={versionReferenceUrl}
+              versionReferenceUrlInvalid={
+                usingVersion && parsedVersionReferenceUrl === undefined
+              }
+              versionRuntime={versionRuntime}
+              versionRuntimeInvalid={
+                usingVersion && parsedVersionRuntime === undefined
+              }
+            />
+            <CollectionNameField
+              label="Collection"
+              onChange={setCollectionName}
+              value={collectionName}
+            />
+          </div>
 
-        <div className="mt-6 flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            disabled={
-              busy || parsedImdbId === undefined || parsedTmdbId === undefined
-            }
-            type="submit"
-          >
-            <Pencil size={16} />
-            Save Changes
-          </Button>
-        </div>
-      </form>
+          <div className="mt-6 flex justify-end gap-2">
+            <DialogClose render={<Button variant="ghost" />}>
+              Cancel
+            </DialogClose>
+            <Button
+              disabled={
+                busy || parsedImdbId === undefined || parsedTmdbId === undefined
+              }
+              type="submit"
+            >
+              <Pencil size={16} />
+              Save Changes
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
     </Dialog>
   );
 }

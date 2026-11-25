@@ -5,11 +5,12 @@ import {
   POSTER_REEL_IMAGE_WIDTH,
   POSTER_REEL_INTERVAL_MS,
 } from "../lib/poster-reel";
-import { cn, formatMovieTitle, type PosterImageWidth } from "../lib/utils";
+import { formatMovieTitle, type PosterImageWidth } from "../lib/utils";
 import type { Navigate, Tab } from "../types";
 import { AppLink } from "./app-link";
 import { Poster } from "./poster";
-import { Button } from "./ui";
+import { Alert } from "./ui/alert";
+import { Button } from "./ui/button";
 
 type AppHeaderProps = {
   action?: ReactNode;
@@ -35,9 +36,9 @@ export function AppHeader({
       <div className="mx-auto grid min-h-[88px] max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 px-5 md:grid-cols-[minmax(260px,1fr)_auto_minmax(260px,1fr)] lg:px-8">
         <AppLink
           aria-label="Ludovico Tech home"
-          className="flex min-w-0 items-center gap-2.5 py-3 text-left sm:gap-3"
           href="/"
           onNavigate={onNavigate}
+          variant="brand"
         >
           <span className="grid size-9 shrink-0 place-items-center sm:size-10">
             <img
@@ -122,12 +123,7 @@ function NavButton({
       aria-current={active ? "page" : undefined}
       href={href}
       onNavigate={onNavigate}
-      className={cn(
-        "nav-label relative grid shrink-0 place-items-center px-3 whitespace-nowrap transition sm:min-w-32 sm:px-6",
-        active
-          ? "text-text-primary after:absolute after:inset-x-5 after:bottom-[-1px] after:h-[3px] after:bg-action"
-          : "text-text-muted hover:text-text-primary",
-      )}
+      variant="navigation"
     >
       {children}
     </AppLink>
@@ -159,13 +155,16 @@ function AuthControls({
   }
 
   return (
-    <button
+    <Button
       aria-label={`Sign Out${auth.user?.displayName ? ` ${auth.user.displayName}` : ""}`}
+      className="max-w-[120px] shrink-0 whitespace-nowrap sm:max-w-[180px]"
+      labelStyle="header"
       onClick={onLogout}
-      className="header-label max-w-[120px] shrink-0 rounded-sm border border-border-primary bg-surface/75 px-3 py-2 whitespace-nowrap text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary sm:max-w-[180px]"
+      size="header"
+      variant="secondary"
     >
       Sign Out
-    </button>
+    </Button>
   );
 }
 
@@ -185,16 +184,22 @@ export function ErrorNotice({
   onDismiss: () => void;
 }) {
   return (
-    <div
+    <Alert
       aria-live="assertive"
-      className="fixed top-4 left-1/2 z-[60] flex w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 items-center justify-between gap-4 rounded-sm border border-danger/50 bg-danger-surface px-4 py-3 text-sm text-text-primary shadow-2xl shadow-black/60"
-      role="alert"
+      className="fixed top-4 left-1/2 z-[60] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2"
+      variant="notice"
     >
       <span>{message}</span>
-      <button onClick={onDismiss} aria-label="Dismiss Error">
+      <Button
+        aria-label="Dismiss Error"
+        labelStyle="plain"
+        onClick={onDismiss}
+        size="bare"
+        variant="plain"
+      >
         <X size={16} />
-      </button>
-    </div>
+      </Button>
+    </Alert>
   );
 }
 

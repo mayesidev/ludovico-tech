@@ -33,8 +33,10 @@
     "release:gate": "node scripts/release-gates.ts"
   },
   "dependencies": {
+    "@base-ui/react": "1.9.0",
     "@hono/zod-validator": "0.9.1",
     "@tanstack/react-table": "9.3.1",
+    "class-variance-authority": "0.7.1",
     "cn": "0.5.2",
     "hono": "4.13.19",
     "lucide-react": "1.77.0",

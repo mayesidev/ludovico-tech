@@ -2,9 +2,12 @@ import { Check, LoaderCircle, Search, Unlink } from "lucide-react";
 import { type RefObject, useEffect, useId, useRef, useState } from "react";
 import { api, ApiError, type TmdbResult } from "../api";
 import { parseTmdbId } from "../lib/tmdb-id";
-import { cn, formatDate } from "../lib/utils";
+import { formatDate } from "../lib/utils";
 import { Poster } from "./poster";
-import { Button, Input } from "./ui";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Toggle } from "./ui/toggle";
 
 type TmdbMovieFieldsProps = {
   onAuthExpired: () => Promise<void>;
@@ -123,9 +126,9 @@ export function TmdbMovieFields({
   return (
     <div className="grid gap-4">
       <div className="flex gap-2">
-        <label className="sr-only" htmlFor={titleId}>
+        <Label className="sr-only" htmlFor={titleId}>
           Movie title
-        </label>
+        </Label>
         <Input
           aria-describedby={titleInvalid ? titleErrorId : undefined}
           aria-invalid={titleInvalid}
@@ -166,9 +169,9 @@ export function TmdbMovieFields({
       </div>
 
       <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-        <label className="sr-only" htmlFor={tmdbIdId}>
+        <Label className="sr-only" htmlFor={tmdbIdId}>
           TMDB movie ID (optional)
-        </label>
+        </Label>
         <Input
           aria-describedby={
             parsedTmdbId === undefined ? `${tmdbIdId}-error` : undefined
@@ -224,17 +227,10 @@ export function TmdbMovieFields({
       {results.length > 0 && (
         <div className="grid max-h-[40vh] gap-3 overflow-y-auto sm:grid-cols-2">
           {results.map((result) => (
-            <button
+            <Toggle
               key={result.id}
-              aria-pressed={selected?.id === result.id}
-              onClick={() => selectResult(result)}
-              className={cn(
-                "flex items-center gap-3 rounded-sm border p-3 text-left transition",
-                selected?.id === result.id
-                  ? "border-highlight bg-action/20"
-                  : "border-border-subtle bg-canvas/25 hover:border-highlight/45",
-              )}
-              type="button"
+              pressed={selected?.id === result.id}
+              onPressedChange={() => selectResult(result)}
             >
               <Poster path={result.posterPath} title={result.title} />
               <span>
@@ -247,7 +243,7 @@ export function TmdbMovieFields({
                     : "Release date unknown"}
                 </span>
               </span>
-            </button>
+            </Toggle>
           ))}
         </div>
       )}

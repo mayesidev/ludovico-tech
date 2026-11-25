@@ -1,5 +1,11 @@
 import type { AuditAttribution } from "../api";
-import { cn, formatTimestamp } from "../lib/utils";
+import { formatTimestamp } from "../lib/utils";
+import { Button } from "./ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "./ui/collapsible";
 
 type AuditDetailsProps = {
   className?: string;
@@ -16,13 +22,17 @@ export function AuditDetails({ className, entries }: AuditDetailsProps) {
   if (visibleEntries.length === 0) return null;
 
   return (
-    <details className={cn("group", className)}>
-      <summary className="w-fit cursor-pointer list-none text-sm font-semibold text-highlight-soft underline decoration-highlight-soft/45 underline-offset-4 hover:text-text-primary [&::-webkit-details-marker]:hidden">
+    <Collapsible className={className}>
+      <CollapsibleTrigger
+        render={<Button labelStyle="plain" size="bare" variant="link" />}
+      >
         History
-      </summary>
-      <section
+      </CollapsibleTrigger>
+      <CollapsibleContent
         aria-label="Activity attribution"
-        className="mt-3 rounded-sm border border-border-subtle bg-canvas/35 px-4 py-3"
+        className="mt-3"
+        keepMounted
+        render={<section />}
       >
         <dl className="grid gap-3 text-xs sm:grid-cols-2">
           {visibleEntries.map(({ attribution, label }) => (
@@ -35,7 +45,7 @@ export function AuditDetails({ className, entries }: AuditDetailsProps) {
             </div>
           ))}
         </dl>
-      </section>
-    </details>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

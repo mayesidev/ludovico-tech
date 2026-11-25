@@ -7,7 +7,11 @@ import { AppLink } from "./app-link";
 import { AuditDetails } from "./audit-details";
 import { Poster } from "./poster";
 import { RatingSlider } from "./rating-slider";
-import { Badge, Button, Card, Input } from "./ui";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Card } from "./ui/card";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 
 type HomePageProps = {
   nowShowing: NowShowing | null;
@@ -72,7 +76,6 @@ export function HomePage({
                 {movieId ? (
                   <AppLink
                     aria-label={`${nowShowingTitle}${releaseYear ? ` (${releaseYear})` : ""}`}
-                    className="transition hover:text-highlight-soft"
                     href={`/movies/${encodeURIComponent(movieId)}?from=now-showing`}
                     onNavigate={onNavigate}
                   >
@@ -101,7 +104,9 @@ export function HomePage({
                   <span />
                 )}
                 <AppLink
-                  className="ml-auto text-sm font-semibold tracking-normal text-highlight-soft hover:text-text-primary"
+                  className="ml-auto"
+                  size="sm"
+                  variant="accent"
                   href={`/movies/${encodeURIComponent(movieId)}?from=now-showing`}
                   onNavigate={onNavigate}
                 >
@@ -312,7 +317,6 @@ function RatingForm({
   const [attempted, setAttempted] = useState(false);
   const phraseId = useId();
   const phraseErrorId = useId();
-  const scoreId = useId();
   const phraseMissing = attempted && !phrase.trim();
 
   return (
@@ -334,17 +338,12 @@ function RatingForm({
       }}
     >
       <div className="border-b border-highlight/15 p-4 sm:col-span-2 lg:col-span-1 lg:border-r lg:border-b-0">
-        <RatingSlider
-          disabled={busy}
-          id={scoreId}
-          onChange={setScore}
-          value={score}
-        />
+        <RatingSlider disabled={busy} onChange={setScore} value={score} />
       </div>
       <div className="flex flex-col justify-center border-b border-highlight/15 p-4 sm:border-r sm:border-b-0">
-        <label className="sr-only" htmlFor={phraseId}>
+        <Label className="sr-only" htmlFor={phraseId}>
           Custom rating phrase (required)
-        </label>
+        </Label>
         <Input
           aria-describedby={phraseMissing ? phraseErrorId : undefined}
           aria-invalid={phraseMissing}
@@ -411,7 +410,8 @@ function HistoryCard({
   return (
     <AppLink
       aria-label={`View details for ${title}`}
-      className="block h-full rounded-sm focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
+      className="block h-full"
+      variant="inherit"
       href={`/movies/${encodeURIComponent(movie.id)}?from=now-showing`}
       onNavigate={onNavigate}
     >

@@ -1,41 +1,36 @@
+import { Slider, SliderLabel } from "./ui/slider";
+
 type RatingSliderProps = {
   disabled?: boolean;
-  id: string;
   onChange: (score: number) => void;
   value: number;
 };
 
 export function RatingSlider({
   disabled = false,
-  id,
   onChange,
   value,
 }: RatingSliderProps) {
   return (
     <div>
-      <div className="flex items-center justify-between gap-4">
-        <label className="ui-label text-text-secondary" htmlFor={id}>
-          Rating
-        </label>
-        <span
-          aria-label="Selected rating"
-          className="min-w-10 text-right text-sm font-bold text-highlight-soft"
-        >
-          {value}
-        </span>
-      </div>
-      <input
-        aria-valuetext={`${value}`}
-        className="mt-2 h-8 w-full cursor-pointer accent-highlight disabled:cursor-not-allowed"
+      <Slider
         disabled={disabled}
-        id={id}
-        max="5"
-        min="0"
-        onChange={(event) => onChange(Number(event.target.value))}
-        step="0.5"
-        type="range"
+        max={5}
+        min={0}
+        onValueChange={onChange}
+        step={0.5}
         value={value}
-      />
+      >
+        <div className="flex items-center justify-between gap-4">
+          <SliderLabel>Rating</SliderLabel>
+          <span
+            aria-label="Selected rating"
+            className="min-w-10 text-right text-sm font-bold text-highlight-soft"
+          >
+            {value}
+          </span>
+        </div>
+      </Slider>
       <div
         aria-hidden="true"
         className="flex justify-between text-xs font-medium text-text-muted"
