@@ -61,9 +61,6 @@ export function MovieDetailPage({
   }
 
   const watched = movie.rating_score !== null;
-  const canEdit = canMutate && onEdit;
-  const canDelete = canMutate && !watched && onDelete;
-  const runtime = movie.version_runtime ?? movie.runtime_minutes;
   const title = formatMovieTitle(movie.title, movie.version);
 
   return (
@@ -101,187 +98,237 @@ export function MovieDetailPage({
             )}
           </div>
 
-          <dl className="movie-metadata">
-            {movie.release_date && (
-              <div>
-                <dt className="ui-label text-text-muted">Release date</dt>
-                <dd className="text-text-secondary">
-                  {formatDate(movie.release_date)}
-                </dd>
-              </div>
-            )}
-            {movie.version && (
-              <div>
-                <dt className="ui-label text-text-muted">Version</dt>
-                <dd className="text-text-secondary">
-                  {movie.version_reference_url ? (
-                    <a
-                      className="inline-flex items-center gap-1.5 font-semibold text-highlight-soft hover:text-text-primary"
-                      href={movie.version_reference_url}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      {movie.version}
-                      <ExternalLink size={13} />
-                    </a>
-                  ) : (
-                    movie.version
-                  )}
-                </dd>
-              </div>
-            )}
-            {runtime !== null && (
-              <div>
-                <dt className="ui-label text-text-muted">Runtime</dt>
-                <dd className="text-text-secondary">
-                  {formatRuntime(runtime)}
-                </dd>
-              </div>
-            )}
-            {movie.directors.length > 0 && (
-              <div>
-                <dt className="ui-label text-text-muted">Directed by</dt>
-                <dd className="text-text-secondary">
-                  {movie.directors.map((person) => person.name).join(", ")}
-                </dd>
-              </div>
-            )}
-            {movie.cast.length > 0 && (
-              <div>
-                <dt className="ui-label text-text-muted">Starring</dt>
-                <dd className="text-text-secondary">
-                  {movie.cast.map((person) => person.name).join(", ")}
-                </dd>
-              </div>
-            )}
-            <div>
-              <dt className="ui-label text-text-muted">Date added</dt>
-              <dd className="text-text-secondary">
-                {formatDate(movie.added_at)}
-              </dd>
-            </div>
-            {movie.collection_name && movie.collection_id && (
-              <div>
-                <dt className="ui-label text-text-muted">Collection</dt>
-                <dd>
-                  <AppLink
-                    className="font-semibold text-highlight-soft hover:text-text-primary"
-                    href={`/collections/${encodeURIComponent(movie.collection_id)}${returnQuery}`}
-                    onNavigate={onNavigate}
-                  >
-                    {movie.collection_name}
-                  </AppLink>
-                </dd>
-              </div>
-            )}
-            {movie.tmdb_collection_id != null &&
-              movie.tmdb_collection_name != null && (
-                <div>
-                  <dt className="ui-label text-text-muted">TMDB collection</dt>
-                  <dd>
-                    <a
-                      className="inline-flex items-center gap-1.5 font-semibold text-highlight-soft hover:text-text-primary"
-                      href={`https://www.themoviedb.org/collection/${movie.tmdb_collection_id}`}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      {movie.tmdb_collection_name}
-                      <ExternalLink size={13} />
-                    </a>
-                  </dd>
-                </div>
-              )}
-          </dl>
+          <MovieMetadata
+            movie={movie}
+            onNavigate={onNavigate}
+            returnQuery={returnQuery}
+          />
 
-          {(movie.tmdb_id !== null ||
-            movie.imdb_id !== null ||
-            canEdit ||
-            canDelete ||
-            (canMutate && movie.audit)) && (
-            <div className="mt-6 space-y-4">
-              {(movie.tmdb_id !== null || movie.imdb_id !== null) && (
-                <div className="flex flex-wrap items-center gap-4">
-                  {movie.tmdb_id !== null && (
-                    <a
-                      className="inline-flex items-center gap-2 text-sm font-semibold text-highlight-soft hover:text-text-primary"
-                      href={`https://www.themoviedb.org/movie/${movie.tmdb_id}`}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      View on TMDB
-                      <ExternalLink size={15} />
-                    </a>
-                  )}
-                  {movie.imdb_id !== null && (
-                    <a
-                      className="inline-flex items-center gap-2 text-sm font-semibold text-highlight-soft hover:text-text-primary"
-                      href={imdbTitleUrl(movie.imdb_id)}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      View on IMDb
-                      <ExternalLink size={15} />
-                    </a>
-                  )}
-                </div>
-              )}
-              {(canEdit || canDelete || (canMutate && movie.audit)) && (
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  {canMutate && movie.audit && (
-                    <AuditDetails
-                      entries={[
-                        { attribution: movie.audit.added, label: "Added" },
-                        {
-                          attribution: movie.audit.updated,
-                          label: "Last updated",
-                        },
-                        ...(watched
-                          ? [
-                              {
-                                attribution: movie.audit.rating,
-                                label: "Rating recorded",
-                              },
-                            ]
-                          : []),
-                        ...(movie.tmdb_id !== null
-                          ? [
-                              {
-                                attribution: movie.audit.metadata,
-                                label: "Metadata updated",
-                              },
-                            ]
-                          : []),
-                      ]}
-                    />
-                  )}
-                  {(canEdit || canDelete) && (
-                    <div className="ml-auto flex flex-wrap items-center gap-2">
-                      {canEdit && (
-                        <Button
-                          onClick={() => onEdit(movie)}
-                          variant="secondary"
-                        >
-                          <Pencil size={15} />
-                          Edit Movie
-                        </Button>
-                      )}
-                      {canDelete && (
-                        <Button
-                          onClick={() => onDelete(movie)}
-                          variant="danger"
-                        >
-                          <Trash2 size={15} />
-                          Delete Movie
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+          <MovieActions
+            canMutate={canMutate}
+            movie={movie}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
         </div>
       </article>
+    </div>
+  );
+}
+
+function MovieMetadata({
+  movie,
+  onNavigate,
+  returnQuery,
+}: {
+  movie: MovieDetail;
+  onNavigate: (path: string) => void;
+  returnQuery: string;
+}) {
+  const runtime = movie.version_runtime ?? movie.runtime_minutes;
+  return (
+    <dl className="movie-metadata">
+      {movie.release_date && (
+        <div>
+          <dt className="ui-label text-text-muted">Release date</dt>
+          <dd className="text-text-secondary">
+            {formatDate(movie.release_date)}
+          </dd>
+        </div>
+      )}
+      {movie.version && (
+        <div>
+          <dt className="ui-label text-text-muted">Version</dt>
+          <dd className="text-text-secondary">
+            {movie.version_reference_url ? (
+              <a
+                className="inline-flex items-center gap-1.5 font-semibold text-highlight-soft hover:text-text-primary"
+                href={movie.version_reference_url}
+                rel="noreferrer"
+                target="_blank"
+              >
+                {movie.version}
+                <ExternalLink size={13} />
+              </a>
+            ) : (
+              movie.version
+            )}
+          </dd>
+        </div>
+      )}
+      {runtime !== null && (
+        <div>
+          <dt className="ui-label text-text-muted">Runtime</dt>
+          <dd className="text-text-secondary">{formatRuntime(runtime)}</dd>
+        </div>
+      )}
+      {movie.directors.length > 0 && (
+        <div>
+          <dt className="ui-label text-text-muted">Directed by</dt>
+          <dd className="text-text-secondary">
+            {movie.directors.map((person) => person.name).join(", ")}
+          </dd>
+        </div>
+      )}
+      {movie.cast.length > 0 && (
+        <div>
+          <dt className="ui-label text-text-muted">Starring</dt>
+          <dd className="text-text-secondary">
+            {movie.cast.map((person) => person.name).join(", ")}
+          </dd>
+        </div>
+      )}
+      <div>
+        <dt className="ui-label text-text-muted">Date added</dt>
+        <dd className="text-text-secondary">{formatDate(movie.added_at)}</dd>
+      </div>
+      {movie.collection_name && movie.collection_id && (
+        <div>
+          <dt className="ui-label text-text-muted">Collection</dt>
+          <dd>
+            <AppLink
+              className="font-semibold text-highlight-soft hover:text-text-primary"
+              href={`/collections/${encodeURIComponent(movie.collection_id)}${returnQuery}`}
+              onNavigate={onNavigate}
+            >
+              {movie.collection_name}
+            </AppLink>
+          </dd>
+        </div>
+      )}
+      {movie.tmdb_collection_id != null &&
+        movie.tmdb_collection_name != null && (
+          <div>
+            <dt className="ui-label text-text-muted">TMDB collection</dt>
+            <dd>
+              <a
+                className="inline-flex items-center gap-1.5 font-semibold text-highlight-soft hover:text-text-primary"
+                href={`https://www.themoviedb.org/collection/${movie.tmdb_collection_id}`}
+                rel="noreferrer"
+                target="_blank"
+              >
+                {movie.tmdb_collection_name}
+                <ExternalLink size={13} />
+              </a>
+            </dd>
+          </div>
+        )}
+    </dl>
+  );
+}
+
+function MovieActions({
+  canMutate,
+  movie,
+  onDelete,
+  onEdit,
+}: Pick<MovieDetailPageProps, "onDelete" | "onEdit"> & {
+  canMutate: boolean;
+  movie: MovieDetail;
+}) {
+  const watched = movie.rating_score !== null;
+  const edit = canMutate ? onEdit : undefined;
+  const remove = canMutate && !watched ? onDelete : undefined;
+  const audit = canMutate ? movie.audit : undefined;
+  const hasExternalLinks = movie.tmdb_id !== null || movie.imdb_id !== null;
+  const hasActions = Boolean(edit || remove);
+  if (!hasExternalLinks && !hasActions && !audit) return null;
+
+  return (
+    <div className="mt-6 space-y-4">
+      {hasExternalLinks && (
+        <MovieProviders tmdbId={movie.tmdb_id} imdbId={movie.imdb_id} />
+      )}
+      {(hasActions || audit) && (
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          {audit && (
+            <AuditDetails
+              entries={movieAuditEntries(
+                audit,
+                watched,
+                movie.tmdb_id !== null,
+              )}
+            />
+          )}
+          {hasActions && (
+            <MovieActionButtons movie={movie} onEdit={edit} onDelete={remove} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MovieActionButtons({
+  movie,
+  onDelete,
+  onEdit,
+}: Pick<MovieDetailPageProps, "onDelete" | "onEdit"> & { movie: Movie }) {
+  return (
+    <div className="ml-auto flex flex-wrap items-center gap-2">
+      {onEdit && (
+        <Button onClick={() => onEdit(movie)} variant="secondary">
+          <Pencil size={15} />
+          Edit Movie
+        </Button>
+      )}
+      {onDelete && (
+        <Button onClick={() => onDelete(movie)} variant="danger">
+          <Trash2 size={15} />
+          Delete Movie
+        </Button>
+      )}
+    </div>
+  );
+}
+
+const movieAuditEntries = (
+  audit: NonNullable<MovieDetail["audit"]>,
+  watched: boolean,
+  hasTmdb: boolean,
+) => {
+  const entries = [
+    { attribution: audit.added, label: "Added" },
+    { attribution: audit.updated, label: "Last updated" },
+  ];
+  if (watched)
+    entries.push({ attribution: audit.rating, label: "Rating recorded" });
+  if (hasTmdb)
+    entries.push({ attribution: audit.metadata, label: "Metadata updated" });
+  return entries;
+};
+
+function MovieProviders({
+  imdbId,
+  tmdbId,
+}: {
+  imdbId: string | null;
+  tmdbId: number | null;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-4">
+      {tmdbId !== null && (
+        <a
+          className="inline-flex items-center gap-2 text-sm font-semibold text-highlight-soft hover:text-text-primary"
+          href={`https://www.themoviedb.org/movie/${tmdbId}`}
+          rel="noreferrer"
+          target="_blank"
+        >
+          View on TMDB
+          <ExternalLink size={15} />
+        </a>
+      )}
+      {imdbId !== null && (
+        <a
+          className="inline-flex items-center gap-2 text-sm font-semibold text-highlight-soft hover:text-text-primary"
+          href={imdbTitleUrl(imdbId)}
+          rel="noreferrer"
+          target="_blank"
+        >
+          View on IMDb
+          <ExternalLink size={15} />
+        </a>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { ExternalLink, Pencil, Search } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { imdbTitleUrl } from "../../shared/imdb";
 import {
   api,
@@ -42,7 +42,6 @@ export function LibraryPage({
   const [query, setQuery] = useState(initialQuery);
   const [refreshing, setRefreshing] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const requestSequence = useRef(0);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -56,27 +55,27 @@ export function LibraryPage({
   }, [filter]);
 
   useEffect(() => {
-    const sequence = ++requestSequence.current;
-    void Promise.resolve()
-      .then(() => {
-        if (sequence !== requestSequence.current) return null;
-        setRefreshing(true);
-        return api.library(query);
-      })
-      .then((response) => {
-        if (sequence !== requestSequence.current || response === null) return;
+    let cancelled = false;
+    void Promise.resolve().then(async () => {
+      if (cancelled) return;
+      setRefreshing(true);
+      try {
+        const response = await api.library(query);
+        if (cancelled) return;
         setData(response);
         setError(null);
-      })
-      .catch((cause: unknown) => {
-        if (sequence !== requestSequence.current) return;
+      } catch (cause) {
+        if (cancelled) return;
         setError(
           cause instanceof Error ? cause.message : "Unable to load the Library",
         );
-      })
-      .finally(() => {
-        if (sequence === requestSequence.current) setRefreshing(false);
-      });
+      } finally {
+        if (!cancelled) setRefreshing(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [query, reloadToken]);
 
   const changeSort = (sort: LibrarySort) => {

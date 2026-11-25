@@ -1,5 +1,6 @@
 import js from "@eslint/js";
 import { plugin as shadcn } from "@shadcn/lint";
+import reactDoctor from "eslint-plugin-react-doctor";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 import globals from "globals";
@@ -40,6 +41,37 @@ export default tseslint.config(
         { allowConstantExport: true },
       ],
     },
+  },
+  {
+    ...reactDoctor.configs.recommended,
+    files: ["src/client/**/*.{ts,tsx}"],
+    settings: {
+      "react-doctor": {
+        ...reactDoctor.configs.recommended.settings["react-doctor"],
+        capabilities: [
+          "client-only",
+          "pre-es2023",
+          "react",
+          "react:17",
+          "react:18",
+          "react:19",
+          "react:19.2",
+          "react-compiler",
+          "tailwind",
+          "tailwind:3.4",
+          "tailwind:4",
+          "tanstack-table",
+          "typescript",
+          "vite",
+          "zod",
+          "zod:4",
+        ],
+      },
+    },
+  },
+  {
+    files: ["src/client/components/dialog.tsx"],
+    rules: { "react-doctor/prefer-html-dialog": "off" },
   },
   {
     files: ["src/client/**/*.{ts,tsx}"],

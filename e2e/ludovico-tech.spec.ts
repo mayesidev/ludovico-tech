@@ -236,11 +236,30 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await page
       .getByRole("link", { name: "Browser Deletion Candidate", exact: true })
       .click();
-    await page.getByRole("button", { name: "Delete Movie" }).click();
+    const deleteTrigger = page.getByRole("button", { name: "Delete Movie" });
+    await deleteTrigger.click();
     const confirmation = page.getByRole("dialog", {
       name: "Delete Browser Deletion Candidate?",
     });
     await expect(confirmation).toBeVisible();
+    await expect(
+      confirmation.getByRole("button", { name: "Keep Movie" }),
+    ).toBeFocused();
+    const close = confirmation.getByRole("button", {
+      name: "Close Delete Dialog",
+    });
+    await page.keyboard.press("Shift+Tab");
+    await expect(close).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(
+      confirmation.getByRole("button", { name: "Delete Movie" }),
+    ).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(close).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(confirmation).toBeHidden();
+    await expect(deleteTrigger).toBeFocused();
+    await deleteTrigger.click();
     await confirmation.getByRole("button", { name: "Delete Movie" }).click();
 
     await expect(page).toHaveURL(/\/library$/);

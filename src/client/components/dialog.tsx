@@ -107,6 +107,7 @@ export function Dialog({
   return (
     <div
       className="fixed inset-0 z-40 grid place-items-center bg-black/75 p-5"
+      role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}

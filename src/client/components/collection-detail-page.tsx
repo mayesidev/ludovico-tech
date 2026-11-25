@@ -38,6 +38,15 @@ const byCollectionOrder = (left: Movie, right: Movie) => {
   return leftPosition - rightPosition || left.title.localeCompare(right.title);
 };
 
+const returnLinks = {
+  "now-showing": { href: "/", label: "Return to Now Showing" },
+  "manager-office": {
+    href: "/manager-office",
+    label: "Return to Manager's Office",
+  },
+  library: { href: "/library", label: "Library" },
+} satisfies Record<ReturnTarget, { href: string; label: string }>;
+
 export function CollectionDetailPage({
   audit,
   busy,
@@ -56,41 +65,10 @@ export function CollectionDetailPage({
         .sort(byCollectionOrder),
     [collectionId, movies],
   );
-  const tmdbCollections = useMemo(() => {
-    const references = new Map<number, string>();
-    for (const movie of members) {
-      if (
-        movie.tmdb_collection_id != null &&
-        movie.tmdb_collection_name != null
-      ) {
-        references.set(movie.tmdb_collection_id, movie.tmdb_collection_name);
-      }
-    }
-    return [...references.entries()]
-      .map(([id, name]) => ({ id, name }))
-      .sort((left, right) => left.name.localeCompare(right.name));
-  }, [members]);
   const exceedsLimit = members.length > MAX_COLLECTION_TITLES;
   const [draft, setDraft] = useState(members);
   const [saved, setSaved] = useState(false);
-  const returnHref =
-    returnTo === "now-showing"
-      ? "/"
-      : returnTo === "manager-office"
-        ? "/manager-office"
-        : "/library";
-  const returnLabel =
-    returnTo === "now-showing"
-      ? "Return to Now Showing"
-      : returnTo === "manager-office"
-        ? "Return to Manager's Office"
-        : "Library";
-  const notFoundReturnLabel =
-    returnTo === "now-showing"
-      ? "Return to Now Showing"
-      : returnTo === "manager-office"
-        ? "Return to Manager's Office"
-        : "Return to the Library";
+  const { href: returnHref, label: returnLabel } = returnLinks[returnTo];
   const returnQuery = returnTo === "library" ? "" : `?from=${returnTo}`;
 
   if (members.length === 0) {
@@ -108,13 +86,14 @@ export function CollectionDetailPage({
           onNavigate={onNavigate}
         >
           <ArrowLeft size={16} />
-          {notFoundReturnLabel}
+          {returnTo === "library" ? "Return to the Library" : returnLabel}
         </AppLink>
       </div>
     );
   }
 
   const collectionName = members[0].collection_name ?? "Collection";
+  const orderLocked = busy || exceedsLimit;
   const move = (index: number, direction: -1 | 1) => {
     const next = [...draft];
     const swapIndex = index + direction;
@@ -135,37 +114,7 @@ export function CollectionDetailPage({
         {returnLabel}
       </AppLink>
 
-      <div className="mb-8 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
-        <div>
-          <h1 className="font-heading text-5xl leading-display-tight font-medium tracking-display-tight text-text-primary sm:text-7xl">
-            {collectionName}
-          </h1>
-          <p className="mt-4 text-sm text-text-muted">
-            {members.length} {members.length === 1 ? "movie" : "movies"}
-          </p>
-        </div>
-        {tmdbCollections.length > 0 && (
-          <div className="grid max-w-sm gap-2 border-l border-border-subtle pl-5 text-sm">
-            <span className="ui-label text-text-muted">
-              {tmdbCollections.length === 1
-                ? "Related TMDB Collection"
-                : "Related TMDB Collections"}
-            </span>
-            {tmdbCollections.map((tmdbCollection) => (
-              <a
-                className="inline-flex items-center gap-1.5 font-semibold text-highlight-soft hover:text-text-primary"
-                href={`https://www.themoviedb.org/collection/${tmdbCollection.id}`}
-                key={tmdbCollection.id}
-                rel="noreferrer"
-                target="_blank"
-              >
-                {tmdbCollection.name}
-                <ExternalLink size={13} />
-              </a>
-            ))}
-          </div>
-        )}
-      </div>
+      <CollectionHeading name={collectionName} members={members} />
 
       {canMutate && audit && (
         <AuditDetails
@@ -239,7 +188,7 @@ export function CollectionDetailPage({
                     <button
                       aria-label={`Move ${title} Up`}
                       className="grid size-9 place-items-center rounded-sm border border-border-primary bg-surface/75 text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary disabled:cursor-default disabled:opacity-30"
-                      disabled={busy || exceedsLimit || index === 0}
+                      disabled={orderLocked || index === 0}
                       onClick={() => move(index, -1)}
                     >
                       <ArrowUp size={16} />
@@ -247,9 +196,7 @@ export function CollectionDetailPage({
                     <button
                       aria-label={`Move ${title} Down`}
                       className="grid size-9 place-items-center rounded-sm border border-border-primary bg-surface/75 text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary disabled:cursor-default disabled:opacity-30"
-                      disabled={
-                        busy || exceedsLimit || index === draft.length - 1
-                      }
+                      disabled={orderLocked || index === draft.length - 1}
                       onClick={() => move(index, 1)}
                     >
                       <ArrowDown size={16} />
@@ -269,7 +216,7 @@ export function CollectionDetailPage({
           )}
           {canMutate ? (
             <Button
-              disabled={busy || exceedsLimit}
+              disabled={orderLocked}
               onClick={() =>
                 void run(
                   () =>
@@ -290,6 +237,62 @@ export function CollectionDetailPage({
           )}
         </footer>
       </section>
+    </div>
+  );
+}
+
+function CollectionHeading({
+  members,
+  name,
+}: {
+  members: Movie[];
+  name: string;
+}) {
+  const tmdbCollections = useMemo(() => {
+    const references = new Map<number, string>();
+    for (const movie of members) {
+      if (
+        movie.tmdb_collection_id != null &&
+        movie.tmdb_collection_name != null
+      ) {
+        references.set(movie.tmdb_collection_id, movie.tmdb_collection_name);
+      }
+    }
+    return [...references.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }, [members]);
+  return (
+    <div className="mb-8 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
+      <div>
+        <h1 className="font-heading text-5xl leading-display-tight font-medium tracking-display-tight text-text-primary sm:text-7xl">
+          {name}
+        </h1>
+        <p className="mt-4 text-sm text-text-muted">
+          {members.length} {members.length === 1 ? "movie" : "movies"}
+        </p>
+      </div>
+      {tmdbCollections.length > 0 && (
+        <div className="grid max-w-sm gap-2 border-l border-border-subtle pl-5 text-sm">
+          <span className="ui-label text-text-muted">
+            {tmdbCollections.length === 1
+              ? "Related TMDB Collection"
+              : "Related TMDB Collections"}
+          </span>
+          {tmdbCollections.map((tmdbCollection) => (
+            <a
+              className="inline-flex items-center gap-1.5 font-semibold text-highlight-soft hover:text-text-primary"
+              href={`https://www.themoviedb.org/collection/${tmdbCollection.id}`}
+              key={tmdbCollection.id}
+              rel="noreferrer"
+              target="_blank"
+            >
+              {tmdbCollection.name}
+              <ExternalLink size={13} />
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

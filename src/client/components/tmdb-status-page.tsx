@@ -1,5 +1,13 @@
 import { RefreshCw, Search } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import {
   api,
   ApiError,
@@ -13,13 +21,19 @@ import { AppLink } from "./app-link";
 import { PaginationControls } from "./pagination-controls";
 import { Button, Card, Input } from "./ui";
 
+const timestampFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+const dateFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+});
+const timeFormatter = new Intl.DateTimeFormat(undefined, {
+  timeStyle: "short",
+});
+
 const formatTimestamp = (value: string | null, fallback = "Never") =>
-  value
-    ? new Intl.DateTimeFormat(undefined, {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }).format(new Date(value))
-    : fallback;
+  value ? timestampFormatter.format(new Date(value)) : fallback;
 
 const formatDueTimestamp = (value: string | null) =>
   value && new Date(value).getTime() > Date.now()
@@ -43,16 +57,8 @@ function QueueTimestamp({
 
   return (
     <time className="leading-5" dateTime={value}>
-      <span className="block">
-        {new Intl.DateTimeFormat(undefined, {
-          dateStyle: "medium",
-        }).format(timestamp)}
-      </span>
-      <span className="block">
-        {new Intl.DateTimeFormat(undefined, {
-          timeStyle: "short",
-        }).format(timestamp)}
-      </span>
+      <span className="block">{dateFormatter.format(timestamp)}</span>
+      <span className="block">{timeFormatter.format(timestamp)}</span>
     </time>
   );
 }
@@ -104,6 +110,12 @@ const dateSearchValue = (value: string) => {
   return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : "";
 };
 
+type ReportError = (
+  cause: unknown,
+  fallback: string,
+  isCurrent?: () => boolean,
+) => Promise<boolean>;
+
 export function TmdbStatusPage({
   canMutate,
   onAuthExpired,
@@ -115,23 +127,16 @@ export function TmdbStatusPage({
 }) {
   const [summary, setSummary] = useState<TmdbRefreshSummary | null>(null);
   const [queue, setQueue] = useState<TmdbRefreshQueueResponse | null>(null);
-  const [loading, setLoading] = useState(canMutate);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [queueingMovieId, setQueueingMovieId] = useState<string | null>(null);
-  const [starting, setStarting] = useState(false);
-  const [watchingManualRun, setWatchingManualRun] = useState(false);
-  const [updatingSchedule, setUpdatingSchedule] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [queueQuery, setQueueQuery] = useState(initialQueueQuery);
-  const [intervalMinutesInput, setIntervalMinutesInput] = useState<
-    string | null
-  >(null);
-  const [batchSizeInput, setBatchSizeInput] = useState<string | null>(null);
+  const scheduleDraft = useScheduleDraft();
   const requestSequence = useRef(0);
   const initialLoad = useRef(true);
   const lastOverviewLoadedAt = useRef<number | null>(null);
-  const manualRunRefreshDeadline = useRef(0);
 
   const reportError = useCallback(
     async (
@@ -200,22 +205,13 @@ export function TmdbStatusPage({
     }
   }, [canMutate, queueQuery, reportError]);
 
-  const loadRunStatus = useCallback(async () => {
-    if (!canMutate) return { kind: "stop" } as const;
-    try {
-      return {
-        kind: "status",
-        status: await api.tmdbRefreshRunStatus(),
-      } as const;
-    } catch (cause) {
-      const authExpired = await reportError(
-        cause,
-        "Unable to load Library refresh status",
-      );
-      if (authExpired) return { kind: "stop" } as const;
-      return { kind: "retry" } as const;
-    }
-  }, [canMutate, reportError]);
+  const clearError = () => setError(null);
+  const manualRun = useManualRefreshRun({
+    canMutate,
+    clearError,
+    load,
+    reportError,
+  });
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -254,20 +250,177 @@ export function TmdbStatusPage({
   }, [canMutate, load, loadQueue]);
 
   const hasStatus = summary !== null && queue !== null;
+  const refreshOnFocus = useEffectEvent(() => {
+    if (
+      lastOverviewLoadedAt.current !== null &&
+      Date.now() - lastOverviewLoadedAt.current < FOCUS_REFRESH_FRESHNESS_MS
+    ) {
+      return;
+    }
+    void load();
+  });
   useEffect(() => {
     if (!hasStatus) return;
-    const refreshOnFocus = () => {
-      if (
-        lastOverviewLoadedAt.current !== null &&
-        Date.now() - lastOverviewLoadedAt.current < FOCUS_REFRESH_FRESHNESS_MS
-      ) {
-        return;
-      }
-      void load();
-    };
-    window.addEventListener("focus", refreshOnFocus);
-    return () => window.removeEventListener("focus", refreshOnFocus);
-  }, [hasStatus, load]);
+    const onFocus = () => refreshOnFocus();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [hasStatus]);
+
+  if (!canMutate) {
+    return (
+      <div>
+        <h1 className="font-heading text-3xl leading-none font-medium tracking-heading text-text-primary sm:text-4xl">
+          Manager's Office
+        </h1>
+        <p className="mt-3 text-sm text-text-muted">
+          Sign in to view or run Library update operations.
+        </p>
+      </div>
+    );
+  }
+
+  if (loading || (!hasStatus && !error)) {
+    return <p className="text-text-muted">Loading refresh data…</p>;
+  }
+
+  if (!hasStatus) {
+    return (
+      <div>
+        <h1 className="font-heading text-3xl leading-none font-medium tracking-heading text-text-primary sm:text-4xl">
+          Manager's Office
+        </h1>
+        <p className="mt-3 text-sm text-danger" role="alert">
+          {error ?? "Unable to load Library refresh status"}
+        </p>
+        <Button
+          className="mt-5"
+          disabled={refreshing}
+          onClick={() => void load()}
+          variant="secondary"
+        >
+          {refreshing ? "Retrying…" : "Retry"}
+        </Button>
+      </div>
+    );
+  }
+
+  const manualRunActive = manualRun.active || summary.schedule.running;
+  const queueRefetch = async (item: TmdbRefreshItem) => {
+    setQueueingMovieId(item.movieId);
+    setError(null);
+    try {
+      await api.queueTmdbRefetch(item.movieId);
+      setSummary((current) =>
+        current === null || item.state !== "current"
+          ? current
+          : {
+              ...current,
+              counts: {
+                ...current.counts,
+                current: Math.max(0, current.counts.current - 1),
+                pending: current.counts.pending + 1,
+              },
+            },
+      );
+      await loadQueue();
+    } catch (cause) {
+      await reportError(cause, "Unable to queue the title for refetch");
+    } finally {
+      setQueueingMovieId(null);
+    }
+  };
+  return (
+    <div>
+      <div className="mb-7 flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
+        <div>
+          <h1 className="font-heading text-3xl leading-none font-medium tracking-heading text-text-primary sm:text-4xl">
+            Manager's Office
+          </h1>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <Button
+            disabled={refreshing}
+            onClick={() => void load()}
+            variant="secondary"
+          >
+            <RefreshCw
+              className={refreshing ? "animate-spin" : undefined}
+              size={16}
+            />
+            Refresh status
+          </Button>
+          <Button disabled={manualRunActive} onClick={manualRun.start}>
+            <RefreshCw
+              className={manualRunActive ? "animate-spin" : undefined}
+              size={16}
+            />
+            {manualRunActive ? "Refresh running" : "Run now"}
+          </Button>
+        </div>
+      </div>
+
+      {error && (
+        <p
+          className="mb-6 rounded-sm border border-danger/50 bg-danger-surface px-4 py-3 text-sm text-danger"
+          role="alert"
+        >
+          {error}
+        </p>
+      )}
+      <RefreshScheduleCard
+        clearError={clearError}
+        draft={scheduleDraft}
+        load={load}
+        reportError={reportError}
+        summary={summary}
+      />
+
+      <RefreshQueue
+        filter={filter}
+        onNavigate={onNavigate}
+        queue={queue}
+        queueingMovieId={queueingMovieId}
+        queueQuery={queueQuery}
+        queueRefetch={queueRefetch}
+        refreshing={refreshing}
+        setFilter={setFilter}
+        setQueueQuery={setQueueQuery}
+      />
+    </div>
+  );
+}
+
+function useManualRefreshRun({
+  canMutate,
+  clearError,
+  load,
+  reportError,
+}: {
+  canMutate: boolean;
+  clearError: () => void;
+  load: () => Promise<void>;
+  reportError: ReportError;
+}) {
+  const [starting, setStarting] = useState(false);
+  const [watchingManualRun, setWatchingManualRun] = useState(false);
+  const manualRunRefreshDeadline = useRef(0);
+
+  const loadRunStatus = useCallback(async () => {
+    if (!canMutate) return { kind: "stop" } as const;
+    try {
+      return {
+        kind: "status",
+        status: await api.tmdbRefreshRunStatus(),
+      } as const;
+    } catch (cause) {
+      const authExpired = await reportError(
+        cause,
+        "Unable to load Library refresh status",
+      );
+      if (authExpired) return { kind: "stop" } as const;
+      return { kind: "retry" } as const;
+    }
+  }, [canMutate, reportError]);
 
   useEffect(() => {
     if (!watchingManualRun) return;
@@ -303,61 +456,314 @@ export function TmdbStatusPage({
     };
   }, [load, loadRunStatus, watchingManualRun]);
 
-  if (!canMutate) {
-    return (
-      <div>
-        <h1 className="font-heading text-3xl leading-none font-medium tracking-heading text-text-primary sm:text-4xl">
-          Manager's Office
-        </h1>
-        <p className="mt-3 text-sm text-text-muted">
-          Sign in to view or run Library update operations.
-        </p>
-      </div>
-    );
-  }
+  const start = () => {
+    setStarting(true);
+    clearError();
+    manualRunRefreshDeadline.current =
+      Date.now() + MANUAL_RUN_REFRESH_WINDOW_MS;
+    void api
+      .runTmdbRefresh()
+      .then(() => setWatchingManualRun(true))
+      .catch((cause) => reportError(cause, "Refresh failed"))
+      .finally(() => setStarting(false));
+  };
 
-  if (loading || ((!summary || !queue) && !error)) {
-    return <p className="text-text-muted">Loading refresh data…</p>;
-  }
+  return { active: starting || watchingManualRun, start };
+}
 
-  if (!summary || !queue) {
-    return (
-      <div>
-        <h1 className="font-heading text-3xl leading-none font-medium tracking-heading text-text-primary sm:text-4xl">
-          Manager's Office
-        </h1>
-        <p className="mt-3 text-sm text-danger" role="alert">
-          {error ?? "Unable to load Library refresh status"}
-        </p>
-        <Button
-          className="mt-5"
-          disabled={refreshing}
-          onClick={() => void load()}
-          variant="secondary"
-        >
-          {refreshing ? "Retrying…" : "Retry"}
-        </Button>
-      </div>
-    );
-  }
+const validScheduleValue = (value: number, min: number, max: number) =>
+  Number.isInteger(value) && value >= min && value <= max;
 
+function useScheduleDraft() {
+  const [updatingSchedule, setUpdatingSchedule] = useState(false);
+  const [intervalMinutesInput, setIntervalMinutesInput] = useState<
+    string | null
+  >(null);
+  const [batchSizeInput, setBatchSizeInput] = useState<string | null>(null);
+  return {
+    batchSizeInput,
+    intervalMinutesInput,
+    setBatchSizeInput,
+    setIntervalMinutesInput,
+    setUpdatingSchedule,
+    updatingSchedule,
+  };
+}
+
+function RefreshScheduleCard({
+  clearError,
+  draft,
+  load,
+  reportError,
+  summary,
+}: {
+  clearError: () => void;
+  draft: ReturnType<typeof useScheduleDraft>;
+  load: () => Promise<void>;
+  reportError: ReportError;
+  summary: TmdbRefreshSummary;
+}) {
   const { schedule, counts } = summary;
+  const {
+    batchSizeInput,
+    intervalMinutesInput,
+    setBatchSizeInput,
+    setIntervalMinutesInput,
+    setUpdatingSchedule,
+    updatingSchedule,
+  } = draft;
   const intervalMinutes =
     intervalMinutesInput ?? String(schedule.intervalMinutes);
   const batchSize = batchSizeInput ?? String(schedule.batchSize);
   const parsedIntervalMinutes = Number(intervalMinutes);
   const parsedBatchSize = Number(batchSize);
-  const scheduleValuesAreValid =
-    Number.isInteger(parsedIntervalMinutes) &&
-    parsedIntervalMinutes >= 15 &&
-    parsedIntervalMinutes <= 10080 &&
-    Number.isInteger(parsedBatchSize) &&
-    parsedBatchSize >= 1 &&
-    parsedBatchSize <= 50;
+  const intervalValid = validScheduleValue(parsedIntervalMinutes, 15, 10080);
+  const batchSizeValid = validScheduleValue(parsedBatchSize, 1, 50);
+  const scheduleValuesAreValid = intervalValid && batchSizeValid;
   const scheduleHasChanges =
     parsedIntervalMinutes !== schedule.intervalMinutes ||
     parsedBatchSize !== schedule.batchSize;
-  const manualRunActive = starting || watchingManualRun || schedule.running;
+
+  return (
+    <Card className="mb-8 overflow-hidden">
+      <div className="grid grid-cols-2 divide-x divide-y divide-border-subtle sm:grid-cols-5 sm:divide-y-0">
+        {[
+          ["Linked", counts.linked],
+          ["Not linked (excluded)", counts.unlinked],
+          ["Pending", counts.pending],
+          ["Current", counts.current],
+          ["Failed", counts.failed],
+        ].map(([label, value]) => (
+          <div className="px-5 py-4" key={label}>
+            <p className="ui-label text-text-muted">{label}</p>
+            <p className="mt-1 font-heading text-2xl text-text-primary">
+              {value}
+            </p>
+          </div>
+        ))}
+      </div>
+      <div className="border-t border-border-subtle px-5 py-3 text-xs text-text-muted">
+        Current fetch contract:{" "}
+        <span
+          className="font-mono text-text-secondary"
+          title={summary.currentContractId}
+        >
+          {shortContractId(summary.currentContractId)}
+        </span>
+      </div>
+      <div className="border-t border-border-subtle px-5 py-4">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div>
+            <p className="ui-label text-text-primary">Automatic updates</p>
+            <p className="mt-1 text-sm text-text-muted">
+              {schedule.enabled
+                ? `Runs every ${formatInterval(schedule.intervalMinutes)} in batches of ${schedule.batchSize}.`
+                : "Paused. No scheduled batches will start."}
+            </p>
+          </div>
+          <Button
+            disabled={updatingSchedule}
+            onClick={() => {
+              setUpdatingSchedule(true);
+              clearError();
+              void api
+                .updateTmdbRefreshSchedule({ enabled: !schedule.enabled })
+                .then(load)
+                .catch((cause) =>
+                  reportError(cause, "Unable to update automatic refresh"),
+                )
+                .finally(() => setUpdatingSchedule(false));
+            }}
+            variant="secondary"
+          >
+            {schedule.enabled
+              ? "Pause automatic updates"
+              : "Resume automatic updates"}
+          </Button>
+        </div>
+        <form
+          className="mt-5 grid gap-4 border-t border-border-subtle pt-5 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!scheduleValuesAreValid || !scheduleHasChanges) return;
+            setUpdatingSchedule(true);
+            clearError();
+            void api
+              .updateTmdbRefreshSchedule({
+                batchSize: parsedBatchSize,
+                intervalMinutes: parsedIntervalMinutes,
+              })
+              .then(() => {
+                setIntervalMinutesInput(null);
+                setBatchSizeInput(null);
+                return load();
+              })
+              .catch((cause) =>
+                reportError(cause, "Unable to save refresh schedule"),
+              )
+              .finally(() => setUpdatingSchedule(false));
+          }}
+        >
+          <div className="text-sm text-text-secondary">
+            <label
+              className="ui-label mb-2 block text-text-muted"
+              htmlFor="tmdb-refresh-frequency"
+            >
+              Frequency (minutes)
+            </label>
+            <Input
+              aria-describedby="tmdb-refresh-frequency-help"
+              aria-invalid={intervalMinutes !== "" && !intervalValid}
+              max={10080}
+              min={15}
+              id="tmdb-refresh-frequency"
+              onChange={(event) => setIntervalMinutesInput(event.target.value)}
+              step={15}
+              type="number"
+              value={intervalMinutes}
+            />
+            <span
+              className="mt-1.5 block text-xs text-text-muted"
+              id="tmdb-refresh-frequency-help"
+            >
+              15 minutes to 7 days
+            </span>
+          </div>
+          <div className="text-sm text-text-secondary">
+            <label
+              className="ui-label mb-2 block text-text-muted"
+              htmlFor="tmdb-refresh-batch-size"
+            >
+              Batch size
+            </label>
+            <Input
+              aria-describedby="tmdb-refresh-batch-size-help"
+              aria-invalid={batchSize !== "" && !batchSizeValid}
+              max={50}
+              min={1}
+              id="tmdb-refresh-batch-size"
+              onChange={(event) => setBatchSizeInput(event.target.value)}
+              step={1}
+              type="number"
+              value={batchSize}
+            />
+            <span
+              className="mt-1.5 block text-xs text-text-muted"
+              id="tmdb-refresh-batch-size-help"
+            >
+              1 to 50 titles per run
+            </span>
+          </div>
+          <Button
+            className="sm:col-span-2 lg:col-span-1 lg:mb-[1.375rem]"
+            disabled={
+              updatingSchedule || !scheduleValuesAreValid || !scheduleHasChanges
+            }
+            type="submit"
+          >
+            Save schedule
+          </Button>
+        </form>
+        <ScheduleRunDetails schedule={schedule} />
+      </div>
+    </Card>
+  );
+}
+
+function ScheduleRunDetails({
+  schedule,
+}: {
+  schedule: TmdbRefreshSummary["schedule"];
+}) {
+  return (
+    <>
+      <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-6">
+        <div>
+          <dt className="ui-label text-text-muted">Next run</dt>
+          <dd className="mt-1 text-text-primary">
+            {schedule.enabled
+              ? formatDueTimestamp(schedule.nextRunAt)
+              : "Paused"}
+          </dd>
+        </div>
+        <div>
+          <dt className="ui-label text-text-muted">Last completed</dt>
+          <dd className="mt-1 text-text-primary">
+            {formatTimestamp(schedule.lastCompletedAt)}
+          </dd>
+        </div>
+        <div>
+          <dt className="ui-label text-text-muted">Last result</dt>
+          <dd className="mt-1 text-text-primary">
+            {schedule.lastRefreshed} refreshed, {schedule.lastFailed} failed
+          </dd>
+        </div>
+        <div>
+          <dt className="ui-label text-text-muted">Remaining</dt>
+          <dd className="mt-1 text-text-primary">{schedule.lastRemaining}</dd>
+        </div>
+        <div>
+          <dt className="ui-label text-text-muted">D1 processing</dt>
+          <dd className="mt-1 text-text-primary">
+            {schedule.lastProcessingRowsRead === null ||
+            schedule.lastProcessingRowsWritten === null
+              ? "Not recorded"
+              : `${schedule.lastProcessingRowsRead.toLocaleString()} read, ${schedule.lastProcessingRowsWritten.toLocaleString()} written`}
+          </dd>
+        </div>
+        {schedule.audit &&
+          (schedule.audit.updated.at !== null ||
+            schedule.audit.updated.by !== null) && (
+            <div>
+              <dt className="ui-label text-text-muted">
+                Schedule last updated
+              </dt>
+              <dd className="mt-1 text-text-primary">
+                {formatTimestamp(schedule.audit.updated.at)}
+                {schedule.audit.updated.by
+                  ? ` · ${schedule.audit.updated.by}`
+                  : " · Unknown user"}
+              </dd>
+            </div>
+          )}
+      </dl>
+      <p className="mt-3 text-xs text-text-muted">
+        Refresh processing only; excludes scheduler, expiration maintenance, and
+        Manager&apos;s Office reads.
+        {schedule.lastProcessingRetried
+          ? " D1 retried at least one operation, so the totals reflect last attempts and may be lower than billed usage."
+          : ""}
+      </p>
+      {(schedule.lastError || schedule.lastRateLimited) && (
+        <p className="mt-4 text-sm text-danger">
+          {schedule.lastError ?? "The last run was rate limited."}
+        </p>
+      )}
+    </>
+  );
+}
+
+function RefreshQueue({
+  filter,
+  onNavigate,
+  queue,
+  queueingMovieId,
+  queueQuery,
+  queueRefetch,
+  refreshing,
+  setFilter,
+  setQueueQuery,
+}: {
+  filter: string;
+  onNavigate: Navigate;
+  queue: TmdbRefreshQueueResponse;
+  queueingMovieId: string | null;
+  queueQuery: TmdbRefreshQueueQuery;
+  queueRefetch: (item: TmdbRefreshItem) => Promise<void>;
+  refreshing: boolean;
+  setFilter: (value: string) => void;
+  setQueueQuery: Dispatch<SetStateAction<TmdbRefreshQueueQuery>>;
+}) {
   const changeSort = (sort: TmdbRefreshQueueQuery["sort"]) => {
     setQueueQuery((current) => ({
       ...current,
@@ -370,30 +776,6 @@ export function TmdbStatusPage({
       page: 1,
       sort,
     }));
-  };
-  const queueRefetch = async (item: TmdbRefreshItem) => {
-    setQueueingMovieId(item.movieId);
-    setError(null);
-    try {
-      await api.queueTmdbRefetch(item.movieId);
-      setSummary((current) =>
-        current === null || item.state !== "current"
-          ? current
-          : {
-              ...current,
-              counts: {
-                ...current.counts,
-                current: Math.max(0, current.counts.current - 1),
-                pending: current.counts.pending + 1,
-              },
-            },
-      );
-      await loadQueue();
-    } catch (cause) {
-      await reportError(cause, "Unable to queue the title for refetch");
-    } finally {
-      setQueueingMovieId(null);
-    }
   };
   const sortHeader = (label: string, sort: TmdbRefreshQueueQuery["sort"]) => {
     const active = queueQuery.sort === sort;
@@ -420,276 +802,7 @@ export function TmdbStatusPage({
   };
   const { page, pageSize, total, totalPages } = queue.pagination;
   return (
-    <div>
-      <div className="mb-7 flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
-        <div>
-          <h1 className="font-heading text-3xl leading-none font-medium tracking-heading text-text-primary sm:text-4xl">
-            Manager's Office
-          </h1>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Button
-            disabled={refreshing}
-            onClick={() => void load()}
-            variant="secondary"
-          >
-            <RefreshCw
-              className={refreshing ? "animate-spin" : undefined}
-              size={16}
-            />
-            Refresh status
-          </Button>
-          <Button
-            disabled={manualRunActive}
-            onClick={() => {
-              setStarting(true);
-              setError(null);
-              manualRunRefreshDeadline.current =
-                Date.now() + MANUAL_RUN_REFRESH_WINDOW_MS;
-              void api
-                .runTmdbRefresh()
-                .then(() => setWatchingManualRun(true))
-                .catch((cause) => reportError(cause, "Refresh failed"))
-                .finally(() => setStarting(false));
-            }}
-          >
-            <RefreshCw
-              className={manualRunActive ? "animate-spin" : undefined}
-              size={16}
-            />
-            {manualRunActive ? "Refresh running" : "Run now"}
-          </Button>
-        </div>
-      </div>
-
-      {error && (
-        <p
-          className="mb-6 rounded-sm border border-danger/50 bg-danger-surface px-4 py-3 text-sm text-danger"
-          role="alert"
-        >
-          {error}
-        </p>
-      )}
-      <Card className="mb-8 overflow-hidden">
-        <div className="grid grid-cols-2 divide-x divide-y divide-border-subtle sm:grid-cols-5 sm:divide-y-0">
-          {[
-            ["Linked", counts.linked],
-            ["Not linked (excluded)", counts.unlinked],
-            ["Pending", counts.pending],
-            ["Current", counts.current],
-            ["Failed", counts.failed],
-          ].map(([label, value]) => (
-            <div className="px-5 py-4" key={label}>
-              <p className="ui-label text-text-muted">{label}</p>
-              <p className="mt-1 font-heading text-2xl text-text-primary">
-                {value}
-              </p>
-            </div>
-          ))}
-        </div>
-        <div className="border-t border-border-subtle px-5 py-3 text-xs text-text-muted">
-          Current fetch contract:{" "}
-          <span
-            className="font-mono text-text-secondary"
-            title={summary.currentContractId}
-          >
-            {shortContractId(summary.currentContractId)}
-          </span>
-        </div>
-        <div className="border-t border-border-subtle px-5 py-4">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-            <div>
-              <p className="ui-label text-text-primary">Automatic updates</p>
-              <p className="mt-1 text-sm text-text-muted">
-                {schedule.enabled
-                  ? `Runs every ${formatInterval(schedule.intervalMinutes)} in batches of ${schedule.batchSize}.`
-                  : "Paused. No scheduled batches will start."}
-              </p>
-            </div>
-            <Button
-              disabled={updatingSchedule}
-              onClick={() => {
-                setUpdatingSchedule(true);
-                setError(null);
-                void api
-                  .updateTmdbRefreshSchedule({ enabled: !schedule.enabled })
-                  .then(load)
-                  .catch((cause) =>
-                    reportError(cause, "Unable to update automatic refresh"),
-                  )
-                  .finally(() => setUpdatingSchedule(false));
-              }}
-              variant="secondary"
-            >
-              {schedule.enabled
-                ? "Pause automatic updates"
-                : "Resume automatic updates"}
-            </Button>
-          </div>
-          <form
-            className="mt-5 grid gap-4 border-t border-border-subtle pt-5 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!scheduleValuesAreValid || !scheduleHasChanges) return;
-              setUpdatingSchedule(true);
-              setError(null);
-              void api
-                .updateTmdbRefreshSchedule({
-                  batchSize: parsedBatchSize,
-                  intervalMinutes: parsedIntervalMinutes,
-                })
-                .then(() => {
-                  setIntervalMinutesInput(null);
-                  setBatchSizeInput(null);
-                  return load();
-                })
-                .catch((cause) =>
-                  reportError(cause, "Unable to save refresh schedule"),
-                )
-                .finally(() => setUpdatingSchedule(false));
-            }}
-          >
-            <div className="text-sm text-text-secondary">
-              <label
-                className="ui-label mb-2 block text-text-muted"
-                htmlFor="tmdb-refresh-frequency"
-              >
-                Frequency (minutes)
-              </label>
-              <Input
-                aria-describedby="tmdb-refresh-frequency-help"
-                aria-invalid={
-                  intervalMinutes !== "" &&
-                  (!Number.isInteger(parsedIntervalMinutes) ||
-                    parsedIntervalMinutes < 15 ||
-                    parsedIntervalMinutes > 10080)
-                }
-                max={10080}
-                min={15}
-                id="tmdb-refresh-frequency"
-                onChange={(event) =>
-                  setIntervalMinutesInput(event.target.value)
-                }
-                step={15}
-                type="number"
-                value={intervalMinutes}
-              />
-              <span
-                className="mt-1.5 block text-xs text-text-muted"
-                id="tmdb-refresh-frequency-help"
-              >
-                15 minutes to 7 days
-              </span>
-            </div>
-            <div className="text-sm text-text-secondary">
-              <label
-                className="ui-label mb-2 block text-text-muted"
-                htmlFor="tmdb-refresh-batch-size"
-              >
-                Batch size
-              </label>
-              <Input
-                aria-describedby="tmdb-refresh-batch-size-help"
-                aria-invalid={
-                  batchSize !== "" &&
-                  (!Number.isInteger(parsedBatchSize) ||
-                    parsedBatchSize < 1 ||
-                    parsedBatchSize > 50)
-                }
-                max={50}
-                min={1}
-                id="tmdb-refresh-batch-size"
-                onChange={(event) => setBatchSizeInput(event.target.value)}
-                step={1}
-                type="number"
-                value={batchSize}
-              />
-              <span
-                className="mt-1.5 block text-xs text-text-muted"
-                id="tmdb-refresh-batch-size-help"
-              >
-                1 to 50 titles per run
-              </span>
-            </div>
-            <Button
-              className="sm:col-span-2 lg:col-span-1 lg:mb-[1.375rem]"
-              disabled={
-                updatingSchedule ||
-                !scheduleValuesAreValid ||
-                !scheduleHasChanges
-              }
-              type="submit"
-            >
-              Save schedule
-            </Button>
-          </form>
-          <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-6">
-            <div>
-              <dt className="ui-label text-text-muted">Next run</dt>
-              <dd className="mt-1 text-text-primary">
-                {schedule.enabled
-                  ? formatDueTimestamp(schedule.nextRunAt)
-                  : "Paused"}
-              </dd>
-            </div>
-            <div>
-              <dt className="ui-label text-text-muted">Last completed</dt>
-              <dd className="mt-1 text-text-primary">
-                {formatTimestamp(schedule.lastCompletedAt)}
-              </dd>
-            </div>
-            <div>
-              <dt className="ui-label text-text-muted">Last result</dt>
-              <dd className="mt-1 text-text-primary">
-                {schedule.lastRefreshed} refreshed, {schedule.lastFailed} failed
-              </dd>
-            </div>
-            <div>
-              <dt className="ui-label text-text-muted">Remaining</dt>
-              <dd className="mt-1 text-text-primary">
-                {schedule.lastRemaining}
-              </dd>
-            </div>
-            <div>
-              <dt className="ui-label text-text-muted">D1 processing</dt>
-              <dd className="mt-1 text-text-primary">
-                {schedule.lastProcessingRowsRead === null ||
-                schedule.lastProcessingRowsWritten === null
-                  ? "Not recorded"
-                  : `${schedule.lastProcessingRowsRead.toLocaleString()} read, ${schedule.lastProcessingRowsWritten.toLocaleString()} written`}
-              </dd>
-            </div>
-            {schedule.audit &&
-              (schedule.audit.updated.at !== null ||
-                schedule.audit.updated.by !== null) && (
-                <div>
-                  <dt className="ui-label text-text-muted">
-                    Schedule last updated
-                  </dt>
-                  <dd className="mt-1 text-text-primary">
-                    {formatTimestamp(schedule.audit.updated.at)}
-                    {schedule.audit.updated.by
-                      ? ` · ${schedule.audit.updated.by}`
-                      : " · Unknown user"}
-                  </dd>
-                </div>
-              )}
-          </dl>
-          <p className="mt-3 text-xs text-text-muted">
-            Refresh processing only; excludes scheduler, expiration maintenance,
-            and Manager&apos;s Office reads.
-            {schedule.lastProcessingRetried
-              ? " D1 retried at least one operation, so the totals reflect last attempts and may be lower than billed usage."
-              : ""}
-          </p>
-          {(schedule.lastError || schedule.lastRateLimited) && (
-            <p className="mt-4 text-sm text-danger">
-              {schedule.lastError ?? "The last run was rate limited."}
-            </p>
-          )}
-        </div>
-      </Card>
-
+    <>
       <div className="mb-5 flex flex-col justify-end gap-3 sm:flex-row sm:items-end">
         <label className="grid gap-1.5 text-xs text-text-muted">
           <span className="ui-label">Status</span>
@@ -762,95 +875,14 @@ export function TmdbStatusPage({
             </thead>
             <tbody className="data-surface divide-y divide-border-subtle">
               {queue.items.map((item) => (
-                <tr
-                  className="bg-canvas/35 transition hover:bg-action/15"
+                <RefreshQueueRow
                   key={item.movieId}
-                >
-                  <td className="px-5 py-4 break-words text-text-muted">
-                    <AppLink
-                      className="font-semibold text-text-primary hover:text-highlight-soft"
-                      href={`/movies/${encodeURIComponent(item.movieId)}?from=manager-office`}
-                      onNavigate={onNavigate}
-                    >
-                      {item.title}
-                    </AppLink>
-                  </td>
-                  <td className="px-5 py-4 text-text-muted">
-                    {item.tmdbId ?? "—"}
-                  </td>
-                  <td className="px-5 py-4 break-words text-text-muted">
-                    <span
-                      className={
-                        item.state === "failed"
-                          ? "text-danger"
-                          : item.state === "current"
-                            ? "text-text-secondary"
-                            : "text-highlight-soft"
-                      }
-                    >
-                      {stateLabel[item.state]}
-                      {item.lastError && (
-                        <span className="mt-1 block max-w-64 text-xs text-danger">
-                          {item.lastError}
-                        </span>
-                      )}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4 text-text-muted">
-                    <QueueTimestamp
-                      fallback={item.state === "unlinked" ? "—" : "Never"}
-                      value={item.fetchedAt}
-                    />
-                  </td>
-                  <td className="px-5 py-4 text-text-muted">
-                    <QueueTimestamp fallback="—" value={item.lastAttemptAt} />
-                  </td>
-                  <td className="px-5 py-4 text-text-muted">
-                    <QueueTimestamp
-                      due
-                      fallback="—"
-                      value={item.refreshAfter}
-                    />
-                  </td>
-                  <td className="px-5 py-4 text-text-muted">
-                    {item.contractId === null ? (
-                      "—"
-                    ) : (
-                      <span title={item.contractId}>
-                        {shortContractId(item.contractId)}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-5 py-4 text-text-muted">
-                    {item.state === "current" ? (
-                      <Button
-                        aria-label={`Queue ${item.title} for refetch`}
-                        disabled={
-                          refreshing || queueingMovieId === item.movieId
-                        }
-                        onClick={() => void queueRefetch(item)}
-                        size="compact"
-                        variant="secondary"
-                      >
-                        <RefreshCw
-                          className={
-                            queueingMovieId === item.movieId
-                              ? "animate-spin"
-                              : undefined
-                          }
-                          size={15}
-                        />
-                        {queueingMovieId === item.movieId
-                          ? "Queueing…"
-                          : "Queue refetch"}
-                      </Button>
-                    ) : item.state === "unlinked" ? (
-                      "—"
-                    ) : (
-                      "Queued"
-                    )}
-                  </td>
-                </tr>
+                  item={item}
+                  onNavigate={onNavigate}
+                  onRefetch={queueRefetch}
+                  queueing={queueingMovieId === item.movieId}
+                  refreshing={refreshing}
+                />
               ))}
               {!refreshing && queue.items.length === 0 && (
                 <tr>
@@ -885,6 +917,95 @@ export function TmdbStatusPage({
           }
         />
       </Card>
-    </div>
+    </>
+  );
+}
+
+function RefreshQueueRow({
+  item,
+  onNavigate,
+  onRefetch,
+  queueing,
+  refreshing,
+}: {
+  item: TmdbRefreshItem;
+  onNavigate: Navigate;
+  onRefetch: (item: TmdbRefreshItem) => Promise<void>;
+  queueing: boolean;
+  refreshing: boolean;
+}) {
+  return (
+    <tr className="bg-canvas/35 transition hover:bg-action/15">
+      <td className="px-5 py-4 break-words text-text-muted">
+        <AppLink
+          className="font-semibold text-text-primary hover:text-highlight-soft"
+          href={`/movies/${encodeURIComponent(item.movieId)}?from=manager-office`}
+          onNavigate={onNavigate}
+        >
+          {item.title}
+        </AppLink>
+      </td>
+      <td className="px-5 py-4 text-text-muted">{item.tmdbId ?? "—"}</td>
+      <td className="px-5 py-4 break-words text-text-muted">
+        <span
+          className={
+            item.state === "failed"
+              ? "text-danger"
+              : item.state === "current"
+                ? "text-text-secondary"
+                : "text-highlight-soft"
+          }
+        >
+          {stateLabel[item.state]}
+          {item.lastError && (
+            <span className="mt-1 block max-w-64 text-xs text-danger">
+              {item.lastError}
+            </span>
+          )}
+        </span>
+      </td>
+      <td className="px-5 py-4 text-text-muted">
+        <QueueTimestamp
+          fallback={item.state === "unlinked" ? "—" : "Never"}
+          value={item.fetchedAt}
+        />
+      </td>
+      <td className="px-5 py-4 text-text-muted">
+        <QueueTimestamp fallback="—" value={item.lastAttemptAt} />
+      </td>
+      <td className="px-5 py-4 text-text-muted">
+        <QueueTimestamp due fallback="—" value={item.refreshAfter} />
+      </td>
+      <td className="px-5 py-4 text-text-muted">
+        {item.contractId === null ? (
+          "—"
+        ) : (
+          <span title={item.contractId}>
+            {shortContractId(item.contractId)}
+          </span>
+        )}
+      </td>
+      <td className="px-5 py-4 text-text-muted">
+        {item.state === "current" ? (
+          <Button
+            aria-label={`Queue ${item.title} for refetch`}
+            disabled={refreshing || queueing}
+            onClick={() => void onRefetch(item)}
+            size="compact"
+            variant="secondary"
+          >
+            <RefreshCw
+              className={queueing ? "animate-spin" : undefined}
+              size={15}
+            />
+            {queueing ? "Queueing…" : "Queue refetch"}
+          </Button>
+        ) : item.state === "unlinked" ? (
+          "—"
+        ) : (
+          "Queued"
+        )}
+      </td>
+    </tr>
   );
 }

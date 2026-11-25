@@ -1,15 +1,6 @@
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  api,
-  ApiError,
-  type AuthState,
-  type CollectionDetail,
-  type HomeMovie,
-  type Movie,
-  type MovieDetail,
-  type NowShowing,
-} from "./api";
+import { api, ApiError, type AuthState, type Movie } from "./api";
 import { AddMovieDialog } from "./components/add-movie-dialog";
 import {
   AppHeader,
@@ -26,46 +17,14 @@ import { LibraryPage } from "./components/library-page";
 import { MovieDetailPage } from "./components/movie-detail-page";
 import { TmdbStatusPage } from "./components/tmdb-status-page";
 import { Button } from "./components/ui";
-import {
-  POSTER_REEL_LEAD_IN_MS,
-  POSTER_REEL_LIMIT,
-  POSTER_REVEAL_DURATION_MS,
-  posterReelDurationMs,
-  preloadPosterPath,
-  preloadPosterReel,
-  selectPosterReel,
-  wait,
-} from "./lib/poster-reel";
-import { formatMovieTitle } from "./lib/utils";
-import { parseRoute } from "./route";
-import type { RunAction, Tab } from "./types";
-
-type RollRevealState = {
-  reel: HomeMovie[];
-  starting: { posterPath: string | null; title: string } | null;
-  selected: { posterPath: string | null; title: string } | null;
-};
+import { useCatalogRoute } from "./lib/use-catalog-route";
+import { usePosterRoll } from "./lib/use-poster-roll";
+import type { ReturnTarget, RunAction, Tab } from "./types";
 
 export default function App() {
-  const [route, setRoute] = useState(() =>
-    parseRoute(window.location.pathname, window.location.search),
-  );
-  const [nowShowing, setNowShowing] = useState<NowShowing | null>(null);
-  const [hasNextCollectionMovie, setHasNextCollectionMovie] = useState(false);
-  const [watchedMovies, setWatchedMovies] = useState<HomeMovie[]>([]);
-  const [posterReelMovies, setPosterReelMovies] = useState<HomeMovie[]>([]);
-  const [collectionMovies, setCollectionMovies] = useState<Movie[]>([]);
-  const [collectionDetail, setCollectionDetail] =
-    useState<CollectionDetail | null>(null);
   const [catalogRevision, setCatalogRevision] = useState(0);
-  const [movieDetail, setMovieDetail] = useState<MovieDetail | null>(null);
-  const [movieDetailLoading, setMovieDetailLoading] = useState(
-    route.page === "movie",
-  );
-  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [rollReveal, setRollReveal] = useState<RollRevealState | null>(null);
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
   const [deletingMovie, setDeletingMovie] = useState<{
     movie: Movie;
@@ -74,24 +33,17 @@ export default function App() {
   const [auth, setAuth] = useState<AuthState | null>(null);
   const [addingMovie, setAddingMovie] = useState(false);
   const addMovieTriggerRef = useRef<HTMLButtonElement>(null);
-  const addedMovieDetailRef = useRef<MovieDetail | null>(null);
-  const preparedPosterReelRef = useRef<Promise<HomeMovie[]> | null>(null);
-  const preparedPosterReelSourceRef = useRef<string | null>(null);
-  const activeRouteRef = useRef(route);
-  const pageRequestSequence = useRef(0);
-  const movieRequestSequence = useRef(0);
-
-  const syncRoute = useCallback(() => {
-    const nextRoute = parseRoute(
-      window.location.pathname,
-      window.location.search,
-    );
-    activeRouteRef.current = nextRoute;
-    setRoute(nextRoute);
-    setLoading(nextRoute.page === "home" || nextRoute.page === "collection");
-    setMovieDetailLoading(nextRoute.page === "movie");
-    setError(null);
-  }, []);
+  const catalog = useCatalogRoute(setError);
+  const {
+    navigate,
+    nowShowing,
+    openCreatedMovie,
+    posterReelMovies,
+    refresh,
+    refreshMovieDetail,
+    route,
+    setNowShowing,
+  } = catalog;
 
   const refreshAuth = useCallback(async () => {
     try {
@@ -101,163 +53,9 @@ export default function App() {
     }
   }, []);
 
-  const refresh = useCallback(async (showLoading = true) => {
-    const requestRoute = activeRouteRef.current;
-    const sequence = ++pageRequestSequence.current;
-    const isCurrent = () =>
-      activeRouteRef.current === requestRoute &&
-      sequence === pageRequestSequence.current;
-    if (
-      requestRoute.page !== "home" &&
-      requestRoute.page !== "library" &&
-      requestRoute.page !== "collection"
-    ) {
-      if (isCurrent()) setLoading(false);
-      return;
-    }
-    if (showLoading) setLoading(true);
-    try {
-      if (requestRoute.page === "home") {
-        const home = await api.home();
-        if (!isCurrent()) return;
-        setNowShowing(home.nowShowing);
-        setHasNextCollectionMovie(home.hasNextCollectionMovie);
-        setWatchedMovies(home.watchedMovies);
-        setPosterReelMovies(home.posterReelMovies);
-      } else if (requestRoute.page === "collection") {
-        const result = await api.collection(requestRoute.collectionId);
-        if (!isCurrent()) return;
-        setCollectionMovies(result.movies);
-        setCollectionDetail(result.collection);
-      }
-      setError(null);
-    } catch (cause) {
-      if (!isCurrent()) return;
-      if (
-        requestRoute.page === "collection" &&
-        cause instanceof ApiError &&
-        cause.status === 404
-      ) {
-        setCollectionMovies([]);
-        setCollectionDetail(null);
-        setError(null);
-      } else {
-        setError(
-          cause instanceof Error ? cause.message : "Unable to load this page",
-        );
-      }
-    } finally {
-      if (isCurrent()) setLoading(false);
-    }
-  }, []);
-
-  const refreshMovieDetail = useCallback(async (showLoading = true) => {
-    const requestRoute = activeRouteRef.current;
-    const sequence = ++movieRequestSequence.current;
-    const isCurrent = () =>
-      activeRouteRef.current === requestRoute &&
-      sequence === movieRequestSequence.current;
-    if (requestRoute.page !== "movie") {
-      setMovieDetail(null);
-      setMovieDetailLoading(false);
-      return;
-    }
-    if (addedMovieDetailRef.current?.id === requestRoute.movieId) {
-      setMovieDetail(addedMovieDetailRef.current);
-      addedMovieDetailRef.current = null;
-      setMovieDetailLoading(false);
-      return;
-    }
-    if (showLoading) setMovieDetailLoading(true);
-    try {
-      const result = await api.movie(requestRoute.movieId);
-      if (!isCurrent()) return;
-      setMovieDetail(result.movie);
-      setError(null);
-    } catch (cause) {
-      if (!isCurrent()) return;
-      setMovieDetail(null);
-      if (cause instanceof ApiError && cause.status === 404) {
-        setError(null);
-      } else {
-        setError(
-          cause instanceof Error ? cause.message : "Unable to load the movie",
-        );
-      }
-    } finally {
-      if (isCurrent()) setMovieDetailLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    void Promise.resolve().then(() => {
-      if (!cancelled) return refresh();
-    });
-    return () => {
-      cancelled = true;
-      pageRequestSequence.current += 1;
-    };
-  }, [refresh, route]);
-
   useEffect(() => {
     void Promise.resolve().then(refreshAuth);
   }, [refreshAuth]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void Promise.resolve().then(() => {
-      if (!cancelled) return refreshMovieDetail();
-    });
-    return () => {
-      cancelled = true;
-      movieRequestSequence.current += 1;
-    };
-  }, [refreshMovieDetail, route]);
-
-  useEffect(() => {
-    if (
-      route.page !== "home" ||
-      auth?.authenticated !== true ||
-      posterReelMovies.length === 0
-    ) {
-      preparedPosterReelRef.current = null;
-      preparedPosterReelSourceRef.current = null;
-      return;
-    }
-    const source = posterReelMovies
-      .map((movie) => `${movie.id}:${movie.poster_path ?? ""}`)
-      .join("|");
-    if (
-      preparedPosterReelSourceRef.current === source &&
-      preparedPosterReelRef.current
-    )
-      return;
-
-    const reducedMotion = window.matchMedia?.(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    const reel = selectPosterReel(
-      posterReelMovies,
-      Math.random,
-      reducedMotion ? 1 : POSTER_REEL_LIMIT,
-    );
-    preparedPosterReelSourceRef.current = source;
-    preparedPosterReelRef.current = preloadPosterReel(reel);
-  }, [auth?.authenticated, posterReelMovies, route.page]);
-
-  useEffect(() => {
-    window.addEventListener("popstate", syncRoute);
-    return () => window.removeEventListener("popstate", syncRoute);
-  }, [syncRoute]);
-
-  const navigate = useCallback(
-    (path: string) => {
-      window.history.pushState(null, "", path);
-      syncRoute();
-    },
-    [syncRoute],
-  );
 
   const run = useCallback<RunAction>(
     async (action, after) => {
@@ -285,58 +83,15 @@ export default function App() {
     [refresh, refreshAuth, refreshMovieDetail],
   );
 
-  const roll = useCallback(() => {
-    void run(async () => {
-      const reducedMotion = window.matchMedia?.(
-        "(prefers-reduced-motion: reduce)",
-      ).matches;
-      const preparedReel =
-        preparedPosterReelRef.current ??
-        preloadPosterReel(
-          selectPosterReel(
-            posterReelMovies,
-            Math.random,
-            reducedMotion ? 1 : POSTER_REEL_LIMIT,
-          ),
-        );
-      preparedPosterReelRef.current = null;
-      const starting = nowShowing?.title
-        ? {
-            posterPath: nowShowing.poster_path,
-            title: formatMovieTitle(nowShowing.title, nowShowing.version),
-          }
-        : null;
-      setRollReveal({ reel: [], starting, selected: null });
-      try {
-        const [reel, result] = await Promise.all([
-          preparedReel,
-          api.roll(),
-          wait(POSTER_REEL_LEAD_IN_MS),
-        ]);
-        setRollReveal((current) => (current ? { ...current, reel } : current));
-        const [posterPath] = await Promise.all([
-          preloadPosterPath(result.nowShowing.poster_path),
-          wait(posterReelDurationMs(reel.length)),
-        ]);
-        const selected = {
-          posterPath,
-          title: formatMovieTitle(
-            result.nowShowing.title ?? result.rolledMovie.title,
-            result.nowShowing.version ?? result.rolledMovie.version,
-          ),
-        };
-        setNowShowing(result.nowShowing);
-        setRollReveal((current) => ({
-          reel: current?.reel ?? [],
-          starting: current?.starting ?? null,
-          selected,
-        }));
-        await wait(POSTER_REVEAL_DURATION_MS);
-      } finally {
-        setRollReveal(null);
-      }
-    });
-  }, [nowShowing, posterReelMovies, run]);
+  const canMutate = auth?.authenticated === true;
+  const { roll, rollReveal } = usePosterRoll({
+    authenticated: canMutate,
+    nowShowing,
+    page: route.page,
+    posterReelMovies,
+    run,
+    setNowShowing,
+  });
 
   const logout = useCallback(async () => {
     setBusy(true);
@@ -351,7 +106,6 @@ export default function App() {
     }
   }, []);
 
-  const canMutate = auth?.authenticated === true;
   const login = useCallback(() => {
     const params = new URLSearchParams({
       returnTo: `${window.location.pathname}${window.location.search}`,
@@ -394,75 +148,19 @@ export default function App() {
       />
 
       <main className="relative z-10 mx-auto max-w-7xl px-5 pt-9 pb-20 lg:px-8 lg:pt-12">
-        {route.page === "credits" ? (
-          <CreditsPage />
-        ) : route.page === "tmdb-status" ? (
-          auth === null ? (
-            <LoadingState />
-          ) : (
-            <TmdbStatusPage
-              canMutate={canMutate}
-              onAuthExpired={refreshAuth}
-              onNavigate={navigate}
-            />
-          )
-        ) : loading ? (
-          <LoadingState />
-        ) : route.page === "home" ? (
-          <HomePage
-            nowShowing={nowShowing}
-            hasNextCollectionMovie={hasNextCollectionMovie}
-            watchedMovies={watchedMovies}
-            busy={busy}
-            canMutate={canMutate}
-            onLogin={login}
-            onNavigate={navigate}
-            roll={roll}
-            run={run}
-          />
-        ) : route.page === "library" ? (
-          <LibraryPage
-            canMutate={canMutate}
-            onEdit={setEditingMovie}
-            onNavigate={navigate}
-            reloadToken={catalogRevision}
-          />
-        ) : route.page === "collection" ? (
-          <CollectionDetailPage
-            audit={collectionDetail?.audit}
-            busy={busy}
-            canMutate={canMutate}
-            collectionId={route.collectionId}
-            key={route.collectionId}
-            movies={collectionMovies}
-            onLogin={login}
-            onNavigate={navigate}
-            returnTo={route.returnTo}
-            run={run}
-          />
-        ) : route.page === "movie" && movieDetailLoading ? (
-          <LoadingState />
-        ) : (
-          <MovieDetailPage
-            canMutate={canMutate}
-            movie={movieDetail}
-            onDelete={(movie) =>
-              setDeletingMovie({
-                movie,
-                returnTo:
-                  route.page === "movie" && route.returnTo === "now-showing"
-                    ? "/"
-                    : route.page === "movie" &&
-                        route.returnTo === "manager-office"
-                      ? "/manager-office"
-                      : "/library",
-              })
-            }
-            onEdit={setEditingMovie}
-            onNavigate={navigate}
-            returnTo={route.page === "movie" ? route.returnTo : "library"}
-          />
-        )}
+        <AppPage
+          authReady={auth !== null}
+          busy={busy}
+          canMutate={canMutate}
+          catalog={catalog}
+          catalogRevision={catalogRevision}
+          onAuthExpired={refreshAuth}
+          onDelete={(movie, returnTo) => setDeletingMovie({ movie, returnTo })}
+          onEdit={setEditingMovie}
+          onLogin={login}
+          roll={roll}
+          run={run}
+        />
       </main>
 
       {error && (
@@ -480,12 +178,7 @@ export default function App() {
           busy={busy}
           onAuthExpired={refreshAuth}
           onClose={() => setAddingMovie(false)}
-          onCreated={(movie) => {
-            addedMovieDetailRef.current = movie;
-            setMovieDetail(movie);
-            setMovieDetailLoading(false);
-            navigate(`/movies/${encodeURIComponent(movie.id)}`);
-          }}
+          onCreated={openCreatedMovie}
           run={run}
         />
       )}
@@ -517,4 +210,108 @@ export default function App() {
       )}
     </div>
   );
+}
+
+const returnPaths: Record<ReturnTarget, string> = {
+  library: "/library",
+  "manager-office": "/manager-office",
+  "now-showing": "/",
+};
+
+function AppPage({
+  authReady,
+  busy,
+  canMutate,
+  catalog,
+  catalogRevision,
+  onAuthExpired,
+  onDelete,
+  onEdit,
+  onLogin,
+  roll,
+  run,
+}: {
+  authReady: boolean;
+  busy: boolean;
+  canMutate: boolean;
+  catalog: ReturnType<typeof useCatalogRoute>;
+  catalogRevision: number;
+  onAuthExpired: () => Promise<void>;
+  onDelete: (movie: Movie, returnTo: string) => void;
+  onEdit: (movie: Movie) => void;
+  onLogin: () => void;
+  roll: () => void;
+  run: RunAction;
+}) {
+  const { route, navigate } = catalog;
+  if (route.page === "credits") return <CreditsPage />;
+  if (route.page === "tmdb-status") {
+    return authReady ? (
+      <TmdbStatusPage
+        canMutate={canMutate}
+        onAuthExpired={onAuthExpired}
+        onNavigate={navigate}
+      />
+    ) : (
+      <LoadingState />
+    );
+  }
+  if (catalog.loading) return <LoadingState />;
+
+  switch (route.page) {
+    case "home":
+      return (
+        <HomePage
+          nowShowing={catalog.nowShowing}
+          hasNextCollectionMovie={catalog.hasNextCollectionMovie}
+          watchedMovies={catalog.watchedMovies}
+          busy={busy}
+          canMutate={canMutate}
+          onLogin={onLogin}
+          onNavigate={navigate}
+          roll={roll}
+          run={run}
+        />
+      );
+    case "library":
+      return (
+        <LibraryPage
+          canMutate={canMutate}
+          onEdit={onEdit}
+          onNavigate={navigate}
+          reloadToken={catalogRevision}
+        />
+      );
+    case "collection":
+      return (
+        <CollectionDetailPage
+          audit={catalog.collectionDetail?.audit}
+          busy={busy}
+          canMutate={canMutate}
+          collectionId={route.collectionId}
+          key={route.collectionId}
+          movies={catalog.collectionMovies}
+          onLogin={onLogin}
+          onNavigate={navigate}
+          returnTo={route.returnTo}
+          run={run}
+        />
+      );
+    case "movie":
+    case "not-found": {
+      const returnTo = route.page === "movie" ? route.returnTo : "library";
+      if (route.page === "movie" && catalog.movieDetailLoading)
+        return <LoadingState />;
+      return (
+        <MovieDetailPage
+          canMutate={canMutate}
+          movie={catalog.movieDetail}
+          onDelete={(movie) => onDelete(movie, returnPaths[returnTo])}
+          onEdit={onEdit}
+          onNavigate={navigate}
+          returnTo={returnTo}
+        />
+      );
+    }
+  }
 }

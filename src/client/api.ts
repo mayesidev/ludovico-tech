@@ -239,27 +239,29 @@ export class ApiError extends Error {
   }
 }
 
+const readApiError = async (response: Response) => {
+  const body = (await response.json().catch(() => ({}))) as {
+    error?: unknown;
+    message?: unknown;
+  };
+  const message =
+    typeof body.error === "string"
+      ? body.error
+      : typeof body.message === "string"
+        ? body.message
+        : body.error !== undefined || body.message !== undefined
+          ? "Request validation failed"
+          : "Something went wrong";
+  return new ApiError(message, response.status);
+};
+
 const request = async <T>(path: string, options?: RequestInit): Promise<T> => {
   const response = await fetch(path, {
     ...options,
     headers: { "Content-Type": "application/json", ...options?.headers },
   });
-  const body = (await response.json().catch(() => ({}))) as {
-    error?: unknown;
-    message?: unknown;
-  };
-  if (!response.ok) {
-    const message =
-      typeof body.error === "string"
-        ? body.error
-        : typeof body.message === "string"
-          ? body.message
-          : body.error !== undefined || body.message !== undefined
-            ? "Request validation failed"
-            : "Something went wrong";
-    throw new ApiError(message, response.status);
-  }
-  return body as T;
+  if (!response.ok) throw await readApiError(response);
+  return (await response.json().catch(() => ({}))) as T;
 };
 
 const tmdbRefreshQueueParameters = (query: TmdbRefreshQueueQuery) =>
