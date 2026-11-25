@@ -1,7 +1,7 @@
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { api } from "../api";
-import { Input } from "./ui";
+import { Input } from "./ui/input";
 
 export function CollectionNameField({
   onChange,

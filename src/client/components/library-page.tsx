@@ -11,7 +11,10 @@ import { formatDate, formatMovieTitle } from "../lib/utils";
 import type { Navigate } from "../types";
 import { AppLink } from "./app-link";
 import { PaginationControls } from "./pagination-controls";
-import { Card, Input } from "./ui";
+import { Button } from "./ui/button";
+import { Card } from "./ui/card";
+import { Input } from "./ui/input";
+import { Table, TableBody, TableHeader } from "./ui/table";
 
 type LibraryPageProps = {
   canMutate: boolean;
@@ -106,13 +109,15 @@ export function LibraryPage({
         }
         className="border-r border-highlight/10 px-5 py-4 font-semibold last:border-r-0"
       >
-        <button
-          className="text-text-primary hover:text-highlight-soft"
+        <Button
+          labelStyle="plain"
           onClick={() => changeSort(sort)}
+          size="bare"
+          variant="text"
         >
           {label}
           {active ? (query.direction === "asc" ? " ↑" : " ↓") : ""}
-        </button>
+        </Button>
       </th>
     );
   };
@@ -161,103 +166,102 @@ export function LibraryPage({
       )}
 
       <Card aria-busy={refreshing} className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1050px] table-fixed text-left text-sm">
-            <colgroup>
-              <col className="w-[220px]" />
-              <col className="w-[150px]" />
-              <col className="w-[110px]" />
-              <col className="w-[130px]" />
-              <col className="w-[150px]" />
-              <col className="w-[170px]" />
-              {canMutate && <col className="w-[120px]" />}
-            </colgroup>
-            <thead className="ui-label border-b border-highlight/15 bg-table-header text-text-primary/80">
-              <tr>
-                {sortHeader("Title", "title")}
-                {sortHeader("Collection", "collection")}
-                {sortHeader("Release", "releaseDate")}
-                {sortHeader("Date Added", "addedAt")}
-                {sortHeader("Rating", "rating")}
-                <th className="border-r border-highlight/10 px-5 py-4 font-semibold last:border-r-0">
-                  Links
-                </th>
-                {canMutate && (
-                  <th className="px-5 py-4 font-semibold">Actions</th>
-                )}
-              </tr>
-            </thead>
-            <tbody className="data-surface divide-y divide-border-subtle">
-              {movies.map((movie) => {
-                const title = formatMovieTitle(movie.title, movie.version);
-                return (
-                  <tr
-                    className="bg-canvas/35 transition hover:bg-action/15"
-                    key={movie.id}
-                  >
-                    <td className="px-5 py-4 break-words text-text-muted">
+        <Table className="min-w-[1050px]">
+          <colgroup>
+            <col className="w-[220px]" />
+            <col className="w-[150px]" />
+            <col className="w-[110px]" />
+            <col className="w-[130px]" />
+            <col className="w-[150px]" />
+            <col className="w-[170px]" />
+            {canMutate && <col className="w-[120px]" />}
+          </colgroup>
+          <TableHeader>
+            <tr>
+              {sortHeader("Title", "title")}
+              {sortHeader("Collection", "collection")}
+              {sortHeader("Release", "releaseDate")}
+              {sortHeader("Date Added", "addedAt")}
+              {sortHeader("Rating", "rating")}
+              <th className="border-r border-highlight/10 px-5 py-4 font-semibold last:border-r-0">
+                Links
+              </th>
+              {canMutate && (
+                <th className="px-5 py-4 font-semibold">Actions</th>
+              )}
+            </tr>
+          </TableHeader>
+          <TableBody>
+            {movies.map((movie) => {
+              const title = formatMovieTitle(movie.title, movie.version);
+              return (
+                <tr
+                  className="bg-canvas/35 transition hover:bg-action/15"
+                  key={movie.id}
+                >
+                  <td className="px-5 py-4 break-words text-text-muted">
+                    <AppLink
+                      className="font-semibold text-text-primary hover:text-highlight-soft"
+                      href={`/movies/${encodeURIComponent(movie.id)}?from=library`}
+                      onNavigate={onNavigate}
+                    >
+                      {title}
+                    </AppLink>
+                  </td>
+                  <td className="px-5 py-4 break-words text-text-muted">
+                    {movie.collection_id && movie.collection_name ? (
                       <AppLink
-                        className="font-semibold text-text-primary hover:text-highlight-soft"
-                        href={`/movies/${encodeURIComponent(movie.id)}?from=library`}
+                        className="hover:text-highlight-soft"
+                        href={`/collections/${encodeURIComponent(movie.collection_id)}`}
                         onNavigate={onNavigate}
                       >
-                        {title}
+                        {movie.collection_name}
                       </AppLink>
-                    </td>
-                    <td className="px-5 py-4 break-words text-text-muted">
-                      {movie.collection_id && movie.collection_name ? (
-                        <AppLink
-                          className="hover:text-highlight-soft"
-                          href={`/collections/${encodeURIComponent(movie.collection_id)}`}
-                          onNavigate={onNavigate}
-                        >
-                          {movie.collection_name}
-                        </AppLink>
-                      ) : null}
-                    </td>
-                    <td className="px-5 py-4 text-text-muted">
-                      {formatDate(movie.release_date)}
-                    </td>
-                    <td className="px-5 py-4 text-text-muted">
-                      {formatDate(movie.added_at)}
-                    </td>
-                    <td className="px-5 py-4 break-words text-text-muted">
-                      {movie.rating_score !== null ? (
-                        <span className="text-highlight-soft">
-                          {movie.rating_score} · {movie.rating_phrase}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-5 py-4 text-text-muted">
-                      <MovieLinks movie={movie} />
-                    </td>
-                    {canMutate && (
-                      <td className="px-5 py-4 text-text-muted">
-                        <button
-                          className="ui-label inline-flex min-h-9 items-center gap-1 rounded-sm border border-border-primary bg-surface/75 px-2.5 py-1.5 text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary"
-                          onClick={() => onEdit(movie)}
-                        >
-                          <Pencil size={13} />
-                          Edit
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-              {!refreshing && movies.length === 0 && (
-                <tr>
-                  <td
-                    className="px-5 py-8 text-center text-text-muted"
-                    colSpan={canMutate ? 7 : 6}
-                  >
-                    No movies match this search.
+                    ) : null}
                   </td>
+                  <td className="px-5 py-4 text-text-muted">
+                    {formatDate(movie.release_date)}
+                  </td>
+                  <td className="px-5 py-4 text-text-muted">
+                    {formatDate(movie.added_at)}
+                  </td>
+                  <td className="px-5 py-4 break-words text-text-muted">
+                    {movie.rating_score !== null ? (
+                      <span className="text-highlight-soft">
+                        {movie.rating_score} · {movie.rating_phrase}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="px-5 py-4 text-text-muted">
+                    <MovieLinks movie={movie} />
+                  </td>
+                  {canMutate && (
+                    <td className="px-5 py-4 text-text-muted">
+                      <Button
+                        onClick={() => onEdit(movie)}
+                        size="compact"
+                        variant="secondary"
+                      >
+                        <Pencil size={13} />
+                        Edit
+                      </Button>
+                    </td>
+                  )}
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              );
+            })}
+            {!refreshing && movies.length === 0 && (
+              <tr>
+                <td
+                  className="px-5 py-8 text-center text-text-muted"
+                  colSpan={canMutate ? 7 : 6}
+                >
+                  No movies match this search.
+                </td>
+              </tr>
+            )}
+          </TableBody>
+        </Table>
         <PaginationControls
           context="Library"
           itemLabel="movies"

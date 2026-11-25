@@ -1,72 +1,67 @@
 import { Trash2, X } from "lucide-react";
-import { useId, useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import type { Movie } from "../api";
 import { formatMovieTitle } from "../lib/utils";
-import { Dialog } from "./dialog";
-import { Button } from "./ui";
+import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "./ui/dialog";
 
 export function DeleteMovieDialog({
   busy,
   movie,
+  notice,
   onClose,
   onConfirm,
 }: {
   busy: boolean;
   movie: Movie;
+  notice?: ReactNode;
   onClose: () => void;
   onConfirm: () => void;
 }) {
   const cancelRef = useRef<HTMLButtonElement>(null);
-  const titleId = useId();
-  const descriptionId = useId();
   const movieTitle = formatMovieTitle(movie.title, movie.version);
 
   return (
-    <Dialog
-      describedBy={descriptionId}
-      initialFocus={cancelRef}
-      labelledBy={titleId}
-      onClose={onClose}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2
-            className="font-heading text-3xl font-medium tracking-tight text-text-primary"
-            id={titleId}
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent initialFocus={cancelRef}>
+        {notice}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <DialogTitle>Delete {movieTitle}?</DialogTitle>
+            <DialogDescription className="mt-3">
+              This removes the unwatched movie and its catalog references. This
+              action cannot be undone.
+            </DialogDescription>
+          </div>
+          <DialogClose
+            aria-label="Close Delete Dialog"
+            render={<Button variant="ghost" />}
           >
-            Delete {movieTitle}?
-          </h2>
-          <p
-            className="mt-3 text-sm leading-6 text-text-muted"
-            id={descriptionId}
-          >
-            This removes the unwatched movie and its catalog references. This
-            action cannot be undone.
-          </p>
+            <X size={18} />
+          </DialogClose>
         </div>
-        <Button
-          aria-label="Close Delete Dialog"
-          onClick={onClose}
-          variant="ghost"
-        >
-          <X size={18} />
-        </Button>
-      </div>
 
-      <div className="mt-7 flex flex-wrap justify-end gap-3">
-        <Button onClick={onClose} ref={cancelRef} type="button" variant="ghost">
-          Keep Movie
-        </Button>
-        <Button
-          disabled={busy}
-          onClick={onConfirm}
-          type="button"
-          variant="danger"
-        >
-          <Trash2 size={16} />
-          Delete Movie
-        </Button>
-      </div>
+        <div className="mt-7 flex flex-wrap justify-end gap-3">
+          <DialogClose render={<Button ref={cancelRef} variant="ghost" />}>
+            Keep Movie
+          </DialogClose>
+          <Button
+            disabled={busy}
+            onClick={onConfirm}
+            type="button"
+            variant="danger"
+          >
+            <Trash2 size={16} />
+            Delete Movie
+          </Button>
+        </div>
+      </DialogContent>
     </Dialog>
   );
 }

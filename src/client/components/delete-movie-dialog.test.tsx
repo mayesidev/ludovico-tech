@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Movie } from "../api";
@@ -39,7 +39,9 @@ describe("delete movie confirmation", () => {
     expect(
       screen.getByRole("dialog", { name: "Delete Unwatched Movie?" }),
     ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Keep Movie" })).toHaveFocus();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Keep Movie" })).toHaveFocus(),
+    );
     await user.click(screen.getByRole("button", { name: "Delete Movie" }));
     expect(onConfirm).toHaveBeenCalledOnce();
     expect(onClose).not.toHaveBeenCalled();

@@ -125,7 +125,7 @@ describe("add movie dialog", () => {
     await waitFor(() => expect(title).toHaveFocus());
     expect(
       screen.getByRole("checkbox", { name: /Specify a Version/ }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     await user.type(title, "Candidate");
     await user.type(
       screen.getByRole("combobox", { name: "Collection (optional)" }),
@@ -150,7 +150,7 @@ describe("add movie dialog", () => {
     const versionToggle = screen.getByRole("checkbox", {
       name: /Specify a Version/,
     });
-    expect(versionToggle).toBeEnabled();
+    expect(versionToggle).not.toHaveAttribute("aria-disabled", "true");
     await user.click(versionToggle);
     const versionRuntime = screen.getByRole("spinbutton", {
       name: "Version Runtime (minutes)",

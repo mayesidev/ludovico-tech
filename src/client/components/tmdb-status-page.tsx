@@ -19,7 +19,12 @@ import {
 import type { Navigate } from "../types";
 import { AppLink } from "./app-link";
 import { PaginationControls } from "./pagination-controls";
-import { Button, Card, Input } from "./ui";
+import { Alert } from "./ui/alert";
+import { Button } from "./ui/button";
+import { Card } from "./ui/card";
+import { Input } from "./ui/input";
+import { NativeSelect } from "./ui/native-select";
+import { Table, TableBody, TableHeader } from "./ui/table";
 
 const timestampFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: "medium",
@@ -359,14 +364,7 @@ export function TmdbStatusPage({
         </div>
       </div>
 
-      {error && (
-        <p
-          className="mb-6 rounded-sm border border-danger/50 bg-danger-surface px-4 py-3 text-sm text-danger"
-          role="alert"
-        >
-          {error}
-        </p>
-      )}
+      {error && <Alert className="mb-6">{error}</Alert>}
       <RefreshScheduleCard
         clearError={clearError}
         draft={scheduleDraft}
@@ -790,13 +788,15 @@ function RefreshQueue({
         }
         className="border-r border-highlight/10 px-5 py-4 font-semibold last:border-r-0"
       >
-        <button
-          className="text-text-primary hover:text-highlight-soft"
+        <Button
+          labelStyle="plain"
           onClick={() => changeSort(sort)}
+          size="bare"
+          variant="text"
         >
           {label}
           {active ? (queueQuery.direction === "asc" ? " ↑" : " ↓") : ""}
-        </button>
+        </Button>
       </th>
     );
   };
@@ -806,9 +806,8 @@ function RefreshQueue({
       <div className="mb-5 flex flex-col justify-end gap-3 sm:flex-row sm:items-end">
         <label className="grid gap-1.5 text-xs text-text-muted">
           <span className="ui-label">Status</span>
-          <select
+          <NativeSelect
             aria-label="Filter refresh status"
-            className="h-11 rounded-sm border border-border-subtle bg-canvas/75 px-3 text-sm text-text-primary"
             value={queueQuery.state}
             onChange={(event) =>
               setQueueQuery((current) => ({
@@ -826,7 +825,7 @@ function RefreshQueue({
             <option value="never_fetched">Never fetched</option>
             <option value="unlinked">Not linked</option>
             <option value="contract_stale">Contract stale</option>
-          </select>
+          </NativeSelect>
         </label>
         <div className="relative w-full sm:w-72">
           <Search
@@ -847,56 +846,54 @@ function RefreshQueue({
       </div>
 
       <Card aria-busy={refreshing} className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1180px] table-fixed text-left text-sm">
-            <colgroup>
-              <col className="w-[220px]" />
-              <col className="w-[90px]" />
-              <col className="w-[160px]" />
-              <col className="w-[130px]" />
-              <col className="w-[130px]" />
-              <col className="w-[130px]" />
-              <col className="w-[140px]" />
-              <col className="w-[180px]" />
-            </colgroup>
-            <thead className="ui-label border-b border-highlight/15 bg-table-header text-text-primary/80">
+        <Table className="min-w-[1180px]">
+          <colgroup>
+            <col className="w-[220px]" />
+            <col className="w-[90px]" />
+            <col className="w-[160px]" />
+            <col className="w-[130px]" />
+            <col className="w-[130px]" />
+            <col className="w-[130px]" />
+            <col className="w-[140px]" />
+            <col className="w-[180px]" />
+          </colgroup>
+          <TableHeader>
+            <tr>
+              {sortHeader("Title", "title")}
+              {sortHeader("TMDB ID", "tmdbId")}
+              {sortHeader("Status", "state")}
+              {sortHeader("Last fetched", "fetchedAt")}
+              {sortHeader("Last attempt", "lastAttemptAt")}
+              {sortHeader("Refresh after", "refreshAfter")}
+              {sortHeader("Fetch contract", "contractId")}
+              <th className="px-5 py-4 font-semibold" scope="col">
+                Action
+              </th>
+            </tr>
+          </TableHeader>
+          <TableBody>
+            {queue.items.map((item) => (
+              <RefreshQueueRow
+                key={item.movieId}
+                item={item}
+                onNavigate={onNavigate}
+                onRefetch={queueRefetch}
+                queueing={queueingMovieId === item.movieId}
+                refreshing={refreshing}
+              />
+            ))}
+            {!refreshing && queue.items.length === 0 && (
               <tr>
-                {sortHeader("Title", "title")}
-                {sortHeader("TMDB ID", "tmdbId")}
-                {sortHeader("Status", "state")}
-                {sortHeader("Last fetched", "fetchedAt")}
-                {sortHeader("Last attempt", "lastAttemptAt")}
-                {sortHeader("Refresh after", "refreshAfter")}
-                {sortHeader("Fetch contract", "contractId")}
-                <th className="px-5 py-4 font-semibold" scope="col">
-                  Action
-                </th>
+                <td
+                  className="px-5 py-8 text-center text-text-muted"
+                  colSpan={8}
+                >
+                  No Library titles match these filters.
+                </td>
               </tr>
-            </thead>
-            <tbody className="data-surface divide-y divide-border-subtle">
-              {queue.items.map((item) => (
-                <RefreshQueueRow
-                  key={item.movieId}
-                  item={item}
-                  onNavigate={onNavigate}
-                  onRefetch={queueRefetch}
-                  queueing={queueingMovieId === item.movieId}
-                  refreshing={refreshing}
-                />
-              ))}
-              {!refreshing && queue.items.length === 0 && (
-                <tr>
-                  <td
-                    className="px-5 py-8 text-center text-text-muted"
-                    colSpan={8}
-                  >
-                    No Library titles match these filters.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            )}
+          </TableBody>
+        </Table>
         <PaginationControls
           context="Manager's Office"
           itemLabel="Library titles"

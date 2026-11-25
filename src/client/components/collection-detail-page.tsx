@@ -9,7 +9,7 @@ import { cn, formatMovieTitle } from "../lib/utils";
 import type { Navigate, ReturnTarget, RunAction } from "../types";
 import { AppLink } from "./app-link";
 import { AuditDetails } from "./audit-details";
-import { Button } from "./ui";
+import { Button } from "./ui/button";
 
 type CollectionDetailPageProps = {
   busy: boolean;
@@ -185,22 +185,24 @@ export function CollectionDetailPage({
                 </span>
                 {canMutate && (
                   <div className="flex shrink-0 items-center justify-end gap-1.5 pr-3 max-sm:col-start-3 max-sm:row-start-1 max-sm:self-start max-sm:pt-3">
-                    <button
+                    <Button
                       aria-label={`Move ${title} Up`}
-                      className="grid size-9 place-items-center rounded-sm border border-border-primary bg-surface/75 text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary disabled:cursor-default disabled:opacity-30"
                       disabled={orderLocked || index === 0}
                       onClick={() => move(index, -1)}
+                      size="icon"
+                      variant="secondary"
                     >
                       <ArrowUp size={16} />
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       aria-label={`Move ${title} Down`}
-                      className="grid size-9 place-items-center rounded-sm border border-border-primary bg-surface/75 text-text-secondary hover:border-text-muted hover:bg-surface-elevated hover:text-text-primary disabled:cursor-default disabled:opacity-30"
                       disabled={orderLocked || index === draft.length - 1}
                       onClick={() => move(index, 1)}
+                      size="icon"
+                      variant="secondary"
                     >
                       <ArrowDown size={16} />
-                    </button>
+                    </Button>
                   </div>
                 )}
               </li>

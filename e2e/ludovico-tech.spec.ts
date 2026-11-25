@@ -60,7 +60,27 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await page
       .getByRole("textbox", { name: "Movie title" })
       .fill("Browser Test Feature");
-    await page.getByRole("button", { name: "Add Movie", exact: true }).click();
+    const addDialog = page.getByRole("dialog", { name: "Add a Movie" });
+    const saveMovie = addDialog.getByRole("button", {
+      name: "Add Movie",
+      exact: true,
+    });
+    await page.route(
+      "**/api/movies",
+      (route) =>
+        route.fulfill({
+          status: 409,
+          json: { error: "This movie could not be added" },
+        }),
+      { times: 1 },
+    );
+    await saveMovie.click();
+    await expect(addDialog.getByRole("alert")).toHaveText(
+      "This movie could not be added",
+    );
+    await addDialog.getByRole("button", { name: "Dismiss Error" }).click();
+    await expect(addDialog.getByRole("alert")).toBeHidden();
+    await saveMovie.click();
     await expect(
       page.getByRole("heading", { level: 1, name: "Browser Test Feature" }),
     ).toBeVisible();
@@ -76,7 +96,10 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
       timeout: 5_000,
     });
 
-    await page.getByRole("slider", { name: "Rating" }).fill("4.5");
+    const rating = page.getByRole("slider", { name: "Rating" });
+    await rating.fill("4");
+    await rating.press("ArrowRight");
+    await expect(rating).toHaveValue("4.5");
     await page
       .getByRole("textbox", { name: "Custom rating phrase (required)" })
       .fill("A browser-tested classic");
@@ -259,6 +282,18 @@ test.describe.serial("Ludovico Tech browser workflows", () => {
     await page.keyboard.press("Escape");
     await expect(confirmation).toBeHidden();
     await expect(deleteTrigger).toBeFocused();
+
+    await page.setViewportSize({ width: 390, height: 660 });
+    await deleteTrigger.click();
+    await expect(confirmation).toBeInViewport({ ratio: 1 });
+    await expect(page.locator("body")).toHaveCSS("overflow", "hidden");
+    await expect(
+      confirmation.getByRole("button", { name: "Keep Movie" }),
+    ).toBeFocused();
+    await page.mouse.click(5, 5);
+    await expect(confirmation).toBeHidden();
+    await expect(deleteTrigger).toBeFocused();
+
     await deleteTrigger.click();
     await confirmation.getByRole("button", { name: "Delete Movie" }).click();
 

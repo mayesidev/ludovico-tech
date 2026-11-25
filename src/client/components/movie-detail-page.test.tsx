@@ -51,10 +51,7 @@ describe("movie details", () => {
         returnTo="library"
       />,
     );
-    const activity = screen.getByRole("region", {
-      name: "Activity attribution",
-    });
-    const history = screen.getByText("History", { selector: "summary" });
+    const history = screen.getByRole("button", { name: "History" });
     expect(
       screen
         .getByRole("link", { name: /View on IMDb/ })
@@ -65,8 +62,14 @@ describe("movie details", () => {
         screen.getByRole("button", { name: "Edit Movie" }),
       ) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(activity).not.toBeVisible();
+    expect(history).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.queryByRole("region", { name: "Activity attribution" }),
+    ).toBeNull();
     await userEvent.click(history);
+    const activity = screen.getByRole("region", {
+      name: "Activity attribution",
+    });
     expect(within(activity).getByText(/Adding User/)).toBeVisible();
     expect(within(activity).getByText(/Rating User/)).toBeVisible();
     expect(within(activity).getByText(/TMDB refresh automation/)).toBeVisible();

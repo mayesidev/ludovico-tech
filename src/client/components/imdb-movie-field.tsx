@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { parseImdbId } from "../../shared/imdb";
-import { Input } from "./ui";
+import { Input } from "./ui/input";
 
 export function ImdbMovieField({
   onChange,

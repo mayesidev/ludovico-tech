@@ -1,5 +1,6 @@
 import { useId } from "react";
-import { Input } from "./ui";
+import { Checkbox } from "./ui/checkbox";
+import { Input } from "./ui/input";
 
 type MovieVersionFieldsProps = {
   attempted: boolean;
@@ -46,16 +47,15 @@ export function MovieVersionFields({
   return (
     <section className="rounded-sm border border-border-subtle bg-canvas/35 p-4">
       <label
-        className="flex cursor-pointer items-start gap-3 text-sm text-text-primary has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50"
+        className="flex cursor-pointer items-start gap-3 text-sm text-text-primary has-data-disabled:cursor-not-allowed has-data-disabled:opacity-50"
         htmlFor={toggleId}
       >
-        <input
+        <Checkbox
           checked={versionEnabled}
-          className="mt-0.5 size-4 accent-highlight"
+          className="mt-0.5"
           disabled={!tmdbSelected}
           id={toggleId}
-          onChange={(event) => onSpecifiedChange(event.target.checked)}
-          type="checkbox"
+          onCheckedChange={onSpecifiedChange}
         />
         <span>
           <span className="block font-semibold">Specify a Version</span>

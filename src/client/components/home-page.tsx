@@ -7,7 +7,10 @@ import { AppLink } from "./app-link";
 import { AuditDetails } from "./audit-details";
 import { Poster } from "./poster";
 import { RatingSlider } from "./rating-slider";
-import { Badge, Button, Card, Input } from "./ui";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Card } from "./ui/card";
+import { Input } from "./ui/input";
 
 type HomePageProps = {
   nowShowing: NowShowing | null;
@@ -312,7 +315,6 @@ function RatingForm({
   const [attempted, setAttempted] = useState(false);
   const phraseId = useId();
   const phraseErrorId = useId();
-  const scoreId = useId();
   const phraseMissing = attempted && !phrase.trim();
 
   return (
@@ -334,12 +336,7 @@ function RatingForm({
       }}
     >
       <div className="border-b border-highlight/15 p-4 sm:col-span-2 lg:col-span-1 lg:border-r lg:border-b-0">
-        <RatingSlider
-          disabled={busy}
-          id={scoreId}
-          onChange={setScore}
-          value={score}
-        />
+        <RatingSlider disabled={busy} onChange={setScore} value={score} />
       </div>
       <div className="flex flex-col justify-center border-b border-highlight/15 p-4 sm:border-r sm:border-b-0">
         <label className="sr-only" htmlFor={phraseId}>

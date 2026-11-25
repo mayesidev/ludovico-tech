@@ -370,7 +370,7 @@ describe("TMDB refresh status page", () => {
     expect(screen.getByText("Current fetch contract:")).toBeVisible();
     expect(screen.getByText(/TMDB refresh automation/)).toBeVisible();
     expect(screen.getByText("Schedule last updated")).toBeVisible();
-    expect(screen.queryByText("History", { selector: "summary" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "History" })).toBeNull();
     expect(
       screen.getByRole("columnheader", { name: "Fetch contract" }),
     ).toBeVisible();

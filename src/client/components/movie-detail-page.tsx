@@ -6,7 +6,7 @@ import type { ReturnTarget } from "../types";
 import { AppLink } from "./app-link";
 import { AuditDetails } from "./audit-details";
 import { Poster } from "./poster";
-import { Button } from "./ui";
+import { Button } from "./ui/button";
 
 type MovieDetailPageProps = {
   canMutate?: boolean;

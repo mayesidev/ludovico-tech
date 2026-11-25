@@ -65,7 +65,7 @@ describe("collection details", () => {
       />,
     );
     expect(screen.getByText(/Creating User/)).not.toBeVisible();
-    await userEvent.click(screen.getByText("History", { selector: "summary" }));
+    await userEvent.click(screen.getByRole("button", { name: "History" }));
     expect(screen.getByText(/Creating User/)).toBeVisible();
     expect(screen.getByText(/Updating User/)).toBeVisible();
 
