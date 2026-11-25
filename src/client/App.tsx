@@ -391,7 +391,7 @@ export default function App() {
         showTmdbStatus={canMutate}
       />
 
-      <main className="relative z-10 mx-auto max-w-7xl px-5 pb-20 pt-9 lg:px-8 lg:pt-12">
+      <main className="relative z-10 mx-auto max-w-7xl px-5 pt-9 pb-20 lg:px-8 lg:pt-12">
         {route.page === "credits" ? (
           <CreditsPage />
         ) : route.page === "tmdb-status" ? (

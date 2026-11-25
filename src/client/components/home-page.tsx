@@ -174,7 +174,7 @@ export function HomePage({
                 <strong className="text-2xl font-semibold text-highlight-soft">
                   {nowShowing.rating_score}
                 </strong>
-                <span className="text-sm italic text-text-primary">
+                <span className="text-sm text-text-primary italic">
                   {nowShowing.rating_phrase}
                 </span>
               </div>
@@ -295,7 +295,7 @@ function RatingForm({
         );
       }}
     >
-      <div className="border-b border-highlight/15 p-4 sm:col-span-2 lg:col-span-1 lg:border-b-0 lg:border-r">
+      <div className="border-b border-highlight/15 p-4 sm:col-span-2 lg:col-span-1 lg:border-r lg:border-b-0">
         <RatingSlider
           disabled={busy}
           id={scoreId}
@@ -303,7 +303,7 @@ function RatingForm({
           value={score}
         />
       </div>
-      <div className="flex flex-col justify-center border-b border-highlight/15 p-4 sm:border-b-0 sm:border-r">
+      <div className="flex flex-col justify-center border-b border-highlight/15 p-4 sm:border-r sm:border-b-0">
         <label className="sr-only" htmlFor={phraseId}>
           Custom rating phrase (required)
         </label>
@@ -375,7 +375,7 @@ function HistoryCard({
   return (
     <AppLink
       aria-label={`View details for ${title}`}
-      className="block h-full rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      className="block h-full rounded-sm focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
       href={`/movies/${encodeURIComponent(movie.id)}?from=now-showing`}
       onNavigate={onNavigate}
     >
@@ -385,7 +385,7 @@ function HistoryCard({
             <Poster path={movie.poster_path} title={title} />
           </div>
           <div className="min-w-0 pt-1">
-            <h3 className="font-heading text-lg font-semibold leading-tight text-text-primary">
+            <h3 className="font-heading text-lg leading-tight font-semibold text-text-primary">
               {title}
             </h3>
             {movie.rating_score !== null && (

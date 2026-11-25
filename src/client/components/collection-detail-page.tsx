@@ -137,7 +137,7 @@ export function CollectionDetailPage({
 
       <div className="mb-8 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
         <div>
-          <h1 className="font-heading text-5xl font-medium leading-[0.95] tracking-[-0.045em] text-text-primary sm:text-7xl">
+          <h1 className="font-heading text-5xl leading-[0.95] font-medium tracking-[-0.045em] text-text-primary sm:text-7xl">
             {collectionName}
           </h1>
           <p className="mt-4 text-sm text-text-muted">
@@ -209,7 +209,7 @@ export function CollectionDetailPage({
                 className="grid min-h-[78px] grid-cols-[52px_minmax(0,1fr)_auto] items-stretch border-b border-border-subtle bg-canvas/30 transition last:border-b-0 hover:bg-action/15 sm:grid-cols-[58px_minmax(0,1fr)_96px_92px]"
                 key={movie.id}
               >
-                <span className="grid place-items-center border-r border-border-subtle text-sm font-medium tabular-nums text-highlight-soft">
+                <span className="grid place-items-center border-r border-border-subtle text-sm font-medium text-highlight-soft tabular-nums">
                   {index + 1}
                 </span>
                 <div className="flex min-w-0 flex-col justify-center px-4 py-3 sm:px-5">
@@ -228,7 +228,7 @@ export function CollectionDetailPage({
                 </div>
                 <span
                   className={cn(
-                    "ui-label self-center text-text-muted max-sm:col-start-3 max-sm:row-start-1 max-sm:self-end max-sm:justify-self-end max-sm:pb-3 max-sm:pr-3",
+                    "ui-label self-center text-text-muted max-sm:col-start-3 max-sm:row-start-1 max-sm:self-end max-sm:justify-self-end max-sm:pr-3 max-sm:pb-3",
                     watched && "text-highlight-soft",
                   )}
                 >

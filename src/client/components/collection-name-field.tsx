@@ -73,7 +73,7 @@ export function CollectionNameField({
       {searching && (
         <LoaderCircle
           aria-label="Finding collections"
-          className="absolute right-3 top-3 animate-spin text-text-muted"
+          className="absolute top-3 right-3 animate-spin text-text-muted"
           size={18}
         />
       )}
