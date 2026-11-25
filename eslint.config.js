@@ -68,13 +68,6 @@ export default tseslint.config(
         ],
       },
     },
-    rules: {
-      ...reactDoctor.configs.recommended.rules,
-      "react-doctor/exhaustive-deps": "off",
-      "react-doctor/no-ref-current-in-render": "off",
-      "react-doctor/no-set-state-in-render": "off",
-      "react-doctor/rules-of-hooks": "off",
-    },
   },
   {
     files: ["src/client/components/dialog.tsx"],
