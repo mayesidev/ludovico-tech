@@ -24,18 +24,6 @@ application until the new release finishes deploying.
 `pnpm format` formats code, organizes imports (including removing unused imports),
 and sorts Tailwind utility classes. `pnpm format:check` enforces the same rules in CI.
 
-`pnpm lint` runs ESLint locally and in CI. The React client source uses all six
-[`@shadcn/lint` rules](https://github.com/shadcn-ui/lint#rules) as errors:
-
-- `no-raw-colors` and `no-arbitrary-values`: use the Tailwind v4 tokens in
-  `src/client/styles.css`. Arbitrary layout values are allowed for structural sizing
-  and grid tracks.
-- `no-restyle` and `require-static-classes`: keep appearance in variants of the
-  shared primitives in `src/client/components/ui.tsx`. Use static class names
-  for placement and layout at the call site.
-- `no-inline-styles` and `no-unknown-classes`: use classes the stylesheet defines
-  or Tailwind generates. Pass runtime values through CSS custom properties.
-
 ```sh
 pnpm install
 pnpm check
