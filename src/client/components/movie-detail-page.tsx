@@ -77,13 +77,13 @@ export function MovieDetailPage({
         {returnLabel}
       </AppLink>
 
-      <article className="mt-5 grid items-start gap-10 sm:grid-cols-[minmax(220px,286px)_minmax(0,1fr)] lg:gap-[clamp(44px,6vw,88px)]">
+      <article className="mt-5 grid items-start gap-10 sm:grid-cols-[minmax(220px,286px)_minmax(0,1fr)] lg:gap-movie-detail">
         <div className="mx-auto w-full max-w-[286px]">
           <Poster path={movie.poster_path} title={title} large />
         </div>
         <div className="min-w-0 pt-2">
           <div className="grid gap-5 border-b border-border-subtle pb-7 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-            <h1 className="font-heading text-5xl leading-[0.95] font-medium tracking-[-0.045em] text-text-primary sm:text-6xl">
+            <h1 className="font-heading text-5xl leading-display-tight font-medium tracking-display-tight text-text-primary sm:text-6xl">
               {title}
             </h1>
             {watched && movie.rating_phrase !== null && (

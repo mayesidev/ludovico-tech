@@ -128,7 +128,7 @@ export function LibraryPage({
     <div>
       <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
-          <h1 className="font-heading text-3xl leading-none font-medium tracking-[0.01em] text-text-primary sm:text-4xl">
+          <h1 className="font-heading text-3xl leading-none font-medium tracking-heading text-text-primary sm:text-4xl">
             Library
           </h1>
           <p className="mt-3 text-sm text-text-muted">
@@ -146,7 +146,7 @@ export function LibraryPage({
             Search movie library
           </label>
           <Input
-            className="pl-9"
+            adornment="start"
             id="library-search"
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
@@ -173,7 +173,7 @@ export function LibraryPage({
               <col className="w-[170px]" />
               {canMutate && <col className="w-[120px]" />}
             </colgroup>
-            <thead className="ui-label border-b border-highlight/15 bg-[#7a1d30] text-text-primary/80">
+            <thead className="ui-label border-b border-highlight/15 bg-table-header text-text-primary/80">
               <tr>
                 {sortHeader("Title", "title")}
                 {sortHeader("Collection", "collection")}

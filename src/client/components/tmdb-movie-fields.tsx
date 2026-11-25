@@ -150,9 +150,10 @@ export function TmdbMovieFields({
         />
         <Button
           aria-label="Search TMDB"
-          className="shrink-0 px-3 sm:px-4"
+          className="shrink-0"
           onClick={() => void search()}
           disabled={searching || !title.trim()}
+          size="responsive"
           type="button"
         >
           {searching ? (

@@ -52,8 +52,8 @@ export function CollectionNameField({
         Choose an existing collection or enter a new collection name.
       </span>
       <Input
+        adornment="end"
         aria-describedby={descriptionId}
-        className="pr-10"
         id={inputId}
         list={suggestionsId}
         onChange={(event) => {
