@@ -6,10 +6,39 @@
     "security:minimumReleaseAgeNpm"
   ],
   "prHourlyLimit": 0,
+  "automergeType": "pr",
+  "automergeStrategy": "squash",
+  "platformAutomerge": false,
   "lockFileMaintenance": {
-    "enabled": true
+    "enabled": true,
+    "automerge": true
   },
   "packageRules": [
+    {
+      "description": "Automerge stable npm patch and minor updates",
+      "matchManagers": ["npm"],
+      "matchDatasources": ["npm"],
+      "matchDepTypes": ["dependencies", "devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchNewValue": "/^[~^]?v?[0-9]+\\.[0-9]+\\.[0-9]+(?:\\+[0-9A-Za-z.-]+)?$/",
+      "automerge": true
+    },
+    {
+      "description": "Review minor updates to pre-1.0 packages",
+      "matchUpdateTypes": ["minor"],
+      "matchCurrentVersion": "/^v?0\\./",
+      "automerge": false
+    },
+    {
+      "description": "Review package manager and release tooling updates",
+      "matchPackageNames": [
+        "pnpm",
+        "semantic-release",
+        "@semantic-release/**",
+        "conventional-changelog-conventionalcommits"
+      ],
+      "automerge": false
+    },
     {
       "description": "Keep the coupled Cloudflare development toolchain compatible",
       "matchPackageNames": [
@@ -19,7 +48,8 @@
         "wrangler"
       ],
       "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "Cloudflare development toolchain"
+      "groupName": "Cloudflare development toolchain",
+      "automerge": false
     },
     {
       "description": "Keep ESLint peer-resolved tooling updates together",
