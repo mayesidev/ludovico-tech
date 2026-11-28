@@ -38,7 +38,7 @@
     "@tanstack/react-table": "9.3.1",
     "class-variance-authority": "0.7.1",
     "cn": "0.5.2",
-    "hono": "4.13.21",
+    "hono": "4.13.22",
     "lucide-react": "1.79.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
